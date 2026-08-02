@@ -1,18 +1,38 @@
-# Salesforce DX Project: Next Steps
+# Pharmaceuticals
 
-Now that you’ve created a Salesforce DX project, what’s next? Here are some documentation resources to get you started.
+This repository is split into two parts:
 
-## How Do You Plan to Deploy Your Changes?
+## 1. Salesforce (Pharmaceuticals org)
 
-Do you want to deploy a set of changes, or create a self-contained application? Choose a [development model](https://developer.salesforce.com/tools/vscode/en/user-guide/development-models).
+Salesforce DX project for the Pharmaceuticals org — Apex, LWC, Aura, metadata, manifests, and related scripts.
 
-## Configure Your Salesforce DX Project
+| Path | What’s here |
+|------|-------------|
+| `force-app/` | Deployable Salesforce metadata |
+| `manifest/` | Package manifests for retrieve/deploy |
+| `scripts/` | Apex/Python helpers for seeding, CLMs, ops |
+| `Plan/` | BRDs, scoping docs, catalogs, planning notes |
+| `config/`, `sfdx-project.json` | Salesforce DX project config |
 
-The `sfdx-project.json` file contains useful configuration information for your project. See [Salesforce DX Project Configuration](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_ws_config.htm) in the _Salesforce DX Developer Guide_ for details about this file.
+Target org alias used in npm scripts: `pharma-prod`.
 
-## Read All About It
+## 2. Offline runtime (Vite + Capacitor stack)
 
-- [Salesforce Extensions Documentation](https://developer.salesforce.com/tools/vscode/)
-- [Salesforce CLI Setup Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm)
-- [Salesforce DX Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_intro.htm)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference.htm)
+Modern JS stack for the Salesforce offline runtime — Vite-based UI/shell components for pharma field use, packaged with Capacitor (no Briefcase).
+
+| Path | What’s here |
+|------|-------------|
+| `offline-runtime/` | Monorepo root (`offline-salesforce-runtime`) |
+| `offline-runtime/apps/` | App shell (Vite) |
+| `offline-runtime/packages/` | Shared packages (DB, sync, validation, UI runtime) |
+
+```bash
+# Salesforce (repo root)
+npm install
+sf project retrieve start --manifest manifest/package.xml --target-org pharma-prod
+
+# Offline runtime
+cd offline-runtime
+npm install
+npm run dev
+```
