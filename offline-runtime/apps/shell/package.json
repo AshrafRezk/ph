@@ -1,0 +1,43 @@
+{
+  "name": "@osr/shell",
+  "version": "0.1.0-beta.19",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "cap:add:ios": "cap add ios",
+    "cap:add:android": "cap add android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/browser": "^6.0.3",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/device": "^6.0.3",
+    "@capacitor/filesystem": "^6.0.2",
+    "@capacitor/geolocation": "^6.1.1",
+    "@capacitor/network": "^6.0.3",
+    "@capacitor/preferences": "^6.0.3",
+    "@lwc/engine-dom": "^9.3.6",
+    "@osr/bridge": "0.1.0",
+    "@osr/db": "0.1.0",
+    "@osr/lwc-compile": "0.1.0",
+    "@osr/lwc-engine": "0.1.0",
+    "@osr/platform": "0.1.0",
+    "@osr/sync": "0.1.0",
+    "@osr/ui-runtime": "0.1.0",
+    "@osr/validation": "0.1.0",
+    "leaflet": "^1.9.4",
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "@types/leaflet": "^1.9.21",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  }
+}

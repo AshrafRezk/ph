@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomNotificationType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customNotifTypeName>Time_Off_Submitted_To_Manager</customNotifTypeName>
+    <description>In-app alert when a direct report submits a time-off request for approval.</description>
+    <desktop>true</desktop>
+    <masterLabel>Time Off Submitted To Manager</masterLabel>
+    <mobile>true</mobile>
+    <slack>false</slack>
+</CustomNotificationType>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Field rep home dashboard for desktop, tablet, and mobile — KPI metrics, today plan, and next best customers.</description>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeTodayPlan</componentName>
+                <identifier>fieldRepHomeTodayPlan</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>homeOfficeMessages</componentName>
+                <identifier>homeOfficeMessages</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeNextBestCustomer</componentName>
+                <identifier>fieldRepHomeNextBestCustomer</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeMetrics</componentName>
+                <identifier>fieldRepHomeMetrics</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>repLocationPublisher</componentName>
+                <identifier>repLocationPublisher</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeClmPrefetch</componentName>
+                <identifier>fieldRepHomeClmPrefetch</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>main</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>Field Rep Home App</masterLabel>
+    <template>
+        <name>flexipage:defaultAppHomeTemplate</name>
+    </template>
+    <type>AppPage</type>
+</FlexiPage>

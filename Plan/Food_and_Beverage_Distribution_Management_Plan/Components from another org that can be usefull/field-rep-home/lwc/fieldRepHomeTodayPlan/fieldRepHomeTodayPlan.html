@@ -1,0 +1,213 @@
+<template>
+    <article class="today-plan-card">
+        <header class="today-plan-header">
+            <div class="today-plan-heading">
+                <h2 class="today-plan-title">Today’s Plan</h2>
+                <p class="today-plan-subtitle">{planSubtitle}</p>
+                <template if:true={canSwitchView}>
+                    <lightning-combobox
+                        class="today-plan-rep-picker"
+                        label="View plan for"
+                        variant="label-hidden"
+                        placeholder="Select field rep…"
+                        value={selectedContextUserId}
+                        options={viewerOptions}
+                        onchange={handleContextUserChange}
+                    ></lightning-combobox>
+                </template>
+                <template if:true={viewingOtherBanner}>
+                    <div class="viewing-other-banner">{viewingOtherBanner}</div>
+                </template>
+            </div>
+            <div class="today-plan-header-actions">
+                <lightning-button
+                    label="Navigate on Google"
+                    title={googleNavigateTitle}
+                    variant="neutral"
+                    icon-name="utility:location"
+                    onclick={handleNavigateGoogle}
+                    disabled={isGoogleNavigateDisabled}
+                ></lightning-button>
+                <lightning-button
+                    label="Open Planner"
+                    variant="neutral"
+                    onclick={handleOpenPlanner}
+                ></lightning-button>
+            </div>
+        </header>
+
+        <template if:true={isLoading}>
+            <div class="today-plan-loading">
+                <lightning-spinner alternative-text="Loading today plan" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <div class="today-plan-body">
+                <div class="plan-layout">
+                    <div class="visit-list-col">
+                        <div class="sidebar-section-title">Route stops</div>
+                        <template if:true={showUnlinkedNote}>
+                            <div class="unlinked-note">{unlinkedNote}</div>
+                        </template>
+
+                        <template if:true={hasRouteOutliers}>
+                            <div class="route-outlier-card">
+                                <div class="sidebar-section-title">Distant stops</div>
+                                <p class="route-outlier-summary">{distantStopsSummary}</p>
+                                <ul class="route-outlier-list">
+                                    <template for:each={decoratedRouteOutliers} for:item="outlier">
+                                        <li key={outlier.visitId} class="route-outlier-item">
+                                            <div>
+                                                <strong>{outlier.accountName}</strong> — {outlier.awayLabel}
+                                            </div>
+                                            <template if:true={outlier.canAct}>
+                                                <div class="route-stop-actions">
+                                                    <lightning-button
+                                                        variant="neutral"
+                                                        label="Postpone to tomorrow"
+                                                        data-visit-id={outlier.visitId}
+                                                        onclick={handlePostponeVisit}
+                                                        disabled={isMutatingVisit}
+                                                    ></lightning-button>
+                                                    <lightning-button
+                                                        variant="destructive-text"
+                                                        label="Remove visit"
+                                                        data-visit-id={outlier.visitId}
+                                                        onclick={handleRemoveVisit}
+                                                        disabled={isMutatingVisit}
+                                                    ></lightning-button>
+                                                </div>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+
+                        <div class="visit-list">
+                            <template for:each={upNextVisits} for:item="v">
+                                <div
+                                    key={v.id}
+                                    class={v.stopClass}
+                                    data-visit-id={v.id}
+                                    onclick={handleSelectVisit}
+                                    role="button"
+                                    tabindex="0"
+                                >
+                                    <span class={v.orderClass}>{v.orderLabel}</span>
+                                    <div class="route-stop-body">
+                                        <button
+                                            type="button"
+                                            class="account-name-link"
+                                            data-account-id={v.accountId}
+                                            onclick={handleOpenAccount}
+                                        >
+                                            {v.accountName}
+                                        </button>
+                                        <div class="route-stop-type">{v.accountTypeLabel}</div>
+                                        <template if:true={v.accountSpecialty}>
+                                            <div class="route-stop-specialty">{v.accountSpecialty}</div>
+                                        </template>
+                                        <div class="route-stop-time">{v.timeLabel}</div>
+                                        <div class="route-stop-meta">
+                                            <span class={v.statusClass}>{v.statusLabel}</span>
+                                            <template if:true={v.isOutlier}>
+                                                <span class="outlier-badge" title="Far from other stops">Route outlier</span>
+                                            </template>
+                                            <template if:false={v.hasLocation}>
+                                                <span class="geo-warning">No geocode</span>
+                                            </template>
+                                        </div>
+                                        <div class="route-stop-actions">
+                                            <lightning-button
+                                                variant="base"
+                                                label="View call"
+                                                data-visit-id={v.id}
+                                                onclick={handleOpenVisit}
+                                            ></lightning-button>
+                                            <template if:true={v.canMutate}>
+                                                <lightning-button
+                                                    variant="base"
+                                                    label="Postpone"
+                                                    data-visit-id={v.id}
+                                                    onclick={handlePostponeVisit}
+                                                    disabled={isMutatingVisit}
+                                                ></lightning-button>
+                                                <lightning-button
+                                                    variant="base"
+                                                    label="Remove"
+                                                    data-visit-id={v.id}
+                                                    onclick={handleRemoveVisit}
+                                                    disabled={isMutatingVisit}
+                                                ></lightning-button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template if:true={hasNoVisits}>
+                                <div class="empty-state">
+                                    No account visits scheduled for today.
+                                    <button type="button" class="empty-link" onclick={handleOpenPlanner}>
+                                        Plan your day in Planner
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="map-col">
+                        <div class="map-wrapper">
+                            <div class="map-container" lwc:dom="manual"></div>
+                        </div>
+
+                        <div class="map-legend">
+                            <span class="legend-item"><span class="legend-pin legend-pin-hcp"></span>HCP</span>
+                            <span class="legend-item"><span class="legend-pin legend-pin-hco"></span>HCO</span>
+                            <template if:true={isViewingSelf}>
+                                <span class="legend-item"><span class="legend-pin legend-pin-you"></span>You</span>
+                            </template>
+                        </div>
+
+                        <template if:true={routeSummary}>
+                            <div class="route-summary">
+                                <span class="route-summary-label">Route estimate</span>
+                                <span class="route-summary-value">
+                                    {routeSummary.distanceKm} km · {routeSummary.durationMin} min drive
+                                </span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="ideas-panel">
+                    <div class="sidebar-section-title">Optimization ideas</div>
+                    <template if:true={hasOptimizationIdeas}>
+                        <ul class="ideas-list">
+                            <template for:each={optimizationIdeas} for:item="idea">
+                                <li key={idea.id} class={idea.itemClass}>
+                                    <lightning-icon
+                                        icon-name={idea.iconName}
+                                        size="x-small"
+                                        class={idea.iconClass}
+                                        alternative-text="Tip"
+                                    ></lightning-icon>
+                                    <div class="ideas-content">
+                                        <span class="ideas-text">{idea.text}</span>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template if:false={hasOptimizationIdeas}>
+                        <div class="ideas-empty">
+                            Add more geocoded visits or open Planner to see route optimization suggestions.
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </article>
+</template>

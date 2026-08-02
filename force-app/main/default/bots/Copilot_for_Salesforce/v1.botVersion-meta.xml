@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BotVersion xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>v1</fullName>
+    <articleAnswersGPTEnabled>false</articleAnswersGPTEnabled>
+    <botDialogs>
+        <botSteps>
+            <botMessages>
+                <message>Hi! I&apos;m your field-force assistant. On Home I can explain coverage and next-best customers, on Planner I can summarize your week and scheduling gaps, and on Account I can explain visit pace and nearby targets. What would you like help with?</message>
+                <messageIdentifier>364f1ecc-d3e5-4e21-be9c-33d9e8cd9ce4</messageIdentifier>
+            </botMessages>
+            <stepIdentifier>a16d7472-a3be-442a-8dc0-2a988264084c</stepIdentifier>
+            <type>Message</type>
+        </botSteps>
+        <botSteps>
+            <stepIdentifier>5f4f53e2-05b9-4a8b-b9ee-55c8c86ea92b</stepIdentifier>
+            <type>Wait</type>
+        </botSteps>
+        <developerName>Welcome</developerName>
+        <isPlaceholderDialog>false</isPlaceholderDialog>
+        <label>Welcome</label>
+        <showInFooterMenu>false</showInFooterMenu>
+    </botDialogs>
+    <botDialogs>
+        <botSteps>
+            <botMessages>
+                <message>Something went wrong. Try again.</message>
+                <messageIdentifier>05a445cb-a114-4e2b-ae21-83cfd319f663</messageIdentifier>
+            </botMessages>
+            <stepIdentifier>4b0ce079-c194-47c7-a90e-a31cbd95184a</stepIdentifier>
+            <type>Message</type>
+        </botSteps>
+        <botSteps>
+            <stepIdentifier>2dcc2a77-97a0-4dfb-a135-d5d872157fa0</stepIdentifier>
+            <type>Wait</type>
+        </botSteps>
+        <developerName>Rich_Content_Error_Handling</developerName>
+        <isPlaceholderDialog>false</isPlaceholderDialog>
+        <label>Error Handler</label>
+        <showInFooterMenu>false</showInFooterMenu>
+    </botDialogs>
+    <citationsEnabled>false</citationsEnabled>
+    <conversationDefinitionPlanners>
+        <genAiPlannerName>EmployeeCopilotPlanner</genAiPlannerName>
+    </conversationDefinitionPlanners>
+    <conversationSystemDialogs>
+        <dialog>Rich_Content_Error_Handling</dialog>
+        <type>ErrorHandling</type>
+    </conversationSystemDialogs>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>Salesforce Application Name.</description>
+        <developerName>currentAppName</developerName>
+        <includeInPrompt>true</includeInPrompt>
+        <label>Current App Name</label>
+        <visibility>External</visibility>
+    </conversationVariables>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>The API name of the Salesforce object (such as Account or Opportunity) associated with the record the user wants to interact with. Do not use this if the user is already talking about another object in the conversation.</description>
+        <developerName>currentObjectApiName</developerName>
+        <includeInPrompt>true</includeInPrompt>
+        <label>Current Object API Name</label>
+        <visibility>External</visibility>
+    </conversationVariables>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>Type of Salesforce Page.</description>
+        <developerName>currentPageType</developerName>
+        <includeInPrompt>true</includeInPrompt>
+        <label>Current Page Type</label>
+        <visibility>External</visibility>
+    </conversationVariables>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>The ID of the record on the user&apos;s screen. It may not relate to the user&apos;s input. Only use this if the user input mentions &apos;this&apos;, &apos;current&apos;, &apos;the record&apos;, etc. If in doubt, don&apos;t use it.</description>
+        <developerName>currentRecordId</developerName>
+        <includeInPrompt>true</includeInPrompt>
+        <label>Current Record Id</label>
+        <visibility>External</visibility>
+    </conversationVariables>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>Stores the conversation history to provide context for answering questions. If the user says &apos;Continue from the preceding conversation&apos; and this variable has content, inform: &apos;I can answer questions and help you with tasks related to this page.&apos;</description>
+        <developerName>precedingConversation</developerName>
+        <includeInPrompt>true</includeInPrompt>
+        <label>Preceding Conversation</label>
+        <visibility>External</visibility>
+    </conversationVariables>
+    <conversationVariables>
+        <dataType>Text</dataType>
+        <description>This variable may also be referred to as VerifiedCustomerId</description>
+        <developerName>VerifiedCustomerId</developerName>
+        <includeInPrompt>false</includeInPrompt>
+        <label>Verified Customer ID</label>
+        <visibility>Internal</visibility>
+    </conversationVariables>
+    <defaultStdObjForContactIdFltrEnabled>false</defaultStdObjForContactIdFltrEnabled>
+    <entryDialog>Welcome</entryDialog>
+    <intentDisambiguationEnabled>false</intentDisambiguationEnabled>
+    <intentV3Enabled>false</intentV3Enabled>
+    <isScriptCompatibleAgent>false</isScriptCompatibleAgent>
+    <knowledgeActionEnabled>false</knowledgeActionEnabled>
+    <knowledgeFallbackEnabled>false</knowledgeFallbackEnabled>
+    <smallTalkEnabled>false</smallTalkEnabled>
+    <staticPromptsEnabled>false</staticPromptsEnabled>
+    <stopRecPrompts>false</stopRecPrompts>
+    <stopWelcomePrompts>false</stopWelcomePrompts>
+    <surfacesEnabled>false</surfacesEnabled>
+</BotVersion>

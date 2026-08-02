@@ -1,0 +1,38 @@
+module:
+  name: Distributor Portal
+  version: "1.0.0"
+  platform: Lightning Experience or Experience Cloud
+  objective: >
+    Partner distributors (Juhayna, etc.) — commerce, expenses,
+    inventory logging, ROI visibility. Scoped to own data only.
+
+sub_modules:
+  - commerce
+  - expenses_inventory
+  - roi_dashboard
+
+data_isolation:
+  key_field: Distributor__c
+  user_link: User.Distributor_Account__c or Contact.AccountId
+
+objects:
+  - Distributor_Expense__c
+  - Distributor_Inventory_Log__c
+  - Distributor_ROI_Snapshot__c
+
+execution_sequence:
+  - step: 1
+    action: deploy_objects
+    reference: DATA_MODEL.md
+  - step: 2
+    action: configure_sharing_rules
+    reference: DISTRIBUTOR_PORTAL_REQUIREMENTS.md
+  - step: 3
+    action: create_lightning_app
+    name: Distributor Portal
+  - step: 4
+    action: mvp_commerce_tab
+    note: Read-only orders list first
+  - step: 5
+    action: phase_2
+    items: [expenses, roi_dashboard]

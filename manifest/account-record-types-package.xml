@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>AccountAffiliationController</members>
+        <members>AccountAffiliationControllerTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Account.Account_Status__c</members>
+        <members>Account.Department__c</members>
+        <members>Account.Institution_Type__c</members>
+        <members>Account.Pharmacy_License_Number__c</members>
+        <members>Account.Pharmacy_Type__c</members>
+        <members>Account.Professional_Designation__c</members>
+        <members>Account.Professional_License_Number__c</members>
+        <members>Account.Professional_Title__c</members>
+        <members>Account.Specialty_1__c</members>
+        <members>Account.Specialty_2__c</members>
+        <members>Account.Specialty_3__c</members>
+        <members>Account.Specialty_4__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>Account.Business_Account</members>
+        <members>Account.Business_Contact</members>
+        <members>Account.Institution_HCO</members>
+        <members>Account.Medical_Professional_HCP</members>
+        <members>Account.PersonAccount</members>
+        <members>Account.Pharmacy</members>
+        <members>Account.SDO_Account_Partner</members>
+        <members>Account.SDO_Account_Simple</members>
+        <members>Account.SDO_PersonAccounts</members>
+        <name>RecordType</name>
+    </types>
+    <types>
+        <members>Account.Specialty_Fields_HCP_Only</members>
+        <name>ValidationRule</name>
+    </types>
+    <types>
+        <members>Account.Business_Contact_Compact</members>
+        <members>Account.Institution_HCO_Compact</members>
+        <members>Account.Medical_Professional_HCP_Compact</members>
+        <members>Account.Pharmacy_Compact</members>
+        <name>CompactLayout</name>
+    </types>
+    <types>
+        <members>Medical_Specialty</members>
+        <name>GlobalValueSet</name>
+    </types>
+    <types>
+        <members>Account_Pharmacy_Record_Page</members>
+        <members>Account_Institution_Record_Page</members>
+        <members>Account_BC_Record_Page</members>
+        <members>Account_HCP_Record_Page</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Account-Institution HCO Layout</members>
+        <members>Account-Pharmacy Layout</members>
+        <members>PersonAccount-Business Contact Layout</members>
+        <members>PersonAccount-Medical Professional Layout</members>
+        <name>Layout</name>
+    </types>
+    <types>
+        <members>Pharma_Account_Module</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>67.0</version>
+</Package>

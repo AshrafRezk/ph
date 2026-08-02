@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Pharmacy sell-out analytics dashboard with product family breakdown, brick revenue matrix, and withdrawal detail.</description>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>pharmacySalesDashboard</componentName>
+                <identifier>pharmacySalesDashboard</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>main</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>Pharmacy Sales Dashboard</masterLabel>
+    <template>
+        <name>flexipage:defaultAppHomeTemplate</name>
+    </template>
+    <type>AppPage</type>
+</FlexiPage>

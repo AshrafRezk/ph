@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <assignments>
+        <name>Set_ATPF_Values</name>
+        <label>Set ATPF Values</label>
+        <locationX>176</locationX>
+        <locationY>134</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Unique_Key__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>UniqueKeyFormula</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Product_Matrix_Rating__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>ProductMatrixRatingFormula</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <description>Sets Unique_Key__c and Product_Matrix_Rating__c from Account, Territory2_Id, Product2_Id, Adoption, and Loyalty before save.</description>
+    <environments>Default</environments>
+    <formulas>
+        <name>ProductMatrixRatingFormula</name>
+        <dataType>String</dataType>
+        <expression>IF(
+  AND(
+    NOT(ISBLANK(TEXT({!$Record.Adoption__c}))),
+    NOT(ISBLANK(TEXT({!$Record.Loyalty__c})))
+  ),
+  LOWER(TEXT({!$Record.Adoption__c}) &amp; TEXT({!$Record.Loyalty__c})),
+  &quot;&quot;
+)</expression>
+    </formulas>
+    <formulas>
+        <name>UniqueKeyFormula</name>
+        <dataType>String</dataType>
+        <expression>{!$Record.Account__c} &amp; &quot;:&quot; &amp; {!$Record.Territory2_Id__c} &amp; &quot;:&quot; &amp; {!$Record.Product2_Id__c}</expression>
+    </formulas>
+    <interviewLabel>ATPF Set Unique Key {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>ATPF Set Unique Key</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Set_ATPF_Values</targetReference>
+        </connector>
+        <object>Account_Territory_Product_Fields__c</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>

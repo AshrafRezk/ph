@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Core_Values</fullName>
+        <default>false</default>
+        <label>Core Values</label>
+    </customValue>
+    <customValue>
+        <fullName>Soft_Skills</fullName>
+        <default>false</default>
+        <label>Soft Skills</label>
+    </customValue>
+    <customValue>
+        <fullName>Selling_Skills</fullName>
+        <default>false</default>
+        <label>Selling Skills</label>
+    </customValue>
+    <customValue>
+        <fullName>Technical_Skills</fullName>
+        <default>false</default>
+        <label>Technical Skills</label>
+    </customValue>
+    <customValue>
+        <fullName>Product_Knowledge</fullName>
+        <default>false</default>
+        <label>Product Knowledge</label>
+    </customValue>
+    <description>Section categories for coaching template questions and evaluation scoring.</description>
+    <masterLabel>Coaching Section</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

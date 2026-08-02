@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>63.0</apiVersion>
+    <assignments>
+        <name>Assign_End_Full_Day</name>
+        <label>Normalize Full Day (9–17)</label>
+        <locationX>314</locationX>
+        <locationY>242</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Start_Date_Time__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_FullDay_Start</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.End_Date_Time__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_FullDay_End</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Span_Duration__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_FullDay_Span_From_Dates</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Overlapping_Requests</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Assign_End_Hours</name>
+        <label>Assign End Hours</label>
+        <locationX>50</locationX>
+        <locationY>242</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.End_Date_Time__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_End_Hours</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Overlapping_Requests</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Assign_End_Legacy_Days</name>
+        <label>Assign End Legacy Days</label>
+        <locationX>446</locationX>
+        <locationY>242</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.End_Date_Time__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_End_Legacy_Days</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Get_Overlapping_Requests</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Assign_Span_From_Select</name>
+        <label>Assign Span From Select</label>
+        <locationX>50</locationX>
+        <locationY>50</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Span_Duration__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fx_Duration_From_Picklist</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Span_Type_For_End</targetReference>
+        </connector>
+    </assignments>
+    <decisions>
+        <name>Overlap_Found</name>
+        <label>Overlap Found</label>
+        <locationX>578</locationX>
+        <locationY>458</locationY>
+        <defaultConnector>
+            <targetReference>Set_Overlap_False</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No Overlap</defaultConnectorLabel>
+        <rules>
+            <name>Has_Overlap</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Get_Overlapping_Requests</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Set_Overlap_True</targetReference>
+            </connector>
+            <label>Has Overlap</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <name>Span_Type_For_End</name>
+        <label>Span Type For End</label>
+        <locationX>314</locationX>
+        <locationY>134</locationY>
+        <defaultConnector>
+            <targetReference>Get_Overlapping_Requests</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Default</defaultConnectorLabel>
+        <rules>
+            <name>Is_Hours</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Span_Type__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Hours</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Start_Date_Time__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Span_Duration__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Assign_End_Hours</targetReference>
+            </connector>
+            <label>Partial (Hours)</label>
+        </rules>
+        <rules>
+            <name>Is_Full_Day</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Span_Type__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Full_Day</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Start_Date_Time__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Assign_End_Full_Day</targetReference>
+            </connector>
+            <label>Full Day</label>
+        </rules>
+        <rules>
+            <name>Is_Legacy_Days</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Span_Type__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Days</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Start_Date_Time__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Span_Duration__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Assign_End_Legacy_Days</targetReference>
+            </connector>
+            <label>Legacy Days</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <name>Sync_From_Dropdown</name>
+        <label>Sync From Dropdown</label>
+        <locationX>188</locationX>
+        <locationY>50</locationY>
+        <defaultConnector>
+            <targetReference>Span_Type_For_End</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No picklist value</defaultConnectorLabel>
+        <rules>
+            <name>Picklist_Has_Value</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Span_Duration_Select__c</leftValueReference>
+                <operator>IsBlank</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>$Record.Span_Type__c</leftValueReference>
+                <operator>NotEqualTo</operator>
+                <rightValue>
+                    <stringValue>Full_Day</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Assign_Span_From_Select</targetReference>
+            </connector>
+            <label>Picklist has value</label>
+        </rules>
+    </decisions>
+    <description>Before-save: syncs duration from picklist; Full Day normalizes to working-day window and computes end date by span while skipping Friday/Saturday; Partial (Hours) sets end from span; then Overlap__c.</description>
+    <environments>Default</environments>
+    <formulas>
+        <name>fx_Duration_From_Picklist</name>
+        <dataType>Number</dataType>
+        <expression>VALUE(TEXT({!$Record.Span_Duration_Select__c}))</expression>
+        <scale>0</scale>
+    </formulas>
+    <formulas>
+        <name>fx_End_Hours</name>
+        <dataType>DateTime</dataType>
+        <expression>{!$Record.Start_Date_Time__c} + ({!$Record.Span_Duration__c} / 24)</expression>
+    </formulas>
+    <formulas>
+        <name>fx_End_Legacy_Days</name>
+        <dataType>DateTime</dataType>
+        <expression>DATETIMEVALUE(TEXT({!fx_LastCalendarDay_Legacy}) &amp; &quot; 23:59:59&quot;)</expression>
+    </formulas>
+    <formulas>
+        <name>fx_FullDay_End</name>
+        <dataType>DateTime</dataType>
+        <expression>DATETIMEVALUE(TEXT({!fx_FullDay_End_Date}) &amp; &quot; 17:00:00&quot;)</expression>
+    </formulas>
+    <formulas>
+        <name>fx_FullDay_End_Date</name>
+        <dataType>Date</dataType>
+        <expression>IF(
+  ISBLANK({!$Record.End_Date_Time__c}),
+  DATEVALUE({!$Record.Start_Date_Time__c}),
+  DATEVALUE({!$Record.End_Date_Time__c})
+)</expression>
+    </formulas>
+    <formulas>
+        <name>fx_FullDay_Span_From_Dates</name>
+        <dataType>Number</dataType>
+        <expression>IF(
+  {!fx_FullDay_End_Date} &lt; DATEVALUE({!$Record.Start_Date_Time__c}),
+  0,
+  (FLOOR((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1) / 7) * 5) +
+  CASE(
+    WEEKDAY(DATEVALUE({!$Record.Start_Date_Time__c})),
+    1, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5),
+    2, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 4, 6, 4, 5),
+    3, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 1, 2, 2, 3, 3, 4, 3, 5, 3, 6, 4, 5),
+    4, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 1, 2, 2, 3, 2, 4, 2, 5, 3, 6, 4, 5),
+    5, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 1, 2, 1, 3, 1, 4, 2, 5, 3, 6, 4, 5),
+    6, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 0, 2, 0, 3, 1, 4, 2, 5, 3, 6, 4, 5),
+    7, CASE(MOD((({!fx_FullDay_End_Date} - DATEVALUE({!$Record.Start_Date_Time__c})) + 1), 7), 0, 0, 1, 0, 2, 1, 3, 2, 4, 3, 5, 4, 6, 5, 5),
+    0
+  )
+)</expression>
+        <scale>0</scale>
+    </formulas>
+    <formulas>
+        <name>fx_FullDay_Start</name>
+        <dataType>DateTime</dataType>
+        <expression>DATETIMEVALUE(TEXT(DATEVALUE({!$Record.Start_Date_Time__c})) &amp; &quot; 09:00:00&quot;)</expression>
+    </formulas>
+    <formulas>
+        <name>fx_LastCalendarDay_Legacy</name>
+        <dataType>Date</dataType>
+        <expression>DATEVALUE({!$Record.Start_Date_Time__c}) + {!$Record.Span_Duration__c} - 1</expression>
+    </formulas>
+    <interviewLabel>Time Off Request: Overlap Validation {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Time Off Request: Overlap Validation</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <recordLookups>
+        <name>Get_Overlapping_Requests</name>
+        <label>Get Overlapping Requests</label>
+        <locationX>578</locationX>
+        <locationY>350</locationY>
+        <assignNullValuesIfNoRecordsFound>true</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Overlap_Found</targetReference>
+        </connector>
+        <filterLogic>1 AND 2 AND (3 OR 4) AND 5 AND 6</filterLogic>
+        <filters>
+            <field>CreatedById</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>$Record.CreatedById</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Id</field>
+            <operator>NotEqualTo</operator>
+            <value>
+                <elementReference>$Record.Id</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <stringValue>Approved</stringValue>
+            </value>
+        </filters>
+        <filters>
+            <field>Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <stringValue>Submitted for Approval</stringValue>
+            </value>
+        </filters>
+        <filters>
+            <field>Start_Date_Time__c</field>
+            <operator>LessThanOrEqualTo</operator>
+            <value>
+                <elementReference>$Record.End_Date_Time__c</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>End_Date_Time__c</field>
+            <operator>GreaterThanOrEqualTo</operator>
+            <value>
+                <elementReference>$Record.Start_Date_Time__c</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Time_Off_Request__c</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordUpdates>
+        <name>Set_Overlap_False</name>
+        <label>Set Overlap False</label>
+        <locationX>578</locationX>
+        <locationY>566</locationY>
+        <inputAssignments>
+            <field>Overlap__c</field>
+            <value>
+                <booleanValue>false</booleanValue>
+            </value>
+        </inputAssignments>
+        <inputReference>$Record</inputReference>
+    </recordUpdates>
+    <recordUpdates>
+        <name>Set_Overlap_True</name>
+        <label>Set Overlap True</label>
+        <locationX>446</locationX>
+        <locationY>566</locationY>
+        <inputAssignments>
+            <field>Overlap__c</field>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </inputAssignments>
+        <inputReference>$Record</inputReference>
+    </recordUpdates>
+    <start>
+        <locationX>188</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Sync_From_Dropdown</targetReference>
+        </connector>
+        <object>Time_Off_Request__c</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>

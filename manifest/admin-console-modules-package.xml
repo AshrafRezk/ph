@@ -1,0 +1,36 @@
+<?xml version="1.0" ?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>CoachingAdminController</members>
+        <members>CoachingAdminControllerTest</members>
+        <members>PlanCycleAdminController</members>
+        <members>PlanCycleAdminControllerTest</members>
+        <members>ProductCatalogAdminController</members>
+        <members>ProductCatalogAdminControllerTest</members>
+        <members>TerritoryManagementController</members>
+        <members>TerritoryManagementControllerTest</members>
+        <members>TerritoryModuleSeed</members>
+        <members>BricksManagementController</members>
+        <members>BricksManagementControllerTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>RoleInTerritory2</members>
+        <name>StandardValueSet</name>
+    </types>
+    <types>
+        <members>adminConsole</members>
+        <members>bricksManagementConsole</members>
+        <members>coachingTemplateManager</members>
+        <members>planCycleManager</members>
+        <members>productTerritoryManager</members>
+        <members>territoryManagementConsole</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>CLM_Module</members>
+        <members>Coaching_Module</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>62.0</version>
+</Package>

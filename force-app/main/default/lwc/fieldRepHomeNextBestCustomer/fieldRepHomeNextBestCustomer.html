@@ -1,0 +1,76 @@
+<template>
+    <lightning-card>
+        <div slot="title" class="nbc-header">
+            <h2 class="nbc-title">Top 5 NBC</h2>
+            <p class="nbc-subtitle">(Next best customers)</p>
+        </div>
+        <template if:true={isLoading}>
+            <div class="slds-is-relative slds-p-vertical_medium">
+                <lightning-spinner alternative-text="Loading next best customers" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <div class="nbc-list slds-p-around_small">
+                <template if:true={hasRows}>
+                    <template for:each={rows} for:item="row">
+                        <div key={row.accountId} class="nbc-row">
+                            <div class={row.rankIconClass} title={row.rankLabel}>
+                                <lightning-icon
+                                    icon-name={row.rankIconName}
+                                    size="small"
+                                    alternative-text={row.rankLabel}
+                                ></lightning-icon>
+                            </div>
+
+                            <div class="cell account">
+                                <button
+                                    type="button"
+                                    class="account-link"
+                                    data-account-id={row.accountId}
+                                    onclick={handleOpenAccount}
+                                >
+                                    {row.accountName}
+                                </button>
+                            </div>
+
+                            <div class="cell call-plan">
+                                <div class="cell-label">CALL PLAN</div>
+                                <div class="cell-value">{row.callPlanLabel}</div>
+                            </div>
+
+                            <div class="cell planned">
+                                <div class="cell-label">PLANNED</div>
+                                <div class="cell-value">{row.plannedLabel}</div>
+                            </div>
+
+                            <div class="cell score">
+                                <div class="cell-label">SCORE</div>
+                                <div class="score-circle">
+                                    <span class="score-value">{row.scoreDisplay}</span>
+                                </div>
+                            </div>
+
+                            <div class="cell action">
+                                <div class="cell-label">ACTION</div>
+                                <lightning-button
+                                    class="plan-call-btn"
+                                    label="Plan call"
+                                    title="Create a draft call for this account"
+                                    icon-name="utility:event"
+                                    variant="neutral"
+                                    onclick={handleCall}
+                                    data-account-id={row.accountId}
+                                ></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+
+                <template if:false={hasRows}>
+                    <div class="empty-state">No next best customers available.</div>
+                </template>
+            </div>
+        </template>
+    </lightning-card>
+</template>

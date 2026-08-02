@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>Promotion Studio</label>
+    <navType>Console</navType>
+    <tabs>standard-home</tabs>
+    <tabs>standard-PromotionStudioRewardsCatalog</tabs>
+    <tabs>standard-PromotionStudioOfferManagement</tabs>
+    <tabs>standard-PromotionStudioPromotionEvaluation</tabs>
+    <uiType>Lightning</uiType>
+    <utilityBar>PromotionStudio_UtilityBar</utilityBar>
+    <workspaceConfig>
+        <mappings>
+            <tab>standard-PromotionStudioOfferManagement</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-PromotionStudioPromotionEvaluation</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-PromotionStudioRewardsCatalog</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-home</tab>
+        </mappings>
+    </workspaceConfig>
+</CustomApplication>

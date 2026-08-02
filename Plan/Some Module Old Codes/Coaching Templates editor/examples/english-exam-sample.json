@@ -1,0 +1,208 @@
+{
+  "version": "1.1",
+  "totalQuestions": 14,
+  "totalPoints": 32,
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Which sentence demonstrates correct use of the present perfect tense in a business context?",
+      "type": "single-choice",
+      "options": [
+        "I have sent the report yesterday.",
+        "I sent the report yesterday.",
+        "I have sent the report this morning.",
+        "I send the report yesterday."
+      ],
+      "correctAnswer": 2,
+      "points": 1,
+      "explanation": "The present perfect tense is used for actions completed in the past that have relevance to the present. 'This morning' is a time period that includes the present, making present perfect appropriate."
+    },
+    {
+      "id": "q2",
+      "question": "Choose the most professional way to request information in an email:",
+      "type": "single-choice",
+      "options": [
+        "I need the data ASAP.",
+        "Could you please provide the data at your earliest convenience?",
+        "Give me the data now.",
+        "I want the data."
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "Professional communication requires politeness and respect. 'Could you please provide... at your earliest convenience' is formal, courteous, and appropriate for business correspondence."
+    },
+    {
+      "id": "q3",
+      "question": "What does the phrase 'touch base' mean in corporate communication?",
+      "type": "single-choice",
+      "options": [
+        "To physically touch something",
+        "To make contact or communicate briefly with someone",
+        "To start a new project",
+        "To finish a task"
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "'Touch base' is a common business idiom meaning to make brief contact or communicate with someone, often to check on progress or share updates."
+    },
+    {
+      "id": "q4",
+      "question": "Select the correct preposition for this sentence: 'We need to discuss the proposal ___ the board meeting.'",
+      "type": "single-choice",
+      "options": [
+        "on",
+        "at",
+        "in",
+        "for"
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "The preposition 'at' is used with specific events or locations. 'At the board meeting' is the correct usage."
+    },
+    {
+      "id": "q5",
+      "question": "Which word is most appropriate for formal business writing: 'The project was a complete ___'?",
+      "type": "single-choice",
+      "options": [
+        "disaster",
+        "failure",
+        "setback",
+        "flop"
+      ],
+      "correctAnswer": 2,
+      "points": 1,
+      "explanation": "In professional communication, 'setback' is more diplomatic and formal than 'disaster' or 'failure'. It suggests a temporary difficulty rather than a permanent problem."
+    },
+    {
+      "id": "q6",
+      "question": "Identify the sentence with correct subject-verb agreement:",
+      "type": "single-choice",
+      "options": [
+        "The team of experts are working on the solution.",
+        "The team of experts is working on the solution.",
+        "The team of experts were working on the solution.",
+        "The team of experts be working on the solution."
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "When 'team' is the subject, it's treated as a singular noun, so the verb should be singular: 'is' not 'are'."
+    },
+    {
+      "id": "q7",
+      "question": "What is the meaning of 'synergy' in a business context?",
+      "type": "single-choice",
+      "options": [
+        "A type of meeting",
+        "The interaction of elements that produces a total effect greater than the sum of individual effects",
+        "A financial report",
+        "A marketing strategy"
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "Synergy refers to the combined effect of elements working together that produces results greater than what each could achieve alone. It's commonly used in business to describe effective collaboration."
+    },
+    {
+      "id": "q8",
+      "question": "Choose the grammatically correct sentence for a formal report:",
+      "type": "single-choice",
+      "options": [
+        "The data shows that sales increased significantly.",
+        "The data show that sales increased significantly.",
+        "The data is showing that sales increased significantly.",
+        "The data are showing that sales increased significantly."
+      ],
+      "correctAnswer": 0,
+      "points": 1,
+      "explanation": "In American English, 'data' is often treated as singular (though it's technically plural in Latin). 'The data shows' is commonly accepted in business writing, though 'the data show' is also correct."
+    },
+    {
+      "id": "q9",
+      "question": "Which phrase is most appropriate for ending a professional email?",
+      "type": "single-choice",
+      "options": [
+        "See ya!",
+        "Best regards,",
+        "Later,",
+        "Bye!"
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "'Best regards' is a standard, professional closing for business emails. It's formal yet friendly and appropriate for most corporate communications."
+    },
+    {
+      "id": "q10",
+      "question": "What does 'leverage' mean when used as a verb in business?",
+      "type": "single-choice",
+      "options": [
+        "To lift something heavy",
+        "To use something to maximum advantage",
+        "To avoid responsibility",
+        "To reduce costs"
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "In business terminology, 'leverage' means to use resources, relationships, or advantages to achieve maximum benefit or gain a competitive edge."
+    },
+    {
+      "id": "q11",
+      "question": "Select the correct form: 'Neither the manager nor the employees ___ satisfied with the proposal.'",
+      "type": "single-choice",
+      "options": [
+        "is",
+        "are",
+        "was",
+        "were"
+      ],
+      "correctAnswer": 0,
+      "points": 1,
+      "explanation": "With 'neither...nor', the verb agrees with the subject closest to it. Since 'manager' (singular) is closest, use 'is'."
+    },
+    {
+      "id": "q12",
+      "question": "Which sentence demonstrates the correct use of 'affect' vs 'effect'?",
+      "type": "single-choice",
+      "options": [
+        "The new policy will effect our workflow significantly.",
+        "The new policy will affect our workflow significantly.",
+        "The new policy will have an affect on our workflow.",
+        "The new policy will effecting our workflow significantly."
+      ],
+      "correctAnswer": 1,
+      "points": 1,
+      "explanation": "'Affect' is a verb meaning to influence or change. 'Effect' is a noun meaning a result. Here, we need the verb 'affect' to show the policy will influence the workflow."
+    },
+    {
+      "id": "q13",
+      "question": "How confident are you in using present perfect tense in business emails?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "scaleMinLabel": "Not confident",
+      "scaleMaxLabel": "Very confident",
+      "scalePoints": [
+        { "value": 1, "weight": 0 },
+        { "value": 2, "weight": 2 },
+        { "value": 3, "weight": 5 },
+        { "value": 4, "weight": 8 },
+        { "value": 5, "weight": 10 }
+      ],
+      "points": 10,
+      "explanation": "Self-assessment scale — weight reflects partial credit for demonstrated confidence."
+    },
+    {
+      "id": "q14",
+      "question": "Which of the following are characteristics of professional business writing? (Select all that apply)",
+      "type": "multiple-choice",
+      "options": [
+        "Clear and concise language",
+        "Use of slang and informal abbreviations",
+        "Proper grammar and spelling",
+        "Respectful and courteous tone"
+      ],
+      "correctAnswers": [0, 2, 3],
+      "points": 10,
+      "explanation": "Professional business writing should be clear, grammatically correct, and respectful. Slang and informal abbreviations are generally inappropriate in formal business communication."
+    }
+  ]
+}
+

@@ -1,0 +1,612 @@
+# Chemipharm product catalog — source of truth for Apex seed + CLM alignment.
+# Core brands from Chemipharm Presentation Deck; strengths/forms from CPI Product List.
+#
+# Hierarchy:
+#   Brand (parent)
+#     ├── Detail          — commercial SKU (form + UoM + qty/unit + box qty)
+#     ├── Sample          — leave-behind sample (same dosing fields as Detail)
+#     └── Brand Reminder  — brochure or bug/giveaway (no dosing fields)
+#
+# product_type values: Brand | Detail | Sample | Brand Reminder
+# brand_reminder_kind values (Brand Reminder only): Brochure | Bug
+
+catalog:
+  manufacturer: Chemipharm
+  currency: EGP
+  product_types:
+    - Brand
+    - Detail
+    - Sample
+    - Brand Reminder
+  brand_reminder_kinds:
+    - Brochure
+    - Bug
+  required_on_detail_and_sample:
+    - form
+    - unit_of_measure
+    - quantity_per_unit
+    - box_quantity
+
+products:
+
+  # =====================================================================
+  # Coloverin (GIT / Gastroenterology)
+  # =====================================================================
+  - external_id: CPI_COLOVERIN
+    name: Coloverin
+    product_code: CPI-COL
+    product_type: Brand
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine HCl
+    description: >
+      Coloverin brand — Mebeverine antispasmodic line for IBS and GI spasm.
+
+  - external_id: CPI_COLOVERIN_135
+    name: Coloverin 135 mg
+    product_code: CPI-COL-135
+    product_type: Detail
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine HCl
+    strength: 135mg
+    form: Sugar Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 135
+    box_quantity: 30
+    unit_price: 95
+    description: >
+      Mebeverine HCl 135mg sugar coated tablet. Antispasmodic for IBS and
+      gastrointestinal spasm without atropine-like anticholinergic side effects.
+
+  - external_id: CPI_COLOVERIN_D_135_40
+    name: Coloverin D 135/40 mg
+    product_code: CPI-COL-D-135-40
+    product_type: Detail
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine + Dimethicone
+    strength: 135mg + 40mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 135
+    box_quantity: 30
+    unit_price: 120
+    description: >
+      Mebeverine 135mg + Dimethicone 40mg film coated tablet (Coloverin D).
+      Targeted for IBS with bloating; trial data supports rapid bloating relief.
+
+  - external_id: CPI_COLOVERIN_A_135_5
+    name: Coloverin A 135/5 mg
+    product_code: CPI-COL-A-135-5
+    product_type: Detail
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine Hydrochloride + Chlordiazepoxide
+    strength: 135mg + 5mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 135
+    box_quantity: 20
+    unit_price: 130
+    description: >
+      Mebeverine hydrochloride 135mg + chlordiazepoxide 5mg film coated tablet
+      (Coloverin A) for IBS with anxiety-related GI symptoms.
+
+  - external_id: CPI_COLOVERIN_SR_200
+    name: Coloverin SR 200 mg
+    product_code: CPI-COL-SR-200
+    product_type: Detail
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine HCl Pellets
+    strength: 200mg
+    form: SR Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 200
+    box_quantity: 20
+    unit_price: 140
+    description: >
+      Mebeverine HCl pellets 200mg sustained-release hard gelatin capsule
+      (Coloverin SR) for prolonged GI spasm control.
+
+  - external_id: CPI_COLOVERIN_135_SAMPLE
+    name: Coloverin 135 mg Sample
+    product_code: CPI-COL-135-SMP
+    product_type: Sample
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    active_ingredient: Mebeverine HCl
+    strength: 135mg
+    form: Sugar Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 135
+    box_quantity: 4
+    unit_price: 0
+    description: >
+      Coloverin 135mg leave-behind sample pack (4 sugar coated tablets).
+
+  - external_id: CPI_COLOVERIN_BROCHURE
+    name: Coloverin Brand Brochure
+    product_code: CPI-COL-BRC
+    product_type: Brand Reminder
+    brand_reminder_kind: Brochure
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    unit_price: 0
+    description: >
+      Coloverin HCP brochure — leave-behind brand reminder detailing IBS indication
+      and Coloverin line positioning.
+
+  - external_id: CPI_COLOVERIN_BUG
+    name: Coloverin Sticky Pad Bug
+    product_code: CPI-COL-BUG
+    product_type: Brand Reminder
+    brand_reminder_kind: Bug
+    parent_external_id: CPI_COLOVERIN
+    product_family: Coloverin
+    therapy_area: Gastroenterology
+    unit_price: 0
+    description: >
+      Coloverin branded sticky-pad giveaway (bug) for clinic desk leave-behind.
+
+  # =====================================================================
+  # Verserc (CNS / Neurology)
+  # =====================================================================
+  - external_id: CPI_VERSERC
+    name: Verserc
+    product_code: CPI-VER
+    product_type: Brand
+    product_family: Verserc
+    therapy_area: Neurology
+    active_ingredient: Betahistine Dihydrochloride
+    description: >
+      Verserc brand — Betahistine line for vertigo and Meniere's disease.
+
+  - external_id: CPI_VERSERC_8
+    name: Verserc 8 mg
+    product_code: CPI-VER-8
+    product_type: Detail
+    parent_external_id: CPI_VERSERC
+    product_family: Verserc
+    therapy_area: Neurology
+    active_ingredient: Betahistine Dihydrochloride
+    strength: 8mg
+    form: Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 8
+    box_quantity: 30
+    unit_price: 75
+    description: >
+      Betahistine dihydrochloride 8mg tablet for vertigo and Meniere's disease.
+      Preserves daytime alertness vs legacy antihistamines.
+
+  - external_id: CPI_VERSERC_16
+    name: Verserc 16 mg
+    product_code: CPI-VER-16
+    product_type: Detail
+    parent_external_id: CPI_VERSERC
+    product_family: Verserc
+    therapy_area: Neurology
+    active_ingredient: Betahistine Dihydrochloride
+    strength: 16mg
+    form: Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 16
+    box_quantity: 30
+    unit_price: 95
+    description: >
+      Betahistine dihydrochloride 16mg tablet for vertigo and Meniere's disease.
+
+  - external_id: CPI_VERSERC_24
+    name: Verserc 24 mg
+    product_code: CPI-VER-24
+    product_type: Detail
+    parent_external_id: CPI_VERSERC
+    product_family: Verserc
+    therapy_area: Neurology
+    active_ingredient: Betahistine Dihydrochloride
+    strength: 24mg
+    form: Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 24
+    box_quantity: 20
+    unit_price: 110
+    description: >
+      Betahistine dihydrochloride 24mg tablet for vertigo and Meniere's disease.
+
+  - external_id: CPI_VERSERC_16_SAMPLE
+    name: Verserc 16 mg Sample
+    product_code: CPI-VER-16-SMP
+    product_type: Sample
+    parent_external_id: CPI_VERSERC
+    product_family: Verserc
+    therapy_area: Neurology
+    active_ingredient: Betahistine Dihydrochloride
+    strength: 16mg
+    form: Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 16
+    box_quantity: 6
+    unit_price: 0
+    description: >
+      Verserc 16mg leave-behind sample pack (6 tablets).
+
+  - external_id: CPI_VERSERC_BROCHURE
+    name: Verserc Brand Brochure
+    product_code: CPI-VER-BRC
+    product_type: Brand Reminder
+    brand_reminder_kind: Brochure
+    parent_external_id: CPI_VERSERC
+    product_family: Verserc
+    therapy_area: Neurology
+    unit_price: 0
+    description: >
+      Verserc HCP brochure — brand reminder for vertigo / Meniere's messaging.
+
+  # =====================================================================
+  # Dantrelax (Rheumatology)
+  # =====================================================================
+  - external_id: CPI_DANTRELAX
+    name: Dantrelax
+    product_code: CPI-DAN
+    product_type: Brand
+    product_family: Dantrelax
+    therapy_area: Rheumatology
+    active_ingredient: Dantrolene Sodium
+    description: >
+      Dantrelax brand — Dantrolene line for skeletal muscle spasm.
+
+  - external_id: CPI_DANTRELAX_25
+    name: Dantrelax 25 mg
+    product_code: CPI-DAN-25
+    product_type: Detail
+    parent_external_id: CPI_DANTRELAX
+    product_family: Dantrelax
+    therapy_area: Rheumatology
+    active_ingredient: Dantrolene Sodium
+    strength: 25mg
+    form: Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 25
+    box_quantity: 30
+    unit_price: 85
+    description: >
+      Dantrolene sodium 25mg hard gelatin capsule for skeletal muscle spasms
+      and musculoskeletal stiffness. Direct sarcoplasmic action.
+
+  - external_id: CPI_DANTRELAX_COMPOUND_25_300
+    name: Dantrelax Compound 25/300 mg
+    product_code: CPI-DAN-CMP-25-300
+    product_type: Detail
+    parent_external_id: CPI_DANTRELAX
+    product_family: Dantrelax
+    therapy_area: Rheumatology
+    active_ingredient: Dantrolene Sodium + Paracetamol
+    strength: 25mg + 300mg
+    form: Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 25
+    box_quantity: 20
+    unit_price: 105
+    description: >
+      Dantrolene sodium 25mg + paracetamol 300mg hard gelatin capsule
+      (Dantrelax Compound) for muscle spasm with pain.
+
+  - external_id: CPI_DANTRELAX_25_SAMPLE
+    name: Dantrelax 25 mg Sample
+    product_code: CPI-DAN-25-SMP
+    product_type: Sample
+    parent_external_id: CPI_DANTRELAX
+    product_family: Dantrelax
+    therapy_area: Rheumatology
+    active_ingredient: Dantrolene Sodium
+    strength: 25mg
+    form: Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 25
+    box_quantity: 4
+    unit_price: 0
+    description: >
+      Dantrelax 25mg leave-behind sample pack (4 hard gelatin capsules).
+
+  - external_id: CPI_DANTRELAX_BUG
+    name: Dantrelax Pen Bug
+    product_code: CPI-DAN-BUG
+    product_type: Brand Reminder
+    brand_reminder_kind: Bug
+    parent_external_id: CPI_DANTRELAX
+    product_family: Dantrelax
+    therapy_area: Rheumatology
+    unit_price: 0
+    description: >
+      Dantrelax branded pen giveaway (bug) for clinic leave-behind.
+
+  # =====================================================================
+  # Rosuvast (Cardiovascular)
+  # =====================================================================
+  - external_id: CPI_ROSUVAST
+    name: Rosuvast
+    product_code: CPI-ROS
+    product_type: Brand
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    active_ingredient: Rosuvastatin Calcium
+    description: >
+      Rosuvast brand — Rosuvastatin line for hypercholesterolemia.
+
+  - external_id: CPI_ROSUVAST_5
+    name: Rosuvast 5 mg
+    product_code: CPI-ROS-5
+    product_type: Detail
+    parent_external_id: CPI_ROSUVAST
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    active_ingredient: Rosuvastatin Calcium
+    strength: 5mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 5
+    box_quantity: 28
+    unit_price: 90
+    description: >
+      Rosuvastatin calcium 5mg film coated tablet for hypercholesterolemia
+      and cardiovascular risk reduction.
+
+  - external_id: CPI_ROSUVAST_10
+    name: Rosuvast 10 mg
+    product_code: CPI-ROS-10
+    product_type: Detail
+    parent_external_id: CPI_ROSUVAST
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    active_ingredient: Rosuvastatin Calcium
+    strength: 10mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 10
+    box_quantity: 28
+    unit_price: 120
+    description: >
+      Rosuvastatin calcium 10mg film coated tablet for hypercholesterolemia.
+
+  - external_id: CPI_ROSUVAST_20
+    name: Rosuvast 20 mg
+    product_code: CPI-ROS-20
+    product_type: Detail
+    parent_external_id: CPI_ROSUVAST
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    active_ingredient: Rosuvastatin Calcium
+    strength: 20mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 20
+    box_quantity: 28
+    unit_price: 150
+    description: >
+      Rosuvastatin calcium 20mg film coated tablet for hypercholesterolemia.
+      Trial data supports substantial LDL-C reduction.
+
+  - external_id: CPI_ROSUVAST_10_SAMPLE
+    name: Rosuvast 10 mg Sample
+    product_code: CPI-ROS-10-SMP
+    product_type: Sample
+    parent_external_id: CPI_ROSUVAST
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    active_ingredient: Rosuvastatin Calcium
+    strength: 10mg
+    form: Film Coated Tablet
+    unit_of_measure: mg
+    quantity_per_unit: 10
+    box_quantity: 7
+    unit_price: 0
+    description: >
+      Rosuvast 10mg leave-behind sample pack (7 film coated tablets).
+
+  - external_id: CPI_ROSUVAST_BROCHURE
+    name: Rosuvast Brand Brochure
+    product_code: CPI-ROS-BRC
+    product_type: Brand Reminder
+    brand_reminder_kind: Brochure
+    parent_external_id: CPI_ROSUVAST
+    product_family: Rosuvast
+    therapy_area: Cardiovascular
+    unit_price: 0
+    description: >
+      Rosuvast HCP brochure — LDL-C reduction and CV risk messaging.
+
+  # =====================================================================
+  # Algesal Suractive (Rheumatology / topical)
+  # =====================================================================
+  - external_id: CPI_ALGESAL
+    name: Algesal
+    product_code: CPI-ALG
+    product_type: Brand
+    product_family: Algesal
+    therapy_area: Rheumatology
+    active_ingredient: Diethylamine Salicylate
+    description: >
+      Algesal brand — topical salicylate analgesic cream line.
+
+  - external_id: CPI_ALGESAL_10
+    name: Algesal Suractive Cream
+    product_code: CPI-ALG-10
+    product_type: Detail
+    parent_external_id: CPI_ALGESAL
+    product_family: Algesal
+    therapy_area: Rheumatology
+    active_ingredient: Diethylamine Salicylate
+    strength: 10gm/100gm
+    form: Cream
+    unit_of_measure: gm
+    quantity_per_unit: 10
+    box_quantity: 1
+    unit_price: 65
+    description: >
+      Diethylamine salicylate 10gm/100gm cream for transdermal analgesia,
+      joint stiffness, and rheumatic pain. Bypasses oral NSAID gastric risk.
+
+  - external_id: CPI_ALGESAL_10_SAMPLE
+    name: Algesal Suractive Cream Sample
+    product_code: CPI-ALG-10-SMP
+    product_type: Sample
+    parent_external_id: CPI_ALGESAL
+    product_family: Algesal
+    therapy_area: Rheumatology
+    active_ingredient: Diethylamine Salicylate
+    strength: 10gm/100gm
+    form: Cream
+    unit_of_measure: gm
+    quantity_per_unit: 10
+    box_quantity: 1
+    unit_price: 0
+    description: >
+      Algesal Suractive leave-behind sample tube (small pack).
+
+  - external_id: CPI_ALGESAL_BROCHURE
+    name: Algesal Brand Brochure
+    product_code: CPI-ALG-BRC
+    product_type: Brand Reminder
+    brand_reminder_kind: Brochure
+    parent_external_id: CPI_ALGESAL
+    product_family: Algesal
+    therapy_area: Rheumatology
+    unit_price: 0
+    description: >
+      Algesal HCP brochure — topical analgesia without oral NSAID gastric risk.
+
+  # =====================================================================
+  # Soul Pharma distribution line (Consumer Health BU)
+  # Best sellers from https://www.soulpharma.org/ar/products
+  # =====================================================================
+  - external_id: SOUL_SOULFORT
+    name: Soulfort
+    product_code: SOUL-FORT
+    product_type: Brand
+    product_family: Soulfort
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Multivitamin + Zinc Complex
+    description: >
+      Soulfort brand — Soul Pharma daily multivitamin + zinc supplement line.
+
+  - external_id: SOUL_SOULFORT_CAP_20
+    name: Soulfort Capsules
+    product_code: SOUL-FORT-20
+    product_type: Detail
+    parent_external_id: SOUL_SOULFORT
+    product_family: Soulfort
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Multivitamin + Zinc Complex
+    strength: 500mg
+    form: Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 500
+    box_quantity: 20
+    unit_price: 180
+    source_url: https://www.soulpharma.org/ar/products
+    description: >
+      Soulfort nutritional supplement, 20 hard gelatin capsules.
+      Soul Pharma best-selling daily supplement for energy and immunity support.
+
+  - external_id: SOUL_SOULFORT_CAP_SAMPLE
+    name: Soulfort Capsules Sample
+    product_code: SOUL-FORT-SMP
+    product_type: Sample
+    parent_external_id: SOUL_SOULFORT
+    product_family: Soulfort
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Multivitamin + Zinc Complex
+    strength: 500mg
+    form: Hard Gelatin Capsule
+    unit_of_measure: mg
+    quantity_per_unit: 500
+    box_quantity: 4
+    unit_price: 0
+    description: >
+      Soulfort leave-behind sample pack (4 hard gelatin capsules).
+
+  - external_id: SOUL_SOULFORT_BROCHURE
+    name: Soulfort Brand Brochure
+    product_code: SOUL-FORT-BRC
+    product_type: Brand Reminder
+    brand_reminder_kind: Brochure
+    parent_external_id: SOUL_SOULFORT
+    product_family: Soulfort
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    unit_price: 0
+    description: >
+      Soulfort consumer / pharmacy brochure — energy and immunity positioning.
+
+  - external_id: SOUL_GENOLIGHT
+    name: Genolight
+    product_code: SOUL-GENO
+    product_type: Brand
+    product_family: Genolight
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Niacinamide + Alpha Arbutin
+    description: >
+      Genolight brand — Soul Pharma skin-brightening medical cosmetic line.
+
+  - external_id: SOUL_GENOLIGHT_CREAM
+    name: Genolight Whitening Cream
+    product_code: SOUL-GENO-30
+    product_type: Detail
+    parent_external_id: SOUL_GENOLIGHT
+    product_family: Genolight
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Niacinamide + Alpha Arbutin
+    strength: 30gm
+    form: Topical Cream
+    unit_of_measure: gm
+    quantity_per_unit: 30
+    box_quantity: 1
+    unit_price: 150
+    source_url: https://www.soulpharma.org/ar/products
+    description: >
+      Genolight skin-brightening cream 30gm tube. Soul Pharma best-selling
+      medical cosmetic for pigmentation and tone correction.
+
+  - external_id: SOUL_GENOLIGHT_CREAM_SAMPLE
+    name: Genolight Whitening Cream Sample
+    product_code: SOUL-GENO-SMP
+    product_type: Sample
+    parent_external_id: SOUL_GENOLIGHT
+    product_family: Genolight
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    active_ingredient: Niacinamide + Alpha Arbutin
+    strength: 5gm
+    form: Topical Cream
+    unit_of_measure: gm
+    quantity_per_unit: 5
+    box_quantity: 1
+    unit_price: 0
+    description: >
+      Genolight leave-behind sample sachet/tube (5gm).
+
+  - external_id: SOUL_GENOLIGHT_BUG
+    name: Genolight Mirror Bug
+    product_code: SOUL-GENO-BUG
+    product_type: Brand Reminder
+    brand_reminder_kind: Bug
+    parent_external_id: SOUL_GENOLIGHT
+    product_family: Genolight
+    manufacturer: Soul Pharma
+    therapy_area: Consumer Health
+    unit_price: 0
+    description: >
+      Genolight branded pocket-mirror giveaway (bug) for pharmacy / clinic leave-behind.

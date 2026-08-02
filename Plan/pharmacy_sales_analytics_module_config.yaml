@@ -1,0 +1,76 @@
+module:
+  name: Pharmacy Sales Analytics
+  version: "1.1.0"
+  package_manifest: manifest/pharmacy-sales-analytics-package.xml
+  objective: >
+    Sell-out analytics for pharmacy withdrawals from IbnSina and Pharmaoverseas data sources,
+    with brick geography, reactive dashboard LWC, admin CSV import, and Agentforce planning insights.
+
+objects:
+  - Brick__c
+  - Brick_Pharmacy__c
+  - Pharmacy_Sales_Withdrawal__c
+  - Sales_Data_Import_Batch__c
+  - Planning_Vision__c
+  - Pharmacy_Sales_Insight_Session__c
+  - Pharmacy_Sales_Recommendation__c
+
+lwc:
+  dashboard: pharmacySalesDashboard
+  admin: pharmacySalesDataAdmin
+  agent_insights: pharmacySalesAgentInsights
+
+apex:
+  - PharmacySalesAnalyticsController
+  - PharmacySalesDataAdminController
+  - PharmacySalesDataSeed
+  - PharmacySalesInsightsController
+  - PharmacySalesInsightsAnalyzer
+  - PharmacySalesInsightsApplyService
+  - PharmacySalesAgentAction
+
+agentforce:
+  prompt_template: Pharmacy_Sales_Planning_Insights
+  copilot_action: Get_Pharmacy_Sales_Planning_Brief
+  planner_bundle: EmployeeCopilotPlanner
+
+csv_import:
+  columns:
+    - name: data_source
+      required: true
+      maps_to: Pharmacy_Sales_Withdrawal__c.Data_Source__c
+    - name: report_month
+      required: true
+      maps_to: Pharmacy_Sales_Withdrawal__c.Report_Month__c
+    - name: pharmacy_external_id
+      required: true
+      maps_to: Account.External_ID__c
+    - name: product_external_id
+      required: true
+      maps_to: Product2.External_ID__c
+    - name: quantity_withdrawn
+      required: true
+      maps_to: Pharmacy_Sales_Withdrawal__c.Quantity_Withdrawn__c
+    - name: unit_price
+      required: false
+      maps_to: Pharmacy_Sales_Withdrawal__c.Unit_Price__c
+    - name: external_id
+      required: false
+      maps_to: Pharmacy_Sales_Withdrawal__c.External_ID__c
+
+data_sources:
+  - IbnSina
+  - Pharmaoverseas
+
+hosting:
+  tab: Pharmacy_Sales_Dashboard
+  flexipage: Pharmacy_Sales_Dashboard
+  reports_hub_tile: pharmacy-sales
+
+permission_sets:
+  analytics: Pharmacy_Sales_Analytics
+  admin: Pharmacy_Sales_Admin
+
+seed:
+  class: PharmacySalesDataSeed
+  method: seedDemoData

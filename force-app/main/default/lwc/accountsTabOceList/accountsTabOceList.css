@@ -1,0 +1,159 @@
+.oce-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.oce-list-header {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    margin-bottom: 0.5rem;
+}
+
+.oce-list-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.oce-list-loading {
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.oce-row-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.oce-row {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.oce-row-grid {
+    row-gap: 0.5rem;
+}
+
+.oce-col-identity .slds-media__figure {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.oce-account-link {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #0176d3;
+    text-decoration: none;
+    display: block;
+}
+
+.oce-account-link:hover {
+    text-decoration: underline;
+}
+
+.oce-address {
+    font-size: 0.75rem;
+    color: #706e6b;
+    margin: 0.15rem 0 0.35rem;
+}
+
+.oce-class-badge {
+    margin-top: 0.15rem;
+}
+
+.oce-field-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #706e6b;
+    margin: 0 0 0.15rem;
+}
+
+.oce-field-value {
+    font-size: 0.8125rem;
+    color: #181818;
+    margin: 0;
+}
+
+.oce-field-subvalue {
+    font-size: 0.75rem;
+    color: #706e6b;
+    margin: 0.1rem 0 0;
+}
+
+.oce-call-plan-primary {
+    font-weight: 600;
+}
+
+.target-yes {
+    display: inline-block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #2e844a;
+}
+
+.target-no {
+    display: inline-block;
+    font-size: 0.8125rem;
+    color: #706e6b;
+}
+
+.risk-dot-high,
+.risk-dot-med,
+.risk-dot-low {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.risk-dot-high {
+    background: #ba0517;
+}
+
+.risk-dot-med {
+    background: #fe9339;
+}
+
+.risk-dot-low {
+    background: #2e844a;
+}
+
+.account-type-icon-hcp {
+    --slds-c-icon-color-background: #0176d3;
+}
+
+.account-type-icon-hco {
+    --slds-c-icon-color-background: #6a1b9a;
+}
+
+.oce-field-label-spaced {
+    margin-top: 0.5rem;
+}
+
+.oce-load-more {
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+@media (max-width: 40rem) {
+    .oce-col-last-call,
+    .oce-col-target,
+    .oce-col-call-plan,
+    .oce-col-specialty {
+        padding-top: 0.25rem;
+    }
+
+    .oce-col-actions {
+        text-align: left;
+        padding-top: 0.25rem;
+    }
+}

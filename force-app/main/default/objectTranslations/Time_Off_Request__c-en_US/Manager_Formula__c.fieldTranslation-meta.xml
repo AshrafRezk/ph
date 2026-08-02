@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomFieldTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
+    <help><!-- Automatically reflects the manager on the user who created this request. --></help>
+    <label><!-- Manager --></label>
+    <name>Manager_Formula__c</name>
+</CustomFieldTranslation>

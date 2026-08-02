@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Account.External_ID__c</members>
+        <members>Account.Tier__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>Account</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Account.Business_Account</members>
+        <members>Account.PersonAccount</members>
+        <members>Account.SDO_Account_Partner</members>
+        <members>Account.SDO_Account_Simple</members>
+        <members>Account.SDO_PersonAccounts</members>
+        <name>RecordType</name>
+    </types>
+    <types>
+        <members>PersonAccount</members>
+        <name>Settings</name>
+    </types>
+    <version>67.0</version>
+</Package>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StandardValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sorted>true</sorted>
+    <standardValue>
+        <fullName>District Manager</fullName>
+        <default>false</default>
+        <label>District Manager</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Key Account Manager</fullName>
+        <default>false</default>
+        <label>Key Account Manager</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Medical Rep</fullName>
+        <default>false</default>
+        <label>Medical Rep</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Medical Science Liaison</fullName>
+        <default>false</default>
+        <label>Medical Science Liaison</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Product Manager</fullName>
+        <default>false</default>
+        <label>Product Manager</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Region Manager</fullName>
+        <default>false</default>
+        <label>Region Manager</label>
+    </standardValue>
+    <standardValue>
+        <fullName>SFE</fullName>
+        <default>false</default>
+        <label>SFE</label>
+    </standardValue>
+</StandardValueSet>

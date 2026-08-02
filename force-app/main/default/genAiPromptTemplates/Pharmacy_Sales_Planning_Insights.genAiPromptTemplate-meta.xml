@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Pharmacy sales planning insights for Agentforce recommendations.</description>
+    <developerName>Pharmacy_Sales_Planning_Insights</developerName>
+    <masterLabel>Pharmacy Sales Planning Insights</masterLabel>
+    <templateVersions>
+        <content>You are Agentforce for Chemipharm field planning. Using the analytics JSON, plan context JSON, vision JSON, and user role, return strict JSON matching the InsightsPayload schema with headline, marketSummary, brandSummary, planSummary, marketTrends, brandTrends, recommendations, and vision. Do not include markdown fences.
+
+Analytics: {!$Input:analyticsJson}
+Plan context: {!$Input:planContextJson}
+Vision: {!$Input:visionJson}
+User: {!$Input:userRole}</content>
+        <inputs>
+            <apiName>analyticsJson</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Analytics JSON</masterLabel>
+            <referenceName>Input:analyticsJson</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>planContextJson</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Plan Context JSON</masterLabel>
+            <referenceName>Input:planContextJson</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>visionJson</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Vision JSON</masterLabel>
+            <referenceName>Input:visionJson</referenceName>
+            <required>false</required>
+        </inputs>
+        <inputs>
+            <apiName>userRole</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>User Role</masterLabel>
+            <referenceName>Input:userRole</referenceName>
+            <required>false</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultOpenAIGPT4OmniMini</primaryModel>
+        <status>Published</status>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+</GenAiPromptTemplate>

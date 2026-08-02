@@ -1,0 +1,16 @@
+[build]
+  publish = "apps/shell/dist"
+  command = "npm run build -w @osr/shell"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/oauth/callback"
+  to = "/index.html"
+  status = 200
+
+# SPA fallback. Netlify matches /.netlify/functions/* before redirects,
+# so this catch-all does not swallow the sf-token proxy.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

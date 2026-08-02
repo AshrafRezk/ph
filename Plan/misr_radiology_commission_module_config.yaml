@@ -1,0 +1,103 @@
+module:
+  name: Misr Radiology Center Commissions
+  version: "1.0.0"
+  package_manifest: manifest/misr-radiology-commission-package.xml
+  objective: >
+    Home-page Misr Radiology Center component showing monthly sold revenue and proportional
+    commission per diagnostic radiology service, with month navigation and pace-based projection.
+
+commission_formula: >
+  commission = sold × rate × min(achievement%, 100%)
+  where achievement% = (sold / target) × 100, capped at 100% for commission factor.
+
+services:
+  - key: mri
+    label: MRI
+    sold_field: MR_MRI_Sold__c
+    target_field: MR_MRI_Target__c
+  - key: totum_mri
+    label: Totum MRI Scan
+    sold_field: MR_Totum_MRI_Sold__c
+    target_field: MR_Totum_MRI_Target__c
+  - key: pet_mri
+    label: PET/MRI
+    sold_field: MR_PET_MRI_Sold__c
+    target_field: MR_PET_MRI_Target__c
+  - key: ct_scan
+    label: CT Scan
+    sold_field: MR_CT_Scan_Sold__c
+    target_field: MR_CT_Scan_Target__c
+  - key: pet_ct
+    label: PET/CT
+    sold_field: MR_PET_CT_Sold__c
+    target_field: MR_PET_CT_Target__c
+  - key: ultrasound
+    label: Ultrasound
+    sold_field: MR_Ultrasound_Sold__c
+    target_field: MR_Ultrasound_Target__c
+  - key: digital_xray
+    label: Digital X-Ray
+    sold_field: MR_Digital_XRay_Sold__c
+    target_field: MR_Digital_XRay_Target__c
+  - key: fluoroscopy
+    label: Fluoroscopy
+    sold_field: MR_Fluoroscopy_Sold__c
+    target_field: MR_Fluoroscopy_Target__c
+  - key: breast_imaging
+    label: Breast Imaging (Mammography)
+    sold_field: MR_Breast_Imaging_Sold__c
+    target_field: MR_Breast_Imaging_Target__c
+  - key: dexa
+    label: DEXA
+    sold_field: MR_DEXA_Sold__c
+    target_field: MR_DEXA_Target__c
+  - key: isotope
+    label: Isotope
+    sold_field: MR_Isotope_Sold__c
+    target_field: MR_Isotope_Target__c
+  - key: womens_health
+    label: Women's Health Unit
+    sold_field: MR_Womens_Health_Sold__c
+    target_field: MR_Womens_Health_Target__c
+  - key: dental_imaging
+    label: Dental Imaging Unit
+    sold_field: MR_Dental_Imaging_Sold__c
+    target_field: MR_Dental_Imaging_Target__c
+  - key: other_services
+    label: Other Services
+    sold_field: MR_Other_Services_Sold__c
+    target_field: MR_Other_Services_Target__c
+
+lwc:
+  component: misrRadiologyCommissions
+
+apex:
+  - MisrRadiologyCommissionService
+  - MisrRadiologyCommissionController
+  - MisrRadiologyCommissionSeed
+  - MisrRadiologyCommissionServiceTest
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/misr-radiology-commission-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Field_Rep_Home
+    audience: Field reps who use the home dashboard
+  - step: 3
+    action: seed_demo_data
+    apex: MisrRadiologyCommissionSeed.seedDemoData()
+    audience: Smoke test for current user time card
+  - step: 4
+    action: verify_home
+    flexipages:
+      - Field_Rep_Home
+      - Field_Rep_Home_App
+    note: Misr Radiology Center card appears below Your Performance metrics
+
+user_journey:
+  - Open Field Rep Home and review Misr Radiology Center commission card.
+  - Use month navigation to inspect sold vs target by diagnostic service.
+  - Review projection banner for expected final commission in next payroll month.

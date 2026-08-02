@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Pharmacy_Sales_Withdrawal__c</members>
+        <members>Brick_Pharmacy__c</members>
+        <members>Sales_Data_Import_Batch__c</members>
+        <members>Brick__c</members>
+        <name>CustomObject</name>
+    </types>
+    <version>67.0</version>
+</Package>

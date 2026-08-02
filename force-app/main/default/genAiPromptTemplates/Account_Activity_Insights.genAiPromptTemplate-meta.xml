@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Account visit activity insights for field reps — products, sentiment, and next-visit talking points.</description>
+    <developerName>Account_Activity_Insights</developerName>
+    <masterLabel>Account Activity Insights</masterLabel>
+    <templateVersions>
+        <content>You are Agentforce for Chemipharm field sales. Using the structured visit history JSON for account {!$Input:accountId}, return strict JSON with headline, summary, productsDiscussed, painPoints, positiveSignals, customerFeedback, and suggestedTalkingPoints arrays. Summarize ALL historical visits: products discussed/detailed, customer feedback, pain points, positive signals, and actionable next-visit talking points. Do not include markdown fences.
+
+Visit history JSON: {!$Input:visitHistoryJson}</content>
+        <inputs>
+            <apiName>accountId</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Account Id</masterLabel>
+            <referenceName>Input:accountId</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>visitHistoryJson</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Visit History JSON</masterLabel>
+            <referenceName>Input:visitHistoryJson</referenceName>
+            <required>true</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultOpenAIGPT4OmniMini</primaryModel>
+        <status>Published</status>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+</GenAiPromptTemplate>

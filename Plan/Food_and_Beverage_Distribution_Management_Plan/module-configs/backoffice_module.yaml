@@ -1,0 +1,39 @@
+module:
+  name: Everbrook Backoffice
+  version: "1.0.0"
+  platform: Lightning Experience
+  objective: >
+    Everbrook management — target setting, fleet GPS all vans,
+    reports and dashboards.
+
+sub_modules:
+  - target_setting
+  - gps_fleet_map
+  - reports_dashboards
+
+source_components:
+  - Components from another org that can be usefull/management-fleet-tracking
+  - Components from another org that can be usefull/management-kpi-dashboard
+
+adaptations:
+  - Replace User__c with Contact__c on Rep_Location_Snapshot__c
+  - Add Distributor__c filter to fleet map
+  - Rename pharmacy dashboard to van sales dashboard
+  - KPI per KPI_SCORING_MODEL.md
+
+execution_sequence:
+  - step: 1
+    action: deploy_fleet_module
+    folder: management-fleet-tracking
+  - step: 2
+    action: deploy_kpi_module
+    folder: management-kpi-dashboard
+  - step: 3
+    action: create_lightning_app
+    name: Everbrook Management
+  - step: 4
+    action: assign_permission_sets
+    sets: [Everbrook_Management_App, Everbrook_Fleet_Module]
+  - step: 5
+    action: configure_csp
+    sites: [tile.openstreetmap.org, router.project-osrm.org]

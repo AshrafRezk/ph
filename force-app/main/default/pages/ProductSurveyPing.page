@@ -1,0 +1,11 @@
+<apex:page showHeader="false" sidebar="false" standardStylesheets="false" applyBodyTag="false" docType="html-5.0">
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Site Ping</title>
+        </head>
+        <body>
+            <p>Product Survey site is live.</p>
+        </body>
+    </html>
+</apex:page>

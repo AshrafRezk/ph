@@ -1,0 +1,159 @@
+module:
+  name: Territory Alignment
+  version: "1.0.0"
+  package_manifest: manifest/territory-alignment-package.xml
+  objective: >
+    OCE-aligned territory alignment data model with Account Territory Fields (ATF),
+    Account Territory Product Fields (ATPF), and Product Territory Alignment (PTA).
+    ATF stores HCP Potential, Penetration, and derived Classification per territory.
+    ATPF stores product-level adoption and visit frequency metrics.
+    PTA defines which products are aligned to each territory.
+
+object_mapping:
+  account_territory_fields:
+    object: Account_Territory_Fields__c
+    fields:
+      account: Account__c
+      territory: Territory2_Id__c
+      potential: Potential__c
+      penetration: Penetration__c
+      matrix_rating: Matrix_Rating__c
+      classification: Classification__c
+      ratings_populated_by: ATF_Set_Unique_Key
+      is_active: Is_Active__c
+    potential_picklist_values:
+      - A
+      - B
+      - C
+    penetration_picklist_values:
+      - "1"
+      - "2"
+      - "3"
+    classification_matrix:
+      A: [A1, A2, B1]
+      B: [A3, B2, C1]
+      C: [B3, C2, C3]
+
+  account_territory_product_fields:
+    object: Account_Territory_Product_Fields__c
+    fields:
+      account: Account__c
+      territory: Territory2_Id__c
+      product: Product2_Id__c
+      rx_per_week: Rx_Per_Week__c
+      adoption: Adoption__c
+      loyalty: Loyalty__c
+      product_matrix_rating: Product_Matrix_Rating__c
+      target_visit_frequency: Target_Visit_Frequency__c
+      is_active: Is_Active__c
+      notes: Notes__c
+    adoption_picklist_values:
+      - H
+      - M
+      - L
+    loyalty_picklist_values:
+      - H
+      - M
+      - L
+    product_matrix_rules: >
+      Product_Matrix_Rating__c = Adoption + Loyalty concatenated (e.g. H+H → hh).
+      Nine combinations: HH, HM, HL, MH, MM, ML, LH, LM, LL.
+    target_visit_frequency_picklist_values:
+      - Weekly
+      - Bi-Weekly
+      - Monthly
+      - Quarterly
+      - As Needed
+
+  product_territory_alignment:
+    object: Product_Territory_Alignment__c
+    fields:
+      product: Product2_Id__c
+      territory: Territory2_Id__c
+      is_active: Is_Active__c
+      effective_start_date: Effective_Start_Date__c
+      effective_end_date: Effective_End_Date__c
+
+  uniqueness:
+    approach: unique_external_id_with_before_save_flows
+    unique_key_field: Unique_Key__c
+    flows:
+      - ATF_Set_Unique_Key
+      - ATPF_Set_Unique_Key
+      - PTA_Set_Unique_Key
+    note: >
+      Salesforce does not support custom lookups to Territory2 or restrict-delete
+      lookups to Product2. Territory2_Id__c and Product2_Id__c store 18-character record Ids.
+
+  account_rating_layout:
+    object: Account_Rating_Layout__c
+    child_object: Account_Rating_Layout_Field__c
+    fields:
+      layout_title: Layout_Title__c
+      layout_type: Layout_Type__c
+      territory: Territory2_Id__c
+      product: Product2_Id__c
+      is_active: Is_Active__c
+      is_default: Is_Default__c
+      external_id: External_Id__c
+    child_fields:
+      field_api_name: Field_API_Name__c
+      display_label: Display_Label__c
+      display_order: Display_Order__c
+      section: Section__c
+      is_required: Is_Required__c
+      is_read_only: Is_Read_Only__c
+
+seed:
+  apex_class: TerritoryAlignmentModuleSeed
+  script: scripts/apex/seed-account-ratings.apex
+  prerequisite: AccountAffiliationModuleSeed.seedDemoData()
+
+execution_sequence:
+    action: deploy
+    manifest: manifest/territory-alignment-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Territory_Alignment_Module
+    audience: "Sales reps, MSLs, and admins who manage territory targeting"
+  - step: 3
+    action: add_related_lists
+    objects:
+      - object: Account
+        related_lists:
+          - Account_Territory_Fields__c
+          - Account_Territory_Product_Fields__c
+      - object: Territory2
+        related_lists:
+          - Account_Territory_Fields__c
+          - Account_Territory_Product_Fields__c
+          - Product_Territory_Alignment__c
+      - object: Product2
+        related_lists:
+          - Account_Territory_Product_Fields__c
+          - Product_Territory_Alignment__c
+    condition: "Configure via Lightning App Builder after deploy"
+  - step: 4
+    action: seed_demo_data
+    apex: TerritoryAlignmentModuleSeed.seedDemoData
+    script: scripts/apex/seed-account-ratings.apex
+    prerequisite: "Run after AccountAffiliationModuleSeed"
+  - step: 5
+    action: smoke_test
+    checklist:
+      - "Create PTA record (Product2_Id + Territory2_Id) — confirm duplicate insert fails on Unique_Key__c"
+      - "Create ATF with Potential=A, Penetration=1 — confirm Matrix_Rating=A1, Classification=A"
+      - "Test all 9 matrix combinations (A1–C3) map to correct Classification"
+      - "Create ATPF for same Account+Territory with two different Products — confirm independent Rx/Adoption values"
+      - "Add related lists to Account record page and smoke-test create/edit from UI"
+
+user_journey:
+  manage_product_alignment:
+    - "Admin creates Product Territory Alignment records for each product/territory pair"
+    - "Rep opens HCP Account record and reviews Account Territory Fields related list"
+    - "Rep sets Potential and Penetration; Classification auto-calculates"
+    - "Rep creates Account Territory Product Fields per product with Rx, Adoption, and visit frequency"
+  targeting:
+  - "Use Classification A/B/C to prioritize Class A HCPs (majority of Rx volume)"
+  - "Use ATPF Target Visit Frequency to plan different cadences per business unit"

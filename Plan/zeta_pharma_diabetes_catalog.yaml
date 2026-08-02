@@ -1,0 +1,170 @@
+# Zeta Pharma product catalog — source of truth for Apex seed + image fetcher.
+# Website: https://zetapharma.net/products/
+
+catalog:
+  manufacturer: Zeta Pharma
+  currency: EGP
+
+products:
+  # --- Empacoza (Diabetes) ---
+  - external_id: ZETA_EMPACOZA_10MG
+    name: Empacoza 10 mg
+    product_code: ZETA-EMP-10
+    product_family: Empacoza
+    therapy_area: Diabetes
+    image_slug: empacoza-10
+    image_url: https://zetapharma.net/wp-content/uploads/2025/07/empacoza-10mg.png
+    active_ingredient: Empagliflozin
+    concentration: 10 mg
+    unit_price: 180
+    source_url: https://zetapharma.net/products/
+    display_url: https://zetapharma.net/products/
+    listing_name: Empacoza
+    description: >
+      Empagliflozin 10 mg film-coated tablets (30 FCT).
+      Indicated for adults with type 2 diabetes mellitus to improve glycaemic control
+      as an adjunct to diet and exercise. SGLT2 inhibitor manufactured by Zeta Pharma.
+
+  - external_id: ZETA_EMPACOZA_25MG
+    name: Empacoza 25 mg
+    product_code: ZETA-EMP-25
+    product_family: Empacoza
+    therapy_area: Diabetes
+    image_slug: empacoza-25
+    image_url: https://zetapharma.net/wp-content/uploads/2025/07/empacoza-25.png
+    active_ingredient: Empagliflozin
+    concentration: 25 mg
+    unit_price: 180
+    source_url: https://zetapharma.net/products/
+    display_url: https://zetapharma.net/products/
+    listing_name: Empacoza
+    description: >
+      Empagliflozin 25 mg film-coated tablets (30 FCT).
+      Indicated for adults with type 2 diabetes mellitus to improve glycaemic control
+      as an adjunct to diet and exercise. SGLT2 inhibitor manufactured by Zeta Pharma.
+
+  - external_id: ZETA_EMPACOZA_PLUS_10_5MG
+    name: Empacoza Plus 10/5 mg
+    product_code: ZETA-EMP-PLUS-10-5
+    product_family: Empacoza
+    therapy_area: Diabetes
+    image_slug: empacoza-plus-10-5
+    image_url: https://zetapharma.net/wp-content/uploads/2025/07/empacoza-plus-10-5.png
+    active_ingredient: Empagliflozin + Linagliptin
+    concentration: 10 mg + 5 mg
+    unit_price: 250
+    source_url: https://zetapharma.net/zeta-products/empacoza-plus-film-coated-tablets/
+    display_url: https://zetapharma.net/zeta-products/empacoza-plus-film-coated-tablets/
+    listing_name: Empacoza Plus
+    description: >
+      Fixed-dose combination of empagliflozin 10 mg and linagliptin 5 mg (30 FCT).
+
+  - external_id: ZETA_EMPACOZA_PLUS_25_5MG
+    name: Empacoza Plus 25/5 mg
+    product_code: ZETA-EMP-PLUS-25-5
+    product_family: Empacoza
+    therapy_area: Diabetes
+    image_slug: empacoza-plus-25-5
+    image_url: https://zetapharma.net/wp-content/uploads/2025/07/empacoza-plus-25-5.png
+    active_ingredient: Empagliflozin + Linagliptin
+    concentration: 25 mg + 5 mg
+    unit_price: 250
+    source_url: https://zetapharma.net/zeta-products/empacoza-plus-film-coated-tablets/
+    display_url: https://zetapharma.net/zeta-products/empacoza-plus-film-coated-tablets/
+    listing_name: Empacoza Plus
+    description: >
+      Fixed-dose combination of empagliflozin 25 mg and linagliptin 5 mg (30 FCT).
+
+  - external_id: ZETA_EMPACOZA_TRIO_10_5_1000
+    name: Empacoza Trio 10/5/1000 mg
+    product_code: ZETA-EMP-TRIO-10-5-1000
+    product_family: Empacoza
+    therapy_area: Diabetes
+    active_ingredient: Empagliflozin + Linagliptin + Metformin
+    concentration: 10/5/1000 mg
+    unit_price: 320
+    source_url: https://zetapharma.net/products/
+    listing_name: Empacoza Trio
+    description: >
+      Empacoza Trio 10/5/1000 mg (30 FCT). SKU from DIB III FEB SALES ACH.xlsx.
+
+  - external_id: ZETA_EMPACOZA_TRIO_25_5_1000
+    name: Empacoza Trio 25/5/1000 mg
+    product_code: ZETA-EMP-TRIO-25-5-1000
+    product_family: Empacoza
+    therapy_area: Diabetes
+    active_ingredient: Empagliflozin + Linagliptin + Metformin
+    concentration: 25/5/1000 mg
+    unit_price: 380
+    source_url: https://zetapharma.net/products/
+    listing_name: Empacoza Trio
+    description: >
+      Empacoza Trio 25/5/1000 mg (30 FCT). SKU from DIB III FEB SALES ACH.xlsx.
+
+  # --- Dozova (CHC / Diabetes) ---
+  - external_id: ZETA_DOZOVA_NAD_300
+    name: Dozova NAD+ 300 mg
+    product_code: ZETA-DOZ-NAD-300
+    product_family: Dozova
+    therapy_area: CHC
+    active_ingredient: Nicotinamide Riboside
+    concentration: 300 mg
+    unit_price: 320
+    source_url: https://zetapharma.net/products/
+
+  - external_id: ZETA_DOZOVA_MELATONIN_5
+    name: Dozova Melatonin 5 mg
+    product_code: ZETA-DOZ-MEL-5
+    product_family: Dozova
+    therapy_area: CHC
+    active_ingredient: Melatonin
+    concentration: 5 mg
+    unit_price: 95
+    source_url: https://zetapharma.net/products/
+
+  - external_id: ZETA_DOZOVA_Q10_200
+    name: Dozova Q10 Coenzyme 200 mg
+    product_code: ZETA-DOZ-Q10-200
+    product_family: Dozova
+    therapy_area: CHC
+    active_ingredient: Ubiquinol Coenzyme Q10
+    concentration: 200 mg
+    unit_price: 280
+    source_url: https://zetapharma.net/products/
+
+  - external_id: ZETA_DOZOVA_ALA_600
+    name: Dozova Alpha Lipoic Acid 600 mg
+    product_code: ZETA-DOZ-ALA-600
+    product_family: Dozova
+    therapy_area: Diabetes
+    active_ingredient: Alpha Lipoic Acid
+    concentration: 600 mg
+    unit_price: 150
+    image_url: https://zetapharma.net/wp-content/uploads/2023/04/alpha-lipoic.png
+    source_url: https://zetapharma.net/zeta-products/dozova-alpha-lipoic-acid-500-mg/
+
+  # --- Zetakardoval (Cardiovascular) ---
+  - external_id: ZETA_ZETAKARDOVAL_5_160
+    name: Zetakardoval 5/160 mg
+    product_code: ZETA-ZKV-5-160
+    product_family: Zetakardoval
+    therapy_area: Cardiovascular
+    active_ingredient: Amlodipine + Valsartan
+    concentration: 5 mg + 160 mg
+    unit_price: 120
+    source_url: https://zetapharma.net/products/
+
+  # --- Nexicure (Gastroenterology) ---
+  - external_id: ZETA_NEXICURE_20
+    name: Nexicure 20 mg
+    product_code: ZETA-NXC-20
+    product_family: Nexicure
+    therapy_area: Gastroenterology
+    active_ingredient: Esomeprazole
+    concentration: 20 mg
+    unit_price: 85
+    source_url: https://zetapharma.net/products/
+
+territory_alignment:
+  territory_external_id: TERR_DIABETES_DM_1_MR_1
+  effective_start_offset_months: -1

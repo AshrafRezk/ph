@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionCalls>
+        <name>Recalc_TOT_By_Range</name>
+        <label>Recalc TOT By Range</label>
+        <locationX>176</locationX>
+        <locationY>188</locationY>
+        <actionName>TimeOffRequestTOTRecalcByRange</actionName>
+        <actionType>apex</actionType>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>userId</name>
+            <value>
+                <elementReference>$Record.CreatedById</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>startDateTime</name>
+            <value>
+                <elementReference>$Record.Start_Date_Time__c</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>endDateTime</name>
+            <value>
+                <elementReference>$Record.End_Date_Time__c</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>TimeOffRequestTOTRecalcByRange</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+    <apiVersion>63.0</apiVersion>
+    <description>When a time-off request is deleted, recalculates TOT on affected day entries so counts stay correct.</description>
+    <environments>Default</environments>
+    <interviewLabel>Time Off Request: Deleted Recalc TOT {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Time Off Request: Deleted Recalc TOT</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Recalc_TOT_By_Range</targetReference>
+        </connector>
+        <object>Time_Off_Request__c</object>
+        <recordTriggerType>Delete</recordTriggerType>
+        <triggerType>RecordBeforeDelete</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>

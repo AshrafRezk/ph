@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Use Suggested</fullName>
+        <default>true</default>
+        <label>Use Suggested</label>
+    </customValue>
+    <customValue>
+        <fullName>Force Eligible</fullName>
+        <default>false</default>
+        <label>Force Eligible</label>
+    </customValue>
+    <customValue>
+        <fullName>Force Ineligible</fullName>
+        <default>false</default>
+        <label>Force Ineligible</label>
+    </customValue>
+    <description>Override KPI-suggested bonus or commission eligibility on a monthly time card.</description>
+    <masterLabel>Compensation Eligibility Override</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

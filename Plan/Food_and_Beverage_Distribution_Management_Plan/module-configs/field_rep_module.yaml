@@ -1,0 +1,53 @@
+module:
+  name: Field Rep View
+  version: "1.0.0"
+  platform: Visualforce Public Site
+  objective: >
+    Mobile field sales for VAMOS distribution — Arabic default, Contact login,
+    targets, route, planner, GPS, visits, orders, cases.
+
+sub_modules:
+  - targets
+  - route_viewing
+  - planner
+  - gps_tracking
+  - visit_management
+  - order_management
+  - case_logging
+
+integration:
+  map_provider: OpenStreetMap
+  map_library: Leaflet
+  routing_api: OSRM
+  language_default: Arabic
+  csp_trusted_sites:
+    - https://tile.openstreetmap.org
+    - https://router.project-osrm.org
+
+source_components:
+  - Components from another org that can be usefull/field-rep-home
+  - Components from another org that can be usefull/field-planner
+  - Components from another org that can be usefull/map-stack
+  - Components from another org that can be usefull/public-vf-site-pattern
+  - Components from another org that can be usefull/visit-management
+
+execution_sequence:
+  - step: 1
+    action: deploy_objects
+    reference: DATA_MODEL.md
+  - step: 2
+    action: deploy_map_stack
+    folder: map-stack
+  - step: 3
+    action: create_vf_pages
+    pages: [FieldSalesLogin, FieldSalesHome, FieldSalesRoute, FieldSalesPlanner, FieldSalesVisit, FieldSalesOrder]
+  - step: 4
+    action: create_site
+    url_prefix: fieldsales
+  - step: 5
+    action: create_custom_labels
+    prefix: fb_
+    languages: [ar, en_US]
+  - step: 6
+    action: smoke_test
+    reference: DEVELOPER_QUICKSTART.md

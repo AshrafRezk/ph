@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_CPQ_Churn_Risk__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>What: Included on the CPQ Layout to identify Churn Risk</description>
+    <label>Churn Risk</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

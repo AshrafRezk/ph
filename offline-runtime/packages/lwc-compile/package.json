@@ -1,0 +1,36 @@
+{
+  "name": "@osr/lwc-compile",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./scan": {
+      "types": "./src/scan.ts",
+      "import": "./src/scan.ts",
+      "default": "./src/scan.ts"
+    },
+    "./compile": {
+      "types": "./src/compile.ts",
+      "import": "./src/compile.ts",
+      "default": "./src/compile.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/index.test.ts",
+    "compile:allowlist": "node --import tsx src/cli-compile-allowlist.ts"
+  },
+  "dependencies": {
+    "@lwc/compiler": "9.3.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

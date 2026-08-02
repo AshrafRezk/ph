@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#1B6FD8</headerColor>
+        <logo>Chemipharm_Logo</logo>
+        <logoVersion>1</logoVersion>
+        <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
+    </brand>
+    <description>Pharma Executive — executive rollup, project management, promo budget, cross-dept collaboration, and Mendix integration.</description>
+    <formFactors>Small</formFactors>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <label>Pharma Executive</label>
+    <navType>Standard</navType>
+    <tabs>Executive_Home</tabs>
+    <tabs>Management_Home</tabs>
+    <tabs>Reports_Hub</tabs>
+    <tabs>Pharmacy_Sales_Dashboard</tabs>
+    <tabs>Admin_Console</tabs>
+    <tabs>Project_Management</tabs>
+    <tabs>Pharma_Project__c</tabs>
+    <tabs>Cross_Dept_Hub</tabs>
+    <tabs>Promo_Budget</tabs>
+    <tabs>Mendix_Integration</tabs>
+    <tabs>Coaching_Event__c</tabs>
+    <tabs>Visit__c</tabs>
+    <tabs>Accounts_Tab</tabs>
+    <tabs>Time_Off_Request__c</tabs>
+    <tabs>standard-Dashboard</tabs>
+    <tabs>standard-report</tabs>
+    <uiType>Lightning</uiType>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <comment>Project Management native record page</comment>
+        <content>Pharma_Project_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <skipRecordTypeSelect>false</skipRecordTypeSelect>
+        <type>Flexipage</type>
+        <pageOrSobjectType>Pharma_Project__c</pageOrSobjectType>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <comment>Project Management native record page</comment>
+        <content>Pharma_Project_Record_Page</content>
+        <formFactor>Small</formFactor>
+        <skipRecordTypeSelect>false</skipRecordTypeSelect>
+        <type>Flexipage</type>
+        <pageOrSobjectType>Pharma_Project__c</pageOrSobjectType>
+    </actionOverrides>
+</CustomApplication>

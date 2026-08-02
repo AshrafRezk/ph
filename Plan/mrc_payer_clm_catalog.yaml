@@ -1,0 +1,77 @@
+# Misr Radiology Center (MRC) product catalog + payer CLM deck matrix.
+# Products are seeded via MrcProductCatalogService; PDF decks via scripts/upload_mrc_payer_clms.py
+
+catalog:
+  manufacturer: Misr Radiology Center
+  currency: EGP
+  product_family: Misr Radiology
+  therapy_area: Diagnostic Imaging
+
+products:
+  - external_id: MRC_MRI
+    name: MRI
+    product_code: MRC-MRI
+    service_key: mri
+    unit_price: 2500
+    description: >
+      Magnetic Resonance Imaging at Misr Radiology Center — high-field MRI for
+      neurological, musculoskeletal, abdominal, and oncologic diagnostics.
+
+  - external_id: MRC_CT_SCAN
+    name: CT Scan
+    product_code: MRC-CT
+    service_key: ct_scan
+    unit_price: 1800
+    description: >
+      Multi-slice CT imaging for trauma, oncology staging, vascular studies,
+      and emergency diagnostics at Misr Radiology Center.
+
+  - external_id: MRC_PET_CT
+    name: PET/CT
+    product_code: MRC-PET-CT
+    service_key: pet_ct
+    unit_price: 6500
+    description: >
+      Hybrid PET/CT for oncology restaging, treatment response assessment,
+      and metabolic imaging at Misr Radiology Center.
+
+  - external_id: MRC_ULTRASOUND
+    name: Ultrasound
+    product_code: MRC-US
+    service_key: ultrasound
+    unit_price: 600
+    description: >
+      Diagnostic ultrasound including abdominal, pelvic, vascular, and
+      musculoskeletal studies at Misr Radiology Center.
+
+  - external_id: MRC_BREAST_IMAGING
+    name: Breast Imaging (Mammography)
+    product_code: MRC-MAMMO
+    service_key: breast_imaging
+    unit_price: 900
+    description: >
+      Digital mammography and breast imaging for screening and diagnostic
+      workup at Misr Radiology Center.
+
+  - external_id: MRC_DENTAL_IMAGING
+    name: Dental Imaging Unit
+    product_code: MRC-DENTAL
+    service_key: dental_imaging
+    unit_price: 450
+    description: >
+      Panoramic and cone-beam dental imaging for oral surgery planning
+      and implant assessment at Misr Radiology Center.
+
+payers:
+  - key: axa
+    name: AXA
+    tag: payer:AXA
+  - key: metlife
+    name: MetLife
+    tag: payer:MetLife
+
+clm:
+  format: PDF
+  status: Available
+  tags_template: "{payer_tag};MRC;{service_key};coverage;payer-presentation"
+  presentation_name_template: "{payer_name} — {service_name} Coverage Overview"

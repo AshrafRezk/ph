@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Visit_Product_Survey_Feedback__c.Account__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Assigned_Rep__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Efficacy_Sentiment__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Indication_Sentiment__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Product_Name__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Safety_Sentiment__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Side_Effects_Sentiment__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Source__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Submitted_At__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Usage_Sentiment__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Visit_Feedback__c</members>
+        <members>Visit_Product_Survey_Feedback__c.Visit__c</members>
+        <name>CustomField</name>
+    </types>
+    <version>67.0</version>
+</Package>

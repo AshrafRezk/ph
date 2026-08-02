@@ -1,0 +1,45 @@
+# Soul Pharma CLM presentation — slide product / message alignment matrix.
+# Source PDF: Plan/Demo Slides/Soul Pharma Product Deck.pdf
+# Source site: https://www.soulpharma.org/ar/products
+
+presentation:
+  name: Soul Pharma Product Deck
+  pdf_path: Plan/Demo Slides/Soul Pharma Product Deck.pdf
+  primary_product_external_id: SOUL_SOULFORT_CAP_20
+  product_external_ids:
+    - SOUL_SOULFORT_CAP_20
+    - SOUL_GENOLIGHT_CREAM
+  tags: Soul Pharma;Soulfort;Genolight;Consumer Health
+  keep_active_names:
+    - Chemipharm Presentation Deck
+    - Soul Pharma Product Deck
+
+slides:
+  # Cover — portfolio positioning for Consumer Health best sellers
+  1:
+    product_names: Soul Pharma; Soulfort; Genolight
+    message_names: INDICATION
+  # Executive summary — both SKUs with commercial framing
+  2:
+    product_names: Soulfort; Genolight
+    message_names: INDICATION
+  # Soulfort MoA & clinical efficacy (immune activation, fatigue reduction)
+  3:
+    product_names: Soulfort
+    message_names: EFFICACY
+  # Soulfort dosing, pharmacovigilance & sales pitch
+  4:
+    product_names: Soulfort
+    message_names: SAFETY; SUPPORT
+  # Genolight dermatological efficacy (pigment density, tone uniformity)
+  5:
+    product_names: Genolight
+    message_names: EFFICACY
+  # Genolight application protocol, safety & detailing
+  6:
+    product_names: Genolight
+    message_names: SAFETY
+  # Commercial comparison matrix + PV reporting channel
+  7:
+    product_names: Soulfort; Genolight
+    message_names: EFFICACY; SAFETY; SUPPORT

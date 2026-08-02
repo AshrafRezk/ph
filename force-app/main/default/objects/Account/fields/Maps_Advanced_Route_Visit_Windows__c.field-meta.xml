@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Maps_Advanced_Route_Visit_Windows__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>SPM Maps Advanced lookup field on the SPM Maps Account page to show how visit windows can be created and used specifically across objects or directly related to a single unique object, e.g., an Account that has a specific visit window constraint that must be taken into consideration when routing, i.e., Friday between 9-11 AM EST only.</description>
+    <inlineHelpText>Create a Visit Window that indicates the ideal visit days and times for a specific customer.  Maps Advanced will ensure all future visits are made within these windows during routing optimization.  Created by: Aaron Bendickson Aug, 18 2023</inlineHelpText>
+    <label>Maps Advanced Route Visit Windows</label>
+    <referenceTo>maps__AdvRouteVisitWindows__c</referenceTo>
+    <relationshipLabel>Accounts</relationshipLabel>
+    <relationshipName>Accounts</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>

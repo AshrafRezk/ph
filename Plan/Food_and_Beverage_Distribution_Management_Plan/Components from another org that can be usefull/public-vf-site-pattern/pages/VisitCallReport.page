@@ -1,0 +1,447 @@
+<apex:page controller="VisitCallReportController" showHeader="false" sidebar="false" standardStylesheets="false" applyBodyTag="false" docType="html-5.0">
+    <html lang="en">
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>Call Report</title>
+            <apex:slds />
+            <style>
+                body { margin: 0; background: #f3f3f3; font-family: "Salesforce Sans", Arial, sans-serif; }
+                .app-shell { max-width: 40rem; margin: 0 auto; padding: 0.75rem 0.75rem 5rem; }
+                .hero { background: linear-gradient(135deg, #f4f8fd, #eef4ff); border: 1px solid #d8e6f8; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem; }
+                .hero h1 { margin: 0.25rem 0; font-size: 1.25rem; }
+                .badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.625rem; font-weight: 700; text-transform: uppercase; margin-right: 0.375rem; }
+                .badge-hcp { background: #e3f2fd; color: #0176d3; }
+                .badge-status { background: #ecebea; color: #3e3e3c; }
+                .tabs { display: flex; gap: 0.375rem; overflow-x: auto; margin-bottom: 0.75rem; }
+                .tab { border: 1px solid #d8dde6; background: #fff; border-radius: 999px; padding: 0.5rem 0.75rem; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+                .tab.active { background: #0176d3; border-color: #0176d3; color: #fff; }
+                .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 0.5rem; padding: 0.875rem; margin-bottom: 0.75rem; }
+                .card h2 { margin: 0 0 0.75rem; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; }
+                .chip-row { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.75rem; }
+                .chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.5rem; border-radius: 999px; border: 1px solid #d8dde6; background: #fff; font-size: 0.75rem; }
+                .chip.primary { border-color: #0176d3; background: #f4f8fd; }
+                .chip button { border: none; background: transparent; font-size: 1rem; line-height: 1; color: #706e6b; }
+                .field { margin-bottom: 0.75rem; }
+                .field label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem; color: #3e3e3c; }
+                .field input, .field select, .field textarea { width: 100%; box-sizing: border-box; padding: 0.625rem; border: 1px solid #c9c9c9; border-radius: 0.25rem; font-size: 1rem; }
+                .product-card, .sample-card { border: 1px solid #ecebea; border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.5rem; background: #fafafa; }
+                .product-card h3, .sample-card h3 { margin: 0 0 0.5rem; font-size: 0.9375rem; }
+                .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+                .btn { border: 1px solid #c9c9c9; background: #fff; border-radius: 0.25rem; padding: 0.625rem 0.875rem; font-size: 0.875rem; font-weight: 600; }
+                .btn-brand { background: #0176d3; border-color: #0176d3; color: #fff; }
+                .btn-block { width: 100%; }
+                .save-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #e5e5e5; padding: 0.75rem; }
+                .save-bar .btn { width: 100%; }
+                .empty { color: #706e6b; font-size: 0.8125rem; }
+                .hidden { display: none; }
+                .error { color: #c23934; font-size: 0.8125rem; margin-bottom: 0.75rem; }
+                .candidate { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid #ecebea; }
+            </style>
+        </head>
+        <body>
+            <div class="app-shell">
+                <div id="error" class="error hidden"></div>
+                <div id="loading" class="card">Loading call report...</div>
+
+                <div id="app" class="hidden">
+                    <section class="hero">
+                        <div>
+                            <span id="accountBadge" class="badge badge-hcp">Account</span>
+                            <span id="statusBadge" class="badge badge-status">Draft</span>
+                        </div>
+                        <h1 id="accountName"></h1>
+                        <p id="accountMeta" class="empty"></p>
+                    </section>
+
+                    <nav class="tabs" id="tabs"></nav>
+
+                    <section id="section-details" class="card">
+                        <h2>Details</h2>
+                        <div class="field">
+                            <label for="status">Status</label>
+                            <select id="status">
+                                <option>Draft</option>
+                                <option>Scheduled</option>
+                                <option>Completed</option>
+                                <option>Cancelled</option>
+                            </select>
+                        </div>
+                        <div id="cancellationWrap" class="field hidden">
+                            <label for="cancellationReason">Cancellation Reason</label>
+                            <textarea id="cancellationReason" rows="2"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="visitObjective">Visit Objective</label>
+                            <textarea id="visitObjective" rows="2"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="visitNotes">Visit Notes</label>
+                            <textarea id="visitNotes" rows="3"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="nextVisitDate">Next Visit Date</label>
+                            <input id="nextVisitDate" type="date" />
+                        </div>
+                    </section>
+
+                    <section id="section-attendees" class="card hidden">
+                        <h2>Attendees</h2>
+                        <div id="attendeeChips" class="chip-row"></div>
+                        <button type="button" class="btn btn-brand btn-block" id="openAttendeeSearch">Add Attendees</button>
+                        <div id="attendeeSearch" class="hidden">
+                            <div class="field">
+                                <label for="attendeeSearchInput">Search</label>
+                                <input id="attendeeSearchInput" type="search" placeholder="Search territory accounts" />
+                            </div>
+                            <div id="attendeeCandidates"></div>
+                        </div>
+                    </section>
+
+                    <section id="section-products" class="card hidden">
+                        <h2>Products</h2>
+                        <div class="field">
+                            <label for="productPick">Territory Product</label>
+                            <select id="productPick"></select>
+                        </div>
+                        <button type="button" class="btn btn-brand btn-block" id="addProductBtn">Add Product</button>
+                        <div id="productList" class="slds-m-top_small"></div>
+                    </section>
+
+                    <section id="section-samples" class="card hidden">
+                        <h2>Samples</h2>
+                        <button type="button" class="btn btn-block" id="addSampleBtn">Add Sample Row</button>
+                        <div id="sampleList"></div>
+                    </section>
+
+                    <section id="section-presentations" class="card hidden">
+                        <h2>Presentations</h2>
+                        <div class="field">
+                            <label for="clmPresentation">CLM Presentation</label>
+                            <input id="clmPresentation" type="text" />
+                        </div>
+                        <div id="clmSessions"></div>
+                    </section>
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button type="button" class="btn btn-brand" id="saveBtn">Save Visit</button>
+            </div>
+
+            <script>
+                const visitId = '{!JSENCODE($CurrentPage.parameters.id)}';
+                let state = {
+                    visit: null,
+                    attendees: [],
+                    products: [],
+                    samples: [],
+                    clmSessions: [],
+                    territoryProducts: [],
+                    inventory: [],
+                    activeSection: 'details',
+                    locked: false
+                };
+
+                const sections = [
+                    { id: 'details', label: 'Details' },
+                    { id: 'attendees', label: 'Attendees' },
+                    { id: 'products', label: 'Products' },
+                    { id: 'samples', label: 'Samples' },
+                    { id: 'presentations', label: 'Presentations' }
+                ];
+
+                function showError(message) {
+                    const el = document.getElementById('error');
+                    el.textContent = message || '';
+                    el.classList.toggle('hidden', !message);
+                }
+
+                function remoting(method, params) {
+                    return new Promise((resolve, reject) => {
+                        VisitCallReportController[method](
+                            ...params,
+                            function (result, event) {
+                                if (event.status) {
+                                    resolve(result);
+                                } else {
+                                    reject(event.message);
+                                }
+                            },
+                            { escape: false }
+                        );
+                    });
+                }
+
+                function setSection(sectionId) {
+                    state.activeSection = sectionId;
+                    sections.forEach((section) => {
+                        document.getElementById('section-' + section.id).classList.toggle('hidden', section.id !== sectionId);
+                    });
+                    renderTabs();
+                }
+
+                function renderTabs() {
+                    const tabs = document.getElementById('tabs');
+                    tabs.innerHTML = sections.map((section) =>
+                        `<button type="button" class="tab ${section.id === state.activeSection ? 'active' : ''}" data-section="${section.id}">${section.label}</button>`
+                    ).join('');
+                    tabs.querySelectorAll('button').forEach((btn) => {
+                        btn.addEventListener('click', () => setSection(btn.dataset.section));
+                    });
+                }
+
+                function renderHero() {
+                    const visit = state.visit;
+                    document.getElementById('accountName').textContent = visit.accountName || '';
+                    document.getElementById('accountMeta').textContent = [visit.accountSpecialty, visit.accountCity].filter(Boolean).join(' · ');
+                    document.getElementById('statusBadge').textContent = visit.status || 'Draft';
+                    document.getElementById('status').value = visit.status || 'Draft';
+                    document.getElementById('visitObjective').value = visit.visitObjective || '';
+                    document.getElementById('visitNotes').value = visit.visitNotes || '';
+                    document.getElementById('nextVisitDate').value = visit.nextVisitDate ? visit.nextVisitDate.substring(0, 10) : '';
+                    document.getElementById('cancellationReason').value = visit.cancellationReason || '';
+                    document.getElementById('clmPresentation').value = visit.clmPresentation || '';
+                    document.getElementById('cancellationWrap').classList.toggle('hidden', visit.status !== 'Cancelled');
+                    setLocked(visit.isLocked);
+                }
+
+                function setLocked(locked) {
+                    state.locked = locked;
+                    document.querySelectorAll('input, select, textarea, button').forEach((el) => {
+                        if (el.id === 'saveBtn') {
+                            el.disabled = locked;
+                            el.classList.toggle('hidden', locked);
+                        } else if (!el.closest('.tabs')) {
+                            el.disabled = locked;
+                        }
+                    });
+                }
+
+                function renderAttendees() {
+                    const wrap = document.getElementById('attendeeChips');
+                    wrap.innerHTML = state.attendees.map((row) => `
+                        <span class="chip ${row.isPrimary ? 'primary' : ''}">
+                            <span>${row.accountName}</span>
+                            ${row.isPrimary ? '' : `<button type="button" data-account="${row.accountId}" class="remove-attendee">×</button>`}
+                        </span>
+                    `).join('');
+                    wrap.querySelectorAll('.remove-attendee').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            state.attendees = state.attendees.filter((row) => row.accountId !== btn.dataset.account);
+                            renderAttendees();
+                        });
+                    });
+                }
+
+                function renderProducts() {
+                    const select = document.getElementById('productPick');
+                    const selected = new Set(state.products.map((row) => row.productId));
+                    select.innerHTML = state.territoryProducts
+                        .filter((row) => !selected.has(row.productId))
+                        .map((row) => `<option value="${row.productId}">${row.productName}</option>`)
+                        .join('');
+
+                    const list = document.getElementById('productList');
+                    list.innerHTML = state.products.map((row, index) => `
+                        <article class="product-card">
+                            <h3>#${row.displayOrder || index + 1} ${row.productName || ''}</h3>
+                            <div class="field">
+                                <label>Notes</label>
+                                <textarea data-index="${index}" class="product-notes">${row.notes || ''}</textarea>
+                            </div>
+                            <button type="button" class="btn remove-product" data-index="${index}">Remove</button>
+                        </article>
+                    `).join('') || '<p class="empty">Add products aligned to your territory.</p>';
+
+                    list.querySelectorAll('.product-notes').forEach((el) => {
+                        el.addEventListener('change', () => {
+                            state.products[Number(el.dataset.index)].notes = el.value;
+                        });
+                    });
+                    list.querySelectorAll('.remove-product').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            state.products.splice(Number(btn.dataset.index), 1);
+                            renderProducts();
+                        });
+                    });
+                }
+
+                function renderSamples() {
+                    const list = document.getElementById('sampleList');
+                    list.innerHTML = state.samples.map((row, index) => `
+                        <article class="sample-card">
+                            <div class="field">
+                                <label>Inventory</label>
+                                <select data-index="${index}" class="sample-inventory">
+                                    <option value="">Select lot</option>
+                                    ${state.inventory.map((inv) => `<option value="${inv.id}" ${inv.id === row.sampleInventoryId ? 'selected' : ''}>${inv.productName} · ${inv.lotNumber}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Quantity</label>
+                                <input type="number" min="1" data-index="${index}" class="sample-qty" value="${row.quantity || 1}" />
+                            </div>
+                            <button type="button" class="btn remove-sample" data-index="${index}">Remove</button>
+                        </article>
+                    `).join('') || '<p class="empty">Add sample distribution lines.</p>';
+
+                    list.querySelectorAll('.sample-inventory').forEach((el) => {
+                        el.addEventListener('change', () => {
+                            const inv = state.inventory.find((row) => row.id === el.value);
+                            const sample = state.samples[Number(el.dataset.index)];
+                            sample.sampleInventoryId = el.value;
+                            sample.productId = inv ? inv.productId : null;
+                            sample.productName = inv ? inv.productName : null;
+                            sample.lotNumber = inv ? inv.lotNumber : null;
+                        });
+                    });
+                    list.querySelectorAll('.sample-qty').forEach((el) => {
+                        el.addEventListener('change', () => {
+                            state.samples[Number(el.dataset.index)].quantity = Number(el.value);
+                        });
+                    });
+                    list.querySelectorAll('.remove-sample').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            state.samples.splice(Number(btn.dataset.index), 1);
+                            renderSamples();
+                        });
+                    });
+                }
+
+                function renderClmSessions() {
+                    const wrap = document.getElementById('clmSessions');
+                    wrap.innerHTML = state.clmSessions.map((row) => `
+                        <div class="product-card">
+                            <strong>${row.presentationName || ''}</strong>
+                            <p class="empty">${row.status || ''} · ${row.slidesPresentedCount || 0} slides</p>
+                        </div>
+                    `).join('') || '<p class="empty">No CLM sessions recorded yet.</p>';
+                }
+
+                async function searchAttendees(term) {
+                    const candidates = await remoting('searchAttendeeCandidatesRemote', [visitId, term || '', 0]);
+                    const wrap = document.getElementById('attendeeCandidates');
+                    wrap.innerHTML = candidates.map((row) => `
+                        <div class="candidate">
+                            <div><strong>${row.accountName}</strong><div class="empty">${row.specialty || ''}</div></div>
+                            <button type="button" class="btn btn-brand add-candidate" data-id="${row.accountId}" data-name="${row.accountName}" data-specialty="${row.specialty || ''}" data-type="${row.accountTypeLabel || ''}" data-rt="${row.recordTypeDeveloperName || ''}">Add</button>
+                        </div>
+                    `).join('') || '<p class="empty">No accounts found.</p>';
+                    wrap.querySelectorAll('.add-candidate').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            if (state.attendees.some((row) => row.accountId === btn.dataset.id)) {
+                                return;
+                            }
+                            state.attendees.push({
+                                accountId: btn.dataset.id,
+                                accountName: btn.dataset.name,
+                                specialty: btn.dataset.specialty,
+                                accountTypeLabel: btn.dataset.type,
+                                recordTypeDeveloperName: btn.dataset.rt,
+                                role: 'Attendee',
+                                isPrimary: false,
+                                displayOrder: state.attendees.length + 1
+                            });
+                            renderAttendees();
+                        });
+                    });
+                }
+
+                async function load() {
+                    if (!visitId) {
+                        showError('Visit Id is required.');
+                        return;
+                    }
+                    try {
+                        const [payload, territoryProducts, inventory] = await Promise.all([
+                            remoting('getCallReportPayloadRemote', [visitId]),
+                            remoting('getTerritoryProductsRemote', [visitId]),
+                            remoting('getSampleInventoryForUserRemote', [])
+                        ]);
+                        state.visit = payload.visit;
+                        state.attendees = payload.attendees || [];
+                        state.products = payload.products || [];
+                        state.samples = payload.samples || [];
+                        state.clmSessions = payload.clmSessions || [];
+                        state.territoryProducts = territoryProducts || [];
+                        state.inventory = inventory || [];
+                        document.getElementById('loading').classList.add('hidden');
+                        document.getElementById('app').classList.remove('hidden');
+                        renderTabs();
+                        renderHero();
+                        renderAttendees();
+                        renderProducts();
+                        renderSamples();
+                        renderClmSessions();
+                    } catch (error) {
+                        showError(error);
+                    }
+                }
+
+                async function save() {
+                    showError('');
+                    const request = {
+                        visitId: visitId,
+                        status: document.getElementById('status').value,
+                        visitObjective: document.getElementById('visitObjective').value,
+                        visitNotes: document.getElementById('visitNotes').value,
+                        clmPresentation: document.getElementById('clmPresentation').value,
+                        nextVisitDate: document.getElementById('nextVisitDate').value || null,
+                        cancellationReason: document.getElementById('cancellationReason').value || null,
+                        attendees: state.attendees,
+                        products: state.products,
+                        samples: state.samples,
+                        clmSessions: state.clmSessions
+                    };
+                    try {
+                        const saved = await remoting('saveCallReportRemote', [JSON.stringify(request)]);
+                        state.visit = saved.visit;
+                        state.attendees = saved.attendees || [];
+                        state.products = saved.products || [];
+                        state.samples = saved.samples || [];
+                        state.clmSessions = saved.clmSessions || [];
+                        renderHero();
+                        renderAttendees();
+                        renderProducts();
+                        renderSamples();
+                        renderClmSessions();
+                    } catch (error) {
+                        showError(error);
+                    }
+                }
+
+                document.getElementById('status').addEventListener('change', (event) => {
+                    document.getElementById('cancellationWrap').classList.toggle('hidden', event.target.value !== 'Cancelled');
+                });
+                document.getElementById('openAttendeeSearch').addEventListener('click', async () => {
+                    document.getElementById('attendeeSearch').classList.remove('hidden');
+                    await searchAttendees('');
+                });
+                document.getElementById('attendeeSearchInput').addEventListener('input', (event) => {
+                    searchAttendees(event.target.value);
+                });
+                document.getElementById('addProductBtn').addEventListener('click', () => {
+                    const productId = document.getElementById('productPick').value;
+                    if (!productId) return;
+                    const row = state.territoryProducts.find((item) => item.productId === productId);
+                    state.products.push({
+                        productId,
+                        productName: row ? row.productName : '',
+                        displayOrder: state.products.length + 1,
+                        detailType: 'Detail',
+                        notes: '',
+                        messages: []
+                    });
+                    renderProducts();
+                });
+                document.getElementById('addSampleBtn').addEventListener('click', () => {
+                    state.samples.push({ quantity: 1 });
+                    renderSamples();
+                });
+                document.getElementById('saveBtn').addEventListener('click', save);
+                load();
+            </script>
+        </body>
+    </html>
+</apex:page>

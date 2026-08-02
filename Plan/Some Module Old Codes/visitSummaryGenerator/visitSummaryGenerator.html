@@ -1,0 +1,217 @@
+<template>
+    <lightning-card title="Visit Summary Generator" icon-name="standard:forecasts">
+        
+        <!-- Filters Section -->
+        <div class="slds-p-around_medium">
+            <div class="slds-grid slds-wrap slds-gutters">
+                
+                <!-- Date Range -->
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-4">
+                    <lightning-input 
+                        type="date" 
+                        label="Start Date" 
+                        value={startDate}
+                        onchange={handleStartDateChange}
+                        required>
+                    </lightning-input>
+                </div>
+                
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-4">
+                    <lightning-input 
+                        type="date" 
+                        label="End Date" 
+                        value={endDate}
+                        onchange={handleEndDateChange}
+                        required>
+                    </lightning-input>
+                </div>
+                
+                <!-- Plan Cycle Filter -->
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-4">
+                    <lightning-combobox
+                        label="Plan Cycle"
+                        value={selectedPlanCycle}
+                        options={planCycleOptions}
+                        onchange={handlePlanCycleChange}
+                        placeholder="All Cycles">
+                    </lightning-combobox>
+                </div>
+                
+                <!-- Counted Visits Only -->
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-4">
+                    <div class="slds-m-top_large">
+                        <lightning-input 
+                            type="checkbox" 
+                            label="Counted Visits Only"
+                            checked={countedVisitsOnly}
+                            onchange={handleCountedVisitsOnlyChange}>
+                        </lightning-input>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Load Data Button -->
+            <div class="slds-m-top_medium">
+                <lightning-button 
+                    variant="brand" 
+                    label="Load Visit Data" 
+                    onclick={loadVisitData}
+                    disabled={isLoading}
+                    icon-name="utility:refresh">
+                </lightning-button>
+            </div>
+
+            <!-- API Key entry when default is missing -->
+            <template if:false={hasGeminiKey}>
+                <div class="slds-m-top_medium slds-box slds-theme_shade">
+                    <lightning-input
+                        type="password"
+                        label="API Key (required)"
+                        value={apiKey}
+                        onchange={handleApiKeyChange}
+                        message-when-value-missing="Enter an API key to use the fallback provider">
+                    </lightning-input>
+                    <p class="slds-text-body_small slds-m-top_x-small slds-text-color_weak">
+                        No default Gemini key is configured. Enter a valid API key to use the fallback AI provider.
+                    </p>
+                </div>
+            </template>
+        </div>
+        
+        <!-- Statistics Section -->
+        <template if:true={hasVisits}>
+            <div class="slds-box slds-theme_shade slds-m-horizontal_medium slds-m-bottom_medium">
+                <h3 class="slds-text-heading_small slds-m-bottom_small">Visit Statistics</h3>
+                <div class="slds-grid slds-wrap slds-gutters_small">
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                        <div class="stat-card">
+                            <div class="stat-value">{statistics.totalVisits}</div>
+                            <div class="stat-label">Total Visits</div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                        <div class="stat-card">
+                            <div class="stat-value">{statistics.countedVisits}</div>
+                            <div class="stat-label">Counted Visits</div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                        <div class="stat-card">
+                            <div class="stat-value">{statistics.verifiedVisits}</div>
+                            <div class="stat-label">Verified Visits</div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                        <div class="stat-card">
+                            <div class="stat-value">{statistics.visitsWithOutcome}</div>
+                            <div class="stat-label">With Outcomes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- AI Analysis Section -->
+        <template if:true={hasVisits}>
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                <div class="slds-m-bottom_medium slds-text-align_center">
+                    <lightning-button 
+                        variant="brand" 
+                        label="Generate AI Analysis" 
+                        onclick={generateSummary}
+                        disabled={isLoading}
+                        icon-name="utility:einstein"
+                        class="action-button">
+                    </lightning-button>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Loading Spinner -->
+        <template if:true={isLoading}>
+            <div class="slds-is-relative slds-m-around_large">
+                <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+            </div>
+        </template>
+        
+        <!-- AI Analysis Results -->
+        <template if:true={showSummary}>
+            <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                <div class="analysis-container">
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small analysis-header">
+                        <h3 class="slds-text-heading_medium">
+                            <lightning-icon icon-name="utility:einstein" size="small" class="slds-m-right_x-small"></lightning-icon>
+                            AI-Powered Visit Analysis
+                        </h3>
+                        <div>
+                            <lightning-button-icon 
+                                icon-name="utility:copy" 
+                                alternative-text="Copy to clipboard"
+                                onclick={copySummary}
+                                title="Copy to clipboard"
+                                variant="border-filled"
+                                class="slds-m-right_x-small">
+                            </lightning-button-icon>
+                            <lightning-button-icon 
+                                icon-name="utility:download" 
+                                alternative-text="Export summary"
+                                onclick={exportSummary}
+                                title="Export summary"
+                                variant="border-filled">
+                            </lightning-button-icon>
+                        </div>
+                    </div>
+                    <div class="summary-content" lwc:dom="manual"></div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Visit List Section -->
+        <template if:true={showVisitList}>
+            <div class="slds-m-horizontal_medium slds-m-bottom_medium">
+                <lightning-accordion allow-multiple-sections-open>
+                    <lightning-accordion-section name="visitList" label={statisticsText}>
+                        <div class="visit-list">
+                            <template for:each={visits} for:item="visit">
+                                <div key={visit.id} class="slds-box slds-m-bottom_small visit-card">
+                                    <div class="slds-grid slds-grid_vertical-align-start">
+                                        <div class="slds-col slds-size_1-of-1">
+                                            <div class="slds-grid slds-grid_align-spread">
+                                                <div>
+                                                    <h4 class="slds-text-heading_small">{visit.accountName}</h4>
+                                                    <p class="slds-text-body_small slds-text-color_weak">
+                                                        {visit.subject} • {visit.ownerName}
+                                                    </p>
+                                                </div>
+                                                <div class="visit-badges">
+                                                    <template if:true={visit.isCountedVisit}>
+                                                        <lightning-badge label="Counted" class="slds-m-left_xx-small"></lightning-badge>
+                                                    </template>
+                                                    <template if:true={visit.locationVerified}>
+                                                        <lightning-badge label="Verified" class="slds-m-left_xx-small"></lightning-badge>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <template if:true={visit.outcome}>
+                                                <p class="slds-m-top_small">
+                                                    <strong>Outcome:</strong> {visit.outcome}
+                                                </p>
+                                            </template>
+                                            <template if:true={visit.description}>
+                                                <p class="slds-m-top_x-small slds-text-color_weak">
+                                                    {visit.description}
+                                                </p>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </lightning-accordion-section>
+                </lightning-accordion>
+            </div>
+        </template>
+        
+    </lightning-card>
+</template>

@@ -1,0 +1,108 @@
+<template>
+    <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open coaching-modal">
+        <div class="slds-modal__container coaching-modal-container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium">Coaching Form — Double Visit</h2>
+                <p class="slds-text-body_small slds-m-top_x-small coaching-subtitle">
+                    Creates a coaching event, flags this visit as a double visit, and routes to your manager for review.
+                </p>
+            </header>
+
+            <div class="slds-modal__content slds-p-around_medium">
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Loading coaching form" size="medium"></lightning-spinner>
+                </template>
+
+                <template if:false={isLoading}>
+                    <template if:true={errorMessage}>
+                        <p class="coaching-error">{errorMessage}</p>
+                    </template>
+
+                    <template if:true={offlineHint}>
+                        <p class="slds-text-body_small slds-m-bottom_small">{offlineHint}</p>
+                    </template>
+
+                    <template if:false={errorMessage}>
+                        <div class="coaching-meta-grid">
+                            <div class="meta-item">
+                                <span class="meta-label">Employee (Rep)</span>
+                                <span class="meta-value">{employeeName}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Manager (Reviewer)</span>
+                                <span class="meta-value">{managerName}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Account</span>
+                                <span class="meta-value">{accountName}</span>
+                            </div>
+                        </div>
+
+                        <template if:false={hasCoachingEvent}>
+                            <lightning-combobox
+                                class="slds-m-top_medium"
+                                label="Coaching Template"
+                                value={selectedTemplateId}
+                                options={templateOptions}
+                                onchange={handleTemplateChange}
+                                placeholder="Select a template"
+                                required
+                            ></lightning-combobox>
+                            <lightning-input
+                                class="slds-m-top_small"
+                                type="checkbox"
+                                label="Prefill from visit objective and notes"
+                                checked={prefillFromVisit}
+                                onchange={handlePrefillChange}
+                            ></lightning-input>
+                            <p class="prefill-hint">
+                                Prefill seeds manager comments on the first competency using this visit&apos;s objective and notes.
+                            </p>
+                        </template>
+
+                        <template if:true={hasCoachingEvent}>
+                            <div class="event-status-bar slds-m-top_small">
+                                <span class="status-pill">Double Visit</span>
+                                <span class="status-text">Coaching event status: {coachingEventStatus}</span>
+                                <template if:true={canOpenEvent}>
+                                    <lightning-button
+                                        class="slds-m-left_small"
+                                        label="Open Coaching Event"
+                                        variant="base"
+                                        onclick={handleOpenCoachingEvent}
+                                    ></lightning-button>
+                                </template>
+                            </div>
+                            <div class="evaluation-wrap slds-m-top_medium">
+                                <c-coaching-event-evaluation record-id={coachingEventId}></c-coaching-event-evaluation>
+                            </div>
+                        </template>
+                    </template>
+                </template>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button label="Close" onclick={handleClose}></lightning-button>
+                <template if:false={hasCoachingEvent}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Create Coaching Event"
+                        variant="brand"
+                        onclick={handleCreate}
+                        disabled={createDisabled}
+                    ></lightning-button>
+                </template>
+                <template if:true={showSubmitForReview}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Send to Manager for Review"
+                        variant="brand"
+                        onclick={handleSubmitForReview}
+                        disabled={isSubmitting}
+                    ></lightning-button>
+                </template>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open"></div>
+</template>

@@ -1,0 +1,103 @@
+{
+  "version": "1.1",
+  "totalQuestions": 6,
+  "totalPoints": 40,
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Which of the following are key messages for Product X in the cardiology segment? (Select all that apply)",
+      "type": "multiple-choice",
+      "options": [
+        "Improved patient adherence vs. standard of care",
+        "Only indicated for pediatric patients",
+        "Once-daily dosing with proven efficacy in Phase III trials",
+        "Contraindicated in patients with mild hypertension"
+      ],
+      "correctAnswers": [0, 2],
+      "points": 10,
+      "explanation": "Core messaging focuses on adherence, dosing convenience, and clinical evidence. Product X is indicated for adults, not pediatrics."
+    },
+    {
+      "id": "q2",
+      "question": "A physician asks about drug-drug interactions with common statins. What is the correct response?",
+      "type": "single-choice",
+      "options": [
+        "No clinically significant interactions have been observed in the label",
+        "Product X must never be co-prescribed with any statin",
+        "Recommend the physician consult the full PI section 7",
+        "Interactions are unknown — defer to medical affairs on every call"
+      ],
+      "correctAnswer": 2,
+      "points": 5,
+      "explanation": "Always direct HCPs to the Prescribing Information. Section 7 covers drug interactions; medical affairs supports complex cases."
+    },
+    {
+      "id": "q3",
+      "question": "Rate the rep's ability to open the call with a patient-centric insight (observed during coaching session)",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "scaleMinLabel": "Needs significant improvement",
+      "scaleMaxLabel": "Exceptional — role model",
+      "scalePoints": [
+        { "value": 1, "weight": 0 },
+        { "value": 2, "weight": 2 },
+        { "value": 3, "weight": 5 },
+        { "value": 4, "weight": 8 },
+        { "value": 5, "weight": 10 }
+      ],
+      "points": 10,
+      "explanation": "Manager observation score — used in coaching event debrief, not a pass/fail knowledge check."
+    },
+    {
+      "id": "q4",
+      "question": "Rate the rep's handling of objections related to formulary access",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "scaleMinLabel": "Unable to address",
+      "scaleMaxLabel": "Confident and compliant",
+      "scalePoints": [
+        { "value": 1, "weight": 0 },
+        { "value": 2, "weight": 2 },
+        { "value": 3, "weight": 5 },
+        { "value": 4, "weight": 8 },
+        { "value": 5, "weight": 10 }
+      ],
+      "points": 10,
+      "explanation": "Scale question for manager assessment during field coaching."
+    },
+    {
+      "id": "q5",
+      "question": "What is the approved indication for Product X?",
+      "type": "single-choice",
+      "options": [
+        "Reduction of cardiovascular risk in adults with type 2 diabetes",
+        "Treatment of acute migraine in adolescents",
+        "Prevention of seasonal influenza",
+        "Management of chronic lower back pain"
+      ],
+      "correctAnswer": 0,
+      "points": 5,
+      "explanation": "Reps must stay within approved indication per promotional compliance guidelines."
+    },
+    {
+      "id": "q6",
+      "question": "How confident is the rep in delivering the fair-balance section unprompted?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 5,
+      "scaleMinLabel": "Not confident",
+      "scaleMaxLabel": "Fully confident",
+      "scalePoints": [
+        { "value": 1, "weight": 0 },
+        { "value": 2, "weight": 1 },
+        { "value": 3, "weight": 2 },
+        { "value": 4, "weight": 4 },
+        { "value": 5, "weight": 5 }
+      ],
+      "points": 5,
+      "explanation": "Self-assessment scale — rep completes before manager debrief; weight contributes to coaching score."
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+module:
+  name: Pharma Account Record Types
+  version: "1.0.0"
+  package_manifest: manifest/account-record-types-package.xml
+  brd_implementation: IMP-003a
+  objective: >
+    Establish OCE-aligned pharma Account record types (Pharmacy, Institution HCO,
+    Business Contact, Medical Professional HCP) with minimal fields, Medical_Specialty
+    global picklist for HCP specialties, page layouts, and Lightning record pages.
+
+record_types:
+  business:
+    - api_name: Pharmacy
+      label: Pharmacy
+    - api_name: Institution_HCO
+      label: Institution (HCO)
+  person:
+    - api_name: PersonAccount
+      label: BC (Business Contact)
+      note: "Person account record type repurposed for Business Contact (Metadata API cannot create new person RT developer names)."
+    - api_name: SDO_PersonAccounts
+      label: Medical Professional (HCP)
+      note: "Person account record type repurposed for HCP."
+  inactive:
+    - api_name: Business_Contact
+      note: "Inactive business RT created during deploy; use PersonAccount instead."
+    - api_name: Medical_Professional_HCP
+      note: "Inactive business RT created during deploy; use SDO_PersonAccounts instead."
+
+deactivated_record_types:
+  - SDO_Account_Partner
+  - SDO_Account_Simple
+  - SDO_PersonAccounts
+  - Business_Account
+  - PersonAccount
+
+global_value_sets:
+  Medical_Specialty:
+    field_references:
+      - Specialty_1__c
+      - Specialty_2__c
+      - Specialty_3__c
+      - Specialty_4__c
+    value_count: 46
+
+custom_fields:
+  shared:
+    - Account_Status__c
+    - External_ID__c
+  pharmacy:
+    - Pharmacy_Type__c
+    - Pharmacy_License_Number__c
+  institution:
+    - Institution_Type__c
+  business_contact:
+    - Professional_Title__c
+    - Department__c
+  hcp:
+    - Professional_Designation__c
+    - Professional_License_Number__c
+    - Specialty_1__c
+    - Specialty_2__c
+    - Specialty_3__c
+    - Specialty_4__c
+    - Tier__c
+
+flexipages:
+  - api_name: Account_Pharmacy_Record_Page
+    record_type: Pharmacy
+  - api_name: Account_Institution_Record_Page
+    record_type: Institution_HCO
+  - api_name: Account_BC_Record_Page
+    record_type: Business_Contact
+  - api_name: Account_HCP_Record_Page
+    record_type: Medical_Professional_HCP
+    tabs:
+      - Overview
+      - Affiliations
+      - Activity
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/account-record-types-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Pharma_Account_Module
+    audience: "Sales reps, MSLs, and admins who manage pharma accounts"
+  - step: 3
+    action: deactivate_record_types
+    record_types:
+      - PersonAccount
+      - SDO_PersonAccounts
+    note: "Deactivate manually in Setup if Metadata API retrieve/deploy is unavailable for person account record types."
+  - step: 4
+    action: assign_permission_set
+    permission_set: Account_Affiliation_Module
+    audience: "Users who need affiliations on HCP/HCO record pages"
+    condition: "If not already assigned"
+  - step: 5
+    action: smoke_test
+    checklist:
+      - "Create one Account per pharma record type"
+      - "Verify HCP Specialty 1-4 picklists show 46 Medical Specialty values"
+      - "Verify SDO record types are inactive in Setup"
+      - "Open HCP record page — Overview, Affiliations, and Activity tabs load"
+      - "Affiliations network shows record type name on nodes"
+
+data_migration:
+  optional: true
+  note: >
+    Reassign any existing Accounts on SDO or generic record types to the nearest
+    pharma record type before removing legacy types from profiles.

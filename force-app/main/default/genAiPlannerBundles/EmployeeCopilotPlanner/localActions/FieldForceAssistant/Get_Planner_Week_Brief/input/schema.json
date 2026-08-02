@@ -1,0 +1,20 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "contextUserId": {
+      "title": "Context User Id",
+      "description": "Optional user id. Defaults to the running user.",
+      "lightning:type": "lightning__recordIdType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    },
+    "weekStartDate": {
+      "title": "Week Start Date",
+      "description": "Optional Monday of the planner week. Defaults to the current week.",
+      "lightning:type": "lightning__dateType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    }
+  },
+  "lightning:type": "lightning__objectType"
+}

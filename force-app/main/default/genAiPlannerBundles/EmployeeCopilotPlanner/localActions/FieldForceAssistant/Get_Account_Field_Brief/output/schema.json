@@ -1,0 +1,15 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "summary": {
+      "title": "Summary",
+      "description": "Account visit pace, plan-cycle targets, upcoming visits, and nearby accounts.",
+      "lightning:type": "lightning__textType",
+      "lightning:isPII": false,
+      "copilotAction:isDisplayable": false,
+      "copilotAction:isUsedByPlanner": true
+    }
+  },
+  "lightning:type": "lightning__objectType",
+  "lightning:textIndexed": true
+}

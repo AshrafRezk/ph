@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>Employee_Time_Card__c</baseObject>
+    <category>other</category>
+    <deployed>true</deployed>
+    <description>Employee Time Card with account targets for Medical Rep 360</description>
+    <join>
+        <outerJoin>false</outerJoin>
+        <relationship>Account_Targets__r</relationship>
+    </join>
+    <label>Employee Time Card Account Targets with Time Card</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Employee__c</field>
+            <table>Employee_Time_Card__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Time_Card_Month_Start_Date__c</field>
+            <table>Employee_Time_Card__c</table>
+        </columns>
+        <masterLabel>Employee Time Card</masterLabel>
+    </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Potentiality__c</field>
+            <table>Employee_Time_Card__c.Account_Targets__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Reach_Percent__c</field>
+            <table>Employee_Time_Card__c.Account_Targets__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Frequency_Status__c</field>
+            <table>Employee_Time_Card__c.Account_Targets__r</table>
+        </columns>
+        <masterLabel>Account Targets</masterLabel>
+    </sections>
+</ReportType>

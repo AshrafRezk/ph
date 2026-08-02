@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Planned_Visits__c</fullName>
+    <description>Count planned visits only to calculate the adherence to plan %</description>
+    <externalId>false</externalId>
+    <formula>IF(ISPICKVAL(Visit_Type__c, &apos;Planned (Automatically)&apos;), 1, 0)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Planned_Visits</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

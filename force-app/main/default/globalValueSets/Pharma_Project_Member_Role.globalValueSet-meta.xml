@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Lead</fullName>
+        <default>false</default>
+        <label>Lead</label>
+    </customValue>
+    <customValue>
+        <fullName>Contributor</fullName>
+        <default>true</default>
+        <label>Contributor</label>
+    </customValue>
+    <customValue>
+        <fullName>Approver</fullName>
+        <default>false</default>
+        <label>Approver</label>
+    </customValue>
+    <description>Roles for project team members.</description>
+    <masterLabel>Pharma Project Member Role</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

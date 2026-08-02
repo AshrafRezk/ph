@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>AccountAffiliationController</members>
+        <members>AccountAffiliationControllerTest</members>
+        <members>AccountAffiliationModuleSeed</members>
+        <members>AccountAffiliationModuleSeedTest</members>
+        <members>TerritoryModuleCleanup</members>
+        <members>TerritoryModuleSeed</members>
+        <members>TerritoryModuleSeedTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Account</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Account_Affiliation__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Pharma_Account_Record_Page</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Account-SDO - Account</members>
+        <members>Account-Institution HCO Layout</members>
+        <members>Account-Pharmacy Layout</members>
+        <members>Account_Affiliation__c-Account Affiliation Layout</members>
+        <members>PersonAccount-Medical Professional Layout</members>
+        <members>PersonAccount-SDO - Person Account Layout</members>
+        <name>Layout</name>
+    </types>
+    <types>
+        <members>accountAffiliationNetwork</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Account_Affiliation_Module</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>67.0</version>
+</Package>

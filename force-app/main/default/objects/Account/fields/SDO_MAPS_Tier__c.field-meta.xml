@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_MAPS_Tier__c</fullName>
+    <description>SDO MAPS tier field for maps routing and territory planning optimization and segmentation scenarios. 02-02-23 AB</description>
+    <externalId>false</externalId>
+    <label>Maps Tier</label>
+    <length>4</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

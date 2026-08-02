@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>CLM_Presentation_Session__c</baseObject>
+    <category>other</category>
+    <deployed>true</deployed>
+    <description>CLM sessions with product message feedback.</description>
+    <join>
+        <outerJoin>false</outerJoin>
+        <relationship>CLM_Message_Responses__r</relationship>
+    </join>
+    <label>CLM Sessions with Message Responses</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Name</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Account__c</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <masterLabel>CLM Presentation Sessions</masterLabel>
+    </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Product_Name__c</field>
+            <table>CLM_Presentation_Session__c.CLM_Message_Responses__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Message_Name__c</field>
+            <table>CLM_Presentation_Session__c.CLM_Message_Responses__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Sentiment__c</field>
+            <table>CLM_Presentation_Session__c.CLM_Message_Responses__r</table>
+        </columns>
+        <masterLabel>CLM Message Responses</masterLabel>
+    </sections>
+</ReportType>

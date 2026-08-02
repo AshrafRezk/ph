@@ -1,0 +1,160 @@
+:host {
+    display: block;
+    --pace-bg: #0f172a;
+    --pace-surface: #1e293b;
+    --pace-text: #f8fafc;
+    --pace-muted: #94a3b8;
+    --pace-radius: 12px;
+}
+
+.pace-root {
+    background: var(--pace-bg);
+    color: var(--pace-text);
+    padding: 1rem;
+    border-radius: var(--pace-radius);
+}
+
+.pace-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.pace-toolbar__actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.pace-view-toggle {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.pace-chip {
+    border: 1px solid #475569;
+    background: transparent;
+    color: var(--pace-text);
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.pace-chip_active {
+    background: #38bdf8;
+    color: #0f172a;
+    border-color: #38bdf8;
+}
+
+.pace-section-title {
+    font-size: 1rem;
+    margin: 0 0 0.75rem;
+}
+
+.pace-hero__employee {
+    font-size: 1.35rem;
+    margin: 0 0 0.25rem;
+}
+
+.pace-hero__days,
+.pace-projection p {
+    color: var(--pace-muted);
+}
+
+.pace-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.pace-metric {
+    background: var(--pace-surface);
+    border-radius: var(--pace-radius);
+    padding: 0.85rem;
+}
+
+.pace-metric__label {
+    display: block;
+    color: var(--pace-muted);
+    font-size: 0.8rem;
+}
+
+.pace-metric__value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.pace-status {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+}
+
+.pace-status_ahead { background: #166534; }
+.pace-status_on_track { background: #3f6212; }
+.pace-status_behind { background: #92400e; }
+.pace-status_critical { background: #991b1b; }
+
+.pace-team-grid,
+.pace-badge-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.pace-team-card,
+.pace-badge,
+.pace-action {
+    background: var(--pace-surface);
+    border-radius: var(--pace-radius);
+    padding: 0.85rem;
+}
+
+.pace-team-card {
+    cursor: pointer;
+}
+
+.pace-team-card__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.pace-badge_earned {
+    outline: 1px solid #38bdf8;
+}
+
+.pace-team-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.pace-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.pace-alert_error {
+    background: #7f1d1d;
+    padding: 0.75rem;
+    border-radius: var(--pace-radius);
+    margin-bottom: 1rem;
+}
+
+.pace-empty {
+    color: var(--pace-muted);
+    padding: 2rem 0;
+    text-align: center;
+}

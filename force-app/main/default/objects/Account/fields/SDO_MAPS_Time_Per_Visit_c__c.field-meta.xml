@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_MAPS_Time_Per_Visit_c__c</fullName>
+    <description>SDO MAPS number field to represent the suggested time per visit per Account or Location when visit/route planning.  Used in Maps Advanced route planning, Maps, and Territory Planning use cases. 02-02-23</description>
+    <externalId>false</externalId>
+    <label>Time Per Visit</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

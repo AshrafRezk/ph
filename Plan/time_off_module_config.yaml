@@ -1,0 +1,104 @@
+module:
+  name: Time Off Request
+  version: "1.0.0"
+  package_manifest: manifest/time-off-package.xml
+  optional_tot_manifest: manifest/time-off-timecard-tot-package.xml
+  reference_source: Plan/Some Module Old Codes/time-off-migration-bundle/
+  objective: >
+    Allow field users to submit time off requests, route them to their manager for
+    approval, and optionally roll up approved time off to Employee Time Card day entries.
+
+cursor_adaptation_questionnaire:
+  ask_in_order:
+    - id: manager_source
+      prompt: "How is the approving manager determined for each request?"
+      expected_answer_example: "CreatedBy.ManagerId on the submitting user"
+      writes_to: approval_routing.manager_field
+    - id: time_off_types
+      prompt: "Which time off types should be available?"
+      expected_answer_example: "Holiday, Sick Leave, Training, Event, Travelling"
+      writes_to: object_mapping.type_picklist_values
+    - id: tot_integration
+      prompt: "Should approved time off update Employee Time Card TOT metrics?"
+      expected_answer_example: "Yes — deploy time-off-timecard-tot-package.xml first"
+      writes_to: integration.tot_enabled
+    - id: lightning_app
+      prompt: "Which Lightning app should include the Time Off Request tab?"
+      expected_answer_example: "Pharma Sales app navigation"
+      writes_to: ui.lightning_app
+    - id: permission_sets
+      prompt: "Which permission sets should be assigned to requestors and managers?"
+      expected_answer_example: "Time_Off_Request_User for all reps; Time_Off_Request_Manager for supervisors"
+      writes_to: security.permission_sets
+
+object_mapping:
+  primary_object: Time_Off_Request__c
+  stage_field: Stage__c
+  stages:
+    - Draft
+    - Submitted for Approval
+    - Approved
+    - Rejected
+  type_picklist_values:
+    - Holiday
+    - Sick Leave
+    - Training
+    - Event
+    - Travelling
+
+approval_routing:
+  manager_field: CreatedBy.ManagerId
+  share_on_submit: true
+  notification_type: Time_Off_Submitted_To_Manager
+
+flow_api_names:
+  overlap_validation: Time_Off_Request_Overlap_Validation
+  set_manager: Time_Off_Request_Set_Manager
+  approve: Time_Off_Request_Approve
+  reject: Time_Off_Request_Reject
+  bulk_approve: Time_Off_Request_Bulk_Approve
+  bulk_reject: Time_Off_Request_Bulk_Reject
+  tot_recalc: Time_Off_Request_Update_Time_Card_TOT
+  tot_delete_recalc: Time_Off_Request_Deleted_Recalc_TOT
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/time-off-timecard-tot-package.xml
+    condition: "Only if Employee Time Card objects are not already in the org"
+  - step: 2
+    action: deploy
+    manifest: manifest/time-off-package.xml
+    required: true
+  - step: 3
+    action: assign_permission_set
+    permission_set: Time_Off_Request_User
+    audience: "All employees who submit time off"
+  - step: 4
+    action: assign_permission_set
+    permission_set: Time_Off_Request_Manager
+    audience: "Managers who approve or reject requests"
+  - step: 5
+    action: add_tab_to_app
+    tab: Time_Off_Request__c
+    condition: "Add to target Lightning app navigation"
+  - step: 6
+    action: smoke_test
+    checklist:
+      - "Create Draft request with Type and dates"
+      - "Submit for Approval — manager receives email and notification"
+      - "Manager approves or rejects (rejection requires reason)"
+      - "Requestor recalls while Submitted for Approval"
+      - "Overlap validation blocks conflicting dates"
+
+user_journey:
+  submit:
+    - "Open Time Off Request tab → New"
+    - "Enter Type, Start/End dates, Span Type (Full Day or Hours), Comments"
+    - "Save as Draft"
+    - "Click Submit for Approval quick action"
+  manager_review:
+    - "Manager opens Need Your Approval list view"
+    - "Approve or Reject via quick actions on the record"
+  optional_tot:
+    - "On approval, Time_Off_Request_Update_Time_Card_TOT recalculates TOT_Days__c on day entries"

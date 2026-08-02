@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>63.0</apiVersion>
+    <assignments>
+        <name>Set_Record_To_Update</name>
+        <label>Set Record To Update</label>
+        <locationX>50</locationX>
+        <locationY>350</locationY>
+        <assignmentItems>
+            <assignToReference>RecordToUpdate.Id</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>Get_Request.Id</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>RecordToUpdate.Stage__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Approved</stringValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Update_Approved</targetReference>
+        </connector>
+    </assignments>
+    <decisions>
+        <name>Is_Manager</name>
+        <label>Is Manager</label>
+        <locationX>182</locationX>
+        <locationY>242</locationY>
+        <defaultConnector>
+            <targetReference>Not_Authorized_Screen</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Not Manager</defaultConnectorLabel>
+        <rules>
+            <name>Is_Manager_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Get_Request</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>Get_Request.Creator_Manager_Id__c</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <elementReference>fx_CurrentUserIdText</elementReference>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Set_Record_To_Update</targetReference>
+            </connector>
+            <label>Is Manager</label>
+        </rules>
+    </decisions>
+    <description>Approve a time-off request. Only the creator&apos;s manager (Creator_Manager_Id__c) can approve.
+V5: Run flow in System or User context
+V6: System with Sharing
+V7: System without Sharing</description>
+    <environments>Default</environments>
+    <formulas>
+        <name>fx_CurrentUserIdText</name>
+        <dataType>String</dataType>
+        <expression>CASESAFEID({!$User.Id})</expression>
+    </formulas>
+    <interviewLabel>Time Off Request: Approve {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Time Off Request: Approve</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <recordLookups>
+        <name>Get_Request</name>
+        <label>Get Request</label>
+        <locationX>182</locationX>
+        <locationY>134</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Is_Manager</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Id</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>recordId</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <stringValue>Submitted for Approval</stringValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Time_Off_Request__c</object>
+        <queriedFields>Id</queriedFields>
+        <queriedFields>Stage__c</queriedFields>
+        <queriedFields>Creator_Manager_Id__c</queriedFields>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordUpdates>
+        <name>Update_Approved</name>
+        <label>Update Approved</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <connector>
+            <targetReference>Success_Screen</targetReference>
+        </connector>
+        <inputReference>RecordToUpdate</inputReference>
+    </recordUpdates>
+    <runInMode>SystemModeWithoutSharing</runInMode>
+    <screens>
+        <name>Not_Authorized_Screen</name>
+        <label>Not Authorized</label>
+        <locationX>314</locationX>
+        <locationY>350</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Not_Authorized_Message</name>
+            <fieldText>You are not the manager for this request, or the request is not in Submitted for Approval stage.</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+        <nextOrFinishButtonLabel>OK</nextOrFinishButtonLabel>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <screens>
+        <name>Success_Screen</name>
+        <label>Success</label>
+        <locationX>50</locationX>
+        <locationY>566</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Success_Message</name>
+            <fieldText>Time-off request approved successfully.</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+        <nextOrFinishButtonLabel>Done</nextOrFinishButtonLabel>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <start>
+        <locationX>56</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Get_Request</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+    <variables>
+        <name>recordId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>RecordToUpdate</name>
+        <dataType>SObject</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <objectType>Time_Off_Request__c</objectType>
+    </variables>
+</Flow>

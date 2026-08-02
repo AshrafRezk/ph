@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Visits</fullName>
+    <fields>Assigned_To__c</fields>
+    <fields>Visit_Date__c</fields>
+    <fields>Visit_Type__c</fields>
+    <fields>Status__c</fields>
+    <label>Visits</label>
+</CompactLayout>

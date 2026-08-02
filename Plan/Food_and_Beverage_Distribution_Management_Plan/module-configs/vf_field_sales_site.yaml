@@ -1,0 +1,35 @@
+module:
+  name: VF Field Sales Site
+  version: "1.0.0"
+  package_source: Components from another org that can be usefull/public-vf-site-pattern
+
+site:
+  type: Visualforce
+  url_path_prefix: fieldsales
+  index_page: FieldSalesLogin
+  guest_profile: Field Sales Guest Profile
+  permission_set: Field_Sales_Guest
+
+pages_mvp:
+  - FieldSalesLogin
+  - FieldSalesHome
+  - FieldSalesRoute
+  - FieldSalesVisit
+  - FieldSalesOrder
+
+pages_full:
+  - FieldSalesPlanner
+  - FieldSalesReturn
+  - FieldSalesCase
+  - FieldSalesVanStock
+  - FieldSalesDeviation
+  - FieldSalesProfile
+
+mobile_pattern:
+  reference_page: ProductSurvey.page
+  features:
+    - showHeader false
+    - html5 doctype
+    - viewport-fit cover
+    - rtl support
+    - custom labels

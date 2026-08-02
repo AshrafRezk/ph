@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Medical rep persona — Pharma Field app only.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Pharma Field Rep PSG</label>
+    <permissionSets>Pharma_Field_App</permissionSets>
+    <permissionSets>Field_Rep_Home</permissionSets>
+    <permissionSets>Field_Planner_Module</permissionSets>
+    <permissionSets>Pharma_Account_Module</permissionSets>
+    <permissionSets>Coaching_Module</permissionSets>
+    <permissionSets>Medical_Inquiry_Module</permissionSets>
+    <permissionSets>Time_Off_Request_User</permissionSets>
+    <permissionSets>Visit_Survey_Module</permissionSets>
+    <permissionSets>CLM_Module</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>

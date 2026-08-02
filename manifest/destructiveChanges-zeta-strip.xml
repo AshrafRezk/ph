@@ -1,0 +1,81 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <version>67.0</version>
+    <types>
+        <members>Zeta_C_Levels</members>
+        <members>Zeta_Management</members>
+        <name>CustomApplication</name>
+    </types>
+    <types>
+        <members>Zeta_Business_Objective__c</members>
+        <members>Zeta_Project_Account_Goal__c</members>
+        <members>Zeta_Project_Activity__c</members>
+        <members>Zeta_Project_Budget_Line__c</members>
+        <members>Zeta_Project_KPI__c</members>
+        <members>Zeta_Project_Member__c</members>
+        <members>Zeta_Project_Milestone__c</members>
+        <members>Zeta_Project__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Zeta_Project__c</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Zeta_Project_Record_Page</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Zeta_Business_Objective_Scope</members>
+        <members>Zeta_Campaign_Type</members>
+        <members>Zeta_Project_Activity_Type</members>
+        <members>Zeta_Project_Member_Role</members>
+        <name>GlobalValueSet</name>
+    </types>
+    <types>
+        <members>Zeta_Business_Objective__c-Zeta Business Objective Layout</members>
+        <members>Zeta_Project_Account_Goal__c-Zeta Project Account Goal Layout</members>
+        <members>Zeta_Project_Activity__c-Zeta Project Activity Layout</members>
+        <members>Zeta_Project_Budget_Line__c-Zeta Project Budget Line Layout</members>
+        <members>Zeta_Project_KPI__c-Zeta Project KPI Layout</members>
+        <members>Zeta_Project_Member__c-Zeta Project Member Layout</members>
+        <members>Zeta_Project__c-Zeta Project Layout</members>
+        <name>Layout</name>
+    </types>
+    <types>
+        <members>Zeta_Project</members>
+        <name>PathAssistant</name>
+    </types>
+    <types>
+        <members>Zeta_C_Levels_App</members>
+        <members>Zeta_Field_App</members>
+        <members>Zeta_Management_App</members>
+        <members>Zeta_Product_Catalog</members>
+        <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>Zeta_C_Level_PSG</members>
+        <members>Zeta_District_Manager_PSG</members>
+        <members>Zeta_Field_Rep_PSG</members>
+        <members>Zeta_Region_Manager_PSG</members>
+        <name>PermissionSetGroup</name>
+    </types>
+
+    <types>
+        <members>ZetaPharmaProductCatalogService</members>
+        <members>ZetaPharmaProductCatalogServiceTest</members>
+        <members>ZetaDemoDataProfiles</members>
+        <members>ZetaDemoDataProfilesTest</members>
+        <members>ZetaAppPersonaSeed</members>
+        <members>ZetaAppSetupSeed</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>zeta_pharma_logo</members>
+        <name>StaticResource</name>
+    </types>
+    <types>
+        <members>Zeta_Pharma_Logo</members>
+        <name>ContentAsset</name>
+    </types>
+</Package>

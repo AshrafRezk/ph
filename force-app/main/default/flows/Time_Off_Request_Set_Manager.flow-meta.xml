@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionCalls>
+        <name>Notify_Manager_Submission</name>
+        <label>Notify Manager Submission</label>
+        <locationX>50</locationX>
+        <locationY>647</locationY>
+        <actionName>TimeOffRequestSubmissionNotifier</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Create_Manager_Share</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>timeOffRequestId</name>
+            <value>
+                <elementReference>$Record.Id</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>TimeOffRequestSubmissionNotifier</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+    <apiVersion>63.0</apiVersion>
+    <assignments>
+        <description>Assigne Manager ID as a recepient ID for the mobile app notifcation</description>
+        <name>Assigne_Manager_ID</name>
+        <label>Assigne Manager ID</label>
+        <locationX>182</locationX>
+        <locationY>431</locationY>
+        <assignmentItems>
+            <assignToReference>varRecepientManager</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <elementReference>Get_Creator_User.Manager.Id</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Has_Manager_Decision</targetReference>
+        </connector>
+    </assignments>
+    <decisions>
+        <name>Has_Manager_Decision</name>
+        <label>Has Manager</label>
+        <locationX>182</locationX>
+        <locationY>539</locationY>
+        <defaultConnectorLabel>No Manager</defaultConnectorLabel>
+        <rules>
+            <name>Creator_Has_Manager</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Get_Creator_User</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>Get_Creator_User.ManagerId</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Notify_Manager_Submission</targetReference>
+            </connector>
+            <label>Creator Has Manager</label>
+        </rules>
+    </decisions>
+    <description>When Stage becomes Submitted for Approval: manual read share for the creator&apos;s manager (CreatedBy.ManagerId), email, and custom notification. Manager_Formula__c shows that manager&apos;s name.
+V6: send a mobile notification</description>
+    <environments>Default</environments>
+    <interviewLabel>Time Off Request: Set Manager {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Time Off Request: Set Manager</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <recordCreates>
+        <name>Create_Manager_Share</name>
+        <label>Create Manager Share</label>
+        <locationX>50</locationX>
+        <locationY>863</locationY>
+        <inputAssignments>
+            <field>AccessLevel</field>
+            <value>
+                <stringValue>Read</stringValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>ParentId</field>
+            <value>
+                <elementReference>$Record.Id</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>RowCause</field>
+            <value>
+                <stringValue>Manual</stringValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>UserOrGroupId</field>
+            <value>
+                <elementReference>Get_Creator_User.ManagerId</elementReference>
+            </value>
+        </inputAssignments>
+        <object>Time_Off_Request__Share</object>
+    </recordCreates>
+    <recordLookups>
+        <name>Get_Creator_User</name>
+        <label>Get Creator User</label>
+        <locationX>182</locationX>
+        <locationY>323</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Assigne_Manager_ID</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Id</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>$Record.CreatedById</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>User</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <start>
+        <locationX>56</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Get_Creator_User</targetReference>
+        </connector>
+        <doesRequireRecordChangedToMeetCriteria>true</doesRequireRecordChangedToMeetCriteria>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <stringValue>Submitted for Approval</stringValue>
+            </value>
+        </filters>
+        <object>Time_Off_Request__c</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordAfterSave</triggerType>
+    </start>
+    <status>Active</status>
+    <textTemplates>
+        <name>txtNotificationBody</name>
+        <isViewedAsPlainText>true</isViewedAsPlainText>
+        <text>{!Get_Creator_User.Name} submitted {!$Record.Name} for your approval.</text>
+    </textTemplates>
+    <textTemplates>
+        <name>txtNotificationTitle</name>
+        <isViewedAsPlainText>true</isViewedAsPlainText>
+        <text>Time off submitted</text>
+    </textTemplates>
+    <variables>
+        <name>varRecepientManager</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+</Flow>

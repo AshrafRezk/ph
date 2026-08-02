@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Zeta_C_Levels</members>
+        <name>CustomApplication</name>
+    </types>
+    <types>
+        <members>Zeta_Project__c</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Zeta_Project_Record_Page</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>projectRecordHeader</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Zeta_Project</members>
+        <name>PathAssistant</name>
+    </types>
+    <types>
+        <members>Zeta_Project__c-Zeta Project Layout</members>
+        <name>Layout</name>
+    </types>
+    <version>67.0</version>
+</Package>

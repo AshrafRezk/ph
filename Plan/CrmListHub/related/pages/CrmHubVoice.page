@@ -1,0 +1,357 @@
+<apex:page
+    showHeader="false"
+    sidebar="false"
+    standardStylesheets="false"
+    applyHtmlTag="false"
+    applyBodyTag="false"
+    docType="html-5.0"
+    title="CRM Hub Voice Search"
+>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hub mic</title>
+    <style>
+        :root {
+            --ink: #1c1c1e;
+            --muted: #6c6c70;
+            --brand: #007aff;
+            --danger: #ff3b30;
+            --bg: #f2f2f7;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #eef5ff 0%, var(--bg) 45%, #ffffff 100%);
+            color: var(--ink);
+        }
+        .wrap {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.85rem;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+        }
+        p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.86rem;
+            line-height: 1.35;
+            max-width: 17rem;
+        }
+        #status {
+            min-height: 1.2rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            max-width: 18rem;
+        }
+        #status.is-error { color: var(--danger); }
+        #status.is-ok { color: #1a7f37; }
+        .mic {
+            width: 5.5rem;
+            height: 5.5rem;
+            border-radius: 999px;
+            border: 0;
+            background: var(--brand);
+            color: #fff;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            box-shadow: 0 10px 28px rgba(0, 122, 255, 0.28);
+            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .mic:hover { transform: translateY(-1px); }
+        .mic.is-listening {
+            background: var(--danger);
+            box-shadow: 0 0 0 6px rgba(255, 59, 48, 0.18), 0 10px 28px rgba(255, 59, 48, 0.25);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        .mic svg {
+            width: 2rem;
+            height: 2rem;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .hint { font-size: 0.75rem; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Hub microphone</h1>
+        <p>When CRM Hub is opened inside another Salesforce frame, the browser blocks the mic there. This Visualforce window captures speech and sends it back — keep it open while you speak.</p>
+        <button type="button" id="mic" class="mic" aria-label="Start voice search" title="Tap to speak">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+        </button>
+        <div id="status">Starting mic…</div>
+        <div class="hint">You can also stop from the Hub modal</div>
+    </div>
+    <script>
+        (function () {
+            var mic = document.getElementById('mic');
+            var statusEl = document.getElementById('status');
+            var recognition = null;
+            var finalText = '';
+            var wantListen = false;
+            var stopping = false;
+            var cancelOnly = false;
+            var restartTimer = null;
+
+            function setStatus(msg, kind) {
+                statusEl.textContent = msg || '';
+                statusEl.className = kind ? 'is-' + kind : '';
+            }
+
+            function postToOpener(payload) {
+                if (!window.opener || window.opener.closed) {
+                    return;
+                }
+                try {
+                    window.opener.postMessage(
+                        Object.assign({ source: 'crmHubVoice' }, payload),
+                        '*'
+                    );
+                } catch (e) {
+                    /* ignore */
+                }
+            }
+
+            function clearRestart() {
+                if (restartTimer) {
+                    clearTimeout(restartTimer);
+                    restartTimer = null;
+                }
+            }
+
+            function finishWithTranscript() {
+                mic.classList.remove('is-listening');
+                if (cancelOnly) {
+                    cancelOnly = false;
+                    setStatus('Cancelled');
+                    postToOpener({ type: 'closed' });
+                    setTimeout(function () {
+                        try {
+                            window.close();
+                        } catch (eClose) {
+                            /* ignore */
+                        }
+                    }, 120);
+                    return;
+                }
+                var text = (finalText || '').trim();
+                if (text) {
+                    setStatus('Got it: “' + text + '”', 'ok');
+                    postToOpener({ type: 'transcript', transcript: text });
+                    setTimeout(function () {
+                        try {
+                            window.close();
+                        } catch (eClose) {
+                            /* ignore */
+                        }
+                    }, 400);
+                } else {
+                    setStatus('Nothing captured. Speak, then stop from Hub or tap mic.');
+                    postToOpener({
+                        type: 'transcript',
+                        transcript: ''
+                    });
+                }
+            }
+
+            function safeStart(rec) {
+                try {
+                    rec.start();
+                } catch (eStart) {
+                    clearRestart();
+                    restartTimer = setTimeout(function () {
+                        if (!wantListen || stopping) {
+                            return;
+                        }
+                        try {
+                            rec.start();
+                        } catch (e2) {
+                            setStatus('Could not keep mic open. Tap mic again.', 'error');
+                            wantListen = false;
+                            mic.classList.remove('is-listening');
+                        }
+                    }, 250);
+                }
+            }
+
+            function requestStop(isCancel) {
+                cancelOnly = !!isCancel;
+                if (!wantListen && !recognition) {
+                    finishWithTranscript();
+                    return;
+                }
+                wantListen = false;
+                stopping = true;
+                clearRestart();
+                setStatus(isCancel ? 'Cancelling…' : 'Finishing…');
+                try {
+                    if (recognition) {
+                        recognition.stop();
+                    } else {
+                        finishWithTranscript();
+                    }
+                } catch (eStop) {
+                    finishWithTranscript();
+                }
+            }
+
+            function getRecognition() {
+                var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!Ctor) {
+                    return null;
+                }
+                if (recognition) {
+                    return recognition;
+                }
+                recognition = new Ctor();
+                recognition.lang = 'en-US';
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.maxAlternatives = 1;
+
+                recognition.onstart = function () {
+                    mic.classList.add('is-listening');
+                    setStatus('Listening… speak now');
+                    postToOpener({ type: 'listening' });
+                };
+
+                recognition.onend = function () {
+                    if (wantListen && !stopping) {
+                        setStatus('Still listening…');
+                        clearRestart();
+                        restartTimer = setTimeout(function () {
+                            if (wantListen && !stopping && recognition) {
+                                safeStart(recognition);
+                            }
+                        }, 200);
+                        return;
+                    }
+                    finishWithTranscript();
+                };
+
+                recognition.onerror = function (ev) {
+                    var code = (ev && ev.error) || 'error';
+                    if (code === 'no-speech' || code === 'aborted') {
+                        return;
+                    }
+                    wantListen = false;
+                    stopping = true;
+                    clearRestart();
+                    mic.classList.remove('is-listening');
+                    var msg;
+                    if (code === 'not-allowed' || code === 'service-not-allowed') {
+                        msg = 'Microphone blocked. Allow mic for this window.';
+                    } else if (code === 'network') {
+                        msg = 'Speech service unavailable. Check internet, then retry.';
+                    } else {
+                        msg = 'Voice failed (' + code + ').';
+                    }
+                    setStatus(msg, 'error');
+                    postToOpener({ type: 'error', message: msg });
+                };
+
+                recognition.onresult = function (ev) {
+                    var interim = '';
+                    var i;
+                    for (i = ev.resultIndex; i < ev.results.length; i++) {
+                        var piece = ev.results[i][0].transcript || '';
+                        if (ev.results[i].isFinal) {
+                            finalText += (finalText && piece ? ' ' : '') + piece;
+                        } else {
+                            interim += piece;
+                        }
+                    }
+                    var shown = ((finalText || '') + (interim ? ' ' + interim : '')).trim();
+                    if (shown) {
+                        setStatus('Heard: ' + shown);
+                        postToOpener({ type: 'interim', transcript: shown });
+                    }
+                };
+                return recognition;
+            }
+
+            function toggleListen() {
+                var rec = getRecognition();
+                if (!rec) {
+                    setStatus('Voice needs Chrome or Edge in this window.', 'error');
+                    postToOpener({
+                        type: 'error',
+                        message: 'Voice search needs Chrome or Edge.'
+                    });
+                    return;
+                }
+
+                if (wantListen) {
+                    requestStop(false);
+                    return;
+                }
+
+                finalText = '';
+                wantListen = true;
+                stopping = false;
+                cancelOnly = false;
+                clearRestart();
+                setStatus('Starting mic…');
+                safeStart(rec);
+            }
+
+            mic.addEventListener('click', toggleListen);
+
+            window.addEventListener('message', function (ev) {
+                var data = ev && ev.data;
+                if (!data || data.source !== 'crmHubList') {
+                    return;
+                }
+                if (data.type === 'stop') {
+                    requestStop(false);
+                } else if (data.type === 'cancel') {
+                    requestStop(true);
+                }
+            });
+
+            window.addEventListener('beforeunload', function () {
+                postToOpener({ type: 'closed' });
+            });
+
+            if (!window.opener) {
+                setStatus('Open this from the CRM Hub mic button.', 'error');
+            } else {
+                postToOpener({ type: 'ready' });
+                setTimeout(function () {
+                    if (!wantListen) {
+                        toggleListen();
+                    }
+                }, 120);
+            }
+        })();
+    </script>
+</body>
+</html>
+</apex:page>

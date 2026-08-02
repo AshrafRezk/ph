@@ -1,0 +1,19 @@
+{
+  "name": "offline-salesforce-runtime",
+  "private": true,
+  "version": "0.1.0-beta.19",
+  "description": "Capacitor Offline Salesforce Runtime — no Briefcase",
+  "scripts": {
+    "dev": "npm run dev -w @osr/shell",
+    "build": "npm run build -w @osr/db && npm run build -w @osr/validation && npm run build -w @osr/sync && npm run build -w @osr/ui-runtime && npm run build -w @osr/shell",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

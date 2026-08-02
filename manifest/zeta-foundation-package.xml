@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>User.Hire_Date__c</members>
+        <members>Employee_Time_Card__c.Territory_BU__c</members>
+        <members>Employee_Time_Card__c.Territory_Line__c</members>
+        <members>Employee_Time_Card__c.Territory_District__c</members>
+        <members>Employee_Time_Card__c.Single_Visits_Total__c</members>
+        <members>Employee_Time_Card__c.Double_Visits_Total__c</members>
+        <members>Employee_Time_Card__c.Coaching_Days_Total__c</members>
+        <members>Employee_Time_Card__c.KOL_Target_Count__c</members>
+        <members>Employee_Time_Card__c.KOL_Visited_Count__c</members>
+        <members>Employee_Time_Card__c.KOL_Coverage_Percent__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>EmployeeTimeCardMetricsService</members>
+        <members>EmployeeTimeCardService</members>
+        <members>EmployeeTimeCardTerritoryService</members>
+        <members>TerritoryHierarchyService</members>
+        <name>ApexClass</name>
+    </types>
+    <version>67.0</version>
+</Package>

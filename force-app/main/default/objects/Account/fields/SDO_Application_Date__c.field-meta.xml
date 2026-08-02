@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_Application_Date__c</fullName>
+    <defaultValue>Today() +0</defaultValue>
+    <description>What: used on the Account - Partner Page layout to detail the partner application date.</description>
+    <label>Application Date</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Date</type>
+</CustomField>

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-android/
+.DS_Store
+*.log
+apps/shell/ios/
+apps/shell/android/
+.capacitor/
+.netlify/
+*.apk
+gradle-*.zip
+
+.env
+.env.*
+!.env.example

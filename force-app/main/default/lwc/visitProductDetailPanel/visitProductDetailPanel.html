@@ -1,0 +1,148 @@
+<template>
+    <section class="panel-section">
+        <div class="panel-header">
+            <h3 class="panel-title">Products to Detail</h3>
+        </div>
+
+        <div class="product-layout">
+            <aside class="product-sidebar">
+                <h4 class="sidebar-title">Territory Products</h4>
+                <template if:true={hasSidebarProducts}>
+                    <template for:each={sidebarProducts} for:item="item">
+                        <div key={item.productId} class="sidebar-item">
+                            <label class="sidebar-item-label">
+                                <input
+                                    type="checkbox"
+                                    class="sidebar-checkbox"
+                                    checked={item.checked}
+                                    data-product-id={item.productId}
+                                    onchange={handleSidebarToggle}
+                                    disabled={disabled}
+                                />
+                                <c-product-thumbnail
+                                    image-url={item.imageUrl}
+                                    product-name={item.productName}
+                                    size="sm"
+                                ></c-product-thumbnail>
+                                <span class="sidebar-item-text">{item.label}</span>
+                            </label>
+                        </div>
+                    </template>
+                </template>
+                <template if:false={hasSidebarProducts}>
+                    <p class="empty-hint">No territory-aligned products available.</p>
+                </template>
+            </aside>
+
+            <div class="product-main">
+                <template for:each={displayProducts} for:item="product">
+                    <article key={product.key} class="product-card">
+                        <header class="product-card-header">
+                            <c-product-thumbnail
+                                image-url={product.imageUrl}
+                                product-name={product.productName}
+                                size="md"
+                            ></c-product-thumbnail>
+                            <span class="product-order">{product.orderLabel}</span>
+                            <h4 class="product-name">{product.productName}</h4>
+                            <div class="product-actions">
+                                <lightning-button-icon
+                                    icon-name="utility:arrowup"
+                                    alternative-text="Move up"
+                                    data-id={product.productId}
+                                    data-direction="up"
+                                    onclick={handleMoveProduct}
+                                    disabled={product.moveUpDisabled}
+                                ></lightning-button-icon>
+                                <lightning-button-icon
+                                    icon-name="utility:arrowdown"
+                                    alternative-text="Move down"
+                                    data-id={product.productId}
+                                    data-direction="down"
+                                    onclick={handleMoveProduct}
+                                    disabled={product.moveDownDisabled}
+                                ></lightning-button-icon>
+                                <lightning-button-icon
+                                    icon-name="utility:delete"
+                                    alternative-text="Remove"
+                                    data-id={product.productId}
+                                    onclick={handleRemoveProduct}
+                                    disabled={disabled}
+                                ></lightning-button-icon>
+                            </div>
+                        </header>
+                        <lightning-combobox
+                            label="Detail Type"
+                            value={product.detailType}
+                            options={detailTypeOptions}
+                            data-product-id={product.productId}
+                            data-field="detailType"
+                            onchange={handleDetailChange}
+                            disabled={disabled}
+                        ></lightning-combobox>
+                        <lightning-textarea
+                            class="slds-m-top_x-small"
+                            label="Notes"
+                            value={product.notes}
+                            data-product-id={product.productId}
+                            data-field="notes"
+                            onchange={handleDetailChange}
+                            disabled={disabled}
+                        ></lightning-textarea>
+
+                        <div class="message-block slds-m-top_small">
+                            <h5 class="message-title">Detail Messages</h5>
+                            <template for:each={product.topicRows} for:item="topic">
+                                <article key={topic.key} class="topic-row">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label={topic.label}
+                                        checked={topic.selected}
+                                        data-product-id={product.productId}
+                                        data-topic={topic.topic}
+                                        onchange={handleTopicToggle}
+                                        disabled={disabled}
+                                    ></lightning-input>
+                                    <template if:true={topic.selected}>
+                                        <div class="sentiment-row">
+                                            <div class="sentiment-track">
+                                                <template for:each={sentimentOptions} for:item="option">
+                                                    <button
+                                                        key={option.value}
+                                                        class="sentiment-btn"
+                                                        data-product-id={product.productId}
+                                                        data-topic={topic.topic}
+                                                        data-sentiment={option.value}
+                                                        onclick={handleSentimentChange}
+                                                        disabled={disabled}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                </template>
+                                            </div>
+                                            <span class="sentiment-pill">{topic.sentiment}</span>
+                                        </div>
+                                        <lightning-textarea
+                                            class="slds-m-top_x-small"
+                                            label="Response"
+                                            value={topic.response}
+                                            data-product-id={product.productId}
+                                            data-topic={topic.topic}
+                                            onchange={handleResponseChange}
+                                            disabled={disabled}
+                                            placeholder="Capture HCP response or notes for this topic"
+                                        ></lightning-textarea>
+                                    </template>
+                                </article>
+                            </template>
+                        </div>
+                    </article>
+                </template>
+
+                <template if:false={hasProducts}>
+                    <p class="empty-hint">Select products from the sidebar to begin detailing.</p>
+                </template>
+            </div>
+        </div>
+    </section>
+</template>

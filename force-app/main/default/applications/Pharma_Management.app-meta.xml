@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#1B6FD8</headerColor>
+        <logo>Chemipharm_Logo</logo>
+        <logoVersion>1</logoVersion>
+        <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
+    </brand>
+    <description>Pharma Management — team KPIs, reports, pharmacy sales, and admin console for DMs and RMs.</description>
+    <formFactors>Small</formFactors>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <label>Pharma Management</label>
+    <navType>Standard</navType>
+    <tabs>Management_Home</tabs>
+    <tabs>Field_Tracking</tabs>
+    <tabs>Reports_Hub</tabs>
+    <tabs>Pharmacy_Sales_Dashboard</tabs>
+    <tabs>Admin_Console</tabs>
+    <tabs>Coaching_Event__c</tabs>
+    <tabs>Visit__c</tabs>
+    <tabs>Accounts_Tab</tabs>
+    <tabs>Time_Off_Request__c</tabs>
+    <tabs>standard-Dashboard</tabs>
+    <tabs>standard-report</tabs>
+    <uiType>Lightning</uiType>
+</CustomApplication>

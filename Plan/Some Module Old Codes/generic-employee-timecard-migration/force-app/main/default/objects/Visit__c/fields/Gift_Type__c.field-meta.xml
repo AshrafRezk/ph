@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Gift_Type__c</fullName>
+    <label>Gift Type</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Giveaway</fullName>
+                <default>false</default>
+                <label>Giveaway</label>
+            </value>
+            <value>
+                <fullName>Voucher</fullName>
+                <default>false</default>
+                <label>Voucher</label>
+            </value>
+            <value>
+                <fullName>No Gift</fullName>
+                <default>false</default>
+                <label>No Gift</label>
+            </value>
+            <value>
+                <fullName>Annual Give away for Class VIP&amp;A&amp;B</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Annual Give away for Class VIP&amp;A&amp;B</label>
+            </value>
+            <value>
+                <fullName>Donations FOR NHI</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Donations FOR NHI</label>
+            </value>
+            <value>
+                <fullName>Event</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Event</label>
+            </value>
+            <value>
+                <fullName>Give away for Class VIP&amp;A&amp;B</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Give away for Class VIP&amp;A&amp;B</label>
+            </value>
+            <value>
+                <fullName>Group Meeting</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Group Meeting</label>
+            </value>
+            <value>
+                <fullName>Healthy days</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Healthy days</label>
+            </value>
+            <value>
+                <fullName>Promo code</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Promo code</label>
+            </value>
+            <value>
+                <fullName>Trip</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Trip</label>
+            </value>
+            <value>
+                <fullName>Voucher  for Class A&amp;B</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Voucher  for Class A&amp;B</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

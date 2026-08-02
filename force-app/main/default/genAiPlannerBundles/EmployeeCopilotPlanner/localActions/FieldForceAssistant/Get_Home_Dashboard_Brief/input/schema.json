@@ -1,0 +1,13 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "contextUserId": {
+      "title": "Context User Id",
+      "description": "Optional user id. Defaults to the running user.",
+      "lightning:type": "lightning__recordIdType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    }
+  },
+  "lightning:type": "lightning__objectType"
+}

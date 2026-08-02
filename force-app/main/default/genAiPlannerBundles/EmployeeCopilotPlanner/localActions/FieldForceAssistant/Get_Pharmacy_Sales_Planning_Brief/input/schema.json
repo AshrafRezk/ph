@@ -1,0 +1,20 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "startMonth": {
+      "title": "Start Month",
+      "description": "Optional filter start month for pharmacy sales analytics.",
+      "lightning:type": "lightning__dateType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    },
+    "endMonth": {
+      "title": "End Month",
+      "description": "Optional filter end month for pharmacy sales analytics.",
+      "lightning:type": "lightning__dateType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    }
+  },
+  "lightning:type": "lightning__objectType"
+}

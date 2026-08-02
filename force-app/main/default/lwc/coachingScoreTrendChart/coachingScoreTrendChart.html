@@ -1,0 +1,265 @@
+<template>
+    <template if:true={hasChart}>
+        <div class="cst-root">
+            <div class="cst-heading-row">
+                <div>
+                    <h4 class="cst-title">Coaching Score Trend — Last 6 Months</h4>
+                    <p class="cst-caption">Hover a month to compare reps · click for section breakdown</p>
+                </div>
+                <template if:true={teamCoachingDeltaDisplay}>
+                    <div class="cst-team-badge">
+                        <span class="cst-team-badge-label">Team avg</span>
+                        <span class={teamCoachingTrendClass}>{teamCoachingDeltaDisplay}</span>
+                        <span class="cst-team-badge-suffix">vs prior month</span>
+                    </div>
+                </template>
+            </div>
+
+            <div class="cst-chart-area">
+                <div
+                    class="cst-chart-shell"
+                    tabindex="0"
+                    role="application"
+                    aria-label="Coaching score trend chart. Use arrow keys to move between months, Enter to inspect, Escape to close."
+                    onkeydown={handleChartKeyDown}
+                    onmouseleave={handleMonthLeave}
+                >
+                    <svg
+                        class="cst-line-chart"
+                        viewBox={chartModel.viewBox}
+                        preserveAspectRatio="xMidYMid meet"
+                    >
+                        <rect
+                            class="cst-plot-bg"
+                            x={chartModel.plot.x}
+                            y={chartModel.plot.y}
+                            width={chartModel.plot.width}
+                            height={chartModel.plot.height}
+                        ></rect>
+
+                        <template for:each={chartModel.gridLines} for:item="grid">
+                            <g key={grid.key}>
+                                <line class="cst-grid-line" x1={grid.x1} x2={grid.x2} y1={grid.y} y2={grid.y}></line>
+                                <text class="cst-axis-label cst-axis-y" x="6" y={grid.y}>{grid.label}</text>
+                            </g>
+                        </template>
+
+                        <template if:true={showCrosshair}>
+                            <template if:true={activeMonthHighlight}>
+                                <rect
+                                    class="cst-month-highlight"
+                                    x={activeMonthHighlight.x}
+                                    y={activeMonthHighlight.y}
+                                    width={activeMonthHighlight.width}
+                                    height={activeMonthHighlight.height}
+                                    rx="8"
+                                ></rect>
+                            </template>
+                            <line
+                                class="cst-crosshair"
+                                x1={crosshairX}
+                                x2={crosshairX}
+                                y1={crosshairY1}
+                                y2={crosshairY2}
+                            ></line>
+                        </template>
+
+                        <template for:each={displayLines} for:item="line">
+                            <g key={line.key}>
+                                <polyline class={line.lineClass} points={line.polyline} style={line.lineStyle}></polyline>
+                                <template for:each={line.dots} for:item="dot">
+                                    <g key={dot.key}>
+                                        <circle
+                                            class={dot.hitClass}
+                                            cx={dot.x}
+                                            cy={dot.y}
+                                            r="12"
+                                            fill="transparent"
+                                            data-rep-id={dot.repId}
+                                            data-month-index={dot.monthIndex}
+                                            data-month-key={dot.monthKey}
+                                            onmouseenter={handleDotEnter}
+                                            onmouseleave={handleDotLeave}
+                                            onclick={handleDotClick}
+                                        ></circle>
+                                        <circle
+                                            class={dot.dotClass}
+                                            cx={dot.x}
+                                            cy={dot.y}
+                                            r={dot.dotRadius}
+                                            style={line.lineStyle}
+                                        ></circle>
+                                    </g>
+                                </template>
+                            </g>
+                        </template>
+
+                        <template for:each={chartModel.monthSnapshots} for:item="band">
+                            <rect
+                                key={band.key}
+                                class="cst-month-hit"
+                                x={band.bandX}
+                                y={band.bandY}
+                                width={band.bandWidth}
+                                height={band.bandHeight}
+                                data-month-index={band.monthIndex}
+                                data-month-key={band.monthKey}
+                                onmouseenter={handleMonthEnter}
+                                onmousemove={handleMonthMove}
+                                onclick={handleMonthClick}
+                            ></rect>
+                        </template>
+
+                        <template for:each={displayMonthLabels} for:item="month">
+                            <text
+                                key={month.key}
+                                class={month.labelClass}
+                                x={month.x}
+                                y={month.y}
+                                text-anchor="middle"
+                            >
+                                {month.label}
+                            </text>
+                        </template>
+                    </svg>
+
+                    <template if:true={showTooltip}>
+                        <div class="cst-tooltip" style={tooltipStyle} role="tooltip">
+                            <div class="cst-tooltip-head">
+                                <div class="cst-tooltip-head-left">
+                                    <span class="cst-tooltip-month">{activeMonthSnapshot.monthYearLabel}</span>
+                                    <span class="cst-tooltip-avg">{activeMonthSnapshot.teamAvgDisplay} team avg</span>
+                                </div>
+                                <template if:true={activeMonthSnapshot.teamDeltaDisplay}>
+                                    <span class={activeMonthSnapshot.teamDeltaPillClass}>
+                                        {activeMonthSnapshot.teamDeltaDisplay}
+                                    </span>
+                                </template>
+                            </div>
+                            <ul class="cst-tooltip-list">
+                                <template for:each={activeMonthSnapshot.repRows} for:item="rep">
+                                    <li key={rep.key} class={rep.rowClass}>
+                                        <span class={rep.rankClass}>{rep.rank}</span>
+                                        <span class="cst-tooltip-swatch" style={rep.swatchStyle}></span>
+                                        <span class="cst-tooltip-name" title={rep.repName}>{rep.repName}</span>
+                                        <span class="cst-tooltip-score">{rep.scoreDisplay}</span>
+                                        <template if:true={rep.deltaDisplay}>
+                                            <span class={rep.deltaPillClass}>{rep.deltaDisplay}</span>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
+                            <p class="cst-tooltip-hint">Click month for section breakdown</p>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="cst-legend-scroll">
+                    <div class="cst-legend">
+                    <template for:each={displayLegend} for:item="rep">
+                        <button
+                            key={rep.key}
+                            type="button"
+                            class={rep.legendClass}
+                            data-rep-id={rep.repId}
+                            onmouseenter={handleLegendEnter}
+                            onmouseleave={handleLegendLeave}
+                            onclick={handleLegendClick}
+                        >
+                            <span class="cst-legend-swatch" style={rep.swatchStyle}></span>
+                            <span class="cst-legend-name" title={rep.repName}>{rep.repName}</span>
+                        </button>
+                    </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cst-aria-live" aria-live="polite">{ariaLiveMessage}</div>
+
+            <template if:true={inspectorOpen}>
+                <section class="cst-inspector">
+                    <header class="cst-inspector-head">
+                        <div>
+                            <h5 class="cst-inspector-title">{inspectorTitle}</h5>
+                            <template if:false={inspectorLoading}>
+                                <p class="cst-inspector-sub">
+                                    Team avg {inspectorTeamAvgDisplay} ·
+                                    <span class={inspectorTeamTrendClass}>{inspectorTeamDeltaDisplay}</span>
+                                </p>
+                            </template>
+                        </div>
+                        <button type="button" class="cst-inspector-close" onclick={handleCloseInspector} aria-label="Close inspector">
+                            <lightning-icon icon-name="utility:close" size="x-small"></lightning-icon>
+                        </button>
+                    </header>
+
+                    <template if:true={inspectorLoading}>
+                        <div class="cst-inspector-loading">
+                            <lightning-spinner alternative-text="Loading month details" size="small"></lightning-spinner>
+                        </div>
+                    </template>
+
+                    <template if:false={inspectorLoading}>
+                        <template if:true={hasInspectorRows}>
+                            <template for:each={inspectorRows} for:item="row">
+                                <article key={row.key} class={row.rowClass}>
+                                    <button
+                                        type="button"
+                                        class="cst-inspector-row-btn"
+                                        data-rep-id={row.repId}
+                                        onclick={handleInspectorRowClick}
+                                    >
+                                        <span class="cst-inspector-rank">#{row.rank}</span>
+                                        <span class="cst-inspector-name">{row.repName}</span>
+                                        <span class="cst-inspector-score">{row.scoreDisplay}</span>
+                                        <template if:true={row.deltaDisplay}>
+                                            <span class={row.trendClass}>{row.deltaDisplay} {row.arrow}</span>
+                                        </template>
+                                        <lightning-icon
+                                            icon-name="utility:chevrondown"
+                                            size="xx-small"
+                                            class="cst-inspector-chevron"
+                                        ></lightning-icon>
+                                    </button>
+
+                                    <template if:true={row.isExpanded}>
+                                        <div class="cst-inspector-detail">
+                                            <template if:true={row.hasSections}>
+                                                <div class="cst-section-grid">
+                                                    <template for:each={row.sections} for:item="section">
+                                                        <div key={section.key} class="cst-section-card">
+                                                            <span class="cst-section-name">{section.sectionName}</span>
+                                                            <div class="cst-section-metrics">
+                                                                <span>{section.latestDisplay}</span>
+                                                                <span class={section.trendClass}>
+                                                                    {section.deltaDisplay} {section.arrow}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template if:true={row.hasEvent}>
+                                                <button
+                                                    type="button"
+                                                    class="cst-event-link"
+                                                    data-event-id={row.eventId}
+                                                    onclick={handleViewEvent}
+                                                >
+                                                    View coaching event
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </article>
+                            </template>
+                        </template>
+                        <template if:false={hasInspectorRows}>
+                            <p class="cst-inspector-empty">No closed coaching events for this month in scope.</p>
+                        </template>
+                    </template>
+                </section>
+            </template>
+        </div>
+    </template>
+</template>

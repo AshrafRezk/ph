@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QuickAction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fieldOverrides>
+        <field>Stage__c</field>
+        <literalValue>Draft</literalValue>
+    </fieldOverrides>
+    <label>Recall</label>
+    <optionsCreateFeedItem>false</optionsCreateFeedItem>
+    <quickActionLayout>
+        <layoutSectionStyle>TwoColumnsLeftToRight</layoutSectionStyle>
+        <quickActionLayoutColumns/>
+        <quickActionLayoutColumns/>
+    </quickActionLayout>
+    <successMessage>Request recalled successfully.</successMessage>
+    <type>Update</type>
+</QuickAction>

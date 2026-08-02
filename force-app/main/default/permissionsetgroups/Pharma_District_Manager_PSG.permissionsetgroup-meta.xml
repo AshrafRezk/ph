@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>District manager persona — Field + Management apps.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Pharma District Manager PSG</label>
+    <permissionSets>Pharma_Field_App</permissionSets>
+    <permissionSets>Pharma_Management_App</permissionSets>
+    <permissionSets>Medical_Rep_360_Dashboard</permissionSets>
+    <permissionSets>Pharmacy_Sales_Analytics</permissionSets>
+    <permissionSets>Coaching_Module</permissionSets>
+    <permissionSets>Time_Off_Request_Manager</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>

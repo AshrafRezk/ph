@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Account.Brick__c</members>
+        <members>Brick__c.Brick_Code__c</members>
+        <members>Brick__c.City__c</members>
+        <members>Brick__c.Data_Source__c</members>
+        <members>Brick__c.Governorate__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>BricksManagementController</members>
+        <members>BricksManagementControllerTest</members>
+        <members>PharmacySalesDataAdminController</members>
+        <members>PharmacySalesDataSeed</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>adminConsole</members>
+        <members>bricksManagementConsole</members>
+        <members>pharmacySalesDataAdmin</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Zeta_C_Levels_App</members>
+        <members>Zeta_Management_App</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>62.0</version>
+</Package>

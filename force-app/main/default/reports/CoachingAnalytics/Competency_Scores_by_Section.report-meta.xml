@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+    <columns>
+        <field>Coaching_Event_Section_Score__c.Section_Name__c</field>
+    </columns>
+    <columns>
+        <field>Coaching_Event_Section_Score__c.Manager_Score__c</field>
+    </columns>
+    <columns>
+        <field>Coaching_Event_Section_Score__c.Employee_Score__c</field>
+    </columns>
+    <columns>
+        <field>Coaching_Event_Section_Score__c.Coaching_Event__c</field>
+    </columns>
+    <format>Tabular</format>
+    <name>Competency Scores by Section</name>
+    <params>
+        <name>co</name>
+        <value>1</value>
+    </params>
+    <reportType>CustomEntity$Coaching_Event_Section_Score__c</reportType>
+    <scope>organization</scope>
+    <showDetails>true</showDetails>
+    <showGrandTotal>true</showGrandTotal>
+    <showSubTotals>true</showSubTotals>
+    <sortColumn>Coaching_Event_Section_Score__c.Section_Name__c</sortColumn>
+    <sortOrder>Asc</sortOrder>
+</Report>

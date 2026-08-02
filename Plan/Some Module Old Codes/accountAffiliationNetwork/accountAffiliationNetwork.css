@@ -1,0 +1,203 @@
+.network-wrapper {
+    position: relative;
+    min-height: 500px;
+    width: 100%;
+}
+
+.network-container {
+    width: 100%;
+    height: 500px;
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    background-color: #ffffff;
+    overflow: auto;
+    /* Prevent unwanted touch behaviors on mobile */
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+}
+
+.network-svg {
+    width: 100%;
+    height: 100%;
+    cursor: move;
+}
+
+.network-node {
+    cursor: pointer;
+    /* Improve touch targets on mobile */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.node-circle {
+    transition: r 0.2s, stroke-width 0.2s;
+}
+
+.node-circle:hover {
+    r: 30;
+    stroke-width: 4;
+}
+
+.node-label {
+    pointer-events: none;
+    font-size: 12px;
+    fill: #333;
+    font-weight: 500;
+}
+
+.network-edge {
+    pointer-events: stroke;
+    opacity: 0.6;
+}
+
+.network-edge:hover {
+    opacity: 1;
+    stroke-width: 3;
+}
+
+.edge-label {
+    pointer-events: none;
+    font-size: 10px;
+    fill: #666;
+    background-color: white;
+}
+
+.filter-panel {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+.filter-content {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.filter-toggle {
+    display: none;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .network-container {
+        height: 400px;
+    }
+    
+    .filter-panel {
+        position: relative;
+        top: 0;
+        margin-top: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .network-container {
+        height: 300px;
+        /* Prevent zooming on double-tap for mobile */
+        touch-action: pan-x pan-y pinch-zoom;
+    }
+    
+    .filter-panel.collapsed .filter-content {
+        display: none;
+    }
+    
+    .filter-toggle {
+        display: block;
+    }
+    
+    /* Improve node touch targets on mobile */
+    .network-node {
+        cursor: default;
+    }
+    
+    .node-circle {
+        /* Larger touch targets on mobile */
+        min-width: 44px;
+        min-height: 44px;
+    }
+    
+    .node-label {
+        /* Slightly larger text for mobile readability */
+        font-size: 11px;
+    }
+    
+    /* Improve list view on mobile */
+    .slds-list_dotted li {
+        padding: 0.75rem 0;
+        min-height: 44px; /* Minimum touch target size */
+    }
+    
+    .slds-text-link {
+        display: inline-block;
+        padding: 0.25rem 0;
+        min-height: 44px; /* Ensure touch targets are large enough */
+    }
+    
+    /* Make filter panel full width on mobile */
+    .filter-panel {
+        margin-top: 1rem;
+    }
+    
+    /* Better spacing for mobile list items */
+    .slds-box {
+        padding: 1rem;
+    }
+}
+
+/* Loading and Error States */
+.slds-is-relative {
+    position: relative;
+    min-height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slds-notify_alert {
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    margin: 1rem 0;
+}
+
+.slds-theme_error {
+    background-color: #c23934;
+    color: #ffffff;
+}
+
+.slds-illustration {
+    padding: 2rem;
+}
+
+/* Card Styling */
+.slds-card {
+    border: 1px solid #d8dde6;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Form Element Spacing */
+.slds-form-element {
+    margin-bottom: 1rem;
+}
+
+.slds-form-element:last-child {
+    margin-bottom: 0;
+}
+
+/* Help Text Styling */
+.slds-text-body_small {
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.slds-text-color_weak {
+    color: #706e6b;
+}
+
+/* SVG Network Graph Styles */
+.network-svg {
+    background: linear-gradient(to bottom, #fafaf9 0%, #ffffff 100%);
+}

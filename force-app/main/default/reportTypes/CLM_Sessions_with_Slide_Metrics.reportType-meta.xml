@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>CLM_Presentation_Session__c</baseObject>
+    <category>other</category>
+    <deployed>true</deployed>
+    <description>CLM sessions with slide metrics for rep and HCP reporting.</description>
+    <join>
+        <outerJoin>false</outerJoin>
+        <relationship>CLM_Slide_Metrics__r</relationship>
+    </join>
+    <label>CLM Sessions with Slide Metrics</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Name</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Account__c</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>User__c</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>CLM_Presentation__c</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Total_Duration_Seconds__c</field>
+            <table>CLM_Presentation_Session__c</table>
+        </columns>
+        <masterLabel>CLM Presentation Sessions</masterLabel>
+    </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Sequence_Name__c</field>
+            <table>CLM_Presentation_Session__c.CLM_Slide_Metrics__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Dwell_Time_Seconds__c</field>
+            <table>CLM_Presentation_Session__c.CLM_Slide_Metrics__r</table>
+        </columns>
+        <masterLabel>CLM Slide Metrics</masterLabel>
+    </sections>
+</ReportType>

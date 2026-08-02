@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Accident_and_Emergency</fullName>
+        <default>false</default>
+        <label>Accident &amp; Emergency</label>
+    </customValue>
+    <customValue>
+        <fullName>Administration</fullName>
+        <default>false</default>
+        <label>Administration</label>
+    </customValue>
+    <customValue>
+        <fullName>Adult_Psychiatry</fullName>
+        <default>false</default>
+        <label>Adult Psychiatry</label>
+    </customValue>
+    <customValue>
+        <fullName>Allergology</fullName>
+        <default>false</default>
+        <label>Allergology</label>
+    </customValue>
+    <customValue>
+        <fullName>Anaesthetics</fullName>
+        <default>false</default>
+        <label>Anaesthetics</label>
+    </customValue>
+    <customValue>
+        <fullName>Andrology</fullName>
+        <default>false</default>
+        <label>Andrology</label>
+    </customValue>
+    <customValue>
+        <fullName>Asthma</fullName>
+        <default>false</default>
+        <label>Asthma</label>
+    </customValue>
+    <customValue>
+        <fullName>Bariatric_Surgery</fullName>
+        <default>false</default>
+        <label>Bariatric Surgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Biochemistry</fullName>
+        <default>false</default>
+        <label>Biochemistry</label>
+    </customValue>
+    <customValue>
+        <fullName>Biomedical_Engineering</fullName>
+        <default>false</default>
+        <label>Biomedical Engineering</label>
+    </customValue>
+    <customValue>
+        <fullName>Cardiology</fullName>
+        <default>false</default>
+        <label>Cardiology</label>
+    </customValue>
+    <customValue>
+        <fullName>Cardiothoracic_Thoracic_Surgery</fullName>
+        <default>false</default>
+        <label>Cardiothoracic/Thoracic Surgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Child_Orthopaedics</fullName>
+        <default>false</default>
+        <label>Child Orthopaedics</label>
+    </customValue>
+    <customValue>
+        <fullName>Child_Surgery</fullName>
+        <default>false</default>
+        <label>Child Surgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Clinical_Pharmacy</fullName>
+        <default>false</default>
+        <label>Clinical Pharmacy</label>
+    </customValue>
+    <customValue>
+        <fullName>Dentistry</fullName>
+        <default>false</default>
+        <label>Dentistry</label>
+    </customValue>
+    <customValue>
+        <fullName>Diabetology</fullName>
+        <default>false</default>
+        <label>Diabetology</label>
+    </customValue>
+    <customValue>
+        <fullName>Embryology</fullName>
+        <default>false</default>
+        <label>Embryology</label>
+    </customValue>
+    <customValue>
+        <fullName>Endoscopic_Surgery</fullName>
+        <default>false</default>
+        <label>Endoscopic Surgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Esthetics_and_Cosmetology</fullName>
+        <default>false</default>
+        <label>Esthetics and Cosmetology</label>
+    </customValue>
+    <customValue>
+        <fullName>Fertility_Reproductive</fullName>
+        <default>false</default>
+        <label>Fertility/Reproductive</label>
+    </customValue>
+    <customValue>
+        <fullName>Gastroenterological_Surgery</fullName>
+        <default>false</default>
+        <label>Gastroenterological Surgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Genetics</fullName>
+        <default>false</default>
+        <label>Genetics</label>
+    </customValue>
+    <customValue>
+        <fullName>Geriatrics</fullName>
+        <default>false</default>
+        <label>Geriatrics</label>
+    </customValue>
+    <customValue>
+        <fullName>Haematology</fullName>
+        <default>false</default>
+        <label>Haematology</label>
+    </customValue>
+    <customValue>
+        <fullName>Intensive_Care</fullName>
+        <default>false</default>
+        <label>Intensive Care</label>
+    </customValue>
+    <customValue>
+        <fullName>Laboratory_Technician</fullName>
+        <default>false</default>
+        <label>Laboratory Technician</label>
+    </customValue>
+    <customValue>
+        <fullName>Miscellaneous</fullName>
+        <default>false</default>
+        <label>Miscellaneous</label>
+    </customValue>
+    <customValue>
+        <fullName>Orthopaedics</fullName>
+        <default>false</default>
+        <label>Orthopaedics</label>
+    </customValue>
+    <customValue>
+        <fullName>Otorhinolaryngology</fullName>
+        <default>false</default>
+        <label>Otorhinolaryngology</label>
+    </customValue>
+    <customValue>
+        <fullName>Paediatric_Cardiology</fullName>
+        <default>false</default>
+        <label>Paediatric Cardiology</label>
+    </customValue>
+    <customValue>
+        <fullName>Paediatric_Endocrinology</fullName>
+        <default>false</default>
+        <label>Paediatric Endocrinology</label>
+    </customValue>
+    <customValue>
+        <fullName>Paediatric_Haematology</fullName>
+        <default>false</default>
+        <label>Paediatric Haematology</label>
+    </customValue>
+    <customValue>
+        <fullName>Paediatric_Oncology</fullName>
+        <default>false</default>
+        <label>Paediatric Oncology</label>
+    </customValue>
+    <customValue>
+        <fullName>Paediatrics</fullName>
+        <default>false</default>
+        <label>Paediatrics</label>
+    </customValue>
+    <customValue>
+        <fullName>Pain_Management</fullName>
+        <default>false</default>
+        <label>Pain Management</label>
+    </customValue>
+    <customValue>
+        <fullName>Pathology</fullName>
+        <default>false</default>
+        <label>Pathology</label>
+    </customValue>
+    <customValue>
+        <fullName>Pharmacology</fullName>
+        <default>false</default>
+        <label>Pharmacology</label>
+    </customValue>
+    <customValue>
+        <fullName>Physical_Medicine_and_Rehabilitation</fullName>
+        <default>false</default>
+        <label>Physical Medicine &amp; Rehabilitation</label>
+    </customValue>
+    <customValue>
+        <fullName>Physiotherapy</fullName>
+        <default>false</default>
+        <label>Physiotherapy</label>
+    </customValue>
+    <customValue>
+        <fullName>Pneumology</fullName>
+        <default>false</default>
+        <label>Pneumology</label>
+    </customValue>
+    <customValue>
+        <fullName>Purchasing</fullName>
+        <default>false</default>
+        <label>Purchasing</label>
+    </customValue>
+    <customValue>
+        <fullName>Radiotherapy</fullName>
+        <default>false</default>
+        <label>Radiotherapy</label>
+    </customValue>
+    <customValue>
+        <fullName>Social_Assistant_Worker</fullName>
+        <default>false</default>
+        <label>Social Assistant/Worker</label>
+    </customValue>
+    <customValue>
+        <fullName>Tropical_Medicine</fullName>
+        <default>false</default>
+        <label>Tropical Medicine</label>
+    </customValue>
+    <customValue>
+        <fullName>Urology</fullName>
+        <default>false</default>
+        <label>Urology</label>
+    </customValue>
+    <description>Medical specialties for HCP Account records (Specialty 1-4).</description>
+    <masterLabel>Medical Specialty</masterLabel>
+    <sorted>true</sorted>
+</GlobalValueSet>

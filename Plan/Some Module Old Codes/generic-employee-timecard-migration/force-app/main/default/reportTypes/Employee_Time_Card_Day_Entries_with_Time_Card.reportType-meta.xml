@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>Employee_Time_Card_Day_Entry__c</baseObject>
+    <category>other</category>
+    <description>Day entries with parent Employee Time Card for Working Days Analysis</description>
+    <join>
+        <outerJoin>false</outerJoin>
+        <relationship>Employee_Time_Card__r</relationship>
+    </join>
+    <label>Employee Time Card Day Entries with Time Card</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Name</field>
+            <table>Employee_Time_Card_Day_Entry__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Date__c</field>
+            <table>Employee_Time_Card_Day_Entry__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Day_Definition__c</field>
+            <table>Employee_Time_Card_Day_Entry__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Calendar_Working_Days__c</field>
+            <table>Employee_Time_Card_Day_Entry__c</table>
+        </columns>
+        <masterLabel>Day Entries</masterLabel>
+    </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Name</field>
+            <table>Employee_Time_Card__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Country_Team_Territory_Employee__c</field>
+            <table>Employee_Time_Card__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Time_Card_Month_Start_Date__c</field>
+            <table>Employee_Time_Card__c</table>
+        </columns>
+        <masterLabel>Employee Time Card</masterLabel>
+    </sections>
+</ReportType>

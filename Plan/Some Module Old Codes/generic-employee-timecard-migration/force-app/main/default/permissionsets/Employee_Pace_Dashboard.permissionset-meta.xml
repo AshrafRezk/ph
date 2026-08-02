@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>EmployeeTimeCardPaceController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>EmployeeTimeCardPaceExportController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>View_Employee_Pace_Team</name>
+    </customPermissions>
+    <description>Access to the walk-in employee pace dashboard LWC and team export.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Employee Pace Dashboard</label>
+    <objectPermissions>
+        <allowCreate>false</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Employee_Time_Card__c</object>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>false</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Employee_Time_Card_Day_Entry__c</object>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+</PermissionSet>

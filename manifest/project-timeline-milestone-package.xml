@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Zeta_Project_Milestone__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Zeta_Project_Milestone__c.Description__c</members>
+        <members>Zeta_Project_Milestone__c.Status__c</members>
+        <members>Zeta_Project_Milestone__c.Target_Date__c</members>
+        <members>Zeta_Project_Milestone__c.Zeta_Project__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>ProjectManagementService</members>
+        <members>ProjectManagementServiceTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>projectTimeline</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <version>67.0</version>
+</Package>

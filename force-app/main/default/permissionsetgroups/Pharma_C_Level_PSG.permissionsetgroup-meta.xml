@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>C-Level / BU head persona — full Pharma Executive app and strategic modules.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Pharma Executive PSG</label>
+    <permissionSets>Pharma_C_Levels_App</permissionSets>
+    <permissionSets>Medical_Rep_360_Dashboard</permissionSets>
+    <permissionSets>Pharmacy_Sales_Analytics</permissionSets>
+    <permissionSets>Pharmacy_Sales_Admin</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>

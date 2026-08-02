@@ -1,0 +1,29 @@
+module:
+  name: Van Sales
+  version: "1.0.0"
+  objective: Order capture, returns, van inventory for VAMOS 4 SKUs
+
+objects:
+  - Van__c
+  - Van_Inventory__c
+  - Sales_Order__c
+  - Sales_Order_Line__c
+  - Product_Return__c
+  - Product_Return_Line__c
+
+products_seed:
+  - VAMOS-ORG
+  - VAMOS-APL
+  - VAMOS-CTR
+  - VAMOS-MNG
+
+rules:
+  - Enforce van stock on order submit
+  - Decrement Van_Inventory__c on sale
+  - Increment on return (or write-off)
+  - Link order to Visit__c and Distributor__c
+  - Credit hold on Account blocks order
+
+reference_components:
+  - visit-management  # visit → order flow pattern
+  - management-kpi-dashboard/pharmacySalesDashboard  # analytics pattern

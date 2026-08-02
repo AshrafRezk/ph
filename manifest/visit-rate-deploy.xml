@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>EmployeeTimeCardMetricsBatch</members>
+        <members>EmployeeTimeCardMetricsService</members>
+        <members>EmployeeTimeCardMetricsServiceTest</members>
+        <members>MedicalRep360Seed</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Employee_Time_Card__c.Actual_Visit_Rate__c</members>
+        <members>Employee_Time_Card__c.AM_Visit_Rate__c</members>
+        <members>Employee_Time_Card__c.AM_Visits_Total__c</members>
+        <members>Employee_Time_Card__c.PM_Visit_Rate__c</members>
+        <members>Employee_Time_Card__c.PM_Visits_Total__c</members>
+        <members>Employee_Time_Card_Day_Entry__c.AM_Visits__c</members>
+        <members>Employee_Time_Card_Day_Entry__c.PM_Visits__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>Management/AM_Visit_Rate</members>
+        <members>Management/PM_Visit_Rate</members>
+        <name>Report</name>
+    </types>
+    <types>
+        <members>Management/Medical_Rep_360_Dashboard</members>
+        <name>Dashboard</name>
+    </types>
+    <types>
+        <members>Medical_Rep_360_Dashboard</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>67.0</version>
+</Package>

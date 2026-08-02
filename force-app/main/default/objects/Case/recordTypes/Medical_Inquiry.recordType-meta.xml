@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RecordType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <businessProcess>Standard Support Process</businessProcess>
+    <description>Medical information inquiry captured during a field visit.</description>
+    <fullName>Medical_Inquiry</fullName>
+    <label>Medical Inquiry</label>
+    <picklistValues>
+        <picklist>Origin</picklist>
+        <values>
+            <fullName>Field Visit</fullName>
+            <default>true</default>
+        </values>
+    </picklistValues>
+    <picklistValues>
+        <picklist>Question_Category__c</picklist>
+        <values>
+            <fullName>Efficacy</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Safety</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Dosing</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Administration</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Contraindications</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Drug Interactions</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Pregnancy/Lactation</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Off-label</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Other</fullName>
+            <default>false</default>
+        </values>
+    </picklistValues>
+</RecordType>

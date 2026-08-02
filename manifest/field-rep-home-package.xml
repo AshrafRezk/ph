@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>FieldRepHomeController</members>
+        <members>FieldRepHomeControllerTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>fieldRepHomeClmPrefetch</members>
+        <members>fieldRepHomeMetrics</members>
+        <members>fieldRepHomeTodayPlan</members>
+        <members>fieldRepHomeNextBestCustomer</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Field_Rep_Home_App</members>
+        <members>standard-home</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Field_Rep_Home</members>
+        <members>Field_Rep_Home_App</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Zeta_Field_App</members>
+        <members>Field_Rep_Home</members>
+        <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>Zeta_Pharma_Logo</members>
+        <name>ContentAsset</name>
+    </types>
+    <types>
+        <members>standard__LightningSales</members>
+        <name>CustomApplication</name>
+    </types>
+    <types>
+        <members>leaflet</members>
+        <name>StaticResource</name>
+    </types>
+    <version>67.0</version>
+</Package>
+

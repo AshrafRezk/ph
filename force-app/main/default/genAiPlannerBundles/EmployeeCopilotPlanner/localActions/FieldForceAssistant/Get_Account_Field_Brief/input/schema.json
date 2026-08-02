@@ -1,0 +1,14 @@
+{
+  "required": ["accountId"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "accountId": {
+      "title": "Account Id",
+      "description": "The Account record to summarize. Use the current record id when the user is on an account page.",
+      "lightning:type": "lightning__recordIdType",
+      "lightning:isPII": false,
+      "copilotAction:isUserInput": false
+    }
+  },
+  "lightning:type": "lightning__objectType"
+}

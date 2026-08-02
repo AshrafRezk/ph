@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_MAPS_Service_Tier__c</fullName>
+    <description>SDO MAPS service tier data field for service use cases in Maps and Territory Planning.  02-02-23 AB</description>
+    <externalId>false</externalId>
+    <label>Service Tier</label>
+    <length>20</length>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

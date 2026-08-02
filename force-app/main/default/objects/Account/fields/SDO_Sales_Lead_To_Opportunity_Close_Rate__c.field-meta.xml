@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_Sales_Lead_To_Opportunity_Close_Rate__c</fullName>
+    <description>What: Close rate field. Used in multiple reports.</description>
+    <formula>if( AND(NULLVALUE(SDO_Sales_Num_Closed_Won_Opportunities__c, 0)&lt;&gt;0, NULLVALUE(SDO_Number_Leads_Converted__c, 0)&lt;&gt;0), SDO_Sales_Num_Closed_Won_Opportunities__c / SDO_Number_Leads_Converted__c, 0)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Lead To Opportunity Close Rate</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <trackHistory>false</trackHistory>
+    <type>Percent</type>
+</CustomField>

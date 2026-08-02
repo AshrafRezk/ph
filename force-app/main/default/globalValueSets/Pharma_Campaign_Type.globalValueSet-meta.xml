@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Chemipharm 360</fullName>
+        <default>false</default>
+        <label>Chemipharm 360</label>
+    </customValue>
+    <customValue>
+        <fullName>Chemipharm Competition</fullName>
+        <default>false</default>
+        <label>Chemipharm Competition</label>
+    </customValue>
+    <customValue>
+        <fullName>Promotional Events</fullName>
+        <default>false</default>
+        <label>Promotional Events</label>
+    </customValue>
+    <customValue>
+        <fullName>Signage</fullName>
+        <default>false</default>
+        <label>Signage</label>
+    </customValue>
+    <customValue>
+        <fullName>E-commerce</fullName>
+        <default>false</default>
+        <label>E-commerce</label>
+    </customValue>
+    <customValue>
+        <fullName>Pharmacy Brochures</fullName>
+        <default>false</default>
+        <label>Pharmacy Brochures</label>
+    </customValue>
+    <customValue>
+        <fullName>Other</fullName>
+        <default>false</default>
+        <label>Other</label>
+    </customValue>
+    <description>Campaign types for Pharma projects and promo budget alignment.</description>
+    <masterLabel>Pharma Campaign Type</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

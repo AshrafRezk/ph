@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Zeta_Project__c.Meetings_Target__c</members>
+        <members>Zeta_Project__c.Round_Table_Meetings_Done__c</members>
+        <members>Zeta_Project__c.Round_Table_Meetings_Target__c</members>
+        <members>Zeta_Project__c.Total_Budget__c</members>
+        <members>Zeta_Project__c.Visits_Target__c</members>
+        <name>CustomField</name>
+    </types>
+    <version>67.0</version>
+</Package>

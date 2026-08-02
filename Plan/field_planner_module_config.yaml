@@ -1,0 +1,98 @@
+module:
+  name: Field Rep Planner
+  version: "1.0.0"
+  package_manifest: manifest/field-planner-package.xml
+  objective: >
+    Salesforce-calendar-style weekly planner for field reps: drag accounts onto the
+    calendar to create visits, drag and resize visit blocks, create TOT (Time Off
+    Territory) requests, and view geocoded visits on an OpenStreetMap map with
+    OSRM route building.
+
+cursor_adaptation_questionnaire:
+  ask_in_order:
+    - id: account_scope
+      prompt: "Which accounts appear in the planner sidebar?"
+      expected_answer_example: "Accounts owned by the logged-in user"
+      writes_to: data_scope.accounts
+    - id: visit_duration_default
+      prompt: "Default duration when dropping an account on the calendar?"
+      expected_answer_example: "60 minutes"
+      writes_to: planner.default_visit_minutes
+    - id: tot_permission
+      prompt: "Which permission set grants TOT creation from the planner?"
+      expected_answer_example: "Time_Off_Request_User (in addition to Field_Planner_Module)"
+      writes_to: security.tot_permission_set
+    - id: csp_sites
+      prompt: "CSP Trusted Sites required for map tiles and routing?"
+      expected_answer_example: "tile.openstreetmap.org, router.project-osrm.org"
+      writes_to: integration.csp_trusted_sites
+
+data_scope:
+  accounts: "OwnerId = current user"
+  visits: "Assigned_To__c = current user, non-cancelled"
+  time_off: "CreatedBy = current user, Draft/Submitted/Approved"
+
+planner:
+  day_start_hour: 6
+  day_end_hour: 24
+  slot_minutes: 30
+  default_visit_minutes: 60
+  views:
+    - calendar
+    - map_route
+
+integration:
+  map_provider: OpenStreetMap
+  map_library: Leaflet 1.9.4 (static resource)
+  routing_api: OSRM (router.project-osrm.org)
+  csp_trusted_sites:
+    - https://tile.openstreetmap.org
+    - https://router.project-osrm.org
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/field-planner-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Field_Planner_Module
+    audience: "Field reps and MSLs who schedule visits"
+  - step: 3
+    action: assign_permission_set
+    permission_set: Time_Off_Request_User
+    audience: "Users who create TOT from planner"
+  - step: 4
+    action: configure_csp
+    sites:
+      - tile.openstreetmap.org
+      - router.project-osrm.org
+  - step: 5
+    action: add_tab_to_app
+    tab: Field_Rep_Planner
+    condition: "Add Planner tab to Pharma Sales Lightning app"
+  - step: 6
+    action: smoke_test
+    checklist:
+      - "Drag HCP account to calendar slot — visit created"
+      - "Drag visit block to new time — start/end updated"
+      - "Resize visit block — duration updated"
+      - "Drag TOT palette to calendar — modal opens, draft/submit works"
+      - "Map view shows geocoded visits; Build Route draws polyline with distance/time"
+
+user_journey:
+  schedule_visit:
+    - "Open Planner tab"
+    - "Search account in sidebar"
+    - "Drag account onto calendar time slot"
+    - "Visit saved as Planned (Automatically), Not started"
+  reschedule:
+    - "Drag visit block to new day/time or resize bottom handle"
+  tot:
+    - "Drag TOT chip to calendar"
+    - "Complete modal (type, span, start) → Save Draft or Submit"
+  map_route:
+    - "Switch to Map & Route, pick day"
+    - "Build Route for ordered visits with Billing geocode"
+    - "Reorder stops with up/down; Optimize route (OSRM trip) shows swap suggestions"
+    - "Update route & calendar reschedules visit start/end times from OSRM drive legs"

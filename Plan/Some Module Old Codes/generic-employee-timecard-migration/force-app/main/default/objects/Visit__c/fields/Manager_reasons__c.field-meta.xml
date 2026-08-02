@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Manager_reasons__c</fullName>
+    <label>Manager reasons</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Coaching And Learning</fullName>
+                <default>false</default>
+                <label>Coaching And Learning</label>
+            </value>
+            <value>
+                <fullName>Performance Review</fullName>
+                <default>false</default>
+                <label>Performance Review</label>
+            </value>
+            <value>
+                <fullName>Feedback and improvement visit</fullName>
+                <default>false</default>
+                <label>Feedback and improvement visit</label>
+            </value>
+            <value>
+                <fullName>Team collaboration visit</fullName>
+                <default>false</default>
+                <label>Team collaboration visit</label>
+            </value>
+            <value>
+                <fullName>Check visit</fullName>
+                <default>false</default>
+                <label>Check visit</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,65 @@
+module:
+  name: CLM Presentation Logging & Feedback
+  version: "1.0.0"
+  implementation_id: IMP-009
+  package_manifest: manifest/clm-module-package.xml
+  objective: >
+    Closed Loop Marketing on Visit records: admin presentation upload (PDF/HTML/ZIP),
+    in-visit slide player with per-slide dwell-time logging, product-message feedback,
+    configurable ratings, territory targeting, and reporting by rep globally or by HCP.
+
+cursor_adaptation_questionnaire:
+  ask_in_order:
+    - id: territory_targeting
+      prompt: "Should reps see presentations outside their territory when Allow Unaligned is enabled?"
+      expected_answer_example: "Yes — Allow_Unaligned__c on CLM_Presentation__c"
+      writes_to: security.territory_targeting
+    - id: rating_layout
+      prompt: "Which rating layout is deployed for rep capture?"
+      expected_answer_example: "One CLM_Rating_Layout__c with Status = Deployed"
+      writes_to: ratings.deployed_layout
+
+data_model:
+  objects:
+    - CLM_Presentation__c
+    - CLM_Sequence__c
+    - CLM_Presentation_Session__c
+    - CLM_Slide_Metric__c
+    - CLM_Message_Response__c
+    - CLM_Rating_Layout__c
+    - CLM_Rating_Value__c
+
+security:
+  permission_set: CLM_Module
+  app: CLM_Admin
+  territory_targeting: Territory_Ids__c JSON on presentation + UserTerritory2Association
+
+components:
+  admin:
+    - clmAdminConsole
+    - clmPresentationManager
+    - clmPresentationWizard
+    - clmTerritoryTargeting
+    - clmRatingLayoutEditor
+  rep:
+    - visitWorkspace
+    - clmVisitPresentations
+    - clmPlayer
+    - clmMessageFeedback
+    - clmRatingsCapture
+  reporting:
+    - clmAccountActivityHistory
+    - reportTypes: CLM_Sessions_with_Slide_Metrics, CLM_Sessions_with_Message_Responses, CLM_Sessions_Summary
+
+apex:
+  - ClmAdminController
+  - ClmMetricsController
+
+wireframes:
+  - AdminConsole_CLMManagement_Modal.png
+  - AdminConsole_CLM_UploadPDF_HTMLMODAL.png
+  - AdminConsole_CLM_Slidessetup_LinkingToProducts.png
+  - CLMRepView(Tracks every second on each slide for each visit_doc.... and captures reactions).png
+  - VISIT LWC or PAGE Tablet and desktop.png
+  - Visit Detailed Product Messages Response Capture.png
+  - AccountActivityHistoryMobileanddesktopview showing detailed products and CLMs used.png

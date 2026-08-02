@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathAssistant xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <entityName>Coaching_Event__c</entityName>
+    <fieldName>Status__c</fieldName>
+    <masterLabel>Coaching Event</masterLabel>
+    <pathAssistantSteps>
+        <fieldNames>Employee__c</fieldNames>
+        <fieldNames>Manager__c</fieldNames>
+        <fieldNames>Coaching_Template__c</fieldNames>
+        <info>&lt;p&gt;Set up the coaching session: assign the &lt;strong&gt;employee&lt;/strong&gt;, &lt;strong&gt;manager&lt;/strong&gt;, and &lt;strong&gt;coaching template&lt;/strong&gt;. When ready for the field visit and scoring, move the event to &lt;strong&gt;Available for Scoring&lt;/strong&gt;.&lt;/p&gt;</info>
+        <picklistValueName>Draft</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <fieldNames>Manager_Total_Score__c</fieldNames>
+        <fieldNames>Employee_Total_Score__c</fieldNames>
+        <info>&lt;p&gt;The session is &lt;strong&gt;open for evaluation&lt;/strong&gt;. Manager and rep complete scores on the Evaluation tab. Request self-evaluation if needed, then review strengths, weaknesses, and the action plan in the sidebar.&lt;/p&gt;</info>
+        <picklistValueName>Available for Scoring</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <fieldNames>Manager_Total_Score__c</fieldNames>
+        <fieldNames>Recommended_Action_Plan__c</fieldNames>
+        <info>&lt;p&gt;This coaching event is &lt;strong&gt;closed&lt;/strong&gt;. Scores and the recommended action plan are finalized for debrief and follow-up coaching.&lt;/p&gt;</info>
+        <picklistValueName>Closed</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <info>&lt;p&gt;This coaching event was &lt;strong&gt;cancelled&lt;/strong&gt; and is no longer active for scoring.&lt;/p&gt;</info>
+        <picklistValueName>Cancelled</picklistValueName>
+    </pathAssistantSteps>
+    <recordTypeName>__MASTER__</recordTypeName>
+</PathAssistant>

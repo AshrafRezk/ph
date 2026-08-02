@@ -1,0 +1,11 @@
+{
+  "salesforcedx-vscode-core.defaultusername": "pharma-prod",
+  "salesforcedx-vscode-core.telemetry.enabled": false,
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/.sf": true,
+    "**/.sfdx": true
+  },
+  "xml.preferences.showSchemaDocumentationType": "none"
+}

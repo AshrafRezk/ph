@@ -1,0 +1,128 @@
+<template>
+    <div class="oce-list">
+        <div class="oce-list-header slds-grid slds-grid_vertical-align-center">
+            <div class="slds-col slds-grow">
+                <span class="oce-list-title">Accounts</span>
+            </div>
+            <div class="slds-col slds-no-flex">
+                <lightning-button
+                    label="Sort by: Name"
+                    icon-name={sortDirectionIcon}
+                    icon-position="right"
+                    variant="base"
+                    onclick={handleSortToggle}
+                    title={sortDirectionLabel}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <template if:true={isLoading}>
+            <div class="oce-list-loading">
+                <lightning-spinner alternative-text="Loading accounts" size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <ul class="oce-row-list" role="list">
+                <template for:each={displayRows} for:item="row">
+                    <li key={row.accountId} class="oce-row slds-box slds-box_x-small">
+                        <div class="oce-row-grid slds-grid slds-grid_vertical-align-center slds-wrap">
+                            <div class="oce-col-identity slds-col slds-size_1-of-1 slds-medium-size_4-of-12">
+                                <div class="slds-media slds-media_center">
+                                    <div class="slds-media__figure">
+                                        <span class={row.riskDotClass} title={row.agentforceRisk}></span>
+                                        <lightning-icon
+                                            class={row.typeIconClass}
+                                            icon-name={row.typeIconName}
+                                            size="small"
+                                            alternative-text={row.pinLabel}
+                                        ></lightning-icon>
+                                    </div>
+                                    <div class="slds-media__body">
+                                        <a
+                                            href="#"
+                                            class="oce-account-link slds-truncate"
+                                            data-id={row.accountId}
+                                            onclick={handleAccountClick}
+                                        >{row.accountName}</a>
+                                        <p class="oce-address slds-truncate">{row.addressLine}</p>
+                                        <lightning-badge
+                                            label={row.classification}
+                                            class="oce-class-badge"
+                                        ></lightning-badge>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="oce-col-last-call slds-col slds-size_1-of-2 slds-medium-size_2-of-12">
+                                <p class="oce-field-label">Last Call</p>
+                                <template if:true={row.hasLastCall}>
+                                    <lightning-formatted-date-time
+                                        value={row.lastVisitDate}
+                                        year="numeric"
+                                        month="short"
+                                        day="2-digit"
+                                        weekday="short"
+                                    ></lightning-formatted-date-time>
+                                </template>
+                                <template if:false={row.hasLastCall}>
+                                    <span class="oce-field-value">—</span>
+                                </template>
+                                <p class="oce-field-label oce-field-label-spaced">Next Planned</p>
+                                <template if:true={row.hasNextCall}>
+                                    <lightning-formatted-date-time
+                                        value={row.nextVisitDate}
+                                        year="numeric"
+                                        month="short"
+                                        day="2-digit"
+                                        weekday="short"
+                                    ></lightning-formatted-date-time>
+                                </template>
+                                <template if:false={row.hasNextCall}>
+                                    <span class="oce-field-value">—</span>
+                                </template>
+                            </div>
+
+                            <div class="oce-col-target slds-col slds-size_1-of-2 slds-medium-size_1-of-12">
+                                <p class="oce-field-label">Target</p>
+                                <span class={row.targetBadgeClass}>{row.targetLabel}</span>
+                            </div>
+
+                            <div class="oce-col-call-plan slds-col slds-size_1-of-2 slds-medium-size_3-of-12">
+                                <p class="oce-field-label">Call Plan</p>
+                                <p class="oce-field-value oce-call-plan-primary">{row.callPlanLabel}</p>
+                                <p class="oce-field-subvalue">{row.plannedPlanLabel}</p>
+                            </div>
+
+                            <div class="oce-col-specialty slds-col slds-size_1-of-2 slds-medium-size_1-of-12">
+                                <p class="oce-field-label">Specialty</p>
+                                <p class="oce-field-value slds-truncate" title={row.specialtyDisplay}>
+                                    {row.specialtyDisplay}
+                                </p>
+                            </div>
+
+                            <div class="oce-col-actions slds-col slds-size_1-of-1 slds-medium-size_1-of-12 slds-text-align_right">
+                                <lightning-button-menu
+                                    alternative-text="Actions"
+                                    icon-size="x-small"
+                                    menu-alignment="right"
+                                    data-id={row.accountId}
+                                    onselect={handleRowAction}
+                                >
+                                    <lightning-menu-item
+                                        value="view"
+                                        label="View Account"
+                                    ></lightning-menu-item>
+                                    <lightning-menu-item
+                                        value="plan"
+                                        label="Plan Visit"
+                                    ></lightning-menu-item>
+                                </lightning-button-menu>
+                            </div>
+                        </div>
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </div>
+</template>

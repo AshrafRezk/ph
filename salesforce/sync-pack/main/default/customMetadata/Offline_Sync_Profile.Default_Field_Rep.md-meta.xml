@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Default Field Rep</label>
+    <protected>false</protected>
+    <values>
+        <field>Is_Default__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Objects_JSON__c</field>
+        <value xsi:type="xsd:string">[{"apiName":"Account","fields":["Id","Name","Industry","Phone","Type","BillingCity","BillingStreet","BillingLatitude","BillingLongitude","Specialty_1__c","RecordTypeId","SystemModstamp"]},{"apiName":"Contact","fields":["Id","Name","AccountId","Phone","Email","SystemModstamp"]},{"apiName":"Lead","fields":["Id","Name","Company","Status","Phone","SystemModstamp"]},{"apiName":"Opportunity","fields":["Id","Name","AccountId","StageName","Amount","CloseDate","SystemModstamp"]},{"apiName":"Task","fields":["Id","Subject","Status","ActivityDate","WhatId","SystemModstamp"]},{"apiName":"Event","fields":["Id","Subject","StartDateTime","EndDateTime","WhatId","SystemModstamp"]},{"apiName":"Case","fields":["Id","CaseNumber","Subject","Status","Priority","SystemModstamp"]},{"apiName":"Visit__c","fields":["Id","Name","Account__c","Status__c","Visit_Date__c","Start_Date__c","End_Date__c","StartDateTime__c","EndDateTime__c","Visit_Type__c","Assigned_To__c","Visit_Objective__c","Visit_Notes__c","Cancellation_Reason__c","Pharma_Project__c","Next_Visit_Date__c","SystemModstamp"],"soqlFilter":"Visit_Date__c = LAST_N_DAYS:60 OR Visit_Date__c = NEXT_N_DAYS:30 OR Visit_Date__c = TODAY"},{"apiName":"Time_Off_Request__c","fields":["Id","Name","Type__c","Span_Type__c","Stage__c","Start_Date__c","End_Date__c","Start_Date_Time__c","End_Date_Time__c","Comments__c","SystemModstamp"],"soqlFilter":"Start_Date__c = LAST_N_DAYS:30 OR Start_Date__c = NEXT_N_DAYS:60 OR Start_Date__c = TODAY"},{"apiName":"Pharma_Project__c","fields":["Id","Name","Status__c","Campaign_Type__c","SystemModstamp"],"soqlFilter":"Status__c IN ('Planning','In Progress')"},{"apiName":"Rep_Location_Snapshot__c","fields":["Id","Name","User__c","Latitude__c","Longitude__c","Accuracy_Meters__c","Recorded_At__c","Source__c","Is_Sharing__c","Device_Model__c","Device_OS__c","App_Version__c","Device_Id__c","SystemModstamp"]}]</value>
+    </values>
+    <values>
+        <field>FlexiPages_JSON__c</field>
+        <value xsi:type="xsd:string">["Field_Rep_Home","Field_Rep_Planner","Account_HCP_Record_Page","Account_Pharmacy_Record_Page","Account_Institution_Record_Page","SDO_Account_Default"]</value>
+    </values>
+    <values>
+        <field>Tabs_JSON__c</field>
+        <value xsi:type="xsd:string">["Account","Contact","Lead","Opportunity","Task","Event","Case","Visit__c","Time_Off_Request__c","Pharma_Project__c"]</value>
+    </values>
+    <values>
+        <field>Apps_JSON__c</field>
+        <value xsi:type="xsd:string">["*"]</value>
+    </values>
+    <values>
+        <field>LwcBundles_JSON__c</field>
+        <value xsi:type="xsd:string">["c/visitCallShell","c/visitCallShellLite","c/clmPlayerLite","c/fieldRepHomeTodayPlan","c/fieldRepHomeMetrics","c/fieldRepHomeNextBestCustomer","c/fieldRepHomeClmPrefetch","c/homeOfficeMessages","c/repLocationPublisher","c/reportsHub","c/fieldRepPlanner"]</value>
+    </values>
+    <values>
+        <field>FileScopes_JSON__c</field>
+        <value xsi:type="xsd:string">[{"linkedEntityObject":"Visit__c","maxBytes":5000000}]</value>
+    </values>
+</CustomMetadata>

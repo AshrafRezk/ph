@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>Timesheet Management</label>
+    <navType>Console</navType>
+    <tabs>standard-TimeSheet</tabs>
+    <tabs>standard-TimeSheetEntry</tabs>
+    <tabs>standard-TimeSheetEntryItem</tabs>
+    <tabs>standard-TimeSheetWageTypeSummary</tabs>
+    <tabs>standard-ServiceResourceCostRule</tabs>
+    <tabs>standard-TimeSheetValidationError</tabs>
+    <tabs>standard-SupplementalCompensation</tabs>
+    <uiType>Lightning</uiType>
+    <workspaceConfig>
+        <mappings>
+            <tab>standard-ServiceResourceCostRule</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-SupplementalCompensation</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-TimeSheet</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-TimeSheetEntry</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-TimeSheetEntryItem</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-TimeSheetValidationError</tab>
+        </mappings>
+        <mappings>
+            <tab>standard-TimeSheetWageTypeSummary</tab>
+        </mappings>
+    </workspaceConfig>
+</CustomApplication>

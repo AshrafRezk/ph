@@ -1,0 +1,363 @@
+<template>
+    <section class="territory-console">
+        <header class="console-header">
+            <p class="console-subtitle">
+                Manage Pharma product lines, territory hierarchy, and field force users.
+            </p>
+        </header>
+
+        <lightning-tabset active-tab-value={activeTab} onselect={handleTabChange}>
+            <lightning-tab label="Product Lines" value="lines">
+                <div class="tab-toolbar">
+                    <lightning-button label="Add Product Line" variant="brand" onclick={handleAddLine}></lightning-button>
+                </div>
+                <template if:true={hasLineRows}>
+                    <div class="line-grid">
+                        <template for:each={lineRows} for:item="line">
+                            <article key={line.id} class={line.cardClass}>
+                                <div class="line-card-header">
+                                    <h3 class="line-name">{line.name}</h3>
+                                    <span class="line-code">{line.externalId}</span>
+                                </div>
+                                <p class="line-therapy">{line.therapyLabel}</p>
+                                <div class="line-stats">
+                                    <span>{line.districtCount} districts</span>
+                                    <span>{line.repCount} reps</span>
+                                    <span>{line.productCount} products</span>
+                                </div>
+                                <div class="line-actions">
+                                    <lightning-button
+                                        label="Edit Line"
+                                        data-id={line.id}
+                                        onclick={handleEditLine}
+                                    ></lightning-button>
+                                </div>
+                            </article>
+                        </template>
+                    </div>
+                </template>
+                <template if:false={hasLineRows}>
+                    <div class="empty-state">
+                        <p>No product lines found. Run territory seeding or add a new line.</p>
+                    </div>
+                </template>
+            </lightning-tab>
+
+            <lightning-tab label="Territories" value="territories">
+                <div class="tab-toolbar">
+                    <lightning-button label="Add Territory" onclick={handleAddTerritory}></lightning-button>
+                </div>
+                <template if:true={hasRows}>
+                    <table class="territory-table">
+                        <thead>
+                            <tr>
+                                <th>Territory</th>
+                                <th>Level</th>
+                                <th>Assigned User</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={flatRows} for:item="row">
+                                <tr key={row.key}>
+                                    <td>
+                                        <div class="territory-name-cell" style={row.depthStyle}>
+                                            <template if:true={row.hasChildren}>
+                                                <button
+                                                    class="toggle-btn"
+                                                    data-id={row.id}
+                                                    onclick={handleToggle}
+                                                    title="Expand or collapse"
+                                                >
+                                                    <lightning-icon
+                                                        icon-name={row.chevronIcon}
+                                                        size="x-small"
+                                                    ></lightning-icon>
+                                                </button>
+                                            </template>
+                                            <template if:false={row.hasChildren}>
+                                                <span class="toggle-spacer"></span>
+                                            </template>
+                                            <div class="territory-labels">
+                                                <span class="territory-name">{row.name}</span>
+                                                <span class="territory-ext">{row.externalId}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="level-badge">{row.level}</span></td>
+                                    <td>{row.assignmentLabel}</td>
+                                    <td>
+                                        <span class={row.vacantClass}>{row.vacantLabel}</span>
+                                    </td>
+                                    <td class="actions">
+                                        <template if:true={row.canEdit}>
+                                            <lightning-button
+                                                label="Edit"
+                                                data-id={row.id}
+                                                onclick={handleEditTerritory}
+                                            ></lightning-button>
+                                        </template>
+                                        <template if:true={row.canAddChild}>
+                                            <lightning-button
+                                                label="Add Child"
+                                                data-id={row.id}
+                                                onclick={handleAddChildTerritory}
+                                            ></lightning-button>
+                                        </template>
+                                        <lightning-button
+                                            label="Assign"
+                                            data-id={row.id}
+                                            data-name={row.name}
+                                            onclick={handleAssign}
+                                        ></lightning-button>
+                                        <lightning-button
+                                            label="Vacant"
+                                            data-id={row.id}
+                                            data-name={row.name}
+                                            onclick={handleMakeVacant}
+                                        ></lightning-button>
+                                        <template if:true={row.canDelete}>
+                                            <lightning-button
+                                                label="Delete"
+                                                variant="destructive-text"
+                                                data-id={row.id}
+                                                data-name={row.name}
+                                                onclick={handleDeleteTerritory}
+                                            ></lightning-button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <template if:false={hasRows}>
+                    <div class="empty-state">
+                        <p>No territories found. Run territory seeding to populate the hierarchy.</p>
+                    </div>
+                </template>
+            </lightning-tab>
+
+            <lightning-tab label="Users" value="users">
+                <div class="tab-toolbar">
+                    <lightning-input
+                        type="search"
+                        label="Search users"
+                        value={userSearchTerm}
+                        onchange={handleUserSearch}
+                    ></lightning-input>
+                    <lightning-button label="Create User" variant="brand" onclick={handleOpenUserModal}></lightning-button>
+                </div>
+                <template if:true={hasUsers}>
+                    <table class="territory-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Title</th>
+                                <th>Business Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={userRows} for:item="user">
+                                <tr key={user.id}>
+                                    <td>{user.name}</td>
+                                    <td>{user.username}</td>
+                                    <td>{user.title}</td>
+                                    <td>{user.businessUnit}</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <template if:false={hasUsers}>
+                    <div class="empty-state">
+                        <p>No pharma users found. Create a demo user or run territory seeding.</p>
+                    </div>
+                </template>
+            </lightning-tab>
+        </lightning-tabset>
+
+        <template if:true={showAssignModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Assign user to territory">
+                <div class="modal-backdrop" onclick={handleCloseAssign}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">Assign User — {assignTerritoryName}</h3>
+                    <lightning-input
+                        type="search"
+                        label="Search users"
+                        value={userSearchTerm}
+                        onchange={handleUserSearch}
+                    ></lightning-input>
+                    <lightning-combobox
+                        label="User"
+                        value={selectedUserId}
+                        options={assignUserOptions}
+                        placeholder="Select a user"
+                        onchange={handleUserSelect}
+                    ></lightning-combobox>
+                    <div class="modal-actions">
+                        <lightning-button label="Cancel" onclick={handleCloseAssign}></lightning-button>
+                        <lightning-button
+                            label="Assign"
+                            variant="brand"
+                            disabled={isAssignDisabled}
+                            onclick={handleConfirmAssign}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showTerritoryModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Territory editor">
+                <div class="modal-backdrop" onclick={handleCloseTerritoryModal}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">{territoryModalTitle}</h3>
+                    <lightning-input
+                        label="Territory Name"
+                        value={draftTerritory.name}
+                        data-field="name"
+                        onchange={handleTerritoryFieldChange}
+                        required
+                    ></lightning-input>
+                    <lightning-input
+                        label="External Id"
+                        value={draftTerritory.externalId}
+                        data-field="externalId"
+                        onchange={handleTerritoryFieldChange}
+                        disabled={draftTerritory.recordId}
+                    ></lightning-input>
+                    <template if:false={draftTerritory.recordId}>
+                        <lightning-combobox
+                            label="Level"
+                            value={draftTerritory.level}
+                            options={levelOptions}
+                            data-field="level"
+                            onchange={handleTerritoryFieldChange}
+                        ></lightning-combobox>
+                        <lightning-combobox
+                            label="Parent Territory"
+                            value={draftTerritory.parentId}
+                            options={parentOptions}
+                            data-field="parentId"
+                            onchange={handleTerritoryFieldChange}
+                        ></lightning-combobox>
+                    </template>
+                    <div class="modal-actions">
+                        <lightning-button label="Cancel" onclick={handleCloseTerritoryModal}></lightning-button>
+                        <lightning-button
+                            label="Save"
+                            variant="brand"
+                            disabled={isTerritorySaveDisabled}
+                            onclick={handleSaveTerritory}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showLineModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Create product line">
+                <div class="modal-backdrop" onclick={handleCloseLineModal}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">Add Product Line</h3>
+                    <p class="modal-help">
+                        Creates a line under Head Office plus a default district and MR territory. Products matching the therapy area are auto-aligned.
+                    </p>
+                    <lightning-input
+                        label="Line Name"
+                        value={draftLine.name}
+                        data-field="name"
+                        onchange={handleLineFieldChange}
+                        required
+                    ></lightning-input>
+                    <lightning-input
+                        label="Line Code"
+                        value={draftLine.code}
+                        data-field="code"
+                        onchange={handleLineFieldChange}
+                        placeholder="e.g. CARDIO"
+                        required
+                    ></lightning-input>
+                    <lightning-combobox
+                        label="Therapy Area"
+                        value={draftLine.therapyArea}
+                        options={therapyAreaOptions}
+                        data-field="therapyArea"
+                        onchange={handleLineFieldChange}
+                    ></lightning-combobox>
+                    <div class="modal-actions">
+                        <lightning-button label="Cancel" onclick={handleCloseLineModal}></lightning-button>
+                        <lightning-button
+                            label="Create Line"
+                            variant="brand"
+                            disabled={isLineSaveDisabled}
+                            onclick={handleSaveLine}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showUserModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Create pharma user">
+                <div class="modal-backdrop" onclick={handleCloseUserModal}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">Create Pharma User</h3>
+                    <p class="modal-help">
+                        Creates a demo user with username pattern team.role@pharma.demo and assigns the matching Pharma persona.
+                    </p>
+                    <div class="form-grid">
+                        <lightning-input
+                            label="First Name"
+                            value={draftUser.firstName}
+                            data-field="firstName"
+                            onchange={handleUserFieldChange}
+                            required
+                        ></lightning-input>
+                        <lightning-input
+                            label="Last Name"
+                            value={draftUser.lastName}
+                            data-field="lastName"
+                            onchange={handleUserFieldChange}
+                            required
+                        ></lightning-input>
+                    </div>
+                    <lightning-input
+                        label="Team Code"
+                        value={draftUser.teamCode}
+                        data-field="teamCode"
+                        onchange={handleUserFieldChange}
+                        placeholder="e.g. cardio"
+                        required
+                    ></lightning-input>
+                    <lightning-combobox
+                        label="Role"
+                        value={draftUser.roleKey}
+                        options={roleOptions}
+                        data-field="roleKey"
+                        onchange={handleUserFieldChange}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        label="Assign to Territory (optional)"
+                        value={draftUser.territoryId}
+                        options={userTerritoryOptions}
+                        data-field="territoryId"
+                        onchange={handleUserFieldChange}
+                    ></lightning-combobox>
+                    <div class="modal-actions">
+                        <lightning-button label="Cancel" onclick={handleCloseUserModal}></lightning-button>
+                        <lightning-button
+                            label="Create User"
+                            variant="brand"
+                            disabled={isUserSaveDisabled}
+                            onclick={handleSaveUser}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+    </section>
+</template>

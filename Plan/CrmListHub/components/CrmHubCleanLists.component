@@ -1,0 +1,617 @@
+<apex:component>
+    <style>
+        .clc-root { font-family: inherit; color: var(--hub-text,#1c1c1e); }
+        .clc-head { margin-bottom: 0.85rem; }
+        .clc-head h3 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+        .clc-head p { margin: 0.25rem 0 0; font-size: 0.75rem; color: var(--hub-secondary,#636366); line-height: 1.4; max-width: 42rem; }
+        .clc-error { display: none; margin-bottom: 0.55rem; padding: 0.5rem 0.65rem; border-radius: 8px; background: rgba(255,59,48,.1); color: #c41e16; font-size: 0.78rem; }
+        .clc-error.is-on { display: block; }
+        .clc-success { display: none; margin-bottom: 0.55rem; padding: 0.5rem 0.65rem; border-radius: 8px; background: rgba(52,199,89,.12); color: #248a3d; font-size: 0.78rem; }
+        .clc-success.is-on { display: block; }
+        .clc-denied { padding: 1.25rem 0.5rem; text-align: center; color: #c41e16; font-size: 0.85rem; font-weight: 600; }
+        .clc-section-label { display: block; font-size: 0.68rem; font-weight: 700; color: var(--hub-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem; }
+        .clc-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.65rem; }
+        .clc-chip { border: 0.5px solid var(--hub-sep,#d1d1d6); border-radius: 999px; background: var(--hub-surface,#fff); color: var(--hub-text); font-size: 0.72rem; font-weight: 600; font-family: inherit; padding: 0.3rem 0.7rem; cursor: pointer; }
+        .clc-chip:hover { border-color: var(--hub-accent,#007aff); color: var(--hub-accent); }
+        .clc-chip.is-active { background: var(--hub-accent-soft,rgba(0,122,255,.12)); border-color: var(--hub-accent); color: var(--hub-accent); }
+        .clc-chip:disabled { opacity: 0.45; pointer-events: none; }
+        .clc-toolbar { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: flex-end; margin-bottom: 0.65rem; }
+        .clc-field { flex: 1 1 220px; position: relative; min-width: 0; }
+        .clc-input { width: 100%; box-sizing: border-box; border: 0.5px solid var(--hub-sep); border-radius: 8px; background: var(--hub-surface,#fff); color: inherit; font-size: 0.8rem; font-family: inherit; padding: 0.45rem 0.6rem; }
+        .clc-input:focus { outline: none; border-color: var(--hub-accent); box-shadow: 0 0 0 3px rgba(0,122,255,.15); }
+        .clc-input:disabled { opacity: 0.55; }
+        .clc-suggest { display: none; position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 220px; overflow: auto; background: var(--hub-surface,#fff); border: 0.5px solid var(--hub-sep); border-radius: 10px; box-shadow: var(--hub-shadow,0 8px 24px rgba(0,0,0,.12)); }
+        .clc-suggest.is-open { display: block; }
+        .clc-suggest button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0.45rem 0.65rem; font-size: 0.78rem; font-family: inherit; color: inherit; cursor: pointer; }
+        .clc-suggest button:hover, .clc-suggest button.is-active { background: var(--hub-accent-soft,rgba(0,122,255,.1)); color: var(--hub-accent); }
+        .clc-btn { border: 0.5px solid transparent; border-radius: 8px; font-size: 0.75rem; font-weight: 700; font-family: inherit; padding: 0.45rem 0.75rem; cursor: pointer; white-space: nowrap; }
+        .clc-btn-danger { background: #ff3b30; color: #fff; }
+        .clc-btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+        .clc-btn-ghost { background: transparent; border-color: var(--hub-sep); color: var(--hub-text); }
+        .clc-btn-primary { background: var(--hub-accent); color: #fff; }
+        .clc-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; font-size: 0.78rem; color: var(--hub-secondary); margin-bottom: 0.55rem; min-height: 1.2rem; }
+        .clc-spinner { width: 14px; height: 14px; border: 2px solid rgba(0,122,255,.25); border-top-color: var(--hub-accent); border-radius: 50%; animation: clc-spin .8s linear infinite; flex: 0 0 auto; }
+        @keyframes clc-spin { to { transform: rotate(360deg); } }
+        .clc-summary { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.55rem; }
+        .clc-pill { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: rgba(142,142,147,.12); color: var(--hub-secondary); }
+        .clc-pill-accent { background: rgba(0,122,255,.12); color: #007aff; }
+        .clc-pill-warn { background: rgba(255,149,0,.15); color: #b86e00; }
+        .clc-filter-row { margin-bottom: 0.55rem; }
+        .clc-table-wrap { border: 0.5px solid var(--hub-sep); border-radius: 10px; overflow: auto; max-height: min(52vh, 520px); background: var(--hub-surface,#fff); }
+        .clc-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 720px; }
+        .clc-table th { position: sticky; top: 0; z-index: 1; background: #f8f8fa; text-align: left; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--hub-secondary); padding: 0.5rem 0.55rem; border-bottom: 0.5px solid var(--hub-sep); white-space: nowrap; }
+        .clc-table td { padding: 0.5rem 0.55rem; border-bottom: 0.5px solid var(--hub-sep); vertical-align: top; }
+        .clc-table tr:last-child td { border-bottom: 0; }
+        .clc-table tr:hover td { background: rgba(0,122,255,.04); }
+        .clc-name { font-weight: 600; }
+        .clc-sub { display: block; margin-top: 0.12rem; font-size: 0.7rem; color: var(--hub-secondary); }
+        .clc-check { width: 2rem; }
+        .clc-empty { text-align: center; padding: 1.75rem 0.75rem; color: var(--hub-secondary); font-size: 0.82rem; }
+        .clc-empty strong { display: block; color: var(--hub-text); margin-bottom: 0.25rem; }
+        .clc-modal { display: none; position: fixed; inset: 0; z-index: 10000; align-items: center; justify-content: center; background: rgba(0,0,0,.4); padding: 1rem; }
+        .clc-modal.is-open { display: flex; }
+        .clc-modal-card { width: min(420px, 100%); background: var(--hub-surface,#fff); border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,.22); overflow: hidden; }
+        .clc-modal-head { padding: 0.85rem 1rem 0.35rem; font-size: 0.95rem; font-weight: 700; }
+        .clc-modal-body { padding: 0.35rem 1rem 0.85rem; font-size: 0.8rem; color: var(--hub-secondary); }
+        .clc-modal-list { margin: 0.55rem 0 0; padding-left: 1.1rem; max-height: 160px; overflow: auto; color: var(--hub-text); }
+        .clc-modal-foot { display: flex; justify-content: flex-end; gap: 0.45rem; padding: 0.75rem 1rem; border-top: 0.5px solid var(--hub-sep); background: #f8f8fa; }
+        .clc-outcome { margin-top: 0.55rem; border: 0.5px solid var(--hub-sep); border-radius: 10px; padding: 0.55rem 0.65rem; font-size: 0.75rem; }
+        .clc-outcome h4 { margin: 0 0 0.35rem; font-size: 0.78rem; }
+        .clc-outcome ul { margin: 0; padding-left: 1.1rem; }
+        .clc-ok { color: #248a3d; }
+        .clc-fail { color: #c41e16; }
+        @media (prefers-color-scheme: dark) {
+            .clc-table th, .clc-modal-foot { background: rgba(255,255,255,.06); }
+            .clc-chip, .clc-input, .clc-suggest, .clc-table-wrap, .clc-modal-card { background: var(--hub-surface,#1c1c1e); }
+        }
+    </style>
+
+    <div class="clc-root" id="clc-root">
+        <div class="clc-head">
+            <h3>List View Cleanup</h3>
+            <p>Pick an object, review custom list views with creation and modification details, then delete what you no longer need. System list views and managed-package views stay hidden.</p>
+        </div>
+
+        <div id="clc-denied" class="clc-denied" style="display:none" role="alert">System Administrators only.</div>
+
+        <div id="clc-main">
+            <p id="clc-error" class="clc-error" role="alert"></p>
+            <p id="clc-success" class="clc-success" role="status"></p>
+
+            <span class="clc-section-label">Quick objects</span>
+            <div id="clc-chips" class="clc-chips"></div>
+
+            <div class="clc-toolbar">
+                <div class="clc-field">
+                    <label class="clc-section-label" for="clc-object-search">Find any object</label>
+                    <input id="clc-object-search" class="clc-input" type="search" placeholder="Search objects by label or API name…" autocomplete="off" />
+                    <div id="clc-suggest" class="clc-suggest" role="listbox" aria-label="Object suggestions"></div>
+                </div>
+                <button type="button" id="clc-delete-btn" class="clc-btn clc-btn-danger" disabled="disabled">Delete selected</button>
+            </div>
+
+            <div class="clc-status" id="clc-status">
+                <span id="clc-spinner" class="clc-spinner" style="display:none" aria-hidden="true"></span>
+                <span id="clc-status-text">Choose an object to load its list views.</span>
+            </div>
+
+            <div id="clc-summary" class="clc-summary" style="display:none"></div>
+
+            <div id="clc-filter-row" class="clc-filter-row" style="display:none">
+                <label class="clc-section-label" for="clc-filter">Filter list views</label>
+                <input id="clc-filter" class="clc-input" type="search" placeholder="Filter by name, API name, or owner…" />
+            </div>
+
+            <div id="clc-empty" class="clc-empty" style="display:none">
+                <strong>No deletable list views</strong>
+                <span id="clc-empty-detail">This object has no custom list views you can remove, or all remaining views are system/managed.</span>
+            </div>
+
+            <div id="clc-table-wrap" class="clc-table-wrap" style="display:none" role="region" aria-label="List views">
+                <table class="clc-table">
+                    <thead>
+                        <tr>
+                            <th class="clc-check"><input type="checkbox" id="clc-select-all" title="Select all" aria-label="Select all" /></th>
+                            <th>List view</th>
+                            <th>Created by</th>
+                            <th>Created</th>
+                            <th>Last modified by</th>
+                            <th>Last modified</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clc-tbody"></tbody>
+                </table>
+            </div>
+
+            <div id="clc-outcomes" class="clc-outcome" style="display:none"></div>
+        </div>
+    </div>
+
+    <div id="clc-modal" class="clc-modal" role="dialog" aria-modal="true" aria-labelledby="clc-modal-title" aria-hidden="true">
+        <div class="clc-modal-card">
+            <div class="clc-modal-head" id="clc-modal-title">Confirm delete</div>
+            <div class="clc-modal-body">
+                <p id="clc-modal-msg">Delete the selected list views? This cannot be undone.</p>
+                <ul id="clc-modal-list" class="clc-modal-list"></ul>
+            </div>
+            <div class="clc-modal-foot">
+                <button type="button" id="clc-modal-cancel" class="clc-btn clc-btn-ghost">Cancel</button>
+                <button type="button" id="clc-modal-confirm" class="clc-btn clc-btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+            var state = {
+                presets: [],
+                selectedObject: '',
+                selectedLabel: '',
+                rows: [],
+                hiddenCount: 0,
+                totalFound: 0,
+                filter: '',
+                selected: {},
+                busy: false,
+                suggestTimer: null,
+                suggestItems: [],
+                suggestIndex: -1
+            };
+
+            function el(id) { return document.getElementById(id); }
+
+            function remoting(method) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                return new Promise(function (resolve, reject) {
+                    var cb = function (result, event) {
+                        if (event && event.status) resolve(result);
+                        else reject(new Error((event && event.message) || 'Remoting failed'));
+                    };
+                    args.push(cb);
+                    args.push({ escape: false, timeout: 120000 });
+                    Visualforce.remoting.Manager.invokeAction.apply(
+                        Visualforce.remoting.Manager,
+                        ['CrmHubListController.' + method].concat(args)
+                    );
+                });
+            }
+
+            function showError(msg) {
+                var n = el('clc-error');
+                n.textContent = msg || '';
+                n.classList.toggle('is-on', !!msg);
+            }
+
+            function showSuccess(msg) {
+                var n = el('clc-success');
+                n.textContent = msg || '';
+                n.classList.toggle('is-on', !!msg);
+            }
+
+            function setBusy(busy, text) {
+                state.busy = busy;
+                el('clc-spinner').style.display = busy ? 'inline-block' : 'none';
+                if (text) el('clc-status-text').textContent = text;
+                el('clc-delete-btn').disabled = busy || selectedCount() === 0;
+                el('clc-object-search').disabled = busy;
+                el('clc-filter').disabled = busy;
+                el('clc-select-all').disabled = busy;
+                Array.prototype.forEach.call(document.querySelectorAll('.clc-chip'), function (chip) {
+                    chip.disabled = busy;
+                });
+                Array.prototype.forEach.call(document.querySelectorAll('#clc-tbody input[type=checkbox]'), function (cb) {
+                    cb.disabled = busy;
+                });
+            }
+
+            function selectedCount() {
+                var n = 0;
+                Object.keys(state.selected).forEach(function (k) {
+                    if (state.selected[k]) n++;
+                });
+                return n;
+            }
+
+            function selectedFullNames() {
+                return Object.keys(state.selected).filter(function (k) { return state.selected[k]; });
+            }
+
+            function formatDate(iso) {
+                if (!iso) return '—';
+                var d = new Date(iso);
+                if (isNaN(d.getTime())) return iso;
+                return d.toLocaleString(undefined, {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            }
+
+            function filteredRows() {
+                var q = (state.filter || '').trim().toLowerCase();
+                if (!q) return state.rows.slice();
+                return state.rows.filter(function (row) {
+                    var hay = [
+                        row.name, row.developerName, row.ownerName,
+                        row.createdByName, row.lastModifiedByName, row.fullName
+                    ].join(' ').toLowerCase();
+                    return hay.indexOf(q) !== -1;
+                });
+            }
+
+            function renderChips() {
+                var wrap = el('clc-chips');
+                wrap.innerHTML = '';
+                if (!state.presets.length) {
+                    wrap.textContent = 'No preset objects configured.';
+                    return;
+                }
+                state.presets.forEach(function (opt) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'clc-chip' + (state.selectedObject === opt.apiName ? ' is-active' : '');
+                    btn.textContent = opt.label;
+                    btn.disabled = state.busy;
+                    btn.addEventListener('click', function () {
+                        selectObject(opt.apiName, opt.label);
+                    });
+                    wrap.appendChild(btn);
+                });
+            }
+
+            function renderSummary() {
+                var wrap = el('clc-summary');
+                if (!state.selectedObject) {
+                    wrap.style.display = 'none';
+                    wrap.innerHTML = '';
+                    return;
+                }
+                wrap.style.display = 'flex';
+                var visible = filteredRows().length;
+                var sel = selectedCount();
+                wrap.innerHTML =
+                    '<span class="clc-pill clc-pill-accent">' + visible + ' deletable' +
+                    (state.filter ? ' shown' : '') + '</span>' +
+                    '<span class="clc-pill clc-pill-warn">' + (state.hiddenCount || 0) + ' system/managed hidden</span>' +
+                    '<span class="clc-pill">' + sel + ' selected</span>' +
+                    (state.totalFound ? '<span class="clc-pill">' + state.totalFound + ' total found</span>' : '');
+            }
+
+            function renderTable() {
+                var rows = filteredRows();
+                var wrap = el('clc-table-wrap');
+                var empty = el('clc-empty');
+                var filterRow = el('clc-filter-row');
+                var tbody = el('clc-tbody');
+                tbody.innerHTML = '';
+
+                if (!state.selectedObject) {
+                    wrap.style.display = 'none';
+                    empty.style.display = 'none';
+                    filterRow.style.display = 'none';
+                    renderSummary();
+                    return;
+                }
+
+                filterRow.style.display = state.rows.length ? 'block' : 'none';
+                renderSummary();
+
+                if (!rows.length) {
+                    wrap.style.display = 'none';
+                    empty.style.display = 'block';
+                    var detail = el('clc-empty-detail');
+                    if (state.rows.length && state.filter) {
+                        empty.querySelector('strong').textContent = 'No matches';
+                        detail.textContent = 'Try a different filter, or clear the search box.';
+                    } else {
+                        empty.querySelector('strong').textContent = 'No deletable list views';
+                        detail.textContent = state.hiddenCount
+                            ? ('All ' + state.hiddenCount + ' list view(s) for this object are system or managed-package views.')
+                            : 'This object has no custom list views you can remove.';
+                    }
+                    el('clc-select-all').checked = false;
+                    el('clc-delete-btn').disabled = true;
+                    return;
+                }
+
+                empty.style.display = 'none';
+                wrap.style.display = 'block';
+
+                var allChecked = true;
+                rows.forEach(function (row) {
+                    if (!state.selected[row.fullName]) allChecked = false;
+                    var tr = document.createElement('tr');
+                    var tdCheck = document.createElement('td');
+                    tdCheck.className = 'clc-check';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = !!state.selected[row.fullName];
+                    cb.disabled = state.busy;
+                    cb.setAttribute('aria-label', 'Select ' + (row.name || row.developerName));
+                    cb.addEventListener('change', function () {
+                        state.selected[row.fullName] = cb.checked;
+                        if (!cb.checked) delete state.selected[row.fullName];
+                        updateSelectionUi();
+                    });
+                    tdCheck.appendChild(cb);
+
+                    var tdName = document.createElement('td');
+                    tdName.innerHTML = '<div class="clc-name"></div><span class="clc-sub"></span>';
+                    tdName.querySelector('.clc-name').textContent = row.name || row.developerName || '—';
+                    tdName.querySelector('.clc-sub').textContent = row.developerName || row.fullName || '';
+
+                    var tdCreatedBy = document.createElement('td');
+                    tdCreatedBy.textContent = row.createdByName || row.ownerName || '—';
+
+                    var tdCreated = document.createElement('td');
+                    tdCreated.textContent = formatDate(row.createdDate);
+
+                    var tdModBy = document.createElement('td');
+                    tdModBy.textContent = row.lastModifiedByName || '—';
+
+                    var tdMod = document.createElement('td');
+                    tdMod.textContent = formatDate(row.lastModifiedDate);
+
+                    tr.appendChild(tdCheck);
+                    tr.appendChild(tdName);
+                    tr.appendChild(tdCreatedBy);
+                    tr.appendChild(tdCreated);
+                    tr.appendChild(tdModBy);
+                    tr.appendChild(tdMod);
+                    tbody.appendChild(tr);
+                });
+
+                el('clc-select-all').checked = allChecked && rows.length > 0;
+                el('clc-delete-btn').disabled = state.busy || selectedCount() === 0;
+            }
+
+            function updateSelectionUi() {
+                renderSummary();
+                el('clc-delete-btn').disabled = state.busy || selectedCount() === 0;
+                var rows = filteredRows();
+                var allChecked = rows.length > 0;
+                rows.forEach(function (row) {
+                    if (!state.selected[row.fullName]) allChecked = false;
+                });
+                el('clc-select-all').checked = allChecked;
+            }
+
+            function closeSuggest() {
+                el('clc-suggest').classList.remove('is-open');
+                state.suggestIndex = -1;
+            }
+
+            function renderSuggest(items) {
+                var box = el('clc-suggest');
+                box.innerHTML = '';
+                state.suggestItems = items || [];
+                if (!state.suggestItems.length) {
+                    closeSuggest();
+                    return;
+                }
+                state.suggestItems.forEach(function (opt, idx) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.setAttribute('role', 'option');
+                    btn.textContent = opt.label;
+                    if (idx === state.suggestIndex) btn.className = 'is-active';
+                    btn.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        selectObject(opt.apiName, opt.label);
+                        el('clc-object-search').value = opt.label;
+                        closeSuggest();
+                    });
+                    box.appendChild(btn);
+                });
+                box.classList.add('is-open');
+            }
+
+            function selectObject(apiName, label) {
+                if (!apiName || state.busy) return;
+                state.selectedObject = apiName;
+                state.selectedLabel = label || apiName;
+                state.selected = {};
+                state.filter = '';
+                el('clc-filter').value = '';
+                el('clc-outcomes').style.display = 'none';
+                showError('');
+                showSuccess('');
+                renderChips();
+                loadViews();
+            }
+
+            function loadPresets() {
+                setBusy(true, 'Loading objects…');
+                remoting('cleanListsGetObjects').then(function (res) {
+                    if (!res || !res.success) {
+                        var err = (res && res.error) || 'Could not load objects.';
+                        if (/Only System Administrators/i.test(err) || /System Administrator/i.test(err)) {
+                            el('clc-main').style.display = 'none';
+                            el('clc-denied').style.display = 'block';
+                            return;
+                        }
+                        throw new Error(err);
+                    }
+                    state.presets = res.objects || [];
+                    renderChips();
+                    el('clc-status-text').textContent = 'Choose an object to load its list views.';
+                }).catch(function (err) {
+                    showError(err.message || String(err));
+                }).then(function () {
+                    setBusy(false);
+                });
+            }
+
+            function loadViews() {
+                setBusy(true, 'Loading list views for ' + (state.selectedLabel || state.selectedObject) + '…');
+                return remoting('cleanListsGetViews', state.selectedObject).then(function (res) {
+                    if (!res || !res.success) throw new Error((res && res.error) || 'Could not load list views.');
+                    state.rows = res.rows || [];
+                    state.hiddenCount = res.hiddenCount || 0;
+                    state.totalFound = res.totalFound || 0;
+                    if (res.objectLabel) state.selectedLabel = res.objectLabel;
+                    el('clc-status-text').textContent =
+                        (state.selectedLabel || state.selectedObject) +
+                        ' · ' + state.rows.length + ' deletable list view(s)';
+                    renderTable();
+                }).catch(function (err) {
+                    state.rows = [];
+                    state.hiddenCount = 0;
+                    state.totalFound = 0;
+                    renderTable();
+                    showError(err.message || String(err));
+                    el('clc-status-text').textContent = 'Could not load list views.';
+                }).then(function () {
+                    setBusy(false);
+                });
+            }
+
+            function searchObjects(term) {
+                remoting('cleanListsSearchObjects', term || '').then(function (res) {
+                    if (!res || !res.success) throw new Error((res && res.error) || 'Search failed');
+                    renderSuggest(res.objects || []);
+                }).catch(function (err) {
+                    closeSuggest();
+                    showError(err.message || String(err));
+                });
+            }
+
+            function openConfirm() {
+                var names = selectedFullNames();
+                if (!names.length) return;
+                var list = el('clc-modal-list');
+                list.innerHTML = '';
+                names.forEach(function (fullName) {
+                    var row = null;
+                    for (var i = 0; i < state.rows.length; i++) {
+                        if (state.rows[i].fullName === fullName) { row = state.rows[i]; break; }
+                    }
+                    var li = document.createElement('li');
+                    li.textContent = row ? (row.name + ' (' + row.developerName + ')') : fullName;
+                    list.appendChild(li);
+                });
+                el('clc-modal-msg').textContent =
+                    'Delete ' + names.length + ' list view' + (names.length === 1 ? '' : 's') +
+                    '? This cannot be undone.';
+                el('clc-modal').classList.add('is-open');
+                el('clc-modal').setAttribute('aria-hidden', 'false');
+            }
+
+            function closeConfirm() {
+                el('clc-modal').classList.remove('is-open');
+                el('clc-modal').setAttribute('aria-hidden', 'true');
+            }
+
+            function runDelete() {
+                var names = selectedFullNames();
+                if (!names.length) return;
+                closeConfirm();
+                showError('');
+                showSuccess('');
+                el('clc-outcomes').style.display = 'none';
+                setBusy(true, 'Deleting ' + names.length + ' list view(s)…');
+                remoting('cleanListsDelete', names).then(function (res) {
+                    if (!res || !res.success) throw new Error((res && res.error) || 'Delete failed');
+                    var outcomes = res.outcomes || [];
+                    var ok = 0;
+                    var fail = 0;
+                    var html = '<h4>Delete results</h4><ul>';
+                    outcomes.forEach(function (o) {
+                        if (o.success) {
+                            ok++;
+                            html += '<li class="clc-ok">' + (o.fullName || '') + ' — deleted</li>';
+                        } else {
+                            fail++;
+                            html += '<li class="clc-fail">' + (o.fullName || '') + ' — ' + (o.message || 'failed') + '</li>';
+                        }
+                    });
+                    html += '</ul>';
+                    el('clc-outcomes').innerHTML = html;
+                    el('clc-outcomes').style.display = 'block';
+                    if (fail === 0) {
+                        showSuccess('Deleted ' + ok + ' list view' + (ok === 1 ? '' : 's') + '.');
+                    } else if (ok === 0) {
+                        showError('No list views were deleted. See details below.');
+                    } else {
+                        showSuccess('Deleted ' + ok + '; ' + fail + ' failed. See details below.');
+                    }
+                    state.selected = {};
+                    return loadViews();
+                }).catch(function (err) {
+                    showError(err.message || String(err));
+                    setBusy(false);
+                });
+            }
+
+            function bind() {
+                el('clc-object-search').addEventListener('input', function () {
+                    var term = el('clc-object-search').value;
+                    showError('');
+                    if (state.suggestTimer) clearTimeout(state.suggestTimer);
+                    state.suggestTimer = setTimeout(function () {
+                        if (!term || term.trim().length < 1) {
+                            closeSuggest();
+                            return;
+                        }
+                        searchObjects(term.trim());
+                    }, 220);
+                });
+
+                el('clc-object-search').addEventListener('keydown', function (e) {
+                    var items = state.suggestItems;
+                    if (!items.length || !el('clc-suggest').classList.contains('is-open')) return;
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        state.suggestIndex = Math.min(items.length - 1, state.suggestIndex + 1);
+                        renderSuggest(items);
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        state.suggestIndex = Math.max(0, state.suggestIndex - 1);
+                        renderSuggest(items);
+                    } else if (e.key === 'Enter' && state.suggestIndex >= 0) {
+                        e.preventDefault();
+                        var opt = items[state.suggestIndex];
+                        selectObject(opt.apiName, opt.label);
+                        el('clc-object-search').value = opt.label;
+                        closeSuggest();
+                    } else if (e.key === 'Escape') {
+                        closeSuggest();
+                    }
+                });
+
+                el('clc-object-search').addEventListener('blur', function () {
+                    setTimeout(closeSuggest, 150);
+                });
+
+                el('clc-filter').addEventListener('input', function () {
+                    state.filter = el('clc-filter').value;
+                    renderTable();
+                });
+
+                el('clc-select-all').addEventListener('change', function () {
+                    var checked = el('clc-select-all').checked;
+                    filteredRows().forEach(function (row) {
+                        if (checked) state.selected[row.fullName] = true;
+                        else delete state.selected[row.fullName];
+                    });
+                    renderTable();
+                });
+
+                el('clc-delete-btn').addEventListener('click', openConfirm);
+                el('clc-modal-cancel').addEventListener('click', closeConfirm);
+                el('clc-modal-confirm').addEventListener('click', runDelete);
+                el('clc-modal').addEventListener('click', function (e) {
+                    if (e.target === el('clc-modal')) closeConfirm();
+                });
+            }
+
+            function init() {
+                bind();
+                loadPresets();
+            }
+
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+            else init();
+        })();
+    </script>
+</apex:component>

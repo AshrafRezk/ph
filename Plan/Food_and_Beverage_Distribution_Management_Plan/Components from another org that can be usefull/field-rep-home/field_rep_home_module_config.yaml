@@ -1,0 +1,55 @@
+module:
+  name: Field Rep Home Dashboard
+  version: "1.0.0"
+  package_manifest: manifest/field-rep-home-package.xml
+  objective: >
+    Lightning Home experience for field reps with (1) coverage + RF insights by
+    classification, (2) today's plan as a map with route and optimization ideas,
+    and (3) Top 5 Next Best Customers with a quick action to create draft calls.
+
+integration:
+  map_provider: OpenStreetMap
+  map_library: Leaflet 1.9.4 (static resource)
+  routing_api: OSRM (router.project-osrm.org)
+  csp_trusted_sites:
+    - https://tile.openstreetmap.org
+    - https://router.project-osrm.org
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/field-rep-home-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Zeta_Pharma_App
+    audience: "All field reps — grants Home, Accounts, and app navigation tabs"
+  - step: 3
+    action: assign_permission_set
+    permission_set: Field_Rep_Home
+    audience: "Field reps who need the home dashboard"
+  - step: 4
+    action: assign_permission_set
+    permission_set: Field_Planner_Module
+    audience: "Field reps who need planner and accounts data access"
+  - step: 5
+    action: provision_plan_cycle
+    note: "Ensure current-month Employee_Time_Card__c exists (Admin Console or ensureEmployeePlan)"
+    audience: "Each field rep before smoke test"
+  - step: 6
+    action: configure_csp
+    sites:
+      - https://tile.openstreetmap.org
+      - https://router.project-osrm.org
+  - step: 7
+    action: home_flexipage_setup
+    home_flexipage: Field_Rep_Home
+    audience: "Field reps (desktop, tablet, and mobile via Small/Medium form factor overrides)"
+
+user_journey:
+  - "Open Lightning Home — review KPI tiles for visit coverage and RF%."
+  - "Filter drill-down table by class (A/B/C) to inspect potential, penetration, and calculated classification."
+  - "Check Up Next and the map route for today’s scheduled calls."
+  - "Review optimization ideas and Top 5 Next Best Customers."
+  - "Use the call icon to create a draft visit for a suggested account."
+

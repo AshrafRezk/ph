@@ -1,0 +1,55 @@
+/** Supported / unsupported Salesforce formula functions for offline VR */
+export const FORMULA_MATRIX = {
+  supported: [
+    'AND',
+    'OR',
+    'NOT',
+    'IF',
+    'ISBLANK',
+    'ISNULL',
+    'ISPICKVAL',
+    'TEXT',
+    'VALUE',
+    'LEN',
+    'LEFT',
+    'RIGHT',
+    'CONTAINS',
+    'BEGINS',
+    'UPPER',
+    'LOWER',
+    'TRIM',
+    'TRUE',
+    'FALSE',
+    'NULL',
+    '==',
+    '!=',
+    '<>',
+    '>',
+    '>=',
+    '<',
+    '<=',
+    '+',
+    '-',
+    '*',
+    '/',
+    '&'
+  ],
+  unsupported: [
+    'VLOOKUP',
+    'PRIORVALUE',
+    'ISCHANGED',
+    'ISNEW',
+    'IMAGE',
+    'HYPERLINK',
+    'GETSESSIONID',
+    'REGEX',
+    'DISTANCE',
+    'GEOLOCATION',
+    'CURRENCYRATE',
+    'PARENTGROUPVAL',
+    'PREVGROUPVAL'
+  ],
+  policy: {
+    onUnsupported: 'block' as 'block' | 'warn-allow'
+  }
+} as const;

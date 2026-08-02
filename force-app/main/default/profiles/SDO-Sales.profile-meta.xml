@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Profile xmlns="http://soap.sforce.com/2006/04/metadata">
+    <layoutAssignments>
+        <layout>Account-Institution HCO Layout</layout>
+        <recordType>Account.Institution_HCO</recordType>
+    </layoutAssignments>
+    <layoutAssignments>
+        <layout>Account-Pharmacy Layout</layout>
+        <recordType>Account.Pharmacy</recordType>
+    </layoutAssignments>
+    <layoutAssignments>
+        <layout>PersonAccount-Business Contact Layout</layout>
+        <recordType>PersonAccount.PersonAccount</recordType>
+    </layoutAssignments>
+    <layoutAssignments>
+        <layout>PersonAccount-Medical Professional Layout</layout>
+        <recordType>PersonAccount.SDO_PersonAccounts</recordType>
+    </layoutAssignments>
+</Profile>

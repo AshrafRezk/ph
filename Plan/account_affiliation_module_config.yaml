@@ -1,0 +1,99 @@
+module:
+  name: Account Affiliations
+  version: "1.0.0"
+  package_manifest: manifest/account-affiliation-package.xml
+  reference_source: Plan/Some Module Old Codes/accountAffiliationNetwork/
+  wireframes:
+    - Plan/wireframes and references/AccountAffiliationLWC.png
+    - Plan/wireframes and references/wireframe-account-detail.png
+  brd_implementation: IMP-003
+  objective: >
+    Provide an OCE-aligned Affiliations Network View on Account record pages with
+    expandable horizontal tree visualization, filtering, and CRUD via Account_Affiliation__c.
+
+object_mapping:
+  primary_object: Account_Affiliation__c
+  fields:
+    primary_account: Primary_Account__c
+    related_account: Related_Account__c
+    affiliation_type: Affiliation_Type__c
+    role: Role__c
+    strength: Strength__c
+    is_active: Is_Active__c
+    outside_territory: Outside_Territory__c
+    description: Description__c
+  affiliation_type_picklist_values:
+    - Parent Company
+    - Subsidiary
+    - Partner
+    - Supplier
+    - Customer
+    - Distributor
+    - Affiliate
+    - Competitor
+    - Investor
+    - Practice
+  role_picklist_values:
+    - Physician
+    - Pharmacist
+    - Admin
+    - Nurse
+    - Other
+  strength_picklist_values:
+    - Strong
+    - Medium
+    - Weak
+
+ui:
+  lwc: accountAffiliationNetwork
+  record_page_object: Account
+  tab_label: Affiliations
+  filters:
+    - Roles
+    - Show Inactive
+    - Show Outside Territory
+    - Strength
+    - Affiliation Type
+    - Direction
+
+execution_sequence:
+  - step: 1
+    action: deploy
+    manifest: manifest/account-affiliation-package.xml
+    required: true
+  - step: 2
+    action: assign_permission_set
+    permission_set: Account_Affiliation_Module
+    audience: "Sales reps, MSLs, and admins who manage HCP affiliations"
+  - step: 3
+    action: seed_demo_data
+    scripts:
+      - scripts/apex/seed-territories.apex
+      - scripts/apex/seed-accounts.apex
+    note: "Run as two separate Anonymous Apex executions to avoid MIXED_DML_OPERATION"
+  - step: 4
+    action: add_lwc_to_record_page
+    lwc: accountAffiliationNetwork
+    object: Account
+    tab: Affiliations
+    condition: "Add to HCP Account Lightning Record Page per IMP-003"
+  - step: 5
+    action: smoke_test
+    checklist:
+      - "Create Account_Affiliation__c records linking HCP to HCO and Pharmacy"
+      - "Open Account record → Affiliations tab shows network tree"
+      - "Click node to expand child affiliations"
+      - "Toggle Show Inactive and Show Outside Territory filters"
+      - "Filter by Affiliation Type, Role, Strength, and Direction"
+      - "Double-click node navigates to related Account"
+      - "Mobile shows list view fallback"
+
+user_journey:
+  view_network:
+    - "Open HCP Account record page"
+    - "Select Affiliations tab"
+    - "Review horizontal tree from root account"
+    - "Click nodes to expand; use filter panel to refine view"
+  manage_affiliations:
+    - "Use Affiliations related list New button to create records"
+    - "Set Primary Account, Related Account, Type, Role, and Strength"

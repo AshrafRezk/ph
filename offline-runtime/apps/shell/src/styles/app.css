@@ -1,0 +1,129 @@
+:root {
+  --sf-blue: #0176d3;
+  --sf-blue-dark: #014486;
+  --sf-blue-light: #1b96ff;
+  --sf-bg: #f2f4f7;
+  --sf-surface: #ffffff;
+  --sf-border: rgba(15, 23, 42, 0.1);
+  --sf-text: #0f172a;
+  --sf-muted: #5b6573;
+  --sf-link: #0b5cab;
+  --sf-danger: #ea001e;
+  --sf-success: #2e844a;
+  --sf-path: #747474;
+  --sf-path-active: #014486;
+  --sf-path-done: #2e844a;
+  --sf-bottom: #ffffff;
+  --sf-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --sf-rail: 72px;
+  --sf-touch: 44px;
+  --sf-control-bg: #f2f4f7;
+  --sf-control-radius: 12px;
+  --sf-control-focus: 0 0 0 4px rgba(1, 118, 211, 0.16);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* Phone: bottom tabs + full-bleed. Tablet/desktop (≥768): left rail (see osr-app). */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--sf-bg);
+  color: var(--sf-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+a {
+  color: var(--sf-link);
+  text-decoration: none;
+}
+
+button {
+  min-height: var(--sf-touch);
+  min-width: var(--sf-touch);
+}
+
+/* Global form controls outside shadow hosts */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+select,
+textarea {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-control-radius);
+  background: var(--sf-control-bg);
+  color: var(--sf-text);
+  padding: 0.7rem 0.875rem;
+  min-height: var(--sf-touch);
+  outline: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+select {
+  padding-right: 2.5rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #64748b 50%),
+    linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  background-color: var(--sf-control-bg);
+  cursor: pointer;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #98a2b3;
+  opacity: 1;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  background: #fff;
+  border-color: var(--sf-blue);
+  box-shadow: var(--sf-control-focus);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>ChemipharmProductCatalogService</members>
+        <members>ChemipharmProductCatalogServiceTest</members>
+        <members>ChemipharmDemoDataProfiles</members>
+        <members>ChemipharmDemoDataProfilesTest</members>
+        <members>ChemipharmAppPersonaSeed</members>
+        <members>ChemipharmAppSetupSeed</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Product2.Strength__c</members>
+        <members>Product2.Form__c</members>
+        <members>Product2.Therapy_Area__c</members>
+        <name>CustomField</name>
+    </types>
+    <types>
+        <members>Product2Family</members>
+        <name>StandardValueSet</name>
+    </types>
+    <types>
+        <members>Pharma_Product_Catalog</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>62.0</version>
+</Package>

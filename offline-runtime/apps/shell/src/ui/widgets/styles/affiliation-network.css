@@ -1,0 +1,227 @@
+.aff-net {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aff-net-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.aff-net-layout-toggle,
+.aff-net-filters,
+.aff-net-depth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.aff-net-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.aff-net-search {
+  flex: 1 1 160px;
+  min-width: 140px;
+  padding: 7px 10px;
+  border: 1px solid #dddbda;
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.aff-chip {
+  border: 1px solid #dddbda;
+  background: #fff;
+  color: #3e3e3c;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aff-chip.is-active {
+  border-color: var(--aff-chip, #0176d3);
+  color: var(--aff-chip, #0176d3);
+  background: color-mix(in srgb, var(--aff-chip, #0176d3) 12%, white);
+}
+
+.aff-net-stage-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.aff-net-stage {
+  position: relative;
+  min-height: 320px;
+  height: min(56vh, 560px);
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 45%, #f4f8ff 0%, #fafaf9 55%, #f3f2f2 100%);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+
+.aff-net-stage:active {
+  cursor: grabbing;
+}
+
+.aff-net-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+}
+
+.aff-net-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+  color: #706e6b;
+  text-align: center;
+}
+
+.aff-net-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aff-inspector-card {
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.aff-inspector-card h3 {
+  margin: 2px 0 6px;
+  font-size: 15px;
+}
+
+.aff-inspector-card p {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #3e3e3c;
+}
+
+.aff-inspector-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0176d3;
+  margin-bottom: 0.35rem;
+}
+
+.aff-inspector-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.aff-hint {
+  margin-top: 10px !important;
+  color: #706e6b !important;
+  font-size: 11px !important;
+  line-height: 1.35;
+}
+
+.aff-more-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px dashed #0176d3;
+  background: #eef4ff;
+  color: #0176d3;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aff-legend {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: #706e6b;
+  padding: 4px 2px;
+}
+
+.aff-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.aff-legend .dot.root {
+  background: #014486;
+}
+.aff-legend .dot.hcp {
+  background: #e8f4fd;
+  border-color: #0176d3;
+}
+.aff-legend .dot.hco {
+  background: #f3e8fd;
+  border-color: #6b53c5;
+}
+.aff-legend .dot.pharmacy {
+  background: #e8f5e9;
+  border-color: #2e844a;
+}
+
+.aff-legend-kind {
+  margin-top: 2px;
+}
+
+.aff-net-list {
+  margin-top: 4px;
+}
+
+.aff-list-row {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aff-list-row.is-selected {
+  border-color: #0176d3;
+  background: #eef4ff;
+}
+
+.aff-node.is-match circle {
+  stroke-width: 3.5;
+}
+
+@media (max-width: 900px) {
+  .aff-net-stage-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .aff-net-stage {
+    height: min(48vh, 420px);
+  }
+
+  .aff-net-inspector {
+    order: 2;
+  }
+}

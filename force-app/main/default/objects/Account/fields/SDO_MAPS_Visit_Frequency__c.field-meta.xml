@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_MAPS_Visit_Frequency__c</fullName>
+    <description>SDO MAPS visit frequency field used in Maps Advanced routing optimization use cases to determine how often to visit an Account location, e.g., 1 = once a month, 4 = weekly, 2 = 2 times per month.  02-02-23 AB</description>
+    <externalId>false</externalId>
+    <label>Visit Frequency</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

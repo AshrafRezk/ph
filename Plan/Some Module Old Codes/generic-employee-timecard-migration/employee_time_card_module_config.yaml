@@ -1,0 +1,161 @@
+module:
+  name: Employee Time Card and Working Days Analysis
+  version: "1.0.0"
+  package_manifest: manifest/package-timecard-migration.xml
+  objective: >
+    Deploy baseline metadata, then adapt source-object mappings and MASS setup
+    without rebuilding the module from scratch.
+
+cursor_adaptation_questionnaire:
+  ask_in_order:
+    - id: activity_source_object
+      prompt: "Which object stores visit/activity records in the target org?"
+      expected_answer_example: "Visit__c"
+      writes_to: activity_source_object_mapping.object_api_name
+    - id: activity_datetime_field
+      prompt: "Which datetime/date field is used to assign activities to day entries?"
+      expected_answer_example: "Visit_Date__c"
+      writes_to: activity_source_object_mapping.activity_datetime_field
+    - id: activity_owner_field
+      prompt: "Which field links the activity record to the employee user?"
+      expected_answer_example: "Assigned_To__c"
+      writes_to: activity_source_object_mapping.assigned_user_field
+    - id: completion_field_and_value
+      prompt: "Which status field and value indicate that the activity is completed?"
+      expected_answer_example: "Status__c = Completed"
+      writes_to:
+        - activity_source_object_mapping.completion.status_field
+        - activity_source_object_mapping.completion.completed_value
+    - id: planned_vs_unplanned_logic
+      prompt: "How are planned and unplanned activities identified?"
+      expected_answer_example: "Visit_Type__c in [Planned (Automatically), Planned (Manager)] vs Unplanned"
+      writes_to:
+        - activity_source_object_mapping.planned_vs_unplanned.field
+        - activity_source_object_mapping.planned_vs_unplanned.planned_values
+        - activity_source_object_mapping.planned_vs_unplanned.unplanned_values
+    - id: am_pm_logic
+      prompt: "How are AM/PM visits derived in target org?"
+      expected_answer_example: "Account__r.AccountType__c = Dr Lead means PM, else AM"
+      writes_to: activity_source_object_mapping.am_pm_logic
+    - id: coaching_logic
+      prompt: "Which fields define coaching visits and the coaching user?"
+      expected_answer_example: "Coaching_Visit__c = true, Coaching_user__c != Assigned_To__c"
+      writes_to: activity_source_object_mapping.coaching_logic
+    - id: weekend_definition_source
+      prompt: "Where is weekend configuration stored?"
+      expected_answer_example: "Weekend_Definition__c by country"
+      writes_to: calendar_mapping.weekend_definition
+    - id: holiday_source
+      prompt: "Where are holidays read from?"
+      expected_answer_example: "Standard Holiday object"
+      writes_to: calendar_mapping.holiday_source
+    - id: mass_action_record_source
+      prompt: "What record source should MASS run against?"
+      expected_answer_example: "Active users with non-null company"
+      writes_to: mass_action.record_source
+    - id: report_folder_override
+      prompt: "Should report folder names remain WorkingDaysAnalysis and Visits?"
+      expected_answer_example: "Yes, keep current folder names"
+      writes_to: reports.folder_mapping
+
+source_org_assumptions:
+  activity_object: Visit__c
+  employee_reference_object: User
+  weekend_configuration_object: Weekend_Definition__c
+  holiday_source: Holiday
+  report_type: Employee_Time_Card_Day_Entries_with_Time_Card
+
+flow_api_names:
+  monthly_creation: Employee_time_tracking_Monthly_Time_Card_Creation
+  activity_counts: Employee_time_tracking_Activity_Counts
+  target_calculation: Employee_time_tracking_Target_Calculation
+  tot_linkage: Time_Off_Request_Update_Time_Card_TOT
+
+execution_sequence:
+  - step: 1
+    action: run_flow
+    flow: Employee_time_tracking_Monthly_Time_Card_Creation
+    required_inputs:
+      - USERID
+  - step: 2
+    action: run_flow
+    flow: Employee_time_tracking_Activity_Counts
+    required_inputs:
+      - DAYCARDID
+  - step: 3
+    action: optional_run_flow
+    flow: Time_Off_Request_Update_Time_Card_TOT
+    condition: "If TOT metrics are tracked in target org"
+
+mass_action:
+  scheduler_components:
+    - ExternalClientApplication: Mass_Action_Scheduler
+    - AuthProvider: Mass_Action
+    - NamedCredential: Mass_Action
+    - OauthCustomScope: Mass_Action
+  record_source:
+    object: User
+    filter_example: "IsActive = true"
+  run_order:
+    - Employee_time_tracking_Monthly_Time_Card_Creation
+    - Employee_time_tracking_Activity_Counts
+  target_calculation_mass_action:
+    flow: Employee_time_tracking_Target_Calculation
+    record_source_object: Employee_Time_Card__c
+    required_input: EmployeeTimeCardId
+    notes: "One flow interview per ETC row; AUTR sums via EmployeeTimeCardTargetAutrAggregator (1 aggregate SOQL)."
+
+activity_source_object_mapping:
+  object_api_name: Visit__c
+  activity_datetime_field: Visit_Date__c
+  assigned_user_field: Assigned_To__c
+  completion:
+    status_field: Status__c
+    completed_value: Completed
+  planned_vs_unplanned:
+    field: Visit_Type__c
+    planned_values:
+      - Planned (Automatically)
+      - Planned (Manager)
+    unplanned_values:
+      - Unplanned
+  am_pm_logic:
+    expression: "Account__r.AccountType__c = 'Dr Lead' => PM, else AM"
+  coaching_logic:
+    coaching_flag_field: Coaching_Visit__c
+    coaching_user_field: Coaching_user__c
+    condition: "Coaching_Visit__c = true AND Coaching_user__c != Assigned_To__c"
+
+calendar_mapping:
+  weekend_definition:
+    object: Weekend_Definition__c
+    country_field: Country__c
+    weekday_field: Weekday__c
+  holiday_source:
+    object: Holiday
+    date_field: ActivityDate
+
+required_permissions:
+  existing_permission_sets_for_visit_access:
+    - Sales_Rep_IDH
+    - Sales_Rep_Al_Borg
+    - Sales_Rep_Al_Borg_Scan
+    - Sales_Rep_Al_Mokhtabar
+    - Territory_Account_Manager
+  note: >
+    No dedicated permission set for Employee_Time_Card__c and
+    Employee_Time_Card_Day_Entry__c was found in permissionsets metadata.
+    Ensure equivalent object/field/report/flow access in target org profiles or
+    a new migration-specific permission set.
+
+validation_checks:
+  metadata_checks:
+    - "Flow exists and active: Employee_time_tracking_Monthly_Time_Card_Creation"
+    - "Flow exists and active: Employee_time_tracking_Activity_Counts"
+    - "Report type exists: Employee_Time_Card_Day_Entries_with_Time_Card"
+    - "Report exists: WorkingDaysAnalysis/Working_Days_Analysis_Czl"
+  functional_checks:
+    - "One Employee_Time_Card__c is created per employee per month"
+    - "Day entries are created for all days in month"
+    - "Activity counts populate planned/unplanned and AM/PM fields"
+    - "Working Days Analysis report totals align with day entry data"

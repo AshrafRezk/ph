@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>ProductSurveyController</members>
+        <members>ProductSurveyControllerTest</members>
+        <members>VisitSurveyLinkController</members>
+        <members>VisitSurveyLinkControllerTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>ProductSurvey</members>
+        <members>ProductSurveyPing</members>
+        <name>ApexPage</name>
+    </types>
+    <types>
+        <members>zeta_pharma_logo</members>
+        <name>StaticResource</name>
+    </types>
+    <types>
+        <members>Visit_Product_Survey_Feedback__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Product_Survey</members>
+        <name>CustomSite</name>
+    </types>
+    <types>
+        <members>Product Survey Profile</members>
+        <name>Profile</name>
+    </types>
+    <types>
+        <members>Product_Survey_Guest</members>
+        <members>Visit_Survey_Module</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>67.0</version>
+</Package>

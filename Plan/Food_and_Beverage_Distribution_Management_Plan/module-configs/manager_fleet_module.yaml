@@ -1,0 +1,24 @@
+module:
+  name: Manager Fleet Tracking
+  version: "1.0.0"
+  package_source: Components from another org that can be usefull/management-fleet-tracking
+
+components:
+  lwc:
+    - managementFleetMap
+    - repLocationPublisher
+  apex:
+    - ManagerFleetMapController
+    - RepLocationService
+  object:
+    - Rep_Location_Snapshot__c
+
+adaptations:
+  User__c: Contact__c
+  add_fields:
+    - Van__c
+    - Distributor__c
+
+csp_trusted_sites:
+  - https://tile.openstreetmap.org
+  - https://router.project-osrm.org

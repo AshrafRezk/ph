@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomNotificationType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customNotifTypeName>Coaching_Event_Updated</customNotifTypeName>
+    <description>In-app alert when a coaching event is created or updated for the assigned employee or manager.</description>
+    <desktop>true</desktop>
+    <masterLabel>Coaching Event Updated</masterLabel>
+    <mobile>true</mobile>
+    <slack>false</slack>
+</CustomNotificationType>

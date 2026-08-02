@@ -1,0 +1,158 @@
+<template>
+    <div class="pace-root">
+        <section class="pace-toolbar">
+            <lightning-combobox
+                variant="label-hidden"
+                value={selectedMonth}
+                options={monthOptions}
+                onchange={handleMonthChange}
+            ></lightning-combobox>
+            <template if:true={canViewTeam}>
+                <lightning-combobox
+                    variant="label-hidden"
+                    value={selectedUserId}
+                    options={filterOptions.userOptions}
+                    onchange={handleUserChange}
+                    placeholder="Select employee"
+                ></lightning-combobox>
+                <div class="pace-view-toggle">
+                    <button type="button" class={myPaceChipClass} onclick={handleMyPace}>My pace</button>
+                    <button type="button" class={teamChipClass} onclick={handleViewTeam}>Team</button>
+                </div>
+            </template>
+            <div class="pace-toolbar__actions">
+                <template if:true={canExportPerformance}>
+                    <lightning-button
+                        label="Export CSV"
+                        onclick={handleExportCsv}
+                        disabled={isExporting}
+                    ></lightning-button>
+                </template>
+                <lightning-button-icon
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    onclick={handleRefresh}
+                ></lightning-button-icon>
+            </div>
+        </section>
+
+        <template if:true={errorMessage}>
+            <div class="pace-alert pace-alert_error">{errorMessage}</div>
+        </template>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={showTeamGrid}>
+                <section class="pace-team">
+                    <h2 class="pace-section-title">Team pace</h2>
+                    <div class="pace-team-filters">
+                        <lightning-combobox
+                            label="Status"
+                            value={teamFilterStatus}
+                            options={paceStatusFilterOptions}
+                            data-filter="teamFilterStatus"
+                            onchange={handleTeamFilterChange}
+                        ></lightning-combobox>
+                        <lightning-combobox
+                            label="Company"
+                            value={teamFilterCompany}
+                            options={companyFilterOptions}
+                            data-filter="teamFilterCompany"
+                            onchange={handleTeamFilterChange}
+                        ></lightning-combobox>
+                        <lightning-combobox
+                            label="Segment"
+                            value={teamFilterSegment}
+                            options={businessSegmentFilterOptions}
+                            data-filter="teamFilterSegment"
+                            onchange={handleTeamFilterChange}
+                        ></lightning-combobox>
+                    </div>
+                    <template if:true={hasTeamRows}>
+                        <div class="pace-team-grid">
+                            <template for:each={formattedTeamRows} for:item="row">
+                                <article
+                                    key={row.timeCardId}
+                                    class="pace-team-card"
+                                    data-user-id={row.employeeUserId}
+                                    onclick={handleTeamRowClick}
+                                >
+                                    <div class="pace-team-card__head">
+                                        <span>{row.employeeName}</span>
+                                        <span class={row.statusClass}>{row.statusLabel}</span>
+                                    </div>
+                                    <div>Proj. rev {row.projectedWalkInRevenueAchPercent}% - {row.callRatePercent}% call rate</div>
+                                </article>
+                            </template>
+                        </div>
+                    </template>
+                    <nav class="pace-pagination">
+                        <button type="button" onclick={handleTeamPrevPage} disabled={isTeamFirstPage}>Previous</button>
+                        <span>Page {teamCurrentPage} of {teamTotalPages}</span>
+                        <button type="button" onclick={handleTeamNextPage} disabled={isTeamLastPage}>Next</button>
+                    </nav>
+                </section>
+            </template>
+
+            <template if:true={showDetail}>
+                <template if:true={hasDetail}>
+                    <section class="pace-hero">
+                        <h1 class="pace-hero__employee">{detail.employeeName}</h1>
+                        <p class="pace-hero__days">{workingDaysLabel}</p>
+                        <div class="pace-metrics">
+                            <div class="pace-metric">
+                                <span class="pace-metric__label">Walk-in revenue</span>
+                                <span class="pace-metric__value">{revenueAchLabel}</span>
+                                <span class={revenueStatusClass}>{revenueStatusLabel}</span>
+                            </div>
+                            <div class="pace-metric">
+                                <span class="pace-metric__label">Walk-in visits</span>
+                                <span class="pace-metric__value">{visitsAchLabel}</span>
+                                <span class={visitsStatusClass}>{visitsStatusLabel}</span>
+                            </div>
+                        </div>
+                        <p>{streakLabel} - {timeOffLabel}</p>
+                    </section>
+
+                    <section class="pace-projection">
+                        <h2 class="pace-section-title">Projection</h2>
+                        <p>{projectedRevenueLabel}</p>
+                        <p>{projectedVisitsLabel}</p>
+                    </section>
+
+                    <template if:true={detail.badges}>
+                        <section class="pace-badges">
+                            <h2 class="pace-section-title">Badges</h2>
+                            <div class="pace-badge-grid">
+                                <template for:each={formattedBadges} for:item="badge">
+                                    <div key={badge.badgeKey} class={badge.badgeClass}>
+                                        <span>{badge.label}</span>
+                                        <p>{badge.description}</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </section>
+                    </template>
+
+                    <template if:true={detail.nextBestActions}>
+                        <section class="pace-actions">
+                            <h2 class="pace-section-title">Next best actions</h2>
+                            <template for:each={detail.nextBestActions} for:item="action">
+                                <div key={action.title} class="pace-action">
+                                    <strong>{action.title}</strong>
+                                    <p>{action.body}</p>
+                                </div>
+                            </template>
+                        </section>
+                    </template>
+                </template>
+                <template if:false={hasDetail}>
+                    <div class="pace-empty">No time card found for this month.</div>
+                </template>
+            </template>
+        </template>
+    </div>
+</template>

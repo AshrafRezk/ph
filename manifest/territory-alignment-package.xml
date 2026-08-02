@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>TerritoryAlignmentModuleSeed</members>
+        <members>TerritoryAlignmentModuleSeedTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>Account_Rating_Layout__c</members>
+        <members>Account_Rating_Layout_Field__c</members>
+        <members>Account_Territory_Fields__c</members>
+        <members>Account_Territory_Product_Fields__c</members>
+        <members>Product_Territory_Alignment__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>ATF_Set_Unique_Key</members>
+        <members>ATPF_Set_Unique_Key</members>
+        <members>PTA_Set_Unique_Key</members>
+        <name>Flow</name>
+    </types>
+    <types>
+        <members>Account_Rating_Layout__c-Account Rating Layout Layout</members>
+        <members>Account_Rating_Layout_Field__c-Account Rating Layout Field Layout</members>
+        <members>Account_Territory_Fields__c-Account Territory Fields Layout</members>
+        <members>Account_Territory_Product_Fields__c-Account Territory Product Fields Layout</members>
+        <members>Product_Territory_Alignment__c-Product Territory Alignment Layout</members>
+        <name>Layout</name>
+    </types>
+    <types>
+        <members>Territory_Alignment_Module</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>67.0</version>
+</Package>

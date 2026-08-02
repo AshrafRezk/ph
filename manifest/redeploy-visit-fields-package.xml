@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Visit_Attendee__c.Display_Order__c</members>
+        <members>Visit_Attendee__c.Is_Primary__c</members>
+        <members>Visit_Attendee__c.Role__c</members>
+        <members>Visit_Product_Detail__c.Detail_Type__c</members>
+        <members>Visit_Product_Detail__c.Display_Order__c</members>
+        <members>Visit_Product_Detail__c.Notes__c</members>
+        <members>Visit_Product_Detail__c.Product2__c</members>
+        <members>Visit_Product_Message__c.Response__c</members>
+        <members>Visit_Product_Message__c.Sentiment__c</members>
+        <members>Visit_Product_Message__c.Topic__c</members>
+        <members>Visit_Product_Message__c.Visit_Product_Detail__c</members>
+        <members>Visit_Sample__c.Lot_Number__c</members>
+        <members>Visit_Sample__c.Product2__c</members>
+        <members>Visit_Sample__c.Quantity__c</members>
+        <members>Visit_Sample__c.Sample_Inventory__c</members>
+        <members>Visit_Sample__c.Visit_Attendee__c</members>
+        <name>CustomField</name>
+    </types>
+    <version>67.0</version>
+</Package>

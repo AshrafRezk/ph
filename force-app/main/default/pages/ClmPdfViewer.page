@@ -1,0 +1,218 @@
+<apex:page controller="ClmPdfViewerController" showHeader="false" sidebar="false" standardStylesheets="false" docType="html-5.0" applyHtmlTag="true" applyBodyTag="true">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+        #viewer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #viewer canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        #status {
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <div id="viewer"><p id="status">Loading slide...</p></div>
+    <script src="{!URLFOR($Resource.pdfjs, 'pdf.min.js')}"></script>
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            var docId = params.get('docId');
+            var viewer = document.getElementById('viewer');
+            var currentPage = parseInt(params.get('page') || '1', 10);
+            var pdfDoc = null;
+            var renderTask = null;
+            var LOAD_TIMEOUT_MS = 90000;
+
+            if (!docId) {
+                showError('Missing document.');
+                return;
+            }
+
+            function notifyParent(type, detail) {
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(Object.assign({ type: type }, detail || {}), '*');
+                    }
+                } catch (ignore) {
+                    /* postMessage can fail in hardened embed contexts */
+                }
+            }
+
+            function showError(message) {
+                viewer.innerHTML = '';
+                var error = document.createElement('p');
+                error.id = 'status';
+                error.textContent = message;
+                viewer.appendChild(error);
+                notifyParent('clm-pdf-error', { message: message });
+            }
+
+            function withTimeout(promise, message) {
+                return new Promise(function (resolve, reject) {
+                    var timer = window.setTimeout(function () {
+                        reject(new Error(message));
+                    }, LOAD_TIMEOUT_MS);
+                    promise.then(
+                        function (value) {
+                            window.clearTimeout(timer);
+                            resolve(value);
+                        },
+                        function (reason) {
+                            window.clearTimeout(timer);
+                            reject(reason);
+                        }
+                    );
+                });
+            }
+
+            function renderCanvasPage(pageNum) {
+                if (!pdfDoc) {
+                    return Promise.resolve();
+                }
+                var safePage = Math.min(Math.max(pageNum, 1), pdfDoc.numPages);
+                currentPage = safePage;
+                return pdfDoc.getPage(safePage).then(function (page) {
+                    var viewport = page.getViewport({ scale: 1.5 });
+                    var canvas = document.createElement('canvas');
+                    var context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    viewer.innerHTML = '';
+                    viewer.appendChild(canvas);
+                    if (renderTask) {
+                        renderTask.cancel();
+                    }
+                    renderTask = page.render({ canvasContext: context, viewport: viewport });
+                    return renderTask.promise.then(function () {
+                        notifyParent('clm-pdf-ready', {
+                            page: safePage,
+                            totalPages: pdfDoc.numPages
+                        });
+                    });
+                });
+            }
+
+            function fetchPdfBytes() {
+                var downloadUrl = '/sfc/servlet.shepherd/document/download/' + encodeURIComponent(docId);
+                return withTimeout(
+                    fetch(downloadUrl, { credentials: 'same-origin' }).then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('Unable to load slide (HTTP ' + response.status + ').');
+                        }
+                        return response.arrayBuffer();
+                    }),
+                    'Timed out loading slide.'
+                );
+            }
+
+            function loadWithRemoting(pdfjsLib) {
+                if (!window.Visualforce || !window.Visualforce.remoting || !window.Visualforce.remoting.Manager) {
+                    return Promise.reject(new Error('Unable to load slide.'));
+                }
+                return new Promise(function (resolve, reject) {
+                    window.Visualforce.remoting.Manager.invokeAction(
+                        '{!$RemoteAction.ClmPdfViewerController.getPdfBase64}',
+                        docId,
+                        function (result, event) {
+                            if (!event.status) {
+                                reject(new Error(event.message || 'Unable to load slide.'));
+                                return;
+                            }
+                            try {
+                                resolve(base64ToUint8Array(result));
+                            } catch (e) {
+                                reject(new Error('Unable to load slide.'));
+                            }
+                        },
+                        { escape: false, buffer: false, timeout: LOAD_TIMEOUT_MS }
+                    );
+                });
+            }
+
+            function base64ToUint8Array(base64) {
+                var raw = window.atob(base64);
+                var bytes = new Uint8Array(raw.length);
+                for (var i = 0; i < raw.length; i++) {
+                    bytes[i] = raw.charCodeAt(i);
+                }
+                return bytes;
+            }
+
+            function loadPdfData(pdfjsLib) {
+                return fetchPdfBytes().catch(function (fetchError) {
+                    return loadWithRemoting(pdfjsLib).catch(function () {
+                        throw fetchError;
+                    });
+                });
+            }
+
+            function openPdfDocument(pdfjsLib, bytes) {
+                return pdfjsLib.getDocument({ data: bytes, disableWorker: true }).promise.catch(function () {
+                    return pdfjsLib.getDocument({ data: bytes }).promise;
+                });
+            }
+
+            function loadWithPdfJs() {
+                try {
+                    var pdfjsLib = window.pdfjsLib;
+                    if (!pdfjsLib) {
+                        showError('Unable to load slide.');
+                        return;
+                    }
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = '{!URLFOR($Resource.pdfjs, "pdf.worker.min.js")}';
+                    loadPdfData(pdfjsLib)
+                        .then(function (bytes) {
+                            return withTimeout(
+                                openPdfDocument(pdfjsLib, bytes),
+                                'Timed out rendering slide.'
+                            );
+                        })
+                        .then(function (pdf) {
+                            pdfDoc = pdf;
+                            return renderCanvasPage(currentPage);
+                        })
+                        .catch(function (error) {
+                            showError((error && error.message) ? error.message : 'Unable to load slide.');
+                        });
+                } catch (e) {
+                    showError('Unable to load slide.');
+                }
+            }
+
+            loadWithPdfJs();
+
+            window.addEventListener('message', function (event) {
+                if (!event.data || event.data.type !== 'clm-pdf-page') {
+                    return;
+                }
+                var page = parseInt(event.data.page, 10);
+                if (Number.isNaN(page)) {
+                    return;
+                }
+                renderCanvasPage(page).catch(function () {
+                    showError('Unable to load slide.');
+                });
+            });
+        })();
+    </script>
+</apex:page>

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OSR OAuth Callback</title>
+    <script>
+      // Keep query string and hand control to the SPA at /oauth/callback
+      // Netlify redirect also sends here; main app boot handles completion.
+      if (!location.pathname.endsWith('/oauth/callback') && !location.pathname.includes('oauth/callback')) {
+        location.replace('/oauth/callback' + location.search + location.hash);
+      }
+    </script>
+  </head>
+  <body>
+    <p style="font-family: system-ui; padding: 2rem; text-align: center">
+      Completing Salesforce login…
+    </p>
+    <script type="module" src="/src/main.ts"></script>
+    <osr-app></osr-app>
+  </body>
+</html>

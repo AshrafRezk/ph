@@ -1,0 +1,15 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "summary": {
+      "title": "Summary",
+      "description": "Field rep home dashboard context including coverage KPIs, today's plan, and next-best customers.",
+      "lightning:type": "lightning__textType",
+      "lightning:isPII": false,
+      "copilotAction:isDisplayable": false,
+      "copilotAction:isUsedByPlanner": true
+    }
+  },
+  "lightning:type": "lightning__objectType",
+  "lightning:textIndexed": true
+}

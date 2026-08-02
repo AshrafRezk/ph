@@ -1,0 +1,13 @@
+{
+  "unevaluatedProperties": false,
+  "properties": {
+    "summary": {
+      "title": "Summary",
+      "description": "Pharmacy sales planning context for the agent to answer with.",
+      "lightning:type": "lightning__textType",
+      "lightning:isPII": false,
+      "copilotAction:isUsedByPlanner": true
+    }
+  },
+  "lightning:type": "lightning__objectType"
+}

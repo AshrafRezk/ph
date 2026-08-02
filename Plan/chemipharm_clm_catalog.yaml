@@ -1,0 +1,62 @@
+# Chemipharm CLM presentation — slide product / message alignment matrix.
+# Source PDF: Plan/Demo Slides/Chemipharm Presentation Deck.pdf
+
+presentation:
+  name: Chemipharm Presentation Deck
+  pdf_path: Plan/Demo Slides/Chemipharm Presentation Deck.pdf
+  primary_product_external_id: CPI_COLOVERIN_D_135_40
+  product_external_ids:
+    - CPI_COLOVERIN_135
+    - CPI_COLOVERIN_D_135_40
+    - CPI_COLOVERIN_A_135_5
+    - CPI_COLOVERIN_SR_200
+    - CPI_VERSERC_16
+    - CPI_DANTRELAX_25
+    - CPI_DANTRELAX_COMPOUND_25_300
+    - CPI_ROSUVAST_10
+    - CPI_ALGESAL_10
+  tags: Chemipharm;Coloverin;Verserc;Dantrelax;Rosuvast;Algesal
+  keep_active_names:
+    - Chemipharm Presentation Deck
+    - Soul Pharma Product Deck
+
+slides:
+  1:
+    product_names: Chemipharm
+    message_names: INDICATION
+  2:
+    product_names: Chemipharm; Coloverin; Verserc
+    message_names: INDICATION
+  3:
+    product_names: Coloverin; Coloverin D; Coloverin A; Coloverin SR
+    message_names: EFFICACY; SAFETY
+  4:
+    product_names: Coloverin D
+    message_names: EFFICACY
+  5:
+    product_names: Verserc
+    message_names: SAFETY
+  6:
+    product_names: Dantrelax; Dantrelax Compound
+    message_names: EFFICACY; SAFETY
+  7:
+    product_names: Dantrelax
+    message_names: SAFETY
+  8:
+    product_names: Rosuvast
+    message_names: EFFICACY
+  9:
+    product_names: Algesal Suractive
+    message_names: SAFETY
+  10:
+    product_names: Coloverin D; Verserc; Dantrelax; Rosuvast; Algesal Suractive
+    message_names: EFFICACY; SAFETY
+  11:
+    product_names: Coloverin D; Verserc; Dantrelax; Rosuvast
+    message_names: EFFICACY
+  12:
+    product_names: Chemipharm
+    message_names: SUPPORT
+  13:
+    product_names: Chemipharm
+    message_names: SUPPORT

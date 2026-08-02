@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomFieldTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
+    <help><!-- Partial (Hours): choose 1–8 hours on one day. Full Day: one calendar day only—create another request for more days. --></help>
+    <label><!-- Span Type --></label>
+    <name>Span_Type__c</name>
+    <picklistValues>
+        <masterLabel>Full Day</masterLabel>
+        <translation><!-- Full Day --></translation>
+    </picklistValues>
+    <picklistValues>
+        <masterLabel>Partial (Hours)</masterLabel>
+        <translation><!-- Partial (Hours) --></translation>
+    </picklistValues>
+</CustomFieldTranslation>

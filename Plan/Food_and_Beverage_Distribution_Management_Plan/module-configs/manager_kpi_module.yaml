@@ -1,0 +1,20 @@
+module:
+  name: Manager KPI Dashboard
+  version: "1.0.0"
+  package_source: Components from another org that can be usefull/management-kpi-dashboard
+
+components:
+  lwc:
+    - managementTeamKpiDashboard
+    - pharmacySalesDashboard  # rename to vanSalesDashboard in target org
+  apex:
+    - ManagementKpiController
+
+kpi_model:
+  reference: KPI_SCORING_MODEL.md
+  sales_weight: 0.70
+  coverage_weight: 0.30
+  coverage_components:
+    - active_customer_coverage
+    - gtm_priority_penetration
+    - strike_rate
