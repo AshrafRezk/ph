@@ -21,17 +21,15 @@ salesforce/sync-pack/   Apex REST APIs + CMDT + tombstones
 - Netlify subdomain: https://osr-salesforce-offline.netlify.app
 - Admin: https://app.netlify.com/projects/osr-salesforce-offline
 
-Redeploy (static + OAuth token proxy function):
+**Continuous deploy:** Netlify is connected to GitHub [`AshrafRezk/ph`](https://github.com/AshrafRezk/ph) with base directory `offline-runtime`. Pushes to `main` that change files under `offline-runtime/` trigger production builds (static shell + `sf-token` OAuth proxy function). Manual CLI deploys are no longer required.
+
+Emergency manual deploy (if needed):
 
 ```bash
 cd offline-runtime
 npm run build -w @osr/shell
 npx netlify deploy --prod --no-build --dir apps/shell/dist --functions netlify/functions
 ```
-
-Deploying `--dir apps/shell/dist` without `--functions` skips the OAuth proxy and breaks web login
-(`/.netlify/functions/sf-token` → 404).
-
 ## Quick start (local web)
 
 ```bash

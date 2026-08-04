@@ -2,6 +2,8 @@
   publish = "apps/shell/dist"
   command = "npm run build -w @osr/shell"
   functions = "netlify/functions"
+  # Skip Netlify builds when the commit only touches Salesforce/Plan/etc.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
 
 [[redirects]]
   from = "/oauth/callback"
