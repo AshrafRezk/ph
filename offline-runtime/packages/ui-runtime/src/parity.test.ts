@@ -55,26 +55,37 @@ describe('field home layout', () => {
     );
   });
 
-  it('sorts AppPage stacks with Today Plan first', () => {
+  it('sorts AppPage stacks in product home order and hides location publisher', () => {
     const sorted = sortFieldHomeComponents([
       { type: 'c:repLocationPublisher' },
       { type: 'c:fieldRepHomeMetrics' },
       { type: 'c:fieldRepHomeTodayPlan' },
-      { type: 'c:homeOfficeMessages' }
+      { type: 'c:homeOfficeMessages' },
+      { type: 'c:fieldRepHomeClmPrefetch' },
+      { type: 'c:fieldRepHomeNextBestCustomer' },
+      { type: 'c:reportsHub' }
     ]);
-    assert.equal(sorted[0].type, 'c:fieldRepHomeTodayPlan');
-    assert.equal(sorted[1].type, 'c:homeOfficeMessages');
-    assert.equal(sorted[2].type, 'c:fieldRepHomeMetrics');
-    assert.equal(sorted[3].type, 'c:repLocationPublisher');
+    assert.deepEqual(
+      sorted.map((c) => c.type),
+      [
+        'c:fieldRepHomeClmPrefetch',
+        'c:fieldRepHomeMetrics',
+        'c:homeOfficeMessages',
+        'c:fieldRepHomeTodayPlan',
+        'c:fieldRepHomeNextBestCustomer',
+        'c:reportsHub'
+      ]
+    );
   });
 
-  it('leads with Today Plan and folds sidebar on Small', () => {
+  it('flattens home into one column with product order', () => {
     const plan = planFieldHomeRegions(
       [
         {
           name: 'top',
           components: [
             { type: 'c:repLocationPublisher' },
+            { type: 'c:fieldRepHomeClmPrefetch' },
             { type: 'c:fieldRepHomeMetrics' }
           ]
         },
@@ -84,18 +95,31 @@ describe('field home layout', () => {
         },
         {
           name: 'sidebar',
-          components: [{ type: 'c:homeOfficeMessages' }]
+          components: [
+            { type: 'c:homeOfficeMessages' },
+            { type: 'c:fieldRepHomeNextBestCustomer' },
+            { type: 'c:reportsHub' }
+          ]
         }
       ],
       'Small'
     );
     assert.equal(plan.side, null);
-    assert.equal(plan.main[0].name, 'bottomLeft');
-    assert.equal(plan.main[1].name, 'sidebar');
-    assert.equal(plan.main[2].name, 'top');
+    assert.equal(plan.main.length, 1);
+    assert.deepEqual(
+      plan.main[0].components.map((c) => c.type),
+      [
+        'c:fieldRepHomeClmPrefetch',
+        'c:fieldRepHomeMetrics',
+        'c:homeOfficeMessages',
+        'c:fieldRepHomeTodayPlan',
+        'c:fieldRepHomeNextBestCustomer',
+        'c:reportsHub'
+      ]
+    );
   });
 
-  it('keeps sidebar column on Large', () => {
+  it('never keeps a sidebar column on Large', () => {
     const plan = planFieldHomeRegions(
       [
         {
@@ -113,10 +137,9 @@ describe('field home layout', () => {
       ],
       'Large'
     );
-    assert.ok(plan.side);
-    assert.equal(plan.side?.name, 'sidebar');
-    assert.equal(plan.main[0].name, 'bottomLeft');
-    assert.equal(plan.main[1].name, 'top');
+    assert.equal(plan.side, null);
+    assert.equal(plan.main.length, 1);
+    assert.ok(!plan.main[0].components.some((c) => c.type === 'c:repLocationPublisher'));
   });
 });
 

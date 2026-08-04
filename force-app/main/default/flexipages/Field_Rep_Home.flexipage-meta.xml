@@ -1,11 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Pharmaceuticals Page to do the field rep home — KPI coverage metrics, today's plan map, and next best customer recommendations.</description>
+    <description>Pharmaceuticals field rep home — single-column widget stack (CLM, performance, messages, today plan, NBC, reports).</description>
     <flexiPageRegions>
+        <mode>Replace</mode>
+        <name>sidebar</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeClmPrefetch</componentName>
+                <identifier>fieldRepHomeClmPrefetch</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeMetrics</componentName>
+                <identifier>fieldRepHomeMetrics</identifier>
+            </componentInstance>
+        </itemInstances>
         <itemInstances>
             <componentInstance>
                 <componentName>homeOfficeMessages</componentName>
                 <identifier>homeOfficeMessages</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeTodayPlan</componentName>
+                <identifier>fieldRepHomeTodayPlan</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>
@@ -21,39 +44,10 @@
             </componentInstance>
         </itemInstances>
         <mode>Replace</mode>
-        <name>sidebar</name>
-        <type>Region</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
-                <componentName>fieldRepHomeTodayPlan</componentName>
-                <identifier>fieldRepHomeTodayPlan</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentName>fieldRepHomeMetrics</componentName>
-                <identifier>fieldRepHomeMetrics</identifier>
-            </componentInstance>
-        </itemInstances>
-        <mode>Replace</mode>
         <name>bottomLeft</name>
         <type>Region</type>
     </flexiPageRegions>
     <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
-                <componentName>repLocationPublisher</componentName>
-                <identifier>repLocationPublisher</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentName>fieldRepHomeClmPrefetch</componentName>
-                <identifier>fieldRepHomeClmPrefetch</identifier>
-            </componentInstance>
-        </itemInstances>
         <mode>Replace</mode>
         <name>top</name>
         <type>Region</type>

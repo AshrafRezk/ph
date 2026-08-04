@@ -216,12 +216,11 @@ export function renderFidelityTodayPlan(opts: {
                 </div>
                 <div class="map-col">
                   <div class="map-wrapper">
-                    <div class="map-container" style="min-height:300px" ${ref(mountMap)}></div>
+                    <div class="map-container" ${ref(mountMap)}></div>
                   </div>
                   <div class="map-legend">
                     <span class="legend-item"><span class="legend-pin legend-pin-hcp"></span>HCP</span>
                     <span class="legend-item"><span class="legend-pin legend-pin-hco"></span>HCO</span>
-                    <span class="legend-item"><span class="legend-pin legend-pin-you"></span>You</span>
                   </div>
                   <div class="route-summary">
                     <span class="route-summary-label">Route estimate</span>

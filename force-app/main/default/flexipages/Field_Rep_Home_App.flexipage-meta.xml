@@ -1,23 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Field rep home dashboard for desktop, tablet, and mobile — KPI metrics, today plan, and next best customers.</description>
+    <description>Field rep home dashboard for desktop, tablet, and mobile — single-column stack.</description>
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>fieldRepHomeTodayPlan</componentName>
-                <identifier>fieldRepHomeTodayPlan</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentName>homeOfficeMessages</componentName>
-                <identifier>homeOfficeMessages</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentName>fieldRepHomeNextBestCustomer</componentName>
-                <identifier>fieldRepHomeNextBestCustomer</identifier>
+                <componentName>fieldRepHomeClmPrefetch</componentName>
+                <identifier>fieldRepHomeClmPrefetch</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>
@@ -28,14 +16,26 @@
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>repLocationPublisher</componentName>
-                <identifier>repLocationPublisher</identifier>
+                <componentName>homeOfficeMessages</componentName>
+                <identifier>homeOfficeMessages</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>fieldRepHomeClmPrefetch</componentName>
-                <identifier>fieldRepHomeClmPrefetch</identifier>
+                <componentName>fieldRepHomeTodayPlan</componentName>
+                <identifier>fieldRepHomeTodayPlan</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>fieldRepHomeNextBestCustomer</componentName>
+                <identifier>fieldRepHomeNextBestCustomer</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>reportsHub</componentName>
+                <identifier>reportsHub</identifier>
             </componentInstance>
         </itemInstances>
         <name>main</name>

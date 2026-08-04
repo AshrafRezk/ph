@@ -728,24 +728,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(this.mapInstance);
 
-        try {
-            if (this.isViewingSelf) {
-                this.currentLocation = await getCurrentPosition();
-                window.L.circleMarker([this.currentLocation.latitude, this.currentLocation.longitude], {
-                    radius: 10,
-                    color: '#0176d3',
-                    fillColor: '#0176d3',
-                    fillOpacity: 0.95,
-                    weight: 2
-                })
-                    .addTo(this.mapInstance)
-                    .bindPopup('<strong>Current location</strong><br/>Route starting point');
-            } else {
-                this.currentLocation = null;
-            }
-        } catch (e) {
-            // Location permission is optional for map usage.
-        }
+        this.currentLocation = null;
 
         points.forEach((v) => {
             const marker = window.L.marker([v.latitude, v.longitude], {

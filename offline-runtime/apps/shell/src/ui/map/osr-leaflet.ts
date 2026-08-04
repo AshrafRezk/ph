@@ -78,8 +78,8 @@ export function createOsrMap(
   } = {}
 ): OsrMapHandle {
   // Ensure host has a paint size before Leaflet measures it
-  if (!el.style.minHeight) el.style.minHeight = '24rem';
-  if (!el.style.height) el.style.height = '100%';
+  if (!el.style.minHeight) el.style.minHeight = '360px';
+  if (!el.style.height || el.style.height === '100%') el.style.height = '360px';
   if (!el.style.width) el.style.width = '100%';
 
   let destroyed = false;

@@ -1,6 +1,6 @@
 /**
- * Field Rep Home layout helpers — keep offline order aligned with the LWC experience.
- * Today's Plan leads; phone never drops the sidebar widgets.
+ * Field Rep Home layout helpers — single vertical stack (no sidebar columns).
+ * Order matches product: CLM → Performance → Messages → Today's Plan → NBC → Reports.
  */
 
 /** Minimal component shape (avoids circular import with index.ts). */
@@ -12,14 +12,16 @@ export type HomeFlexiComponent = {
 
 /** Preferred vertical order for Field Rep Home LWCs (lower = earlier). */
 export const FIELD_HOME_BUNDLE_PRIORITY: Record<string, number> = {
-  'c/fieldRepHomeTodayPlan': 10,
-  'c/homeOfficeMessages': 20,
-  'c/fieldRepHomeNextBestCustomer': 30,
-  'c/fieldRepHomeMetrics': 40,
-  'c/repLocationPublisher': 50,
-  'c/fieldRepHomeClmPrefetch': 60,
-  'c/reportsHub': 70
+  'c/fieldRepHomeClmPrefetch': 10,
+  'c/fieldRepHomeMetrics': 20,
+  'c/homeOfficeMessages': 30,
+  'c/fieldRepHomeTodayPlan': 40,
+  'c/fieldRepHomeNextBestCustomer': 50,
+  'c/reportsHub': 60
 };
+
+/** Hidden from Field Rep Home (location share / publisher). */
+export const FIELD_HOME_HIDDEN_BUNDLES = new Set<string>(['c/repLocationPublisher']);
 
 const HOME_REGION_NAMES = new Set(['top', 'sidebar', 'bottomLeft', 'bottomRight']);
 
@@ -76,81 +78,38 @@ export function homeBundlePriority(bundle: string | null | undefined): number {
   return FIELD_HOME_BUNDLE_PRIORITY[bundle] ?? 400;
 }
 
+export function isFieldHomeHiddenBundle(bundle: string | null | undefined): boolean {
+  return !!bundle && FIELD_HOME_HIDDEN_BUNDLES.has(bundle);
+}
+
 /** Stable sort for AppPage / single-region Field Home stacks. */
 export function sortFieldHomeComponents<T extends HomeFlexiComponent>(components: T[]): T[] {
   return [...components]
+    .filter((c) => !isFieldHomeHiddenBundle(bundleOf(c)))
     .map((c, index) => ({ c, index, pri: homeBundlePriority(bundleOf(c)) }))
     .sort((a, b) => a.pri - b.pri || a.index - b.index)
     .map((x) => x.c);
 }
 
 export type HomeRegionPlan<T extends HomeFlexiComponent = HomeFlexiComponent> = {
-  /** Primary column: Today Plan first, then folded sidebar on phone, then utilities. */
+  /** Single vertical column of home widgets. */
   main: { name: string; components: T[] }[];
-  /** Wide layout side column (Messages / NBC / Reports). */
+  /** Always null — Field Rep Home is one column. */
   side: { name: string; components: T[] } | null;
 };
 
 /**
- * Build Field Home region plan.
- * - Lead with bottomLeft (Today's Plan)
- * - Keep sidebar on Small by folding into main (LWC phone parity)
- * - Defer `top` (location / CLM / metrics) so KPIs don't bury the day plan
+ * Build Field Home region plan as one ordered column (no sidebar).
+ * Drops `repLocationPublisher` and sorts by FIELD_HOME_BUNDLE_PRIORITY.
  */
 export function planFieldHomeRegions<T extends HomeFlexiComponent>(
   regions: { name: string; components: T[] }[],
-  formFactor: 'Small' | 'Medium' | 'Large'
+  _formFactor: 'Small' | 'Medium' | 'Large'
 ): HomeRegionPlan<T> {
-  const byName = new Map(regions.map((r) => [r.name, r]));
-  const top = byName.get('top');
-  const bottomLeft = byName.get('bottomLeft');
-  const bottomRight = byName.get('bottomRight');
-  const sidebar = byName.get('sidebar');
-  const rest = regions.filter((r) => !HOME_REGION_NAMES.has(r.name));
-
-  const main: HomeRegionPlan<T>['main'] = [];
-  if (bottomLeft) {
-    main.push({
-      name: bottomLeft.name,
-      components: sortFieldHomeComponents(bottomLeft.components)
-    });
-  }
-  if (bottomRight) {
-    main.push({
-      name: bottomRight.name,
-      components: sortFieldHomeComponents(bottomRight.components)
-    });
-  }
-
-  const wideSide = formFactor !== 'Small' && sidebar ? sidebar : null;
-  if (!wideSide && sidebar) {
-    main.push({
-      name: sidebar.name,
-      components: sortFieldHomeComponents(sidebar.components)
-    });
-  }
-
-  if (top) {
-    main.push({
-      name: top.name,
-      components: sortFieldHomeComponents(top.components)
-    });
-  }
-
-  for (const r of rest) {
-    main.push({
-      name: r.name,
-      components: sortFieldHomeComponents(r.components)
-    });
-  }
-
+  const flat = regions.flatMap((r) => r.components ?? []);
+  const components = sortFieldHomeComponents(flat);
   return {
-    main,
-    side: wideSide
-      ? {
-          name: wideSide.name,
-          components: sortFieldHomeComponents(wideSide.components)
-        }
-      : null
+    main: [{ name: 'main', components }],
+    side: null
   };
 }
