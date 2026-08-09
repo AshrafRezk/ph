@@ -3052,7 +3052,8 @@ export class OsrApp extends LitElement {
       Accounts_Tab: 'c/accountsTab',
       Request_Time_Off: 'c/timeOffSubmission',
       Time_Off_Submission: 'c/timeOffSubmission',
-      CLM_Presentations: 'c/clmPresentationsHub'
+      CLM_Presentations: 'c/clmPresentationsHub',
+      My_Learning: 'c/myLearning'
     };
     if (t.tab.lwcBundle) return normalizeLwcBundleName(t.tab.lwcBundle);
     return map[t.developerName] ?? map[page] ?? null;

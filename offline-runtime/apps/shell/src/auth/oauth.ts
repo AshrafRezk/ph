@@ -409,6 +409,133 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
     'User'
   ];
 
+  /** Pharma Field (LightningSales) nav when Tooling CustomApplication is unavailable. */
+  const PHARMA_FIELD_DEFAULT_TABS = [
+    'Field_Rep_Planner',
+    'Account',
+    'Visit__c',
+    'CLM_Presentations',
+    'My_Learning',
+    'Lead',
+    'Contact',
+    'Opportunity',
+    'Task',
+    'Event'
+  ];
+
+  const KNOWN_CUSTOM_TABS: Record<
+    string,
+    { label: string; tab: Record<string, unknown> }
+  > = {
+    Field_Rep_Planner: {
+      label: 'Planner',
+      tab: { tabType: 'flexipage', pageDeveloperName: 'Field_Rep_Planner' }
+    },
+    CLM_Presentations: {
+      label: 'CLM Presentations',
+      tab: { tabType: 'lwc', lwcBundle: 'c/clmPresentationsHub' }
+    },
+    Accounts_Tab: {
+      label: 'Accounts',
+      tab: { tabType: 'lwc', lwcBundle: 'c/accountsTab' }
+    },
+    My_Learning: {
+      label: 'My Learning',
+      tab: { tabType: 'lwc', lwcBundle: 'c/myLearning' }
+    },
+    Request_Time_Off: {
+      label: 'Request Time Off',
+      tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
+    },
+    Time_Off_Submission: {
+      label: 'Request Time Off',
+      tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
+    }
+  };
+
+  function isPharmaFieldApp(developerName: string, label: string): boolean {
+    const dn = developerName.toLowerCase();
+    const lb = label.toLowerCase();
+    return (
+      dn === 'lightningsales' ||
+      lb.includes('pharma field') ||
+      lb === 'pharma field'
+    );
+  }
+
+  function looksLikeGenericSalesTabs(tabs: string[]): boolean {
+    if (!tabs.length) return true;
+    const set = new Set(tabs.map((t) => t.replace(/^standard-/i, '')));
+    const hasField =
+      set.has('Visit__c') ||
+      set.has('Field_Rep_Planner') ||
+      set.has('CLM_Presentations') ||
+      set.has('My_Learning') ||
+      set.has('Accounts_Tab');
+    if (hasField) return false;
+    const salesOnly = ['Account', 'Contact', 'Opportunity', 'Lead', 'Task', 'Event', 'Case', 'Campaign'];
+    return [...set].every((t) => salesOnly.includes(t));
+  }
+
+  function resolveRawTabName(name: string): string | null {
+    const n = name.trim();
+    if (!n || n.toLowerCase() === 'standard-home' || n.toLowerCase() === 'home') return null;
+    if (n.startsWith('standard-')) return n.slice('standard-'.length);
+    return n;
+  }
+
+  async function fetchCustomApplicationTabs(
+    developerNames: string[]
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    const unique = Array.from(new Set(developerNames.filter(Boolean)));
+    const chunkSize = 8;
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      const chunk = unique.slice(i, i + chunkSize);
+      const inList = chunk.map((n) => `'${n.replace(/'/g, "\\'")}'`).join(',');
+      try {
+        const q = encodeURIComponent(
+          `SELECT DeveloperName, Label, Metadata FROM CustomApplication WHERE DeveloperName IN (${inList})`
+        );
+        const res = await sfGet<{
+          records?: {
+            DeveloperName?: string;
+            Label?: string;
+            Metadata?: { tabs?: unknown; tabSetMember?: unknown };
+          }[];
+        }>(`/tooling/query?q=${q}`);
+        for (const row of res.records ?? []) {
+          const dn = String(row.DeveloperName || '');
+          if (!dn) continue;
+          const meta = row.Metadata as { tabs?: unknown } | undefined;
+          const rawTabs = Array.isArray(meta?.tabs) ? meta!.tabs! : [];
+          const resolved: string[] = [];
+          const seen = new Set<string>();
+          for (const t of rawTabs) {
+            const name = resolveRawTabName(String(t ?? ''));
+            if (!name || seen.has(name)) continue;
+            // Skip Lightning Home page tabs (Home is chrome, not a nav object)
+            if (
+              (name.toLowerCase().includes('home') &&
+                !name.endsWith('__c') &&
+                name !== 'Account' &&
+                !KNOWN_CUSTOM_TABS[name]) ||
+              name.toLowerCase().endsWith('_home_app')
+            ) {
+              continue;
+            }
+            seen.add(name);
+            resolved.push(name);
+          }
+          if (resolved.length) out.set(dn, resolved);
+        }
+      } catch {
+        /* Tooling CustomApplication may be restricted */
+      }
+    }
+    return out;
+  }
+
   async function discoverOrgShape() {
     if (discovered) return discovered;
 
@@ -455,6 +582,17 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
     }
 
     if (!objects.length) objects.push('Account', 'Contact', 'Task');
+    // Ensure Pharma Field objects are discoverable when present
+    for (const extra of ['Visit__c']) {
+      if (!objects.includes(extra)) {
+        try {
+          await sfGet(`/sobjects/${extra}/describe`);
+          objects.push(extra);
+        } catch {
+          /* object may not exist */
+        }
+      }
+    }
 
     type AppShape = {
       developerName: string;
@@ -484,7 +622,8 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
         apps.push({
           developerName: item.name,
           label: item.label,
-          tabDeveloperNames: [...objects],
+          // Placeholder — enriched per-app from CustomApplication below
+          tabDeveloperNames: [],
           iconUrl: item.icons?.[0]?.url
         });
         if (apps.length >= 40) break;
@@ -495,10 +634,28 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
 
     if (!apps.length) {
       apps.push({
-        developerName: 'Offline',
-        label: 'Offline',
-        tabDeveloperNames: [...objects]
+        developerName: 'LightningSales',
+        label: 'Pharma Field',
+        tabDeveloperNames: [...PHARMA_FIELD_DEFAULT_TABS]
       });
+    }
+
+    // Per-app tabs from Tooling CustomApplication.Metadata.tabs (not one global CRM list)
+    const byApp = await fetchCustomApplicationTabs(apps.map((a) => a.developerName));
+    for (const app of apps) {
+      const fromTooling = byApp.get(app.developerName);
+      if (fromTooling?.length) {
+        app.tabDeveloperNames = fromTooling;
+      } else if (!app.tabDeveloperNames.length) {
+        app.tabDeveloperNames = [...objects];
+      }
+      // LightningSales / Pharma Field often gets wrong Sales Cloud tabs from describeTabs-equivalent sources
+      if (
+        isPharmaFieldApp(app.developerName, app.label) &&
+        looksLikeGenericSalesTabs(app.tabDeveloperNames)
+      ) {
+        app.tabDeveloperNames = [...PHARMA_FIELD_DEFAULT_TABS];
+      }
     }
 
     discovered = { objects, apps };
@@ -687,24 +844,54 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
               developerName: apiName,
               label: d.labelPlural || d.label,
               sortOrder: sort++,
-              tab: { objectApi: apiName }
+              tab: { objectApi: apiName, tabType: 'object' }
             });
           } catch {
             /* skip inaccessible objects */
           }
         }
-        const tabNames = tabs.map((t) => t.developerName);
-        const apps = shape.apps.map((a, i) => ({
-          id: `app_${a.developerName}_${i}`,
-          developerName: a.developerName,
-          label: a.label,
-          app: {
-            tabDeveloperNames: a.tabDeveloperNames?.length ? a.tabDeveloperNames : tabNames,
-            homeFlexiPageDeveloperName: 'Offline_Home',
-            iconUrl: a.iconUrl ?? null,
-            source: 'rest-fallback'
+
+        // Custom Lightning page / LWC tabs referenced by apps (Planner, CLM, My Learning, …)
+        const customTabNames = new Set<string>();
+        for (const a of shape.apps) {
+          for (const t of a.tabDeveloperNames ?? []) {
+            const name = t.replace(/^standard-/, '');
+            if (!name || objectSet.has(name)) continue;
+            customTabNames.add(name);
           }
-        }));
+        }
+        for (const name of Object.keys(KNOWN_CUSTOM_TABS)) customTabNames.add(name);
+        for (const name of customTabNames) {
+          if (tabs.some((t) => t.developerName === name)) continue;
+          const known = KNOWN_CUSTOM_TABS[name];
+          tabs.push({
+            id: `tab_${name}`,
+            developerName: name,
+            label: known?.label || name.replace(/_/g, ' '),
+            sortOrder: sort++,
+            tab: known?.tab ?? { tabType: 'flexipage', pageDeveloperName: name }
+          });
+        }
+
+        const tabNames = tabs.map((t) => t.developerName);
+        const apps = shape.apps.map((a, i) => {
+          const pharma = isPharmaFieldApp(a.developerName, a.label);
+          let tabDeveloperNames = a.tabDeveloperNames?.length ? a.tabDeveloperNames : tabNames;
+          if (pharma && looksLikeGenericSalesTabs(tabDeveloperNames)) {
+            tabDeveloperNames = [...PHARMA_FIELD_DEFAULT_TABS];
+          }
+          return {
+            id: `app_${a.developerName}_${i}`,
+            developerName: a.developerName,
+            label: a.label,
+            app: {
+              tabDeveloperNames,
+              homeFlexiPageDeveloperName: pharma ? 'Field_Rep_Home' : 'Offline_Home',
+              iconUrl: a.iconUrl ?? null,
+              source: 'rest-fallback'
+            }
+          };
+        });
 
         // Salesforce list views (catalog + optional member IDs for offline filter)
         const listViews: {
@@ -798,6 +985,60 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
                       {
                         type: 'osr:quickLinks',
                         attributes: { label: 'Quick Links' }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              id: 'fp_field_rep_home',
+              developerName: 'Field_Rep_Home',
+              type: 'HomePage',
+              page: {
+                type: 'HomePage',
+                regions: [
+                  {
+                    name: 'main',
+                    components: [
+                      {
+                        type: 'c/homeOfficeMessages',
+                        attributes: { label: 'Office Messages' }
+                      },
+                      {
+                        type: 'c/fieldRepHomeTodayPlan',
+                        attributes: { label: "Today's Plan" }
+                      },
+                      {
+                        type: 'c/fieldRepHomeMetrics',
+                        attributes: { label: 'Metrics' }
+                      },
+                      {
+                        type: 'c/fieldRepHomeNextBestCustomer',
+                        attributes: { label: 'Next Best Customer' }
+                      },
+                      {
+                        type: 'c/fieldRepHomeClmPrefetch',
+                        attributes: { label: 'CLM Content' }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              id: 'fp_field_rep_planner',
+              developerName: 'Field_Rep_Planner',
+              type: 'AppPage',
+              page: {
+                type: 'AppPage',
+                regions: [
+                  {
+                    name: 'main',
+                    components: [
+                      {
+                        type: 'c/fieldRepPlanner',
+                        attributes: { label: 'Planner' }
                       }
                     ]
                   }
