@@ -23,6 +23,106 @@ const PKCE_VERIFIER_KEY = 'osr.oauth.pkce_verifier';
 const OAUTH_STATE_KEY = 'osr.oauth.state';
 const LOGIN_URL_KEY = 'osr.oauth.login_url';
 
+const PRODUCTION_LOGIN = 'https://login.salesforce.com';
+const SANDBOX_LOGIN = 'https://test.salesforce.com';
+const MY_DOMAIN_SUFFIX = '.my.salesforce.com';
+
+/**
+ * Keep only the My Domain label end users type (e.g. "abcd").
+ * Strips pasted hosts/URLs like abcd.my.salesforce.com.
+ */
+export function extractMyDomainLabel(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let s = raw.trim().replace(/^['"]|['"]$/g, '');
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  s = (s.split(':')[0] ?? s).trim();
+  const lower = s.toLowerCase();
+  if (lower.endsWith(MY_DOMAIN_SUFFIX)) {
+    return s.slice(0, -MY_DOMAIN_SUFFIX.length).toLowerCase();
+  }
+  // Sandbox My Domain host → keep "org--uat.sandbox"
+  if (lower.endsWith('.sandbox.my.salesforce.com')) {
+    return lower.replace(/\.my\.salesforce\.com$/, '');
+  }
+  // Accidental paste of longer host → first label only
+  if (s.includes('.')) {
+    return (s.split('.')[0] ?? s).toLowerCase();
+  }
+  return lower;
+}
+
+/** Build https://{label}.my.salesforce.com from a short My Domain label. */
+export function myDomainLoginUrlFromLabel(label: string | null | undefined): string | null {
+  const cleaned = extractMyDomainLabel(label);
+  if (!cleaned) return null;
+  // Production label, or sandbox-style "org--uat.sandbox"
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.sandbox)?$/i.test(cleaned)) return null;
+  if (cleaned.endsWith('.sandbox')) {
+    return `https://${cleaned}.my.salesforce.com`;
+  }
+  return `https://${cleaned}${MY_DOMAIN_SUFFIX}`;
+}
+
+/**
+ * Resolve a Salesforce login host from free text / URL params.
+ * Examples:
+ * - abcd → https://abcd.my.salesforce.com
+ * - abcd.my.salesforce.com → https://abcd.my.salesforce.com
+ * - https://org--uat.sandbox.my.salesforce.com → as-is
+ */
+export function normalizeSalesforceLoginUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = raw.trim().replace(/^['"]|['"]$/g, '');
+  if (!s) return null;
+
+  const lowerNoScheme = s.replace(/^https?:\/\//i, '').split('/')[0]?.toLowerCase() ?? '';
+  // Short label or production My Domain paste → always use .my.salesforce.com
+  if (
+    !lowerNoScheme.includes('.') ||
+    lowerNoScheme.endsWith(MY_DOMAIN_SUFFIX) ||
+    /^[a-z0-9-]+$/i.test(lowerNoScheme)
+  ) {
+    const fromLabel = myDomainLoginUrlFromLabel(s);
+    if (fromLabel) return fromLabel;
+  }
+
+  if (!/^https?:\/\//i.test(s)) {
+    s = `https://${s.replace(/^\/+/, '')}`;
+  }
+  try {
+    const url = new URL(s);
+    const host = url.hostname.toLowerCase();
+    if (!host || host.includes(' ')) return null;
+    if (!host.includes('.')) return `https://${host}${MY_DOMAIN_SUFFIX}`;
+    return `https://${host}`;
+  } catch {
+    return myDomainLoginUrlFromLabel(s);
+  }
+}
+
+/** Read ?domain= / ?loginUrl= / ?login_url= from the current page (web) or ignore (native). */
+export function loginUrlFromPageParams(
+  search: string = typeof window !== 'undefined' ? window.location.search : ''
+): string | null {
+  const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+  const explicit =
+    params.get('loginUrl') ||
+    params.get('login_url') ||
+    params.get('login') ||
+    null;
+  if (explicit) return normalizeSalesforceLoginUrl(explicit);
+  const domain = params.get('domain') || params.get('mydomain') || params.get('myDomain');
+  return normalizeSalesforceLoginUrl(domain);
+}
+
+export function isStandardSalesforceLogin(loginUrl: string): boolean {
+  const n = loginUrl.replace(/\/$/, '').toLowerCase();
+  return n === PRODUCTION_LOGIN || n === SANDBOX_LOGIN;
+}
+
+export { PRODUCTION_LOGIN, SANDBOX_LOGIN, MY_DOMAIN_SUFFIX };
+
 async function prefSet(key: string, value: string): Promise<void> {
   await Preferences.set({ key, value });
 }
@@ -1201,6 +1301,11 @@ async function buildRestApexCacheEntries(
       key: 'clmManifest',
       fetchedAt: now,
       payload: { presentations: [], ratingLayoutJson: null }
+    },
+    {
+      key: 'myLearning',
+      fetchedAt: now,
+      payload: []
     }
   ];
 }

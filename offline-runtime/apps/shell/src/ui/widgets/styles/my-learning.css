@@ -1,0 +1,109 @@
+.osr-lwc-mirror.my-learning {
+  position: relative;
+  min-height: 320px;
+  padding: 1rem 1.25rem 2rem;
+  background: linear-gradient(180deg, #f4f8fb 0%, #ffffff 40%);
+}
+
+.osr-lwc-mirror.my-learning .catalog-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #0b3d5c;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.osr-lwc-mirror.my-learning .catalog-header p {
+  margin: 0.35rem 0 1.25rem;
+  color: #54698d;
+}
+
+.osr-lwc-mirror.my-learning .course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.osr-lwc-mirror.my-learning .course-card {
+  background: #fff;
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  box-shadow: 0 8px 24px rgba(11, 61, 92, 0.06);
+}
+
+.osr-lwc-mirror.my-learning .course-card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  color: #0b3d5c;
+}
+
+.osr-lwc-mirror.my-learning .status {
+  margin: 0 0 0.75rem;
+  color: #706e6b;
+  font-size: 0.85rem;
+}
+
+.osr-lwc-mirror.my-learning .progress-track {
+  height: 8px;
+  background: #e8eef3;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.osr-lwc-mirror.my-learning .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0b6bcb, #1b96ff);
+}
+
+.osr-lwc-mirror.my-learning .progress-label {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: #3e3e3c;
+}
+
+.osr-lwc-mirror.my-learning .course-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.osr-lwc-mirror.my-learning .empty-state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #54698d;
+  background: #fff;
+  border: 1px dashed #c9d7e3;
+  border-radius: 12px;
+}
+
+.osr-lwc-mirror.my-learning .ml-player-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.osr-lwc-mirror.my-learning .ml-player-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #0b3d5c;
+}
+
+.osr-lwc-mirror.my-learning .ml-subtitle {
+  margin: 0.25rem 0 0;
+  color: #54698d;
+  font-size: 0.9rem;
+}
+
+.osr-lwc-mirror.my-learning .ml-player-body {
+  background: #fff;
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+  padding: 1.25rem;
+}

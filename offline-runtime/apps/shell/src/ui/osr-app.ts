@@ -36,6 +36,13 @@ import {
   installOAuthDeepLinkHandler,
   clearSession,
   loadSession,
+  loginUrlFromPageParams,
+  extractMyDomainLabel,
+  myDomainLoginUrlFromLabel,
+  isStandardSalesforceLogin,
+  PRODUCTION_LOGIN,
+  SANDBOX_LOGIN,
+  MY_DOMAIN_SUFFIX,
   type TokenSet
 } from '../auth/oauth';
 import type { SyncProgress } from '@osr/sync';
@@ -404,7 +411,10 @@ export class OsrApp extends LitElement {
   @state() private supportLogCount = 0;
   @state() private exportingSupport = false;
   @state() private pendingCount = 0;
-  @state() private loginUrl = 'https://login.salesforce.com';
+  @state() private loginUrl = PRODUCTION_LOGIN;
+  /** Raw My Domain label/host shown in the custom domain field. */
+  @state() private customDomainInput = '';
+  @state() private loginEnv: 'production' | 'sandbox' | 'custom' = 'production';
   @state() private userLabel = 'Not signed in';
   @state() private syncing = false;
   /** Live channel/object progress from SyncEngine (null when idle). */
@@ -480,6 +490,7 @@ export class OsrApp extends LitElement {
   @state() private lwcCompatSummary: string | null = null;
   @state() private objectListSearch = '';
   @state() private clmPlayerId: string | null = null;
+  @state() private myLearningInstanceId: string | null = null;
   @state() private locationState: import('../location/rep-location-tracker').LocationTrackerState = {
     sharing: true,
     permissionDenied: false,
@@ -872,6 +883,64 @@ export class OsrApp extends LitElement {
       margin: 0 0 20px;
       color: var(--sf-muted);
       font-size: 14px;
+    }
+
+    .login-theme-note {
+      margin: -8px 0 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #eef6ff;
+      border: 1px solid #c9e0f7;
+      color: #032d60;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .login-theme-note code {
+      font-size: 11px;
+      word-break: break-all;
+    }
+
+    .domain-combo {
+      display: flex;
+      align-items: stretch;
+      min-height: var(--sf-touch);
+      border: 1px solid var(--sf-border);
+      border-radius: var(--sf-control-radius, 12px);
+      background: var(--sf-control-bg, #f2f4f7);
+      overflow: hidden;
+    }
+
+    .domain-combo:focus-within {
+      border-color: var(--sf-blue, #0176d3);
+      box-shadow: 0 0 0 3px rgba(1, 118, 211, 0.15);
+      background: #fff;
+    }
+
+    .domain-combo input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      border-radius: 0;
+      padding: 10px 12px;
+      font-size: 15px;
+      outline: none;
+      box-shadow: none;
+      min-height: var(--sf-touch);
+    }
+
+    .domain-combo .domain-suffix {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      background: #e8eef5;
+      color: #54698d;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      border-left: 1px solid var(--sf-border);
+      user-select: none;
     }
 
     .field {
@@ -2052,8 +2121,30 @@ export class OsrApp extends LitElement {
     }
 
     @media (min-width: 768px) {
+      :host {
+        height: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+      }
+
       .shell {
         grid-template-rows: auto 1fr;
+        height: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+      }
+
+      .body {
+        overflow: hidden;
+        min-height: 0;
+      }
+
+      /* Launcher has no rail/main-pane — body itself must scroll. */
+      .body:not(.has-bottom) {
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .body.has-bottom {
@@ -2067,7 +2158,8 @@ export class OsrApp extends LitElement {
       .layout-wide {
         display: grid;
         grid-template-columns: var(--sf-rail) minmax(0, 1fr);
-        min-height: calc(100vh - 52px - var(--safe-top));
+        height: 100%;
+        min-height: 0;
         width: 100%;
       }
 
@@ -2075,11 +2167,15 @@ export class OsrApp extends LitElement {
         display: flex;
         flex-direction: column;
         align-items: center;
+        align-self: stretch;
         gap: 8px;
         padding: 12px 8px;
         background: #032d60;
         color: #fff;
-        min-height: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .rail button {
@@ -2124,10 +2220,14 @@ export class OsrApp extends LitElement {
 
       .main-pane {
         min-width: 0;
+        min-height: 0;
+        height: 100%;
         width: 100%;
         max-width: 100%;
         background: var(--sf-bg);
         overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .launcher {
@@ -2245,21 +2345,27 @@ export class OsrApp extends LitElement {
       .split.master-detail {
         display: grid;
         grid-template-columns: minmax(280px, 38%) minmax(0, 62%);
-        min-height: calc(100vh - 52px - var(--safe-top));
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
         width: 100%;
       }
 
       .split-list {
         border-right: 1px solid var(--sf-border);
         overflow: auto;
-        max-height: calc(100vh - 52px - var(--safe-top));
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
         padding: 12px;
         background: #fafaf9;
       }
 
       .split-detail {
         overflow: auto;
-        max-height: calc(100vh - 52px - var(--safe-top));
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
         min-width: 0;
         width: 100%;
       }
@@ -2268,6 +2374,7 @@ export class OsrApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.applyLoginUrlFromParams();
     this.updateFormFactor();
     window.addEventListener('online', this.onOnline);
     window.addEventListener('offline', this.onOffline);
@@ -2275,6 +2382,42 @@ export class OsrApp extends LitElement {
     window.addEventListener('resize', this.onResize);
     this.ensureBridge();
     void this.boot();
+  }
+
+  /** Prefer ?domain= / ?loginUrl= so OAuth hits My Domain (org themed login). */
+  private applyLoginUrlFromParams() {
+    if (typeof window === 'undefined') return;
+    const fromParams = loginUrlFromPageParams(window.location.search);
+    if (!fromParams) return;
+    this.loginUrl = fromParams;
+    this.loginEnv = isStandardSalesforceLogin(fromParams)
+      ? fromParams.replace(/\/$/, '').toLowerCase() === SANDBOX_LOGIN
+        ? 'sandbox'
+        : 'production'
+      : 'custom';
+    this.customDomainInput = extractMyDomainLabel(fromParams);
+  }
+
+  private setLoginEnvironment(env: 'production' | 'sandbox' | 'custom') {
+    this.loginEnv = env;
+    if (env === 'production') {
+      this.loginUrl = PRODUCTION_LOGIN;
+      return;
+    }
+    if (env === 'sandbox') {
+      this.loginUrl = SANDBOX_LOGIN;
+      return;
+    }
+    const next = myDomainLoginUrlFromLabel(this.customDomainInput);
+    if (next) this.loginUrl = next;
+  }
+
+  private applyCustomDomainInput(raw: string) {
+    // Users type only the label (abcd); strip accidental full-host paste
+    this.customDomainInput = extractMyDomainLabel(raw);
+    this.loginEnv = 'custom';
+    const next = myDomainLoginUrlFromLabel(this.customDomainInput);
+    if (next) this.loginUrl = next;
   }
 
   disconnectedCallback() {
@@ -3257,6 +3400,7 @@ export class OsrApp extends LitElement {
       objectApi: this.modalObjectApi || null,
       accountRows: this.apexSnapshot?.plannerAccounts?.accounts ?? null,
       clmPlayerId: this.clmPlayerId,
+      myLearningInstanceId: this.myLearningInstanceId,
       iframeHeights: this.iframeHeights,
       requestUpdate: () => this.requestUpdate(),
       actions: {
@@ -3311,6 +3455,9 @@ export class OsrApp extends LitElement {
         setContextUserId: (userId) => {
           this.selectedContextUserId = userId;
           void this.refreshApexSnapshot({ contextUserId: userId });
+        },
+        setMyLearningInstanceId: (id) => {
+          this.myLearningInstanceId = id;
         },
         planVisit: (accountId) => void this.planVisit(accountId),
         postponeVisit: (visitId) => void this.postponeVisit(visitId),
@@ -3806,6 +3953,7 @@ export class OsrApp extends LitElement {
       nextBestCustomers: null,
       officeMessages: null,
       clmManifest: null,
+      myLearning: null,
       fetchedAt: {},
       fromCache: true
     };
@@ -4473,6 +4621,9 @@ export class OsrApp extends LitElement {
   }
 
   private renderLogin() {
+    const env = this.loginEnv;
+    const customReady = !!myDomainLoginUrlFromLabel(this.customDomainInput);
+    const themed = env === 'custom' && customReady;
     return html`
       <div class="login">
         <div class="login-card">
@@ -4481,25 +4632,65 @@ export class OsrApp extends LitElement {
           </div>
           <h1>Offline Runtime</h1>
           <p>Sign in with your Salesforce org. Works offline after sync.</p>
+          ${themed
+            ? html`<div class="login-theme-note">
+                My Domain login — Salesforce will show your org’s themed login page.<br />
+                <code>${this.loginUrl}</code>
+              </div>`
+            : nothing}
           <div class="field">
             <label>Environment</label>
             <select
-              .value=${this.loginUrl}
+              .value=${env}
               @change=${(e: Event) => {
-                this.loginUrl = (e.target as HTMLSelectElement).value;
+                const v = (e.target as HTMLSelectElement).value as
+                  | 'production'
+                  | 'sandbox'
+                  | 'custom';
+                this.setLoginEnvironment(v);
               }}
             >
-              <option value="https://login.salesforce.com">Production</option>
-              <option value="https://test.salesforce.com">Sandbox</option>
+              <option value="production">Production</option>
+              <option value="sandbox">Sandbox</option>
+              <option value="custom">Custom Domain</option>
             </select>
           </div>
+          ${env === 'custom'
+            ? html`<div class="field">
+                <label>My Domain</label>
+                <div class="domain-combo">
+                  <input
+                    type="text"
+                    placeholder="abcd"
+                    inputmode="url"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    aria-label="My Domain name"
+                    .value=${this.customDomainInput}
+                    @input=${(e: Event) => {
+                      this.applyCustomDomainInput((e.target as HTMLInputElement).value);
+                    }}
+                  />
+                  <span class="domain-suffix">${MY_DOMAIN_SUFFIX}</span>
+                </div>
+              </div>`
+            : nothing}
           <button
             class="primary"
+            ?disabled=${env === 'custom' && !customReady}
             @click=${async () => {
               if (!this.db) return;
-              this.status = 'Opening Salesforce login…';
+              const resolved =
+                env === 'custom'
+                  ? myDomainLoginUrlFromLabel(this.customDomainInput) || this.loginUrl
+                  : this.loginUrl;
+              this.loginUrl = resolved;
+              this.status = themed
+                ? 'Opening themed Salesforce login…'
+                : 'Opening Salesforce login…';
               try {
-                await beginSalesforceLogin(this.db, { loginUrl: this.loginUrl });
+                await beginSalesforceLogin(this.db, { loginUrl: resolved });
               } catch (e) {
                 this.status = `Login failed: ${e instanceof Error ? e.message : String(e)}`;
               }
@@ -4512,6 +4703,9 @@ export class OsrApp extends LitElement {
             : nothing}
           <p style="margin-top:16px;font-size:12px;color:var(--sf-muted)">
             ${Capacitor.isNativePlatform() ? 'Native app' : 'Web'} · PKCE OAuth
+            ${!Capacitor.isNativePlatform()
+              ? html` · tip: <code>?domain=abcd</code>`
+              : nothing}
           </p>
         </div>
       </div>

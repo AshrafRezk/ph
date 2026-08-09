@@ -28,7 +28,8 @@ export const APEX_BINDING_TO_CACHE_KEY: Record<string, string> = {
   'FieldRepHomeController.getNextBestCustomers': 'nextBestCustomers',
   'HomeOfficeMessageController.getActiveMessages': 'officeMessages',
   'ClmMetricsController.getRepPresentationManifest': 'clmManifest',
-  'ClmMetricsController.getDeployedRatingLayoutJson': 'clmManifest'
+  'ClmMetricsController.getDeployedRatingLayoutJson': 'clmManifest',
+  'MyLearningController.getMyCourses': 'myLearning'
 };
 
 /** Pharma Field Vite catalog — offline-first Lit ports. */
@@ -178,6 +179,12 @@ const ENTRIES: FidelityEntry[] = [
     cacheKeys: [],
     mode: 'vite',
     label: 'Coaching Insights'
+  },
+  {
+    bundle: 'c/myLearning',
+    cacheKeys: ['myLearning'],
+    mode: 'vite',
+    label: 'My Learning'
   },
   // Visit children — rendered inside visitCallShell; registered for FlexiPage/hydrate skip
   {

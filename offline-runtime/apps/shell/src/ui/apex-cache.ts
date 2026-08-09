@@ -23,7 +23,8 @@ export const APEX_CACHE_KEYS = [
   'rankings',
   'nextBestCustomers',
   'officeMessages',
-  'clmManifest'
+  'clmManifest',
+  'myLearning'
 ] as const;
 
 export type ApexCacheKey = (typeof APEX_CACHE_KEYS)[number];
@@ -114,6 +115,17 @@ export interface OfficeMessageDto {
   audienceLabel?: string;
 }
 
+export interface MyLearningCourseDto {
+  instanceId?: string;
+  materialId?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  progress?: number;
+  issueCertificate?: boolean;
+  canShowCertificate?: boolean;
+}
+
 export interface AccountCoverageRowDto {
   accountId?: string;
   accountName?: string;
@@ -176,6 +188,7 @@ export interface ApexCacheSnapshot {
   nextBestCustomers: NbcRowDto[] | null;
   officeMessages: OfficeMessageDto[] | null;
   clmManifest: { presentations?: unknown[]; ratingLayoutJson?: string | null } | null;
+  myLearning: MyLearningCourseDto[] | null;
   fetchedAt: Partial<Record<ApexCacheKey, string>>;
   fromCache: boolean;
 }
@@ -193,6 +206,7 @@ function emptySnapshot(fromCache: boolean): ApexCacheSnapshot {
     nextBestCustomers: null,
     officeMessages: null,
     clmManifest: null,
+    myLearning: null,
     fetchedAt: {},
     fromCache
   };
@@ -245,6 +259,9 @@ export async function loadApexCacheSnapshot(db: SqlExecutor): Promise<ApexCacheS
         break;
       case 'clmManifest':
         snap.clmManifest = (p as ApexCacheSnapshot['clmManifest']) ?? null;
+        break;
+      case 'myLearning':
+        snap.myLearning = asArray<MyLearningCourseDto>(p);
         break;
     }
   }

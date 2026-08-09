@@ -2094,6 +2094,22 @@ export function createMockSyncClient(seed?: Partial<SyncProfile>): SyncHttpClien
               payload: { presentations: [], ratingLayoutJson: null }
             },
             {
+              key: 'myLearning',
+              fetchedAt: now,
+              payload: [
+                {
+                  instanceId: 'a0LMOCKCOURSE001',
+                  materialId: 'a0KMOCKMAT001',
+                  title: 'Diabetes Line I Fundamentals',
+                  description: 'Core product and disease-state training.',
+                  status: 'In Progress',
+                  progress: 35,
+                  issueCertificate: true,
+                  canShowCertificate: false
+                }
+              ]
+            },
+            {
               key: 'accountCoverage',
               fetchedAt: now,
               payload: []

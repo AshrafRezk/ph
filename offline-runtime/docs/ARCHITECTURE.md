@@ -33,7 +33,7 @@ A Capacitor-based client that clones Salesforce mobile UX offline: apps, tabs, L
 ### Tier C — Vite catalog (Pharma Field)
 
 1. FlexiPage / tab `c/*` slots resolve via [`fidelity-registry.ts`](packages/ui-runtime/src/fidelity-registry.ts) → shell Lit widgets under `apps/shell/src/ui/widgets/`.
-2. Catalog covers Home, Planner, Visit Call (+ children), Accounts, CLM hub/player, Time Off, Account record panels, Coaching event panels.
+2. Catalog covers Home, Planner, Visit Call (+ children), Accounts, CLM hub/player, Time Off, Account record panels, Coaching event panels, **My Learning**.
 3. **Standard object tabs** use CrmListHub-inspired chrome ([`Plan/CrmListHub/`](../Plan/CrmListHub/)): org list views, in-tab text search, global search, list/cards/calendar/kanban, record modal.
 4. Iframe engine packages (`@osr/bridge`, `@osr/platform`, `@osr/lwc-engine`, `@osr/lwc-compile`) remain for experiments; Field UI prefers Vite catalog.
 

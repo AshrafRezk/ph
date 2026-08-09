@@ -69,8 +69,8 @@ describe('field home layout', () => {
       sorted.map((c) => c.type),
       [
         'c:fieldRepHomeClmPrefetch',
-        'c:fieldRepHomeMetrics',
         'c:homeOfficeMessages',
+        'c:fieldRepHomeMetrics',
         'c:fieldRepHomeTodayPlan',
         'c:fieldRepHomeNextBestCustomer',
         'c:reportsHub'
@@ -110,8 +110,8 @@ describe('field home layout', () => {
       plan.main[0].components.map((c) => c.type),
       [
         'c:fieldRepHomeClmPrefetch',
-        'c:fieldRepHomeMetrics',
         'c:homeOfficeMessages',
+        'c:fieldRepHomeMetrics',
         'c:fieldRepHomeTodayPlan',
         'c:fieldRepHomeNextBestCustomer',
         'c:reportsHub'
@@ -208,7 +208,8 @@ describe('pharma field vite catalog', () => {
       'c/clmPresentationsHub',
       'c/timeOffSubmission',
       'c/accountVisitInsightsPanel',
-      'c/coachingEventEvaluation'
+      'c/coachingEventEvaluation',
+      'c/myLearning'
     ];
     for (const b of required) {
       assert.equal(isFidelityBundle(b), true, b);

@@ -33,6 +33,7 @@ import {
   renderClmAccountActivity
 } from '../widgets/account-panels';
 import { renderCoachingEventEvaluation, renderCoachingEventInsights } from '../widgets/coaching-event';
+import { renderMyLearning } from '../widgets/my-learning';
 import { renderLwcIframe } from '../lwc-iframe';
 import type { LocationTrackerState } from '../../location/rep-location-tracker';
 import type { PlannerAccountFilters, PlannerCollection } from '../planner-accounts';
@@ -74,6 +75,7 @@ export interface FidelityCtx {
   objectApi?: string | null;
   accountRows?: AccountSummaryDto[] | null;
   clmPlayerId?: string | null;
+  myLearningInstanceId?: string | null;
   iframeHeights?: Record<string, number>;
   requestUpdate?: () => void;
   actions: {
@@ -150,6 +152,7 @@ export interface FidelityCtx {
     saveVisitCallReport?: (visitId: string, fields: Record<string, unknown>) => void;
     setIframeHeight?: (bundle: string, height: number) => void;
     setContextUserId?: (userId: string | null) => void;
+    setMyLearningInstanceId?: (id: string | null) => void;
   };
 }
 
@@ -451,6 +454,18 @@ register('c/coachingEventInsights', (ctx) =>
   renderCoachingEventInsights({
     recordId: ctx.recordId,
     label: ctx.label
+  })
+);
+
+register('c/myLearning', (ctx) =>
+  renderMyLearning({
+    label: ctx.label,
+    courses: ctx.snap?.myLearning ?? null,
+    cached: ctx.cached,
+    selectedInstanceId: ctx.myLearningInstanceId ?? null,
+    onOpenCourse: (id) => ctx.actions.setMyLearningInstanceId?.(id),
+    onBackToCatalog: () => ctx.actions.setMyLearningInstanceId?.(null),
+    onShowCertificate: (id) => ctx.actions.setMyLearningInstanceId?.(id)
   })
 );
 

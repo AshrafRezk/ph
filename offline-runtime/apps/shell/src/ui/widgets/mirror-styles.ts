@@ -10,6 +10,7 @@ import plannerCss from './styles/planner.css?inline';
 import accountsTabCss from './styles/accounts-tab.css?inline';
 import visitCallShellCss from './styles/visit-call-shell.css?inline';
 import affiliationNetworkCss from './styles/affiliation-network.css?inline';
+import myLearningCss from './styles/my-learning.css?inline';
 
 /** Org LWC CSS + SLDS token bridge + Leaflet (shadow-DOM safe). */
 export const mirrorStyles = css`
@@ -24,6 +25,7 @@ export const mirrorStyles = css`
   ${unsafeCSS(accountsTabCss)}
   ${unsafeCSS(visitCallShellCss)}
   ${unsafeCSS(affiliationNetworkCss)}
+  ${unsafeCSS(myLearningCss)}
 
   /* Shell supplements for interactive chrome shared across overlays */
   .osr-lwc-mirror .scope-chip {
@@ -121,6 +123,24 @@ export const mirrorStyles = css`
     border-radius: 8px;
     z-index: 0;
     background: #e8eef5;
+  }
+  .osr-lwc-mirror .leaflet-pane,
+  .osr-lwc-mirror .leaflet-tile,
+  .osr-lwc-mirror .leaflet-marker-icon,
+  .osr-lwc-mirror .leaflet-marker-shadow {
+    position: absolute;
+  }
+  .osr-lwc-mirror .leaflet-tile-pane {
+    z-index: 200;
+  }
+  .osr-lwc-mirror .leaflet-overlay-pane {
+    z-index: 400;
+  }
+  .osr-lwc-mirror .leaflet-marker-pane {
+    z-index: 600;
+  }
+  .osr-lwc-mirror .map-wrapper .leaflet-container {
+    border-radius: 0.5rem;
   }
   .osr-lwc-mirror .planner-shell {
     height: calc(100vh - 7rem);
