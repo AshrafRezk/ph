@@ -861,44 +861,50 @@ export class OsrApp extends LitElement {
 
     .login-card h1 {
       margin: 0 0 8px;
-      font-size: 22px;
+      font-size: 24px;
       color: var(--sf-blue-dark);
+      text-align: center;
     }
 
     .login-brand {
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .login-brand img {
-      height: 72px;
+      height: 64px;
       width: auto;
-      max-width: 200px;
+      max-width: 180px;
       object-fit: contain;
     }
 
-    .login-card p {
-      margin: 0 0 20px;
+    .login-card > .login-lead {
+      margin: 0 0 22px;
       color: var(--sf-muted);
-      font-size: 14px;
+      font-size: 15px;
+      line-height: 1.45;
+      text-align: center;
     }
 
-    .login-theme-note {
-      margin: -8px 0 16px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: #eef6ff;
-      border: 1px solid #c9e0f7;
-      color: #032d60;
+    .login-help {
+      margin: 6px 0 0;
+      color: #706e6b;
       font-size: 12px;
       line-height: 1.4;
+      font-weight: 400;
     }
 
-    .login-theme-note code {
-      font-size: 11px;
-      word-break: break-all;
+    .login-ready {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #f0f9f4;
+      border: 1px solid #c7e6d5;
+      color: #2e844a;
+      font-size: 13px;
+      line-height: 1.4;
     }
 
     .domain-combo {
@@ -936,11 +942,18 @@ export class OsrApp extends LitElement {
       padding: 0 12px;
       background: #e8eef5;
       color: #54698d;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       white-space: nowrap;
       border-left: 1px solid var(--sf-border);
       user-select: none;
+    }
+
+    .login-footer {
+      margin: 18px 0 0;
+      text-align: center;
+      font-size: 12px;
+      color: var(--sf-muted);
     }
 
     .field {
@@ -4623,23 +4636,29 @@ export class OsrApp extends LitElement {
   private renderLogin() {
     const env = this.loginEnv;
     const customReady = !!myDomainLoginUrlFromLabel(this.customDomainInput);
-    const themed = env === 'custom' && customReady;
+    const companyReady = env === 'custom' && customReady;
+    const statusIsError =
+      !!this.status &&
+      this.status !== 'Sign in to Salesforce' &&
+      !this.status.startsWith('Opening');
     return html`
       <div class="login">
         <div class="login-card">
           <div class="login-brand">
             <img src="/salesforce-cloud.png" alt="Salesforce" width="180" height="120" />
           </div>
-          <h1>Offline Runtime</h1>
-          <p>Sign in with your Salesforce org. Works offline after sync.</p>
-          ${themed
-            ? html`<div class="login-theme-note">
-                My Domain login — Salesforce will show your org’s themed login page.<br />
-                <code>${this.loginUrl}</code>
+          <h1>Welcome</h1>
+          <p class="login-lead">
+            Sign in with your company account. After the first sync, you can keep working even without
+            internet.
+          </p>
+          ${companyReady
+            ? html`<div class="login-ready">
+                Ready — next you’ll see your company’s usual sign-in page.
               </div>`
             : nothing}
           <div class="field">
-            <label>Environment</label>
+            <label>How do you sign in?</label>
             <select
               .value=${env}
               @change=${(e: Event) => {
@@ -4650,30 +4669,34 @@ export class OsrApp extends LitElement {
                 this.setLoginEnvironment(v);
               }}
             >
-              <option value="production">Production</option>
-              <option value="sandbox">Sandbox</option>
-              <option value="custom">Custom Domain</option>
+              <option value="production">Live account</option>
+              <option value="sandbox">Practice / training account</option>
+              <option value="custom">Company login page</option>
             </select>
           </div>
           ${env === 'custom'
             ? html`<div class="field">
-                <label>My Domain</label>
+                <label>Company login name</label>
                 <div class="domain-combo">
                   <input
                     type="text"
-                    placeholder="abcd"
-                    inputmode="url"
-                    autocomplete="off"
+                    placeholder="yourcompany"
+                    inputmode="text"
+                    autocomplete="organization"
                     autocapitalize="off"
                     spellcheck="false"
-                    aria-label="My Domain name"
+                    aria-label="Company login name"
                     .value=${this.customDomainInput}
                     @input=${(e: Event) => {
                       this.applyCustomDomainInput((e.target as HTMLInputElement).value);
                     }}
                   />
-                  <span class="domain-suffix">${MY_DOMAIN_SUFFIX}</span>
+                  <span class="domain-suffix" aria-hidden="true">${MY_DOMAIN_SUFFIX}</span>
                 </div>
+                <p class="login-help">
+                  Enter only the short name (for example <strong>zetapharma</strong>). Ask your admin
+                  if you’re not sure.
+                </p>
               </div>`
             : nothing}
           <button
@@ -4686,27 +4709,25 @@ export class OsrApp extends LitElement {
                   ? myDomainLoginUrlFromLabel(this.customDomainInput) || this.loginUrl
                   : this.loginUrl;
               this.loginUrl = resolved;
-              this.status = themed
-                ? 'Opening themed Salesforce login…'
-                : 'Opening Salesforce login…';
+              this.status = 'Opening sign-in…';
               try {
                 await beginSalesforceLogin(this.db, { loginUrl: resolved });
               } catch (e) {
-                this.status = `Login failed: ${e instanceof Error ? e.message : String(e)}`;
+                this.status =
+                  e instanceof Error && e.message
+                    ? e.message.includes('client id')
+                      ? 'Sign-in isn’t set up yet. Please contact your admin.'
+                      : 'Couldn’t start sign-in. Check your connection and try again.'
+                    : 'Couldn’t start sign-in. Check your connection and try again.';
               }
             }}
           >
-            Log In to Salesforce
+            Sign in
           </button>
-          ${this.status && this.status !== 'Sign in to Salesforce'
-            ? html`<p class="danger-text" style="margin-top:12px">${this.status}</p>`
+          ${statusIsError
+            ? html`<p class="danger-text" style="margin-top:12px;text-align:center">${this.status}</p>`
             : nothing}
-          <p style="margin-top:16px;font-size:12px;color:var(--sf-muted)">
-            ${Capacitor.isNativePlatform() ? 'Native app' : 'Web'} · PKCE OAuth
-            ${!Capacitor.isNativePlatform()
-              ? html` · tip: <code>?domain=abcd</code>`
-              : nothing}
-          </p>
+          <p class="login-footer">Secure company sign-in</p>
         </div>
       </div>
     `;
