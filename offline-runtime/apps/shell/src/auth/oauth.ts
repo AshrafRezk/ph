@@ -11,7 +11,8 @@ import {
   createSfClient,
   SyncEngine,
   createMockSyncClient,
-  OSR_API
+  OSR_API,
+  sfFetch
 } from '@osr/sync';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorHttp } from '@capacitor/core';
@@ -942,10 +943,13 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
                   headers: { Authorization: `Bearer ${tokens.accessToken}` }
                 });
               } else {
-                await fetch(`${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`, {
-                  method: 'DELETE',
-                  headers: { Authorization: `Bearer ${tokens.accessToken}` }
-                });
+                const delRes = await sfFetch(
+                  `${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`,
+                  { method: 'DELETE', accessToken: tokens.accessToken }
+                );
+                if (!delRes.ok && delRes.status !== 204) {
+                  throw new Error(`SF DELETE → ${delRes.status}`);
+                }
               }
               results.push({ clientId: a.clientId, status: 'synced' });
             } else if (a.recordId) {
@@ -960,14 +964,17 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
                   data: payload
                 });
               } else {
-                await fetch(`${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`, {
-                  method: 'PATCH',
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify(payload)
-                });
+                const patchRes = await sfFetch(
+                  `${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`,
+                  {
+                    method: 'PATCH',
+                    accessToken: tokens.accessToken,
+                    body: payload
+                  }
+                );
+                if (!patchRes.ok && patchRes.status !== 204) {
+                  throw new Error(`SF PATCH → ${patchRes.status}: ${await patchRes.text()}`);
+                }
               }
               results.push({ clientId: a.clientId, status: 'synced', serverId: a.recordId });
             } else {

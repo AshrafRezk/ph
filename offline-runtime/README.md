@@ -21,7 +21,7 @@ salesforce/sync-pack/   Apex REST APIs + CMDT + tombstones
 - Netlify subdomain: https://osr-salesforce-offline.netlify.app
 - Admin: https://app.netlify.com/projects/osr-salesforce-offline
 
-**Continuous deploy:** Netlify is connected to GitHub [`AshrafRezk/ph`](https://github.com/AshrafRezk/ph) with base directory `offline-runtime`. Pushes to `main` that change files under `offline-runtime/` trigger production builds (static shell + `sf-token` OAuth proxy function). Manual CLI deploys are no longer required.
+**Continuous deploy:** Netlify is connected to GitHub [`AshrafRezk/ph`](https://github.com/AshrafRezk/ph) with base directory `offline-runtime`. Pushes to `main` that change files under `offline-runtime/` trigger production builds (static shell + `sf-token` / `sf-api` proxy functions). Manual CLI deploys are no longer required.
 
 Emergency manual deploy (if needed):
 

@@ -141,14 +141,10 @@ export function createSfClient(tokens: TokenSet, apiVersion = '61.0'): SyncHttpC
     const timer = setTimeout(() => ctrl.abort(), 45_000);
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await sfFetch(url, {
         method,
-        headers: {
-          Authorization: `Bearer ${tokens.accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: body != null ? JSON.stringify(body) : undefined,
+        accessToken: tokens.accessToken,
+        body,
         signal: ctrl.signal
       });
     } catch (e) {
@@ -163,12 +159,78 @@ export function createSfClient(tokens: TokenSet, apiVersion = '61.0'): SyncHttpC
       throw new Error(`SF ${method} ${path} → ${res.status}: ${await res.text()}`);
     }
     if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+    const text = await res.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
   return {
     get: (path) => request('GET', path),
     post: (path, body) => request('POST', path, body)
   };
+}
+
+/** True when running in a browser tab (not Capacitor native). */
+export function isBrowserWebClient(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const Cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (Cap?.isNativePlatform?.()) return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+/**
+ * Salesforce fetch that uses Netlify `sf-api` proxy on web (CORS),
+ * and direct fetch elsewhere (native CapacitorHttp patches fetch).
+ */
+export async function sfFetch(
+  url: string,
+  opts: {
+    method?: string;
+    accessToken: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
+  }
+): Promise<Response> {
+  const method = (opts.method || 'GET').toUpperCase();
+  if (isBrowserWebClient()) {
+    const proxyRes = await fetch('/.netlify/functions/sf-api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        url,
+        method,
+        authorization: `Bearer ${opts.accessToken}`,
+        body: opts.body ?? null,
+        headers: opts.headers
+      }),
+      signal: opts.signal
+    });
+    // Proxy returns upstream status/body; treat as the Salesforce response.
+    return proxyRes;
+  }
+
+  return fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${opts.accessToken}`,
+      Accept: 'application/json',
+      ...(opts.body != null && method !== 'GET' && method !== 'DELETE'
+        ? { 'Content-Type': 'application/json' }
+        : {}),
+      ...opts.headers
+    },
+    body:
+      opts.body != null && method !== 'GET' && method !== 'DELETE'
+        ? typeof opts.body === 'string'
+          ? opts.body
+          : JSON.stringify(opts.body)
+        : undefined,
+    signal: opts.signal
+  });
 }
 
 /** Sync Pack REST paths */
