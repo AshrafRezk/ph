@@ -1179,10 +1179,18 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
               results.push({ clientId: a.clientId, status: 'synced', serverId: created.id });
             } else if (a.op === 'delete' && a.recordId) {
               if (Capacitor.isNativePlatform()) {
-                await CapacitorHttp.delete({
+                const delRes = await CapacitorHttp.delete({
                   url: `${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`,
                   headers: { Authorization: `Bearer ${tokens.accessToken}` }
                 });
+                const status = delRes.status ?? 0;
+                if (status !== 204 && status !== 200 && status >= 400) {
+                  const body =
+                    typeof delRes.data === 'string'
+                      ? delRes.data
+                      : JSON.stringify(delRes.data ?? {});
+                  throw new Error(`SF DELETE → ${status}${body ? `: ${body}` : ''}`);
+                }
               } else {
                 const delRes = await sfFetch(
                   `${instance}/services/data/${api}/sobjects/${a.objectApi}/${a.recordId}`,

@@ -801,6 +801,44 @@ export async function softDeleteRecord(
   );
 }
 
+/** Undo a local soft-delete when server rejected the outbox delete. */
+export async function restoreSoftDeletedRecord(
+  db: SqlExecutor,
+  objectApi: string,
+  id: string
+): Promise<void> {
+  const { rows } = await db.execute(
+    `SELECT payload_json, version FROM records WHERE object_api=? AND id=? AND deleted=1`,
+    [objectApi, id]
+  );
+  if (!rows[0]) return;
+  await db.run(
+    `INSERT OR REPLACE INTO records (object_api, id, payload_json, version, deleted, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [objectApi, id, String(rows[0].payload_json), rows[0].version ?? null, 0, nowIso()]
+  );
+}
+
+/** After outbox create sync: replace local_* id with Salesforce Id in SQLite. */
+export async function remapRecordId(
+  db: SqlExecutor,
+  objectApi: string,
+  localId: string,
+  serverId: string,
+  serverPayload?: Record<string, unknown> | null
+): Promise<void> {
+  if (!localId.startsWith('local_') || localId === serverId) return;
+  const existing = await getRecord(db, objectApi, localId);
+  const payload = {
+    ...(existing ?? {}),
+    ...(serverPayload ?? {}),
+    Id: serverId
+  };
+  await db.run(`DELETE FROM records WHERE object_api=? AND id=?`, [objectApi, localId]);
+  await upsertRecord(db, objectApi, serverId, payload);
+  await db.run(`UPDATE outbox SET record_id=? WHERE record_id=?`, [serverId, localId]);
+}
+
 export async function getRecord(
   db: SqlExecutor,
   objectApi: string,
@@ -1333,9 +1371,37 @@ export async function listPendingOutbox(
     attempts: number;
   }[]
 > {
+  return listOutboxForPush(db, limit, ['pending']);
+}
+
+/** Pending + retryable failed rows for the next push batch. */
+export async function listOutboxForPush(
+  db: SqlExecutor,
+  limit = 50,
+  statuses: ('pending' | 'failed')[] = ['pending', 'failed']
+): Promise<
+  {
+    id: string;
+    op: string;
+    objectApi?: string;
+    recordId?: string;
+    payload: unknown;
+    attempts: number;
+  }[]
+> {
+  const placeholders = statuses.map(() => '?').join(',');
   const { rows } = await db.execute(
-    `SELECT * FROM outbox WHERE status=? ORDER BY created_at ASC LIMIT ?`,
-    ['pending', limit]
+    `SELECT * FROM outbox WHERE status IN (${placeholders})
+       AND (status='pending' OR attempts < 5)
+     ORDER BY
+       CASE op
+         WHEN 'planner.reschedule' THEN 0
+         WHEN 'visit.upsert' THEN 1
+         ELSE 2
+       END,
+       created_at ASC
+     LIMIT ?`,
+    [...statuses, limit]
   );
   return rows.map((r) => ({
     id: String(r.id),

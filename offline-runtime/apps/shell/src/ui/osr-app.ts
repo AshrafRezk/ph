@@ -23,6 +23,7 @@ import {
   appendLog,
   clearLogs,
   countLogs,
+  listOutboxByStatus,
   type LogEntry,
   type DescribeFieldInfo,
   type UserObjectPrefs
@@ -45,8 +46,15 @@ import {
   MY_DOMAIN_SUFFIX,
   type TokenSet
 } from '../auth/oauth';
-import type { SyncProgress } from '@osr/sync';
+import type { SyncProgress, OutboxPushFailure } from '@osr/sync';
 import { sundayWeekRange, isoDateLocal, localSaveRecord, localDeleteRecord } from '@osr/sync';
+import {
+  buildVisitPayload,
+  shiftVisitPayload,
+  visitStartIso,
+  visitEndIso,
+  VISIT_STATUS_DRAFT
+} from './visit-payload';
 import { repLocationTracker } from '../location/rep-location-tracker';
 import type { LocationTrackerState } from '../location/rep-location-tracker';
 import { exportSupportBundle } from '../support/export-bundle';
@@ -135,6 +143,23 @@ function todayIsoDate() {
   return isoDateLocal(new Date());
 }
 
+function outboxOpLabel(op: string): string {
+  if (op === 'create') return 'Insert';
+  if (op === 'update') return 'Edit';
+  if (op === 'delete') return 'Delete';
+  return op;
+}
+
+function formatOutboxFailureLines(failures: OutboxPushFailure[]): string[] {
+  return failures.map((f) => {
+    const action = outboxOpLabel(f.op);
+    const target = f.objectApi
+      ? `${f.objectApi}${f.recordId?.startsWith('local_') ? '' : f.recordId ? ` · ${f.recordId}` : ''}`
+      : '';
+    return `${action}${target ? ` · ${target}` : ''}: ${f.error}`;
+  });
+}
+
 /** Open / actionable row heuristics that work across common CRM objects. */
 function isOpenWorkItem(r: Record<string, unknown>) {
   const status = String(r.Status__c ?? r.Status ?? r.StageName ?? '').toLowerCase();
@@ -155,9 +180,10 @@ function recordTitle(r: Record<string, unknown>): string {
 
 function workDateValue(r: Record<string, unknown>): string {
   return String(
-    r.Planned_Date__c ??
+    r.Start_Date__c ??
       r.Visit_Date__c ??
-      r.Start_Date__c ??
+      r.Planned_Date__c ??
+      r.StartDateTime__c ??
       r.ActivityDate ??
       r.StartDateTime ??
       r.CloseDate ??
@@ -471,6 +497,7 @@ export class OsrApp extends LitElement {
   @state() private metricsPage = 0;
   @state() private selectedVisitId: string | null = null;
   @state() private plannerWeekStart = '';
+  @state() private sessionUserId = '';
   @state() private plannerMode: 'calendar' | 'map' = 'calendar';
   @state() private plannerMapDay = '';
   @state() private plannerSearch = '';
@@ -487,6 +514,11 @@ export class OsrApp extends LitElement {
   @state() private plannerSaveCollectionOpen = false;
   @state() private iframeHeights: Record<string, number> = {};
   @state() private toastMessage: string | null = null;
+  @state() private errorPopup: {
+    title: string;
+    message: string;
+    details: string[];
+  } | null = null;
   @state() private lwcCompatSummary: string | null = null;
   @state() private objectListSearch = '';
   @state() private clmPlayerId: string | null = null;
@@ -2065,6 +2097,68 @@ export class OsrApp extends LitElement {
       overflow: hidden;
     }
 
+    .error-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      padding-top: calc(24px + var(--safe-top));
+      padding-bottom: calc(24px + var(--safe-bottom));
+      background: rgba(62, 12, 12, 0.45);
+      backdrop-filter: blur(4px);
+      pointer-events: all;
+    }
+
+    .error-modal {
+      width: min(100%, 400px);
+      max-height: min(80vh, 520px);
+      overflow: auto;
+      background: var(--sf-surface);
+      border-radius: 16px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+      border-top: 4px solid #c23934;
+    }
+
+    .error-modal h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: #8e030f;
+    }
+
+    .error-modal-message {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: var(--sf-text);
+      line-height: 1.45;
+    }
+
+    .error-modal-list {
+      margin: 0 0 16px;
+      padding-left: 18px;
+      font-size: 13px;
+      color: #3e0808;
+      line-height: 1.45;
+    }
+
+    .error-modal-list li + li {
+      margin-top: 8px;
+    }
+
+    .error-modal-dismiss {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #c23934;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
     /* Material 3 indeterminate circular progress */
     .m3-circular {
       width: 48px;
@@ -2536,6 +2630,11 @@ export class OsrApp extends LitElement {
   }
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (this.errorPopup) {
+        e.preventDefault();
+        this.dismissErrorPopup();
+        return;
+      }
       if (this.modalOpen) {
         e.preventDefault();
         this.closeRecordModal();
@@ -2548,6 +2647,8 @@ export class OsrApp extends LitElement {
   private async boot() {
     const db = await openDatabase();
     this.db = db;
+    const savedUserId = await kvGet(db, 'osr.session.userId');
+    if (savedUserId) this.sessionUserId = savedUserId;
     await this.loadPlannerCollections();
     this.unsubLocation = repLocationTracker.subscribe((s: LocationTrackerState) => {
       this.locationState = s;
@@ -2704,6 +2805,62 @@ export class OsrApp extends LitElement {
     this.status = this.formatSyncingStatus(progress);
   }
 
+  private showErrorPopup(title: string, message: string, details: string[] = []) {
+    this.errorPopup = {
+      title,
+      message,
+      details: details.filter(Boolean).slice(0, 10)
+    };
+  }
+
+  private dismissErrorPopup() {
+    this.errorPopup = null;
+  }
+
+  private async reportOutboxPushFailures(failures: OutboxPushFailure[]) {
+    let lines = formatOutboxFailureLines(failures);
+    if (!lines.length && this.db) {
+      const rows = await listOutboxByStatus(this.db, ['failed', 'conflict'], 10);
+      lines = rows.map(
+        (r) =>
+          `${outboxOpLabel(r.op)} · ${r.objectApi ?? 'Record'}: ${r.lastError ?? r.status}`
+      );
+    }
+    if (!lines.length) return;
+    this.showErrorPopup(
+      'Changes could not sync',
+      `${lines.length} insert, edit, or delete operation(s) failed to reach Salesforce.`,
+      lines
+    );
+  }
+
+  private renderErrorPopup() {
+    const popup = this.errorPopup;
+    if (!popup) return nothing;
+    return html`
+      <div
+        class="error-overlay"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="osr-error-title"
+        aria-describedby="osr-error-message"
+      >
+        <div class="error-modal">
+          <h2 id="osr-error-title">${popup.title}</h2>
+          <p id="osr-error-message" class="error-modal-message">${popup.message}</p>
+          ${popup.details.length
+            ? html`<ul class="error-modal-list">
+                ${popup.details.map((line) => html`<li>${line}</li>`)}
+              </ul>`
+            : nothing}
+          <button type="button" class="error-modal-dismiss" @click=${() => this.dismissErrorPopup()}>
+            OK
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   private renderSyncProgressBar() {
     const p = this.syncProgress;
     const determinate = !!p && p.total > 0;
@@ -2743,7 +2900,24 @@ export class OsrApp extends LitElement {
       if (!this.successfulSyncCount) await this.loadSuccessfulSyncCount();
       const { engine, mode } = await createLiveSyncEngine(this.db, this.tokens);
       this.syncMode = mode;
+      try {
+        const hello = await engine.hello();
+        if (hello.userId) {
+          this.sessionUserId = hello.userId;
+          await kvSet(this.db, 'osr.session.userId', hello.userId);
+        }
+      } catch {
+        /* hello must not block sync */
+      }
+      const weekStart = this.plannerWeekStart || sundayWeekRange().weekStart;
+      const { weekEnd } = sundayWeekRange(new Date(weekStart + 'T12:00:00'));
       const syncPromise = engine.fullSync({
+        apexCache: {
+          weekStart,
+          weekEnd,
+          planDate: isoDateLocal(),
+          contextUserId: this.selectedContextUserId ?? undefined
+        },
         onProgress: (progress) => {
           if (!opts.background) this.applySyncProgress(progress);
           else {
@@ -2894,6 +3068,7 @@ export class OsrApp extends LitElement {
         }
       }
       if (result.push.failed > 0 || result.push.conflicts > 0) {
+        await this.reportOutboxPushFailures(result.push.failures);
         try {
           await appendLog(this.db, {
             category: 'sync',
@@ -2917,6 +3092,7 @@ export class OsrApp extends LitElement {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.status = opts.background ? `Background sync: ${msg}` : `Sync failed: ${msg}`;
+      this.showErrorPopup(opts.background ? 'Background sync failed' : 'Sync failed', msg);
       if (!opts.background && this.apps.length === 0) this.syncFailedMessage = msg;
       if (this.db) {
         try {
@@ -3008,8 +3184,22 @@ export class OsrApp extends LitElement {
   }
 
   /** All navigable tabs for the selected app (objects + FlexiPage/LWC custom tabs). */
+  private hasUserNavPrefs(): boolean {
+    if (!this.currentApp) return false;
+    const app = this.apps.find((a) => a.developerName === this.currentApp);
+    return (app?.userNavItems?.length ?? 0) > 0;
+  }
+
+  private isHomeNavTab(t: TabRow): boolean {
+    const dn = t.developerName.toLowerCase();
+    if (dn === 'home' || dn.endsWith('_home_app') || dn === 'tab_home') return true;
+    const page = t.tab.pageDeveloperName?.toLowerCase() ?? '';
+    return page.includes('home') && !page.includes('homepage');
+  }
+
   private appNavTabs(): TabRow[] {
     return this.tabs.filter((t) => {
+      if (this.hasUserNavPrefs()) return true;
       const dn = t.developerName.toLowerCase();
       if (dn === 'home' || dn.endsWith('_home_app') || dn === 'tab_home') return false;
       return true;
@@ -3290,11 +3480,13 @@ export class OsrApp extends LitElement {
     try {
       if (this.online && this.tokens) {
         const { engine } = await createLiveSyncEngine(this.db, this.tokens);
+        await engine.drainOutbox();
         const pullOpts: {
           weekStart?: string;
           weekEnd?: string;
+          planDate?: string;
           contextUserId?: string;
-        } = {};
+        } = { planDate: isoDateLocal() };
         if (weekStart) {
           const { weekEnd } = sundayWeekRange(new Date(weekStart + 'T12:00:00'));
           pullOpts.weekStart = weekStart;
@@ -3306,6 +3498,7 @@ export class OsrApp extends LitElement {
         snap.fromCache = false;
         const sqliteAccounts = await listRecords(this.db, 'Account', 500);
         snap = ensurePlannerAccountsFallback(snap, sqliteAccounts);
+        snap = await this.mergePendingLocalVisits(snap);
         this.apexSnapshot = snap;
         return;
       }
@@ -3314,7 +3507,62 @@ export class OsrApp extends LitElement {
     }
     let snap = await loadApexCacheSnapshot(this.db);
     const sqliteAccounts = await listRecords(this.db, 'Account', 500);
-    this.apexSnapshot = ensurePlannerAccountsFallback(snap, sqliteAccounts);
+    snap = ensurePlannerAccountsFallback(snap, sqliteAccounts);
+    snap = await this.mergePendingLocalVisits(snap);
+    this.apexSnapshot = snap;
+  }
+
+  /** Keep local / failed planner visits visible after server cache refresh. */
+  private async mergePendingLocalVisits(snap: ApexCacheSnapshot): Promise<ApexCacheSnapshot> {
+    if (!this.db) return snap;
+    const { rows } = await this.db.execute(
+      `SELECT * FROM outbox WHERE object_api=? AND status IN ('pending', 'failed') ORDER BY created_at ASC LIMIT 100`,
+      ['Visit__c']
+    );
+    if (!rows.length) return snap;
+
+    const week = snap.plannerWeek ?? { visits: [], timeOffBlocks: [] };
+    const visits = [...(week.visits ?? [])];
+    const known = new Set(visits.map((v) => String(v.id)));
+
+    for (const row of rows) {
+      const id = row.record_id != null ? String(row.record_id) : '';
+      if (!id || known.has(id)) continue;
+      let rec: Record<string, unknown> | null = null;
+      try {
+        rec = (await getRecord(this.db, 'Visit__c', id)) ?? null;
+      } catch {
+        rec = null;
+      }
+      if (!rec) {
+        try {
+          rec = JSON.parse(String(row.payload_json)) as Record<string, unknown>;
+        } catch {
+          rec = null;
+        }
+      }
+      if (!rec) continue;
+      const start = visitStartIso(rec);
+      if (!start) continue;
+      const end = visitEndIso(rec, new Date(start)) ?? start;
+      const accountId = rec.Account__c != null ? String(rec.Account__c) : undefined;
+      const account = snap.plannerAccounts?.accounts?.find((a) => a.id === accountId);
+      visits.push({
+        id,
+        name: String(rec.Name ?? 'Visit'),
+        accountId,
+        accountName: account?.name,
+        status: String(rec.Status__c ?? VISIT_STATUS_DRAFT),
+        startDateTime: start,
+        endDateTime: end,
+        accountLatitude: account?.latitude ?? null,
+        accountLongitude: account?.longitude ?? null
+      });
+      known.add(id);
+    }
+
+    if (visits.length === (week.visits ?? []).length) return snap;
+    return { ...snap, plannerWeek: { ...week, visits } };
   }
 
   private async loadPlannerWeek(weekStart: string) {
@@ -3603,6 +3851,10 @@ export class OsrApp extends LitElement {
     return renderFidelity(bundle, this.fidelityCtx(label));
   }
 
+  private visitAssignedTo(): string | null {
+    return this.selectedContextUserId || this.sessionUserId || null;
+  }
+
   private async planVisit(accountId: string) {
     if (!this.db || !accountId) return;
     const start = new Date();
@@ -3610,24 +3862,24 @@ export class OsrApp extends LitElement {
     start.setHours(start.getHours() + 1);
     const end = new Date(start.getTime() + 30 * 60 * 1000);
     const id = `local_${crypto.randomUUID()}`;
-    const payload: Record<string, unknown> = {
-      Id: id,
-      Account__c: accountId,
-      Status__c: 'Draft',
-      StartDateTime__c: start.toISOString(),
-      EndDateTime__c: end.toISOString(),
-      Name: 'Planned visit'
-    };
+    const account = this.apexSnapshot?.plannerAccounts?.accounts?.find((a) => a.id === accountId);
+    const payload = buildVisitPayload(
+      {
+        Id: id,
+        Account__c: accountId,
+        Name: account?.name ? `Visit — ${account.name}` : 'Planned visit'
+      },
+      { start, end, assignedToUserId: this.visitAssignedTo(), status: VISIT_STATUS_DRAFT }
+    );
     await localSaveRecord(this.db, 'Visit__c', payload, true);
     await this.patchPlannerCaches((visits) => {
-      const account = this.apexSnapshot?.plannerAccounts?.accounts?.find((a) => a.id === accountId);
       visits.push({
         id,
         accountId,
         accountName: account?.name,
-        status: 'Draft',
-        startDateTime: String(payload.StartDateTime__c),
-        endDateTime: String(payload.EndDateTime__c),
+        status: VISIT_STATUS_DRAFT,
+        startDateTime: start.toISOString(),
+        endDateTime: end.toISOString(),
         accountLatitude: account?.latitude ?? null,
         accountLongitude: account?.longitude ?? null
       });
@@ -3653,15 +3905,14 @@ export class OsrApp extends LitElement {
       const account =
         this.apexSnapshot?.plannerAccounts?.accounts?.find((a) => a.id === accountId) ?? null;
       const accountName = account?.name || 'Account';
-      const payload: Record<string, unknown> = {
-        Id: id,
-        Account__c: accountId,
-        Status__c: 'Draft',
-        StartDateTime__c: start.toISOString(),
-        EndDateTime__c: end.toISOString(),
-        Planned_Date__c: isoDateLocal(start),
-        Name: `Visit — ${accountName}`
-      };
+      const payload = buildVisitPayload(
+        {
+          Id: id,
+          Account__c: accountId,
+          Name: `Visit — ${accountName}`
+        },
+        { start, end, assignedToUserId: this.visitAssignedTo(), status: VISIT_STATUS_DRAFT }
+      );
       await localSaveRecord(this.db, 'Visit__c', payload, true);
       await this.patchPlannerCaches((visits) => {
         visits.push({
@@ -3684,7 +3935,9 @@ export class OsrApp extends LitElement {
       this.pendingCount = (await listPendingOutbox(this.db)).length;
       this.status = `Draft visit · ${accountName} · queued for sync`;
     } catch (e) {
-      this.status = `Could not create visit: ${e instanceof Error ? e.message : String(e)}`;
+      const msg = e instanceof Error ? e.message : String(e);
+      this.status = `Could not create visit: ${msg}`;
+      this.showErrorPopup('Could not create visit', msg);
     }
   }
 
@@ -3775,15 +4028,16 @@ export class OsrApp extends LitElement {
       ((this.apexSnapshot as { promotionalProjects?: { id: string; name: string }[] } | null)
         ?.promotionalProjects as { id: string; name: string }[] | undefined) ?? [];
     const project = projects.find((p) => p.id === projectId);
-    const payload: Record<string, unknown> = {
-      Id: id,
-      Status__c: 'Draft',
-      StartDateTime__c: start.toISOString(),
-      EndDateTime__c: end.toISOString(),
-      Pharma_Project__c: projectId,
-      Visit_Objective__c: project?.name ? `Promotional: ${project.name}` : 'Promotional Event',
-      Name: project?.name || 'Promotional Event'
-    };
+    const payload = buildVisitPayload(
+      {
+        Id: id,
+        Status__c: VISIT_STATUS_DRAFT,
+        Pharma_Project__c: projectId,
+        Visit_Objective__c: project?.name ? `Promotional: ${project.name}` : 'Promotional Event',
+        Name: project?.name || 'Promotional Event'
+      },
+      { start, end, assignedToUserId: this.visitAssignedTo(), status: VISIT_STATUS_DRAFT }
+    );
     await localSaveRecord(this.db, 'Visit__c', payload, true);
     await this.patchPlannerCaches((visits) => {
       visits.push({
@@ -3818,27 +4072,15 @@ export class OsrApp extends LitElement {
   private async postponeVisit(visitId: string) {
     if (!this.db || !visitId) return;
     const existing = (await getRecord(this.db, 'Visit__c', visitId)) ?? { Id: visitId };
-    const shift = (iso?: unknown) => {
-      if (!iso) return undefined;
-      const d = new Date(String(iso));
-      if (Number.isNaN(d.getTime())) return String(iso);
-      d.setDate(d.getDate() + 1);
-      return d.toISOString();
-    };
-    const payload = {
-      ...existing,
-      Id: visitId,
-      StartDateTime__c: shift(existing.StartDateTime__c) ?? existing.StartDateTime__c,
-      EndDateTime__c: shift(existing.EndDateTime__c) ?? existing.EndDateTime__c
-    };
+    const payload = shiftVisitPayload(existing, visitId, 1, this.visitAssignedTo());
     await localSaveRecord(this.db, 'Visit__c', payload, String(visitId).startsWith('local_'));
     await this.patchPlannerCaches((visits) =>
       visits.map((v) =>
         v.id === visitId
           ? {
               ...v,
-              startDateTime: String(payload.StartDateTime__c ?? v.startDateTime),
-              endDateTime: String(payload.EndDateTime__c ?? v.endDateTime)
+              startDateTime: visitStartIso(payload) ?? v.startDateTime,
+              endDateTime: visitEndIso(payload) ?? v.endDateTime
             }
           : v
       )
@@ -3933,12 +4175,14 @@ export class OsrApp extends LitElement {
 
     for (const [visitId, times] of updates) {
       const existing = (await getRecord(this.db, 'Visit__c', visitId)) ?? { Id: visitId };
-      const payload = {
-        ...existing,
-        Id: visitId,
-        StartDateTime__c: times.start,
-        EndDateTime__c: times.end
-      };
+      const payload = buildVisitPayload(
+        { ...existing, Id: visitId },
+        {
+          start: new Date(times.start),
+          end: new Date(times.end),
+          assignedToUserId: this.visitAssignedTo()
+        }
+      );
       await localSaveRecord(this.db, 'Visit__c', payload, String(visitId).startsWith('local_'));
     }
     await this.patchPlannerCaches((visits) =>
@@ -4328,6 +4572,11 @@ export class OsrApp extends LitElement {
         if (e.field) fe[e.field] = e.message;
       }
       this.fieldErrors = fe;
+      this.showErrorPopup(
+        'Could not save',
+        'This record could not be saved.',
+        result.validation.errors.map((e) => e.message)
+      );
       return;
     }
     this.formErrors = [];
@@ -4357,8 +4606,8 @@ export class OsrApp extends LitElement {
       await localDeleteRecord(this.db, this.modalObjectApi, String(this.record.Id));
       this.pendingCount = (await listPendingOutbox(this.db)).length;
       this.closeRecordModal();
-      if (this.route.kind === 'list') {
-        this.listRows = await listRecords(this.db, this.route.objectApi, 500);
+      if (this.route.kind === 'list' && this.route.objectApi === this.modalObjectApi) {
+        this.listRows = await listRecords(this.db, this.modalObjectApi, 500);
       }
       this.status = 'Deleted · queued for sync';
       return;
@@ -4392,6 +4641,11 @@ export class OsrApp extends LitElement {
     const next = { ...row, [this.inlineEditField]: this.inlineEditValue };
     const result = await saveWithValidation(this.db, objectApi, next, false);
     if (!result.ok) {
+      this.showErrorPopup(
+        'Could not save',
+        'This edit could not be saved.',
+        result.validation.errors.map((e) => e.message)
+      );
       this.status = result.validation.errors.map((e) => e.message).join('; ') || 'Validation failed';
       return;
     }
@@ -4452,6 +4706,7 @@ export class OsrApp extends LitElement {
   }
 
   private navItems() {
+    const userNav = this.hasUserNavPrefs();
     const items: {
       key: string;
       label: string;
@@ -4459,8 +4714,10 @@ export class OsrApp extends LitElement {
       iconUrl?: string | null;
       action: () => void;
       active: boolean;
-    }[] = [
-      {
+    }[] = [];
+
+    if (!userNav) {
+      items.push({
         key: 'home',
         label: 'Home',
         iconName: 'Home',
@@ -4472,19 +4729,34 @@ export class OsrApp extends LitElement {
           void this.loadHome(token);
         },
         active: this.route.kind === 'home' && !this.modalOpen
-      }
-    ];
-    // Show object + custom tabs from the selected app (phone: 4 + menu)
+      });
+    }
+
     for (const t of this.appNavTabs().slice(0, 4)) {
       const typ = this.tabTypeOf(t);
       const iconName = t.tab.objectApi ?? t.developerName;
+      const homeTab = this.isHomeNavTab(t);
       items.push({
         key: t.developerName,
         label: t.label,
         iconName,
         iconUrl: t.tab.iconUrl ?? null,
-        action: () => void this.openAppTab(t),
+        action: () => {
+          if (homeTab && userNav) {
+            const token = ++this.navToken;
+            this.dismissChromeOverlays();
+            this.closeRecordModal({ keepRoute: true });
+            this.route = { kind: 'home' };
+            void this.loadHome(token);
+            return;
+          }
+          void this.openAppTab(t);
+        },
         active:
+          (userNav &&
+            homeTab &&
+            this.route.kind === 'home' &&
+            !this.modalOpen) ||
           (this.route.kind === 'list' &&
             typ === 'object' &&
             this.route.objectApi === (t.tab.objectApi ?? t.developerName)) ||
@@ -4596,6 +4868,7 @@ export class OsrApp extends LitElement {
         ${this.visitShellId ? this.renderVisitShellOverlay() : nothing}
         ${this.clmPlayerOverlayOpen && this.clmPlayerId ? this.renderClmPlayerOverlay() : nothing}
         ${this.renderSyncOverlay()}
+        ${this.renderErrorPopup()}
         ${this.toastMessage
           ? html`<div class="osr-toast" role="status">${this.toastMessage}</div>`
           : nothing}
@@ -5722,13 +5995,10 @@ export class OsrApp extends LitElement {
       const end = new Date(endIso);
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
       const existing = (await getRecord(this.db, 'Visit__c', visitId)) ?? { Id: visitId };
-      const payload = {
-        ...existing,
-        Id: visitId,
-        StartDateTime__c: start.toISOString(),
-        EndDateTime__c: end.toISOString(),
-        Planned_Date__c: isoDateLocal(start)
-      };
+      const payload = buildVisitPayload(
+        { ...existing, Id: visitId },
+        { start, end, assignedToUserId: this.visitAssignedTo() }
+      );
       await localSaveRecord(this.db, 'Visit__c', payload, String(visitId).startsWith('local_'));
       await this.patchPlannerCaches((visits) =>
         visits.map((v) =>
@@ -5744,7 +6014,9 @@ export class OsrApp extends LitElement {
       this.pendingCount = (await listPendingOutbox(this.db)).length;
       this.status = 'Visit rescheduled · queued for sync';
     } catch (e) {
-      this.status = `Could not reschedule: ${e instanceof Error ? e.message : String(e)}`;
+      const msg = e instanceof Error ? e.message : String(e);
+      this.status = `Could not reschedule: ${msg}`;
+      this.showErrorPopup('Could not reschedule visit', msg);
     }
   }
 

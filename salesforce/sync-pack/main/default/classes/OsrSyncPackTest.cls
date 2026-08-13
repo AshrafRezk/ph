@@ -182,6 +182,88 @@ private class OsrSyncPackTest {
     }
 
     @IsTest
+    static void outbox_createsVisitWithoutName() {
+        Account a = new Account(Name = 'Outbox Visit Account');
+        insert a;
+        Datetime startDt = Datetime.newInstance(Date.today().addDays(1), Time.newInstance(10, 0, 0, 0));
+        Datetime endDt = startDt.addHours(1);
+
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/osr/v1/outbox';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(
+            '{"actions":[{"clientId":"obx3","op":"create","objectApi":"Visit__c","recordId":"local_visit1","payload":{"Id":"local_visit1","Account__c":"' +
+                a.Id +
+                '","Status__c":"Draft","Start_Date__c":"' +
+                startDt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'') +
+                '","End_Date__c":"' +
+                endDt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'') +
+                '","Visit_Date__c":"' +
+                startDt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'') +
+                '","Visit_Type__c":"Planned (Automatically)"}}]}'
+        );
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+
+        OsrOutboxService.OutboxResponse res = OsrOutboxService.buildResponse();
+        System.assertEquals(1, res.results.size());
+        System.assertEquals('synced', res.results[0].status);
+        System.assertNotEquals(null, res.results[0].serverId);
+    }
+
+    @IsTest
+    static void outbox_parsesNestedJsonPayload() {
+        Account a = new Account(Name = 'Outbox JSON Account');
+        insert a;
+
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/osr/v1/outbox';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(
+            '{"actions":[{"clientId":"obx2","op":"update","objectApi":"Account","recordId":"' +
+                a.Id +
+                '","payload":{"Id":"' +
+                a.Id +
+                '","Name":"Updated From JSON","Phone":"+20-2-999","BillingLatitude":30.04,"BillingLongitude":31.24}}]}'
+        );
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+
+        OsrOutboxService.OutboxResponse res = OsrOutboxService.buildResponse();
+        System.assertEquals(1, res.results.size());
+        System.assertEquals('synced', res.results[0].status);
+        Account updated = [SELECT Name, Phone FROM Account WHERE Id = :a.Id];
+        System.assertEquals('Updated From JSON', updated.Name);
+        System.assertEquals('+20-2-999', updated.Phone);
+    }
+
+    @IsTest
+    static void outbox_deleteFailsWhenRecordAlreadyDeleted() {
+        Account a = new Account(Name = 'Outbox Delete Missing');
+        insert a;
+        Id accountId = a.Id;
+        delete a;
+
+        RestRequest req = new RestRequest();
+        req.requestUri = '/services/apexrest/osr/v1/outbox';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(
+            '{"actions":[{"clientId":"obx_del","op":"delete","objectApi":"Account","recordId":"' +
+                accountId +
+                '","payload":{"Id":"' +
+                accountId +
+                '"}}]}'
+        );
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+
+        OsrOutboxService.OutboxResponse res = OsrOutboxService.buildResponse();
+        System.assertEquals(1, res.results.size());
+        System.assertEquals('failed', res.results[0].status);
+        System.assertNotEquals(null, res.results[0].error);
+    }
+
+    @IsTest
     static void lwc_returnsStubWhenMissing() {
         Test.setMock(HttpCalloutMock.class, new OsrToolingFailMock());
         RestRequest req = new RestRequest();

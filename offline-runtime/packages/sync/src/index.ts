@@ -12,12 +12,15 @@ import {
   upsertUserPrefs,
   upsertRecord,
   softDeleteRecord,
+  restoreSoftDeletedRecord,
   upsertFile,
   upsertLwcBundle,
   getSyncCursor,
   setSyncCursor,
   listPendingOutbox,
+  listOutboxForPush,
   markOutbox,
+  remapRecordId,
   addConflict,
   replaceSharingIdSet,
   kvGet,
@@ -26,7 +29,8 @@ import {
   upsertApexPayload,
   upsertStaticResource,
   appendLog,
-  nowIso
+  nowIso,
+  listApps
 } from '@osr/db';
 
 export interface OAuthConfig {
@@ -282,6 +286,13 @@ export interface SyncProgress {
 export interface SyncHooks {
   afterMetadata?: () => Promise<void> | void;
   onProgress?: (progress: SyncProgress) => void;
+  /** planDate / week range sent to apex-cache before record pulls */
+  apexCache?: {
+    weekStart?: string;
+    weekEnd?: string;
+    planDate?: string;
+    contextUserId?: string;
+  };
 }
 
 /** Human label for an sObject API name (Account → Accounts, Visit__c → Visits). */
@@ -309,6 +320,22 @@ export function sundayWeekRange(d: Date = new Date()): { weekStart: string; week
   end.setDate(start.getDate() + 6);
   return { weekStart: isoDateLocal(start), weekEnd: isoDateLocal(end) };
 }
+
+export type OutboxPushFailure = {
+  clientId: string;
+  op: string;
+  objectApi?: string;
+  recordId?: string;
+  error: string;
+  status: 'failed' | 'conflict';
+};
+
+export type PushOutboxResult = {
+  synced: number;
+  failed: number;
+  conflicts: number;
+  failures: OutboxPushFailure[];
+};
 
 export class SyncEngine {
   constructor(
@@ -369,12 +396,22 @@ export class SyncEngine {
     // Only pull objects we actually have describes for (skip Home/Chatter stubs)
     p = await this.filterQueryableObjects(p);
     const objectCount = p.objects.length;
-    // Steps: metadata + sharing + each object + files + staticResources + lwc + apex-cache + prefs
-    const total = 2 + objectCount + 5;
+    // Steps: metadata + sharing + apex-cache + each object + files + staticResources + lwc + prefs
+    const total = 3 + objectCount + 4;
+
+    report({
+      phase: 'apexCache',
+      channel: 'Caching planner…',
+      current: 3,
+      total
+    });
+    result.channels.apexCache = await this.safe('apexCache', () =>
+      this.pullApexCache(hooks?.apexCache)
+    );
 
     const dataResult = await this.pullDataResilient(p, {
       onObject: (obj, index, ofTotal) => {
-        const step = 2 + index;
+        const step = 3 + index;
         const label = syncChannelLabel(obj.apiName);
         report({
           phase: 'data',
@@ -400,7 +437,7 @@ export class SyncEngine {
     report({
       phase: 'files',
       channel: 'Files',
-      current: 2 + objectCount + 1,
+      current: 3 + objectCount + 1,
       total
     });
     result.channels.files = await this.safe('files', () => this.pullFiles(p));
@@ -408,7 +445,7 @@ export class SyncEngine {
     report({
       phase: 'staticResources',
       channel: 'Map libraries',
-      current: 2 + objectCount + 2,
+      current: 3 + objectCount + 2,
       total
     });
     result.channels.staticResources = await this.safe('staticResources', () =>
@@ -418,23 +455,15 @@ export class SyncEngine {
     report({
       phase: 'lwc',
       channel: 'LWCs',
-      current: 2 + objectCount + 3,
+      current: 3 + objectCount + 3,
       total
     });
     result.channels.lwc = await this.safe('lwc', () => this.pullLwc(p));
 
     report({
-      phase: 'apexCache',
-      channel: 'Caching planner…',
-      current: 2 + objectCount + 4,
-      total
-    });
-    result.channels.apexCache = await this.safe('apexCache', () => this.pullApexCache());
-
-    report({
       phase: 'prefs',
       channel: 'Preferences',
-      current: 2 + objectCount + 5,
+      current: 3 + objectCount + 4,
       total
     });
     result.channels.prefs = await this.safe('prefs', () => this.pullPrefs());
@@ -753,6 +782,58 @@ export class SyncEngine {
     await setSyncCursor(this.db, 'metadata', payload.cursor ?? nowIso(), {
       profile: profile.name
     });
+    n += await this.pullUserNavPreferences();
+    return n;
+  }
+
+  /** UI API: user's personalized nav bar order per Lightning app. */
+  async pullUserNavPreferences(apiVersion = '61.0'): Promise<number> {
+    const apps = await listApps(this.db);
+    let n = 0;
+    for (const app of apps) {
+      const id = app.id?.trim() ?? '';
+      if (!/^[a-zA-Z0-9]{15,18}$/.test(id)) continue;
+      try {
+        const res = await this.client.get<{ navItems?: Record<string, unknown>[] }>(
+          `/services/data/v${apiVersion}/ui-api/apps/${id}/user-nav-items?formFactor=Large`
+        );
+        const raw = res.navItems ?? [];
+        if (!raw.length) continue;
+        const userNavItems: {
+          developerName: string;
+          label?: string;
+          iconUrl?: string | null;
+          objectApiName?: string | null;
+          itemType?: string | null;
+          pageReference?: Record<string, unknown> | null;
+        }[] = [];
+        for (const item of raw) {
+          const developerName = String(item.developerName ?? '').trim();
+          if (!developerName) continue;
+          userNavItems.push({
+            developerName,
+            label: item.label != null ? String(item.label) : undefined,
+            iconUrl: item.iconUrl != null ? String(item.iconUrl) : null,
+            objectApiName: item.objectApiName != null ? String(item.objectApiName) : null,
+            itemType: item.itemType != null ? String(item.itemType) : null,
+            pageReference:
+              item.pageReference && typeof item.pageReference === 'object'
+                ? (item.pageReference as Record<string, unknown>)
+                : null
+          });
+        }
+        if (!userNavItems.length) continue;
+        await upsertApp(this.db, {
+          id: app.id,
+          developerName: app.developerName,
+          label: app.label,
+          app: { ...app.app, userNavItems }
+        });
+        n++;
+      } catch {
+        /* UI API unavailable for this app/user — fall back to app tab list */
+      }
+    }
     return n;
   }
 
@@ -1040,12 +1121,29 @@ export class SyncEngine {
     });
   }
 
-  async pushOutbox(): Promise<{ synced: number; failed: number; conflicts: number }> {
-    const batch = await listPendingOutbox(this.db, this.options.maxOutboxBatch ?? 25);
+  /** Push all pending outbox batches before any pull (local changes first). */
+  async drainOutbox(maxRounds = 40): Promise<PushOutboxResult> {
+    const totals: PushOutboxResult = { synced: 0, failed: 0, conflicts: 0, failures: [] };
+    for (let round = 0; round < maxRounds; round++) {
+      const pending = await listOutboxForPush(this.db, 1);
+      if (!pending.length) break;
+      const batch = await this.pushOutbox();
+      totals.synced += batch.synced;
+      totals.failed += batch.failed;
+      totals.conflicts += batch.conflicts;
+      totals.failures.push(...batch.failures);
+      if (batch.synced === 0 && batch.failed === 0 && batch.conflicts === 0) break;
+    }
+    return totals;
+  }
+
+  async pushOutbox(): Promise<PushOutboxResult> {
+    const batch = await listOutboxForPush(this.db, this.options.maxOutboxBatch ?? 25);
     let synced = 0;
     let failed = 0;
     let conflicts = 0;
-    if (!batch.length) return { synced, failed, conflicts };
+    const failures: OutboxPushFailure[] = [];
+    if (!batch.length) return { synced, failed, conflicts, failures };
 
     const response = await this.client.post<{
       results: {
@@ -1070,10 +1168,38 @@ export class SyncEngine {
     const policy = this.options.conflictPolicy ?? 'manual';
     for (const r of response.results) {
       if (r.status === 'synced') {
+        const item = batch.find((b) => b.id === r.clientId);
+        if (
+          item?.objectApi &&
+          item.recordId?.startsWith('local_') &&
+          r.serverId &&
+          r.serverId !== item.recordId
+        ) {
+          try {
+            await remapRecordId(
+              this.db,
+              item.objectApi,
+              item.recordId,
+              r.serverId,
+              r.serverRecord ?? (item.payload as Record<string, unknown> | undefined)
+            );
+          } catch {
+            /* remap must not block outbox ack */
+          }
+        }
         await markOutbox(this.db, r.clientId, 'synced');
         synced++;
       } else if (r.status === 'conflict') {
         conflicts++;
+        const item = batch.find((b) => b.id === r.clientId);
+        failures.push({
+          clientId: r.clientId,
+          op: item?.op ?? 'update',
+          objectApi: item?.objectApi,
+          recordId: item?.recordId,
+          error: r.error ?? 'Server version is newer',
+          status: 'conflict'
+        });
         await addConflict(this.db, {
           outboxId: r.clientId,
           objectApi: batch.find((b) => b.id === r.clientId)?.objectApi,
@@ -1106,7 +1232,23 @@ export class SyncEngine {
           /* ignore */
         }
       } else {
+        const item = batch.find((b) => b.id === r.clientId);
+        failures.push({
+          clientId: r.clientId,
+          op: item?.op ?? 'update',
+          objectApi: item?.objectApi,
+          recordId: item?.recordId,
+          error: r.error ?? 'Sync failed',
+          status: 'failed'
+        });
         await markOutbox(this.db, r.clientId, 'failed', r.error ?? 'failed');
+        if (item?.op === 'delete' && item.objectApi && item.recordId) {
+          try {
+            await restoreSoftDeletedRecord(this.db, item.objectApi, item.recordId);
+          } catch {
+            /* restore must not block failure reporting */
+          }
+        }
         failed++;
         try {
           await appendLog(this.db, {
@@ -1126,7 +1268,7 @@ export class SyncEngine {
         }
       }
     }
-    return { synced, failed, conflicts };
+    return { synced, failed, conflicts, failures };
   }
 
   /**
@@ -1342,15 +1484,15 @@ export class SyncEngine {
 
   async fullSync(
     hooks?: SyncHooks
-  ): Promise<{ pull: PullResult; push: { synced: number; failed: number; conflicts: number } }> {
-    let push = { synced: 0, failed: 0, conflicts: 0 };
+  ): Promise<{ pull: PullResult; push: PushOutboxResult }> {
+    let push: PushOutboxResult = { synced: 0, failed: 0, conflicts: 0, failures: [] };
     try {
       hooks?.onProgress?.({ phase: 'push', channel: 'Outbox', current: 0, total: 0 });
     } catch {
       /* ignore */
     }
     try {
-      push = await this.pushOutbox();
+      push = await this.drainOutbox();
     } catch (e) {
       // Outbox failures must not block pull / leave UI spinning
       try {

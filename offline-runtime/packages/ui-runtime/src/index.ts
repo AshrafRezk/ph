@@ -24,6 +24,7 @@ import {
 } from '@osr/db';
 import { FormulaEvaluator, validateRecord, type ValidationResult } from '@osr/validation';
 import { localSaveRecord, localDeleteRecord } from '@osr/sync';
+import { resolveTabsFromUserNav, type UserNavItem, type NavTabRow } from './user-nav.js';
 
 import {
   formFactorFromWidth,
@@ -477,7 +478,11 @@ export type AppSummary = {
   homeFlexiPageDeveloperName?: string | null;
   iconUrl?: string | null;
   logoUrl?: string | null;
+  userNavItems?: UserNavItem[];
 };
+
+export type { UserNavItem } from './user-nav.js';
+export { resolveTabsFromUserNav } from './user-nav.js';
 
 export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?: string | null) {
   const appsRaw = await listApps(db);
@@ -489,13 +494,18 @@ export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?:
     tabDeveloperNames: (a.app.tabDeveloperNames as string[]) ?? tabs.map((t) => t.developerName),
     homeFlexiPageDeveloperName: (a.app.homeFlexiPageDeveloperName as string | null | undefined) ?? null,
     iconUrl: (a.app.iconUrl as string | null | undefined) ?? null,
-    logoUrl: (a.app.logoUrl as string | null | undefined) ?? null
+    logoUrl: (a.app.logoUrl as string | null | undefined) ?? null,
+    userNavItems: Array.isArray(a.app.userNavItems)
+      ? (a.app.userNavItems as UserNavItem[])
+      : undefined
   }));
 
   let appTabs = tabs;
   if (selectedAppDeveloperName) {
     const app = apps.find((a) => a.developerName === selectedAppDeveloperName);
-    if (app?.tabDeveloperNames?.length) {
+    if (app?.userNavItems?.length) {
+      appTabs = resolveTabsFromUserNav(app.userNavItems, tabs as NavTabRow[]) as typeof tabs;
+    } else if (app?.tabDeveloperNames?.length) {
       const order = app.tabDeveloperNames.map((n) => n.replace(/^standard-/, ''));
       const allowed = new Set(order);
       const byKey = new Map<string, (typeof tabs)[0]>();
