@@ -137,11 +137,21 @@ export function getOAuthConfig(): OAuthConfig {
   const isNative = Capacitor.isNativePlatform();
   const clientId = import.meta.env.VITE_SF_CLIENT_ID ?? '';
   const loginUrl = import.meta.env.VITE_SF_LOGIN_URL ?? 'https://login.salesforce.com';
-  const redirectUri = isNative
-    ? import.meta.env.VITE_SF_REDIRECT_URI ?? 'com.osr.offline://oauth/callback'
-    : import.meta.env.VITE_SF_WEB_REDIRECT_URI ??
+  let redirectUri: string;
+  if (isNative) {
+    redirectUri = import.meta.env.VITE_SF_REDIRECT_URI ?? 'com.osr.offline://oauth/callback';
+  } else if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ) {
+    // Local Vite dev — must match Connected App callback (any port on this host).
+    redirectUri = `${window.location.origin}/oauth/callback`;
+  } else {
+    redirectUri =
+      import.meta.env.VITE_SF_WEB_REDIRECT_URI ??
       import.meta.env.VITE_SF_REDIRECT_URI ??
       `${window.location.origin}/oauth/callback`;
+  }
   return { loginUrl, clientId, redirectUri, apiVersion: '61.0' };
 }
 

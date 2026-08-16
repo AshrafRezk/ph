@@ -7,6 +7,55 @@ function salesforceProxyPlugin(): Plugin {
   return {
     name: 'osr-salesforce-proxy',
     configureServer(server) {
+      server.middlewares.use('/.netlify/functions/sf-token', async (req, res) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.end();
+          return;
+        }
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end('Method Not Allowed');
+          return;
+        }
+        try {
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) chunks.push(Buffer.from(chunk));
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as {
+            tokenUrl?: string;
+            grant_type?: string;
+            client_id?: string;
+            redirect_uri?: string;
+            code?: string;
+            code_verifier?: string;
+          };
+          const tokenUrl = body.tokenUrl || 'https://login.salesforce.com/services/oauth2/token';
+          const params = new URLSearchParams({
+            grant_type: body.grant_type || 'authorization_code',
+            client_id: body.client_id || '',
+            redirect_uri: body.redirect_uri || '',
+            code: body.code || '',
+            code_verifier: body.code_verifier || ''
+          });
+          const upstream = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params
+          });
+          const text = await upstream.text();
+          res.statusCode = upstream.status;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Content-Type', 'application/json');
+          res.end(text);
+        } catch (e) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+        }
+      });
+
       server.middlewares.use('/.netlify/functions/sf-api', async (req, res) => {
         if (req.method === 'OPTIONS') {
           res.statusCode = 204;
@@ -74,7 +123,7 @@ function salesforceProxyPlugin(): Plugin {
 
 export default defineConfig({
   root: '.',
-  server: { port: 5173, host: true },
+  server: { port: 5173, strictPort: false, host: true },
   plugins: [salesforceProxyPlugin()],
   build: {
     outDir: 'dist',

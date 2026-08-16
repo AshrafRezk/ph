@@ -7,7 +7,8 @@
         <callbackUrl>com.osr.offline://oauth/callback
 https://www.salesforceoffline.com/oauth/callback
 https://osr-salesforce-offline.netlify.app/oauth/callback
-http://localhost:5173/oauth/callback</callbackUrl>
+http://localhost:5173/oauth/callback
+http://localhost:5174/oauth/callback</callbackUrl>
         <isAdminApproved>false</isAdminApproved>
         <isConsumerSecretOptional>true</isConsumerSecretOptional>
         <isIntrospectAllTokens>false</isIntrospectAllTokens>
