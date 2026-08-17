@@ -344,6 +344,30 @@ export function accountsFromSqliteRows(
   return { accounts, totalCount: accounts.length, hasMore: false };
 }
 
+/** Build a minimal Account record row from planner search DTO (not always in SQLite). */
+export function accountRecordFromSummary(
+  accountId: string,
+  snap: ApexCacheSnapshot | null | undefined
+): Record<string, unknown> | null {
+  const a = snap?.plannerAccounts?.accounts?.find((x) => String(x.id) === accountId);
+  if (!a?.id) return null;
+  return {
+    Id: a.id,
+    Name: a.name ?? 'Account',
+    BillingCity: a.city,
+    BillingStreet: a.street,
+    BillingLatitude: a.latitude,
+    BillingLongitude: a.longitude,
+    Specialty__c: a.specialty,
+    Classification__c: a.classification,
+    Calculated_Classification__c: a.classification,
+    Target_Visits__c: a.targetVisits,
+    Actual_Visits__c: a.actualVisits,
+    Frequency_Status__c: a.frequencyStatus,
+    Type: a.recordTypeName
+  };
+}
+
 export function ensurePlannerAccountsFallback(
   snap: ApexCacheSnapshot,
   sqliteAccounts: Record<string, unknown>[]

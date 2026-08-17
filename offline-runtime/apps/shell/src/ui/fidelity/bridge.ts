@@ -77,6 +77,8 @@ export interface FidelityCtx {
   clmPlayerId?: string | null;
   myLearningInstanceId?: string | null;
   iframeHeights?: Record<string, number>;
+  sfAuth?: { accessToken: string; instanceUrl: string } | null;
+  clmPrefetching?: boolean;
   requestUpdate?: () => void;
   actions: {
     openPlanner: () => void;
@@ -85,6 +87,7 @@ export interface FidelityCtx {
     closeVisitShell?: () => void;
     openAccount: (id: string) => void;
     openClm: () => void;
+    prefetchClmAssets?: () => void;
     openClmPlayer?: (presentationId: string) => void;
     closeClmPlayer?: () => void;
     completeClmSession?: (payload: {
@@ -230,8 +233,9 @@ register('c/fieldRepHomeClmPrefetch', (ctx) =>
     label: ctx.label,
     presentations: ctx.snap?.clmManifest?.presentations ?? null,
     cached: ctx.cached,
-    syncing: ctx.syncing,
-    onBrowse: ctx.actions.openClm
+    syncing: ctx.syncing || ctx.clmPrefetching,
+    onBrowse: ctx.actions.openClm,
+    onPrefetch: ctx.actions.prefetchClmAssets
   })
 );
 
@@ -382,6 +386,8 @@ register('c/clmPlayer', (ctx) =>
     presentationId: ctx.clmPlayerId ?? ctx.recordId ?? null,
     presentations: ctx.snap?.clmManifest?.presentations ?? null,
     visitId: ctx.visitShellId,
+    sfAuth: ctx.sfAuth ?? null,
+    online: ctx.online,
     onBack: () => ctx.actions.closeClmPlayer?.() ?? ctx.actions.setClmPlayerId?.(null),
     onComplete: (payload) => ctx.actions.completeClmSession?.(payload),
     requestUpdate: ctx.requestUpdate
