@@ -17,6 +17,7 @@ export interface OsrMapMarker {
 
 export interface OsrMapHandle {
   map: L.Map;
+  isAlive: () => boolean;
   setMarkers: (markers: OsrMapMarker[]) => void;
   /** Draw a driving/route polyline. Pass [] or null to clear. */
   setRoute: (latLngs: [number, number][] | null, opts?: { color?: string; fit?: boolean }) => void;
@@ -211,6 +212,7 @@ export function createOsrMap(
 
   return {
     map,
+    isAlive: () => !destroyed,
     setMarkers,
     setRoute,
     flyToId: (id: string) => {

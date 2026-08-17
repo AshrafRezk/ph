@@ -192,6 +192,10 @@ export function renderAccountsTab(opts: {
       selected: r.accountId === ui.selectedAccountId
     }));
     let handle = mapHandles.get(el);
+    if (handle && !handle.isAlive()) {
+      mapHandles.delete(el);
+      handle = undefined;
+    }
     if (!handle) {
       handle = createOsrMap(el, {
         markers,

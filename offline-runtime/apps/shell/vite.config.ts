@@ -107,11 +107,12 @@ function salesforceProxyPlugin(): Plugin {
             headers['Content-Type'] = headers['Content-Type'] || 'application/json';
           }
           const upstream = await fetch(targetUrl, { method, headers, body: upstreamBody });
-          const text = await upstream.text();
+          const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+          const buf = Buffer.from(await upstream.arrayBuffer());
           res.statusCode = upstream.status;
           res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-          res.end(text);
+          res.setHeader('Content-Type', contentType);
+          res.end(buf);
         } catch (e) {
           res.statusCode = 500;
           res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));

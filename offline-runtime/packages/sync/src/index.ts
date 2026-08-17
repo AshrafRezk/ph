@@ -30,8 +30,78 @@ import {
   upsertStaticResource,
   appendLog,
   nowIso,
-  listApps
+  listApps,
+  getLayoutsForObject,
+  listListViewsForObject,
+  getCompactLayoutForObject
 } from '@osr/db';
+
+const SYNC_FIELD_BASE = ['Id', 'Name', 'Subject', 'SystemModstamp'] as const;
+const MAX_SYNC_FIELDS = 120;
+
+function fieldsFromLayoutJson(layout: unknown, out: Set<string>): void {
+  if (!layout || typeof layout !== 'object') return;
+  const o = layout as Record<string, unknown>;
+  for (const f of (o.highlightsFields as string[] | undefined) ?? []) {
+    if (f) out.add(f);
+  }
+  if (typeof o.pathField === 'string' && o.pathField) out.add(o.pathField);
+  for (const s of (o.sections as { columns?: unknown[][] }[] | undefined) ?? []) {
+    for (const col of s.columns ?? []) {
+      for (const cell of col ?? []) {
+        const field =
+          typeof cell === 'string'
+            ? cell
+            : typeof cell === 'object' && cell && 'field' in cell
+              ? String((cell as { field?: string }).field ?? '')
+              : '';
+        if (field) out.add(field);
+      }
+    }
+  }
+  for (const rl of (o.relatedLists as { lookupField?: string; fields?: string[] }[] | undefined) ??
+    []) {
+    if (rl.lookupField) out.add(rl.lookupField);
+    for (const f of rl.fields ?? []) {
+      if (f) out.add(f);
+    }
+  }
+}
+
+/** Derive SOQL field list from synced layouts, list views, and compact layout. */
+export async function collectSyncFieldsFromLocalMetadata(
+  db: SqlExecutor,
+  objectApi: string
+): Promise<string[]> {
+  const fields = new Set<string>(SYNC_FIELD_BASE);
+  for (const layout of await getLayoutsForObject(db, objectApi)) {
+    fieldsFromLayoutJson(layout, fields);
+  }
+  for (const lv of await listListViewsForObject(db, objectApi)) {
+    const cols = lv.listview.columns;
+    if (!Array.isArray(cols)) continue;
+    for (const c of cols) {
+      const f = typeof c === 'string' ? c : c?.fieldOrColumn;
+      if (f) fields.add(f);
+    }
+  }
+  const compact = await getCompactLayoutForObject(db, objectApi);
+  for (const f of compact?.compact?.fields ?? []) {
+    if (f) fields.add(f);
+  }
+  return [...fields].slice(0, MAX_SYNC_FIELDS);
+}
+
+function mergeObjectSyncFields(existing: string[] | undefined, discovered: string[]): string[] {
+  const merged = new Set<string>(['Id', 'SystemModstamp']);
+  for (const f of existing ?? []) {
+    if (f) merged.add(f);
+  }
+  for (const f of discovered) {
+    if (f) merged.add(f);
+  }
+  return [...merged].slice(0, MAX_SYNC_FIELDS);
+}
 
 export interface OAuthConfig {
   loginUrl: string;
@@ -221,7 +291,7 @@ export async function sfFetch(
     method,
     headers: {
       Authorization: `Bearer ${opts.accessToken}`,
-      Accept: 'application/json',
+      Accept: opts.headers?.Accept ?? 'application/json',
       ...(opts.body != null && method !== 'GET' && method !== 'DELETE'
         ? { 'Content-Type': 'application/json' }
         : {}),
@@ -235,6 +305,26 @@ export async function sfFetch(
         : undefined,
     signal: opts.signal
   });
+}
+
+/** Fetch binary Salesforce content (CLM slide PNGs, PDFs) through the same proxy as sfFetch. */
+export async function sfFetchArrayBuffer(
+  url: string,
+  accessToken: string,
+  signal?: AbortSignal
+): Promise<{ buffer: ArrayBuffer; contentType: string }> {
+  const res = await sfFetch(url, {
+    accessToken,
+    signal,
+    headers: { Accept: '*/*' }
+  });
+  if (!res.ok) {
+    throw new Error(`SF GET ${url} → ${res.status}`);
+  }
+  return {
+    buffer: await res.arrayBuffer(),
+    contentType: res.headers.get('content-type') || 'application/octet-stream'
+  };
 }
 
 /** Sync Pack REST paths */
@@ -641,6 +731,12 @@ export class SyncEngine {
       }
     }
 
+    // Tab-discovered objects (e.g. Coaching_Event__c) were Id-only — merge layout/list fields.
+    for (const o of objects) {
+      const discovered = await collectSyncFieldsFromLocalMetadata(this.db, o.apiName);
+      o.fields = mergeObjectSyncFields(o.fields, discovered);
+    }
+
     return {
       ...profile,
       objects,
@@ -932,6 +1028,65 @@ export class SyncEngine {
       }
     }
     return { count: total, errors: objectErrors };
+  }
+
+  /** Fetch one record when local SQLite is missing or only has Id/stamp. */
+  async fetchRecordById(
+    objectApi: string,
+    recordId: string,
+    fields?: string[],
+    apiVersion = '61.0'
+  ): Promise<Record<string, unknown> | null> {
+    if (!recordId || recordId.startsWith('local_')) return null;
+    const fieldList = fields?.length
+      ? mergeObjectSyncFields(fields, [])
+      : await collectSyncFieldsFromLocalMetadata(this.db, objectApi);
+    if (!fieldList.length) return null;
+
+    try {
+      const qs = fieldList.map(encodeURIComponent).join(',');
+      const rec = await this.client.get<Record<string, unknown>>(
+        `/services/data/v${apiVersion}/sobjects/${encodeURIComponent(objectApi)}/${encodeURIComponent(recordId)}?fields=${qs}`
+      );
+      if (rec?.Id) {
+        await upsertRecord(
+          this.db,
+          objectApi,
+          String(rec.Id),
+          rec,
+          String(rec.SystemModstamp ?? '')
+        );
+        return rec;
+      }
+    } catch {
+      /* REST by Id unavailable — try Sync Pack data API */
+    }
+
+    try {
+      const page = await this.client.post<{
+        records?: Record<string, unknown>[];
+        error?: string | null;
+      }>(OSR_API.data, {
+        objectApi,
+        fields: fieldList,
+        filter: `Id = '${recordId.replace(/'/g, "\\'")}'`,
+        pageSize: 1
+      });
+      const rec = page.records?.[0];
+      if (rec?.Id) {
+        await upsertRecord(
+          this.db,
+          objectApi,
+          String(rec.Id),
+          rec,
+          String(rec.SystemModstamp ?? '')
+        );
+        return rec;
+      }
+    } catch {
+      /* offline or denied */
+    }
+    return null;
   }
 
   async pullFiles(profile: SyncProfile): Promise<number> {

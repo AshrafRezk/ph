@@ -1,15 +1,6 @@
 /**
- * Proxies Salesforce REST / Apex REST calls from the browser to avoid CORS.
- * Browser ? Netlify ? Salesforce (server-side; no CORS).
- *
- * POST JSON:
- * {
- *   url: "https://….my.salesforce.com/services/…",
- *   method: "GET"|"POST"|"PATCH"|"PUT"|"DELETE",
- *   authorization: "Bearer …",
- *   body: object | string | null,
- *   headers?: Record<string, string>
- * }
+ * Proxies authenticated Salesforce REST/content requests (CORS-safe for web shell).
+ * POST JSON: { url, method, authorization, body?, headers? }
  */
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -18,64 +9,50 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers: corsHeaders(), body: 'Method Not Allowed' };
   }
-
   try {
-    const body = JSON.parse(event.body || '{}');
-    const targetUrl = String(body.url || '');
-    const method = String(body.method || 'GET').toUpperCase();
-    const authorization = body.authorization || body.Authorization || '';
-
-    if (!isAllowedSalesforceUrl(targetUrl)) {
+    const payload = JSON.parse(event.body || '{}');
+    const targetUrl = String(payload.url || '');
+    if (!targetUrl.startsWith('https://')) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders(),
+        body: JSON.stringify({ error: 'HTTPS URL required' })
+      };
+    }
+    const host = new URL(targetUrl).hostname.toLowerCase();
+    const allowed =
+      host === 'login.salesforce.com' ||
+      host === 'test.salesforce.com' ||
+      host.endsWith('.salesforce.com') ||
+      host.endsWith('.force.com') ||
+      host.endsWith('.site.com') ||
+      host.endsWith('.salesforce-sites.com');
+    if (!allowed) {
       return {
         statusCode: 400,
         headers: corsHeaders(),
         body: JSON.stringify({ error: 'URL host is not an allowed Salesforce endpoint' })
       };
     }
-    if (!['GET', 'POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders(),
-        body: JSON.stringify({ error: `Unsupported method: ${method}` })
-      };
+    const method = String(payload.method || 'GET').toUpperCase();
+    const headers = { ...(payload.headers || {}) };
+    if (payload.authorization) headers.Authorization = payload.authorization;
+    let body;
+    if (payload.body != null && method !== 'GET' && method !== 'DELETE') {
+      body = typeof payload.body === 'string' ? payload.body : JSON.stringify(payload.body);
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
-
-    const headers = {
-      Accept: 'application/json',
-      ...(body.headers && typeof body.headers === 'object' ? body.headers : {})
-    };
-    if (authorization) {
-      headers.Authorization = authorization;
-    }
-
-    let upstreamBody;
-    if (body.body != null && method !== 'GET' && method !== 'DELETE') {
-      if (typeof body.body === 'string') {
-        upstreamBody = body.body;
-        if (!headers['Content-Type'] && !headers['content-type']) {
-          headers['Content-Type'] = 'application/json';
-        }
-      } else {
-        upstreamBody = JSON.stringify(body.body);
-        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-      }
-    }
-
-    const res = await fetch(targetUrl, {
-      method,
-      headers,
-      body: upstreamBody
-    });
-    const text = await res.text();
-    const contentType = res.headers.get('content-type') || 'application/json';
-
+    const upstream = await fetch(targetUrl, { method, headers, body });
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const buf = Buffer.from(await upstream.arrayBuffer());
     return {
-      statusCode: res.status,
+      statusCode: upstream.status,
       headers: {
         ...corsHeaders(),
         'Content-Type': contentType
       },
-      body: text
+      isBase64Encoded: true,
+      body: buf.toString('base64')
     };
   } catch (e) {
     return {
@@ -85,24 +62,6 @@ exports.handler = async function (event) {
     };
   }
 };
-
-function isAllowedSalesforceUrl(urlStr) {
-  try {
-    const u = new URL(urlStr);
-    if (u.protocol !== 'https:') return false;
-    const h = u.hostname.toLowerCase();
-    return (
-      h === 'login.salesforce.com' ||
-      h === 'test.salesforce.com' ||
-      h.endsWith('.salesforce.com') ||
-      h.endsWith('.force.com') ||
-      h.endsWith('.site.com') ||
-      h.endsWith('.salesforce-sites.com')
-    );
-  } catch {
-    return false;
-  }
-}
 
 function corsHeaders() {
   return {

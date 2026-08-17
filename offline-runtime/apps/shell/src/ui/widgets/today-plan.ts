@@ -11,7 +11,6 @@ import { createOsrMap, pinKindFromRecordType, type OsrMapHandle } from '../map/o
 import { sldsButton } from '../slds/primitives';
 
 const mapHandles = new WeakMap<Element, OsrMapHandle>();
-let activeTodayMap: OsrMapHandle | null = null;
 
 export function renderFidelityTodayPlan(opts: {
   label: string;
@@ -59,13 +58,8 @@ export function renderFidelityTodayPlan(opts: {
   const selected = opts.selectedVisitId ?? visits[0]?.id ?? null;
 
   const mountMap = (el: Element | undefined) => {
-    if (!(el instanceof HTMLElement)) {
-      if (activeTodayMap) {
-        activeTodayMap.destroy();
-        activeTodayMap = null;
-      }
-      return;
-    }
+    // Lit calls ref(undefined) before every re-render; do not destroy the map there.
+    if (!(el instanceof HTMLElement)) return;
     const markers = visits
       .filter((v) => Number.isFinite(Number(v.accountLatitude)) && Number.isFinite(Number(v.accountLongitude)))
       .map((v) => ({
@@ -77,6 +71,10 @@ export function renderFidelityTodayPlan(opts: {
         selected: String(v.id) === String(selected)
       }));
     let handle = mapHandles.get(el);
+    if (handle && !handle.isAlive()) {
+      mapHandles.delete(el);
+      handle = undefined;
+    }
     if (!handle) {
       handle = createOsrMap(el, {
         markers,
@@ -88,7 +86,6 @@ export function renderFidelityTodayPlan(opts: {
       handle.setMarkers(markers);
       handle.invalidateSize();
     }
-    activeTodayMap = handle;
     if (selected) handle.flyToId(String(selected));
   };
 

@@ -47,7 +47,13 @@ import {
   type TokenSet
 } from '../auth/oauth';
 import type { SyncProgress, OutboxPushFailure } from '@osr/sync';
-import { sundayWeekRange, isoDateLocal, localSaveRecord, localDeleteRecord } from '@osr/sync';
+import {
+  sundayWeekRange,
+  isoDateLocal,
+  localSaveRecord,
+  localDeleteRecord,
+  collectSyncFieldsFromLocalMetadata
+} from '@osr/sync';
 import {
   buildVisitPayload,
   shiftVisitPayload,
@@ -67,6 +73,7 @@ import {
   loadNavigation,
   loadHomeView,
   loadRecordView,
+  isSparseRecord,
   loadRelatedLists,
   saveWithValidation,
   getConflicts,
@@ -120,6 +127,7 @@ import {
   type ApexCacheSnapshot,
   loadApexCacheSnapshot,
   ensurePlannerAccountsFallback,
+  accountRecordFromSummary,
   type VisitSummaryDto,
   type PlannerPayloadDto,
   haversineKm
@@ -131,6 +139,7 @@ import {
 } from './fidelity/bridge';
 import { mirrorStyles } from './widgets/mirror-styles';
 import { renderAccountHub } from './widgets/account-panels';
+import { prefetchAllPresentations } from './clm/clm-content-cache';
 
 const CURRENT_APP_KEY = 'osr.currentApp';
 const SYNC_SUCCESS_COUNT_KEY = 'osr.sync.successCount';
@@ -538,6 +547,8 @@ export class OsrApp extends LitElement {
   @state() private selectedContextUserId: string | null = null;
   /** When set, CLM player overlay is shown above visit shell / tabs. */
   @state() private clmPlayerOverlayOpen = false;
+  @state() private clmPrefetching = false;
+  private clmAssetsPrefetched = false;
 
   private removeDeepLink?: () => void;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -3089,6 +3100,7 @@ export class OsrApp extends LitElement {
           : 'No apps returned from Sync Pack. Tap Retry.';
       }
       if (this.online && this.tokens) this.startBackgroundSync();
+      void this.prefetchClmAssets();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.status = opts.background ? `Background sync: ${msg}` : `Sync failed: ${msg}`;
@@ -3664,6 +3676,10 @@ export class OsrApp extends LitElement {
       clmPlayerId: this.clmPlayerId,
       myLearningInstanceId: this.myLearningInstanceId,
       iframeHeights: this.iframeHeights,
+      sfAuth: this.tokens
+        ? { accessToken: this.tokens.accessToken, instanceUrl: this.tokens.instanceUrl }
+        : null,
+      clmPrefetching: this.clmPrefetching,
       requestUpdate: () => this.requestUpdate(),
       actions: {
         openPlanner: () => {
@@ -3698,6 +3714,9 @@ export class OsrApp extends LitElement {
               t.tab.lwcBundle?.includes('clmPresentations')
           );
           if (tab) void this.openAppTab(tab);
+        },
+        prefetchClmAssets: () => {
+          void this.prefetchClmAssets(true);
         },
         openClmPlayer: (presentationId) => {
           this.clmPlayerId = presentationId;
@@ -4466,7 +4485,32 @@ export class OsrApp extends LitElement {
     this.editing = false;
     this.updateFormFactor();
     const view = await loadRecordView(this.db, objectApi, recordId);
-    this.record = view.record;
+    let record = view.record;
+
+    if (isSparseRecord(record) && objectApi === 'Account') {
+      const fromSnap = accountRecordFromSummary(recordId, this.apexSnapshot);
+      if (fromSnap) record = record ? { ...fromSnap, ...record } : fromSnap;
+    }
+    if (
+      isSparseRecord(record) &&
+      this.route.kind === 'list' &&
+      this.route.objectApi === objectApi
+    ) {
+      const row = this.listRows.find((r) => String(r.Id) === recordId);
+      if (row) record = record ? { ...row, ...record } : { ...row };
+    }
+    if (isSparseRecord(record) && this.online && this.tokens) {
+      try {
+        const { engine } = await createLiveSyncEngine(this.db, this.tokens);
+        const fields = await collectSyncFieldsFromLocalMetadata(this.db, objectApi);
+        const fetched = await engine.fetchRecordById(objectApi, recordId, fields);
+        if (fetched) record = record ? { ...record, ...fetched } : fetched;
+      } catch {
+        /* stay on cached / partial row */
+      }
+    }
+
+    this.record = record;
     this.layout = view.layout as LayoutModel | null;
     this.flexiPage = view.flexiPage;
     this.objectDescribe = view.describe ?? (await getObjectDescribe(this.db, objectApi));
@@ -5941,6 +5985,28 @@ export class OsrApp extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  private async prefetchClmAssets(force = false): Promise<void> {
+    if ((!force && this.clmAssetsPrefetched) || !this.tokens || !this.online || this.clmPrefetching) {
+      return;
+    }
+    const presentations = (this.apexSnapshot?.clmManifest?.presentations ??
+      []) as import('./clm/clm-content-cache').ClmPresentationAsset[];
+    if (!presentations?.length) return;
+    this.clmPrefetching = true;
+    try {
+      await prefetchAllPresentations(presentations, {
+        accessToken: this.tokens.accessToken,
+        instanceUrl: this.tokens.instanceUrl
+      });
+      this.clmAssetsPrefetched = true;
+      this.status = `Cached slide images for ${presentations.length} CLM deck(s)`;
+    } catch (e) {
+      console.warn('CLM slide prefetch failed', e);
+    } finally {
+      this.clmPrefetching = false;
+    }
   }
 
   /** CLM player + sentiment/ratings — sits above visit shell so Open actually launches. */

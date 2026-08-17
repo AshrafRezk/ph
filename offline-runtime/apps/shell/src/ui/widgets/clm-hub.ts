@@ -1,21 +1,25 @@
 import { html, nothing, type TemplateResult } from 'lit';
+import {
+  type ClmAuth,
+  deleteCachedClmAsset,
+  getPresentationPdfObjectUrl,
+  getSlideMediaObjectUrl,
+  prefetchAllPresentations,
+  type ClmPresentationAsset
+} from '../clm/clm-content-cache';
 
-type Presentation = {
-  id?: string;
-  presentationId?: string;
-  name?: string;
+type Presentation = ClmPresentationAsset & {
   title?: string;
   productName?: string;
   status?: string;
-  formatType?: string;
   slideCount?: number;
-  sequences?: {
-    id?: string;
-    name?: string;
-    order?: number;
-    messageNames?: string;
-    productNames?: string;
-  }[];
+};
+
+type SlideView = {
+  title: string;
+  messages: string[];
+  imagePath?: string | null;
+  pageNumber?: number | null;
 };
 
 type Sentiment = 'Negative' | 'Neutral' | 'Positive';
@@ -38,6 +42,12 @@ type PlayerState = {
   ratingNotes: string;
   ratingScore: string;
   saved: boolean;
+  slideSrc: string | null;
+  slideLoading: boolean;
+  slideError: string | null;
+  slideLoadKey: string | null;
+  slideIsPdfEmbed: boolean;
+  slideRetried: boolean;
 };
 
 const DEFAULT_MESSAGES = ['EFFICACY', 'INDICATION', 'SAFETY', 'SIDE EFFECTS', 'USAGE'];
@@ -57,26 +67,129 @@ function nameOf(p: Presentation): string {
   return String(p.name ?? p.title ?? 'Presentation');
 }
 
-function slidesFor(p: Presentation | null): { title: string; messages: string[] }[] {
+function slidesFor(p: Presentation | null): SlideView[] {
   if (!p) return [{ title: 'Slide 1', messages: DEFAULT_MESSAGES }];
   const seqs = (p.sequences || [])
     .slice()
-    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+    .sort(
+      (a, b) =>
+        Number(a.sequenceOrder ?? a.order ?? 0) - Number(b.sequenceOrder ?? b.order ?? 0)
+    );
   if (seqs.length) {
     return seqs.map((s, i) => ({
-      title: s.name || `Slide ${i + 1}`,
+      title: s.sequenceName || s.name || `Slide ${i + 1}`,
       messages: String(s.messageNames || '')
         .split(/[;,]/)
         .map((x) => x.trim())
         .filter(Boolean)
-        .map((x) => x.toUpperCase())
+        .map((x) => x.toUpperCase()),
+      imagePath: s.slideImageUrl || s.thumbnailUrl || null,
+      pageNumber: s.pageNumber ?? i + 1
     }));
   }
   const count = Math.max(1, Number(p.slideCount) || 8);
   return Array.from({ length: Math.min(count, 24) }, (_, i) => ({
     title: `Slide ${i + 1}`,
-    messages: i === 0 || i === count - 1 ? DEFAULT_MESSAGES.slice(0, 3) : []
+    messages: i === 0 || i === count - 1 ? DEFAULT_MESSAGES.slice(0, 3) : [],
+    imagePath: null,
+    pageNumber: i + 1
   }));
+}
+
+async function resolveSlideSrc(
+  p: Presentation,
+  slide: SlideView,
+  auth: ClmAuth | null | undefined,
+  online: boolean,
+  skipCache = false
+): Promise<{ src: string | null; isPdfEmbed: boolean; error: string | null }> {
+  if (!auth) {
+    return { src: null, isPdfEmbed: false, error: 'Sign in while online to download slides.' };
+  }
+  try {
+    if (slide.imagePath) {
+      const media = await getSlideMediaObjectUrl(slide.imagePath, auth, online, { skipCache });
+      if (media) {
+        if (media.kind === 'pdf') {
+          const page = slide.pageNumber ?? 1;
+          return { src: `${media.objectUrl}#page=${page}`, isPdfEmbed: true, error: null };
+        }
+        return { src: media.objectUrl, isPdfEmbed: false, error: null };
+      }
+    }
+    if (p.formatType === 'PDF' && p.contentDocumentId) {
+      const pdfUrl = await getPresentationPdfObjectUrl(p.contentDocumentId, auth, online);
+      if (pdfUrl) {
+        const page = slide.pageNumber ?? 1;
+        return { src: `${pdfUrl}#page=${page}`, isPdfEmbed: true, error: null };
+      }
+    }
+    if (!online) {
+      return {
+        src: null,
+        isPdfEmbed: false,
+        error: 'Slide not cached. Sync on Home while online, then open CLM again.'
+      };
+    }
+    return { src: null, isPdfEmbed: false, error: 'No slide image available for this deck.' };
+  } catch (e) {
+    return {
+      src: null,
+      isPdfEmbed: false,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+}
+
+function scheduleSlideLoad(
+  p: Presentation | null,
+  state: PlayerState,
+  slideIndex: number,
+  auth: ClmAuth | null | undefined,
+  online: boolean,
+  bump: () => void,
+  skipCache = false
+): void {
+  if (!p || state.phase !== 'play') return;
+  const slides = slidesFor(p);
+  const slide = slides[Math.min(slideIndex, slides.length - 1)];
+  const loadKey = `${idOf(p)}:${slideIndex}${skipCache ? ':fresh' : ''}`;
+  if (!skipCache && state.slideLoadKey === loadKey && (state.slideLoading || state.slideSrc)) return;
+  state.slideLoadKey = loadKey;
+  state.slideLoading = true;
+  state.slideSrc = null;
+  state.slideError = null;
+  state.slideIsPdfEmbed = false;
+  bump();
+  void resolveSlideSrc(p, slide, auth, online, skipCache).then((result) => {
+    if (state.slideLoadKey !== loadKey) return;
+    state.slideSrc = result.src;
+    state.slideIsPdfEmbed = result.isPdfEmbed;
+    state.slideError = result.error;
+    state.slideLoading = false;
+    bump();
+  });
+}
+
+function handleSlideImageError(
+  p: Presentation | null,
+  slide: SlideView | undefined,
+  state: PlayerState,
+  auth: ClmAuth | null | undefined,
+  online: boolean,
+  bump: () => void
+): void {
+  if (!slide?.imagePath || !auth || state.slideRetried) {
+    state.slideSrc = null;
+    state.slideError = 'Slide image failed to load.';
+    bump();
+    return;
+  }
+  state.slideRetried = true;
+  void deleteCachedClmAsset(slide.imagePath).then(() => {
+    state.slideLoadKey = null;
+    scheduleSlideLoad(p, state, state.slideIndex, auth, online, bump, true);
+  });
 }
 
 function stateFor(presentationId: string, visitId?: string | null): PlayerState {
@@ -96,14 +209,20 @@ function stateFor(presentationId: string, visitId?: string | null): PlayerState 
       overlayOpen: false,
       ratingNotes: '',
       ratingScore: '',
-      saved: false
+      saved: false,
+      slideSrc: null,
+      slideLoading: false,
+      slideError: null,
+      slideLoadKey: null,
+      slideIsPdfEmbed: false,
+      slideRetried: false
     };
     playerUi.set(key, s);
   }
   return s;
 }
 
-function collectMessagesFromSlides(slides: { messages: string[] }[]): MessageRow[] {
+function collectMessagesFromSlides(slides: SlideView[]): MessageRow[] {
   const names = new Set<string>();
   for (const s of slides) for (const m of s.messages) names.add(m);
   const list = names.size ? Array.from(names) : DEFAULT_MESSAGES;
@@ -264,6 +383,8 @@ export function renderClmPlayer(opts: {
   presentationId: string | null;
   presentations: unknown[] | null;
   visitId?: string | null;
+  sfAuth?: ClmAuth | null;
+  online?: boolean;
   onBack?: () => void;
   onComplete?: (payload: {
     presentationId: string;
@@ -291,6 +412,7 @@ export function renderClmPlayer(opts: {
   const state = stateFor(presentationId || 'unknown', opts.visitId);
   const slides = slidesFor(p);
   const slide = slides[Math.min(state.slideIndex, slides.length - 1)];
+  scheduleSlideLoad(p, state, state.slideIndex, opts.sfAuth, opts.online ?? false, bump);
   const slideMessages = slide?.messages?.length
     ? slide.messages
     : [];
@@ -340,23 +462,40 @@ export function renderClmPlayer(opts: {
 
       ${state.phase === 'play'
         ? html`
-            <div
-              style="position:relative;flex:1;min-height:16rem;background:linear-gradient(160deg,#032d60 0%,#014486 55%,#0176d3 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;text-align:center"
-            >
-              <div style="font-size:0.75rem;opacity:0.85;letter-spacing:0.06em;text-transform:uppercase">
-                ${p?.formatType || 'CLM'} · offline session
-              </div>
-              <h2 style="margin:0.75rem 0 0.35rem;font-size:1.5rem">${slide?.title || 'Slide'}</h2>
-              <p style="margin:0;opacity:0.9;max-width:28rem">
-                ${p
-                  ? 'Advance slides, capture message sentiment, then save ratings to the outbox.'
-                  : 'Presentation not in the offline manifest — demo mode.'}
-              </p>
+            <div class="clm-slide-stage">
+              ${state.slideLoading
+                ? html`<div class="clm-slide-status">Loading slide…</div>`
+                : nothing}
+              ${state.slideSrc && state.slideIsPdfEmbed
+                ? html`<iframe
+                    class="clm-slide-pdf"
+                    title=${slide?.title || 'Slide'}
+                    src=${state.slideSrc}
+                  ></iframe>`
+                : state.slideSrc
+                  ? html`<img
+                      class="clm-slide-image"
+                      src=${state.slideSrc}
+                      alt=${slide?.title || 'Slide'}
+                      @error=${() =>
+                        handleSlideImageError(p, slide, state, opts.sfAuth, opts.online ?? false, bump)}
+                    />`
+                  : html`<div class="clm-slide-fallback">
+                      <div class="clm-slide-fallback-kicker">
+                        ${p?.formatType || 'CLM'} · ${opts.online ? 'online' : 'offline'}
+                      </div>
+                      <h2>${slide?.title || 'Slide'}</h2>
+                      <p>
+                        ${state.slideError ||
+                        (p
+                          ? 'Slide image unavailable — open Home while online to cache deck assets.'
+                          : 'Presentation not in the offline manifest.')}
+                      </p>
+                    </div>`}
               ${slideMessages.length
                 ? html`<button
                     type="button"
-                    class="slds-button slds-button_neutral slds-m-top_medium"
-                    style="color:#032d60"
+                    class="slds-button slds-button_neutral clm-capture-btn"
                     @click=${openOverlay}
                   >
                     Capture ${slideMessages.length} message${slideMessages.length === 1 ? '' : 's'}
@@ -422,6 +561,7 @@ export function renderClmPlayer(opts: {
                 ?disabled=${state.slideIndex <= 0}
                 @click=${() => {
                   state.slideIndex = Math.max(0, state.slideIndex - 1);
+                  state.slideRetried = false;
                   bump();
                 }}
               >
@@ -433,6 +573,7 @@ export function renderClmPlayer(opts: {
                 ?disabled=${state.slideIndex >= slides.length - 1}
                 @click=${() => {
                   state.slideIndex = Math.min(slides.length - 1, state.slideIndex + 1);
+                  state.slideRetried = false;
                   bump();
                 }}
               >
