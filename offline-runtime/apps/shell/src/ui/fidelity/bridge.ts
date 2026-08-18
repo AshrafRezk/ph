@@ -35,6 +35,19 @@ import {
 import { renderCoachingEventEvaluation, renderCoachingEventInsights } from '../widgets/coaching-event';
 import { renderMyLearning } from '../widgets/my-learning';
 import { renderPharmacySalesDashboard } from '../widgets/pharmacy-sales-dashboard';
+import { renderAdminConsole } from '../widgets/admin-console';
+import {
+  renderIntegrationsManagement,
+  renderClmAdminConsole,
+  renderCoachingTemplateManager,
+  renderTerritoryManagementConsole,
+  renderBricksManagementConsole,
+  renderProductTerritoryManager,
+  renderPlanCycleManager,
+  renderPharmacySalesDataAdmin,
+  renderClmRatingLayoutEditor,
+  type AdminModuleContext
+} from '../widgets/admin-modules';
 import { renderLwcIframe } from '../lwc-iframe';
 import type { LocationTrackerState } from '../../location/rep-location-tracker';
 import type { PlannerAccountFilters, PlannerCollection } from '../planner-accounts';
@@ -79,6 +92,11 @@ export interface FidelityCtx {
   myLearningInstanceId?: string | null;
   iframeHeights?: Record<string, number>;
   sfAuth?: { accessToken: string; instanceUrl: string } | null;
+  db?: SqlExecutor | null;
+  invokeAdminApex?: (method: string, params?: Record<string, unknown>) => Promise<unknown>;
+  openRecord?: (objectApi: string, id: string) => void;
+  openTab?: (developerName: string) => void;
+  toast?: (detail: { title?: string; message?: string; variant?: string }) => void;
   clmPrefetching?: boolean;
   requestUpdate?: () => void;
   actions: {
@@ -161,6 +179,19 @@ export interface FidelityCtx {
 }
 
 type LitRenderer = (ctx: FidelityCtx) => TemplateResult | typeof nothing | null;
+
+function buildAdminModuleCtx(ctx: FidelityCtx, embedded = false): AdminModuleContext {
+  return {
+    embedded,
+    online: ctx.online,
+    db: ctx.db ?? null,
+    sfAuth: ctx.sfAuth ?? null,
+    invokeApex: ctx.invokeAdminApex,
+    toast: ctx.toast,
+    openRecord: ctx.openRecord,
+    openTab: ctx.openTab
+  };
+}
 
 const litRenderers = new Map<string, LitRenderer>();
 
@@ -485,6 +516,27 @@ register('c/pharmacySalesDashboard', (ctx) =>
     online: ctx.online
   })
 );
+
+register('c/adminConsole', (ctx) =>
+  renderAdminConsole({
+    label: ctx.label,
+    moduleCtx: buildAdminModuleCtx(ctx)
+  })
+);
+
+register('c/integrationsManagementConsole', (ctx) =>
+  renderIntegrationsManagement(buildAdminModuleCtx(ctx))
+);
+register('c/clmAdminConsole', (ctx) => renderClmAdminConsole(buildAdminModuleCtx(ctx, true)));
+register('c/clmRatingLayoutEditor', (ctx) => renderClmRatingLayoutEditor(buildAdminModuleCtx(ctx)));
+register('c/coachingTemplateManager', (ctx) => renderCoachingTemplateManager(buildAdminModuleCtx(ctx)));
+register('c/territoryManagementConsole', (ctx) =>
+  renderTerritoryManagementConsole(buildAdminModuleCtx(ctx))
+);
+register('c/bricksManagementConsole', (ctx) => renderBricksManagementConsole(buildAdminModuleCtx(ctx)));
+register('c/productTerritoryManager', (ctx) => renderProductTerritoryManager(buildAdminModuleCtx(ctx)));
+register('c/planCycleManager', (ctx) => renderPlanCycleManager(buildAdminModuleCtx(ctx)));
+register('c/pharmacySalesDataAdmin', (ctx) => renderPharmacySalesDataAdmin(buildAdminModuleCtx(ctx)));
 
 /** Visit child slots — point at visit shell sections via thin cards when mounted alone. */
 for (const b of [

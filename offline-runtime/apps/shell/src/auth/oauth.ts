@@ -1,5 +1,5 @@
 import type { SqlExecutor } from '@osr/db';
-import { nowIso } from '@osr/db';
+import { nowIso, upsertApexPayload } from '@osr/db';
 import {
   type OAuthConfig,
   type TokenSet,
@@ -420,6 +420,18 @@ export const KNOWN_OFFLINE_TAB_OVERRIDES: Record<
   Pharmacy_Sales_Dashboard: {
     label: 'Pharmacy Sales',
     tab: { tabType: 'lwc', lwcBundle: 'c/pharmacySalesDashboard' }
+  },
+  Admin_Console: {
+    label: 'Admin Console',
+    tab: { tabType: 'lwc', lwcBundle: 'c/adminConsole' }
+  },
+  'standard-Dashboard': {
+    label: 'Dashboards',
+    tab: { tabType: 'lwc', lwcBundle: 'c/reportsHub' }
+  },
+  'standard-report': {
+    label: 'Reports',
+    tab: { tabType: 'lwc', lwcBundle: 'c/reportsHub' }
   }
 };
 
@@ -1508,6 +1520,20 @@ async function buildPharmacySalesRestPayload(
       pharmacySalesInsights: buildPharmacySalesInsightsMockPayload()
     };
   }
+}
+
+/** Pull pharmacy sales DTOs via REST when Sync Pack apex-cache key is missing or empty. */
+export async function pullPharmacySalesApexCache(
+  db: SqlExecutor,
+  tokens: TokenSet
+): Promise<boolean> {
+  const client = createSfClient(tokens);
+  const sfGet: SfGet = (path) => client.get(path);
+  const { pharmacySalesData, pharmacySalesInsights } = await buildPharmacySalesRestPayload(sfGet);
+  await upsertApexPayload(db, 'pharmacySalesData', pharmacySalesData);
+  await upsertApexPayload(db, 'pharmacySalesInsights', pharmacySalesInsights);
+  const rows = (pharmacySalesData as { detailRows?: unknown[] } | null)?.detailRows;
+  return (rows?.length ?? 0) > 0;
 }
 
 /** Build Sync Pack–shaped apex-cache entries from standard REST SOQL (no Sync Pack). */

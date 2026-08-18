@@ -55,13 +55,15 @@ test('pickUserNavItems prefers Small on phone', () => {
   assert.equal(pickUserNavItems(app, 'Large')?.[0].developerName, 'Account');
 });
 
-test('synthesizeTabFromUserNavItem maps entity tabs to objects', () => {
-  const tab = synthesizeTabFromUserNavItem({
-    developerName: 'Visit__c',
-    label: 'Visits',
-    itemType: 'Entity',
-    objectApiName: 'Visit__c'
-  });
-  assert.equal(tab.tab.objectApi, 'Visit__c');
-  assert.equal(tab.tab.tabType, 'object');
+test('resolveTabsFromUserNav synthesizes standard report and dashboard tabs', () => {
+  const ordered = resolveTabsFromUserNav(
+    [
+      { developerName: 'standard-Dashboard', label: 'Dashboards', itemType: 'Standard' },
+      { developerName: 'Pharmacy_Sales_Dashboard', label: 'Pharmacy Sales', itemType: 'TabFlexiPage' }
+    ],
+    []
+  );
+  assert.equal(ordered.length, 2);
+  assert.equal(ordered[0].tab.lwcBundle, 'c/reportsHub');
+  assert.equal(ordered[1].developerName, 'Pharmacy_Sales_Dashboard');
 });

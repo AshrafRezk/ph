@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDatabase } from '@osr/db';
-import { SyncEngine, createMockSyncClient, isSalesforceRecordId, localSaveRecord, parseUiNavRecords, syncChannelLabel, uiAppRecordId } from './index.js';
+import { SyncEngine, createMockSyncClient, isSalesforceRecordId, localSaveRecord, parseUiNavRecords, shouldSyncUserNavForApp, syncChannelLabel, uiAppRecordId } from './index.js';
 
 test('isSalesforceRecordId accepts 15/18-char ids only', () => {
   assert.equal(isSalesforceRecordId('06m3B000000CbQ3QAK'), true);
@@ -23,6 +23,30 @@ test('parseUiNavRecords skips items without developerName', () => {
   ]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].developerName, 'Visit__c');
+});
+
+test('shouldSyncUserNavForApp skips bare portal apps', () => {
+  assert.equal(
+    shouldSyncUserNavForApp({
+      developerName: 'LightningSales',
+      app: {
+        tabDeveloperNames: [
+          'Field_Rep_Planner',
+          'Accounts_Tab',
+          'Visit__c',
+          'CLM_Presentations'
+        ]
+      }
+    }),
+    true
+  );
+  assert.equal(
+    shouldSyncUserNavForApp({
+      developerName: 'Portal',
+      app: { tabDeveloperNames: ['Account', 'Contact'] }
+    }),
+    false
+  );
 });
 
 test('mock full sync primes metadata and data', async () => {

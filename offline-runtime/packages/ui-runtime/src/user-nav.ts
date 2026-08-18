@@ -111,6 +111,24 @@ export function synthesizeTabFromUserNavItem(item: UserNavItem): NavTabRow {
   const label = item.label?.trim() || developerName.replace(/_/g, ' ');
   const itemType = String(item.itemType ?? '');
 
+  if (itemType === 'Standard' || developerName.startsWith('standard-')) {
+    const std = developerName.replace(/^standard-/, '').toLowerCase();
+    if (std === 'dashboard') {
+      return {
+        developerName,
+        label: label || 'Dashboards',
+        tab: { tabType: 'lwc', lwcBundle: 'c/reportsHub', iconUrl: item.iconUrl ?? null }
+      };
+    }
+    if (std === 'report') {
+      return {
+        developerName,
+        label: label || 'Reports',
+        tab: { tabType: 'lwc', lwcBundle: 'c/reportsHub', iconUrl: item.iconUrl ?? null }
+      };
+    }
+  }
+
   if (itemType === 'Entity' || pr?.type === 'standard__objectPage') {
     const api = prObjectApi || objectApi || developerName;
     return {

@@ -40,6 +40,7 @@ import {
   installOAuthDeepLinkHandler,
   clearSession,
   loadSession,
+  pullPharmacySalesApexCache,
   loginUrlFromPageParams,
   extractMyDomainLabel,
   myDomainLoginUrlFromLabel,
@@ -142,6 +143,7 @@ import {
   type FidelityCtx
 } from './fidelity/bridge';
 import { mirrorStyles } from './widgets/mirror-styles';
+import { callAdminApex } from './widgets/admin-modules/api';
 import { renderAccountHub } from './widgets/account-panels';
 import { prefetchAllPresentations } from './clm/clm-content-cache';
 
@@ -3472,7 +3474,11 @@ export class OsrApp extends LitElement {
           this.plannerWeekStart = sundayWeekRange().weekStart;
         }
         await this.refreshApexSnapshot(
-          b === 'c/fieldRepPlanner' ? { weekStart: this.plannerWeekStart || undefined } : undefined
+          b === 'c/fieldRepPlanner'
+            ? { weekStart: this.plannerWeekStart || undefined }
+            : b === 'c/pharmacySalesDashboard'
+              ? { keys: ['pharmacySalesData', 'pharmacySalesInsights'] }
+              : undefined
         );
         return;
       }
@@ -3512,10 +3518,15 @@ export class OsrApp extends LitElement {
     }
     if (typ === 'flexipage' || t.tab.pageDeveloperName) {
       const pageName = t.tab.pageDeveloperName ?? t.developerName;
+      const knownLwc = this.knownTabLwcFallback(t);
+      if (knownLwc && isFidelityBundle(knownLwc)) {
+        await mountLwcTab(knownLwc);
+        return;
+      }
       const raw = await getFlexiPage(this.db, pageName);
       const flexi = parseFlexiPage(raw);
       if (!flexi || this.isRecordLayoutStub(flexi)) {
-        const fallback = this.knownTabLwcFallback(t);
+        const fallback = knownLwc ?? this.knownTabLwcFallback(t);
         if (fallback) {
           await mountLwcTab(fallback);
           return;
@@ -3646,11 +3657,18 @@ export class OsrApp extends LitElement {
   }
 
   /** Online: refresh Apex DTOs via Sync Pack / REST fallback; offline: last SQLite snapshot. */
-  private async refreshApexSnapshot(opts?: { weekStart?: string; contextUserId?: string | null }) {
+  private async refreshApexSnapshot(opts?: {
+    weekStart?: string;
+    contextUserId?: string | null;
+    keys?: string[];
+  }) {
     if (!this.db) return;
     const weekStart = opts?.weekStart || this.plannerWeekStart || undefined;
     const contextUserId =
       opts?.contextUserId !== undefined ? opts.contextUserId : this.selectedContextUserId;
+    const wantsPharmacy =
+      !opts?.keys?.length ||
+      opts.keys.some((k) => k === 'pharmacySalesData' || k === 'pharmacySalesInsights');
     try {
       if (this.online && this.tokens) {
         const { engine } = await createLiveSyncEngine(this.db, this.tokens);
@@ -3660,6 +3678,7 @@ export class OsrApp extends LitElement {
           weekEnd?: string;
           planDate?: string;
           contextUserId?: string;
+          keys?: string[];
         } = { planDate: isoDateLocal() };
         if (weekStart) {
           const { weekEnd } = sundayWeekRange(new Date(weekStart + 'T12:00:00'));
@@ -3667,7 +3686,14 @@ export class OsrApp extends LitElement {
           pullOpts.weekEnd = weekEnd;
         }
         if (contextUserId) pullOpts.contextUserId = contextUserId;
+        if (opts?.keys?.length) pullOpts.keys = opts.keys;
         await engine.pullApexCache(pullOpts);
+        if (wantsPharmacy && this.tokens) {
+          let snap = await loadApexCacheSnapshot(this.db);
+          if (!(snap.pharmacySalesData?.detailRows?.length ?? 0)) {
+            await pullPharmacySalesApexCache(this.db, this.tokens);
+          }
+        }
         let snap = await loadApexCacheSnapshot(this.db);
         snap.fromCache = false;
         const sqliteAccounts = await listRecords(this.db, 'Account', 500);
@@ -3841,6 +3867,25 @@ export class OsrApp extends LitElement {
       sfAuth: this.tokens
         ? { accessToken: this.tokens.accessToken, instanceUrl: this.tokens.instanceUrl }
         : null,
+      db: this.db,
+      invokeAdminApex: async (method, params = {}) => {
+        if (!this.tokens) throw new Error('Not authenticated');
+        return callAdminApex(this.tokens, method, params);
+      },
+      openRecord: (objectApi, id) => void this.openRecord(objectApi, id),
+      openTab: (developerName) => {
+        const tab = this.tabs.find(
+          (t) => t.developerName === developerName || t.tab.pageDeveloperName === developerName
+        );
+        if (tab) void this.openAppTab(tab);
+        else this.status = `Tab “${developerName}” is not available offline.`;
+      },
+      toast: (detail) => {
+        this.toastMessage = [detail.title, detail.message].filter(Boolean).join(' — ') || 'Notification';
+        window.setTimeout(() => {
+          this.toastMessage = null;
+        }, 3200);
+      },
       clmPrefetching: this.clmPrefetching,
       requestUpdate: () => this.requestUpdate(),
       actions: {
@@ -4913,6 +4958,10 @@ export class OsrApp extends LitElement {
     }
   }
 
+  private bottomNavTabLimit(): number {
+    return this.hasUserNavPrefs() ? 5 : 4;
+  }
+
   private navItems() {
     const userNav = this.hasUserNavPrefs();
     const items: {
@@ -4940,7 +4989,7 @@ export class OsrApp extends LitElement {
       });
     }
 
-    for (const t of this.appNavTabs().slice(0, 4)) {
+    for (const t of this.appNavTabs().slice(0, this.bottomNavTabLimit())) {
       const typ = this.tabTypeOf(t);
       const iconName = t.tab.objectApi ?? t.developerName;
       const homeTab = this.isHomeNavTab(t);
@@ -6634,7 +6683,9 @@ export class OsrApp extends LitElement {
             <span>Log Out</span><span>›</span>
           </button>
         </div>
-        <h3 style="margin:20px 0 8px;font-size:14px;color:var(--sf-muted)">All tabs in this app</h3>
+        <h3 style="margin:20px 0 8px;font-size:14px;color:var(--sf-muted)">
+          ${this.hasUserNavPrefs() ? 'Your navigation' : 'All tabs in this app'}
+        </h3>
         <div class="menu-list">
           ${navTabs.length === 0
             ? html`<button disabled><span>No tabs synced</span></button>`

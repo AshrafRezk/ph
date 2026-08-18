@@ -289,6 +289,26 @@ export function parseUiNavRecords(raw: Record<string, unknown>[]): {
   return userNavItems;
 }
 
+/** True for Lightning apps worth a user-nav-items call (skip bare portal tab sets). */
+export function shouldSyncUserNavForApp(app: {
+  developerName: string;
+  app: Record<string, unknown>;
+}): boolean {
+  const tabs = app.app.tabDeveloperNames;
+  if (!Array.isArray(tabs) || tabs.length < 3) return false;
+  const normalized = tabs.map((t) => String(t).replace(/^standard-/, ''));
+  const customLike = normalized.filter(
+    (t) =>
+      t.includes('_') ||
+      /_Tab$/i.test(t) ||
+      t.endsWith('__c') ||
+      t.endsWith('_Dashboard') ||
+      t === 'CLM_Presentations' ||
+      t === 'Admin_Console'
+  );
+  return customLike.length > 0;
+}
+
 /** True when running in a browser tab (not Capacitor native). */
 export function isBrowserWebClient(): boolean {
   if (typeof window === 'undefined') return false;
@@ -1010,8 +1030,6 @@ export class SyncEngine {
       appId?: string;
       developerName?: string;
       name?: string;
-      navItems?: Record<string, unknown>[];
-      userNavItems?: Record<string, unknown>[];
     };
 
     const catalogs = await Promise.all(
@@ -1022,63 +1040,50 @@ export class SyncEngine {
           );
           const uiApps = Array.isArray(catalog) ? catalog : (catalog.apps ?? []);
           const idByDeveloperName = new Map<string, string>();
-          const navByDeveloperName = new Map<string, Record<string, unknown>[]>();
           for (const ua of uiApps) {
             if (ua && typeof ua === 'object' && 'errorCode' in ua) continue;
             const id = uiAppRecordId(ua);
             const dn = String(ua.developerName ?? ua.name ?? '').trim();
             if (dn && id) idByDeveloperName.set(dn, id);
-            const inline = ua.userNavItems?.length
-              ? ua.userNavItems
-              : ua.navItems?.length
-                ? ua.navItems
-                : null;
-            if (dn && inline?.length) navByDeveloperName.set(dn, inline);
           }
-          return { formFactor, idByDeveloperName, navByDeveloperName };
+          return { formFactor, idByDeveloperName };
         } catch {
           return {
             formFactor,
-            idByDeveloperName: new Map<string, string>(),
-            navByDeveloperName: new Map<string, Record<string, unknown>[]>()
+            idByDeveloperName: new Map<string, string>()
           };
         }
       })
     );
 
-    const hasCatalog = catalogs.some(
-      (c) => c.idByDeveloperName.size > 0 || c.navByDeveloperName.size > 0
-    );
+    const hasCatalog = catalogs.some((c) => c.idByDeveloperName.size > 0);
     if (!hasCatalog) return 0;
 
     const apps = await listApps(this.db);
     let n = 0;
     for (const app of apps) {
+      if (!shouldSyncUserNavForApp(app)) continue;
+
       const navByFactor: Partial<
         Record<'Large' | 'Small', ReturnType<typeof parseUiNavRecords>>
       > = {};
 
       for (const catalog of catalogs) {
-        let appId = uiAppRecordId({ id: app.id, appId: app.id });
+        let appId = catalog.idByDeveloperName.get(app.developerName) ?? '';
         if (!isSalesforceRecordId(appId)) {
-          appId = catalog.idByDeveloperName.get(app.developerName) ?? '';
+          appId = uiAppRecordId({ id: app.id, appId: app.id });
         }
-        let raw: Record<string, unknown>[] | null = null;
-        if (isSalesforceRecordId(appId)) {
-          try {
-            const res = await this.client.get<{ navItems?: Record<string, unknown>[] }>(
-              `/services/data/v${apiVersion}/ui-api/apps/${appId}/user-nav-items?formFactor=${catalog.formFactor}`
-            );
-            if (res.navItems?.length) raw = res.navItems;
-          } catch {
-            /* per-app endpoint optional */
-          }
+        if (!isSalesforceRecordId(appId)) continue;
+
+        try {
+          const res = await this.client.get<{ navItems?: Record<string, unknown>[] }>(
+            `/services/data/v${apiVersion}/ui-api/apps/${appId}/user-nav-items?formFactor=${catalog.formFactor}`
+          );
+          const parsed = parseUiNavRecords(res.navItems ?? []);
+          if (parsed.length) navByFactor[catalog.formFactor] = parsed;
+        } catch {
+          /* user-nav-items unavailable for this app/user */
         }
-        if (!raw?.length) {
-          raw = catalog.navByDeveloperName.get(app.developerName) ?? null;
-        }
-        const parsed = parseUiNavRecords(raw ?? []);
-        if (parsed.length) navByFactor[catalog.formFactor] = parsed;
       }
 
       if (!navByFactor.Large?.length && !navByFactor.Small?.length) continue;

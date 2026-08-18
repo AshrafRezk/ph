@@ -196,6 +196,66 @@ const ENTRIES: FidelityEntry[] = [
     mode: 'vite',
     label: 'Pharmacy Sales'
   },
+  {
+    bundle: 'c/adminConsole',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Setup / Modules'
+  },
+  {
+    bundle: 'c/integrationsManagementConsole',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Integrations Management'
+  },
+  {
+    bundle: 'c/clmAdminConsole',
+    cacheKeys: ['clmManifest'],
+    mode: 'vite',
+    label: 'CLM Admin'
+  },
+  {
+    bundle: 'c/clmRatingLayoutEditor',
+    cacheKeys: ['clmManifest'],
+    mode: 'vite',
+    label: 'Rating Layouts'
+  },
+  {
+    bundle: 'c/coachingTemplateManager',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Coaching Management'
+  },
+  {
+    bundle: 'c/territoryManagementConsole',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Territory Management'
+  },
+  {
+    bundle: 'c/bricksManagementConsole',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Bricks Management'
+  },
+  {
+    bundle: 'c/productTerritoryManager',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Products Manager'
+  },
+  {
+    bundle: 'c/planCycleManager',
+    cacheKeys: [],
+    mode: 'vite',
+    label: 'Plan Manager'
+  },
+  {
+    bundle: 'c/pharmacySalesDataAdmin',
+    cacheKeys: ['pharmacySalesData'],
+    mode: 'vite',
+    label: 'Sales Data Admin'
+  },
   // Visit children — rendered inside visitCallShell; registered for FlexiPage/hydrate skip
   {
     bundle: 'c/visitAccountAffiliations',
