@@ -1,0 +1,436 @@
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #f4f8ff 0%, #fff 100%);
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-einstein {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip-teaser {
+  font-size: 0.75rem;
+  color: #706e6b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-strip-badge {
+  flex-shrink: 0;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #0176d3;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-open-btn,
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-refresh-btn {
+  flex-shrink: 0;
+  border: 1px solid #0176d3;
+  background: #0176d3;
+  color: #fff;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-refresh-btn {
+  background: #fff;
+  color: #0176d3;
+  padding: 0.35rem 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 7, 7, 0.6);
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal {
+  position: relative;
+  z-index: 9001;
+  margin: 1rem auto;
+  max-width: 56rem;
+  width: calc(100% - 1rem);
+  max-height: calc(100vh - 2rem);
+  background: #fff;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: 0;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-content {
+  overflow: auto;
+  flex: 1;
+  padding: 1rem 1.25rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-loading {
+  min-height: 8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #706e6b;
+  font-size: 0.875rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .section-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-section-hint {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.625rem;
+  padding: 0.75rem;
+  background: #fafbfc;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-card--top {
+  border-color: #0176d3;
+  background: #f4f8ff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-priority {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-priority-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #ecebea;
+  color: #3e3e3c;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-priority-badge--high {
+  background: #ba0517;
+  color: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-priority-badge--medium {
+  background: #fe9339;
+  color: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-type {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-head label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #181818;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-copy {
+  margin: 0.35rem 0 0 1.35rem;
+  font-size: 0.75rem;
+  color: #3e3e3c;
+  line-height: 1.4;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .rec-meta {
+  margin: 0.25rem 0 0 1.35rem;
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-tab {
+  border: 1px solid #c9c9c9;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-tab--active {
+  background: #0176d3;
+  border-color: #0176d3;
+  color: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-headline {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #032d60;
+  margin: 0 0 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .agent-summary {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: #3e3e3c;
+  line-height: 1.45;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .page-indicator {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-card {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-title {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-direction {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-direction--up {
+  color: #2e844a;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-direction--down {
+  color: #ba0517;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-direction--flat {
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .trend-copy {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #3e3e3c;
+  line-height: 1.4;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-pager {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-pager button {
+  border: 1px solid #c9c9c9;
+  background: #fff;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .detail-pager button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .vision-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .vision-field label {
+  display: block;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+  color: #3e3e3c;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .vision-field textarea,
+.osr-lwc-mirror.pharmacy-sales-agent-insights .vision-field input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #c9c9c9;
+  border-radius: 0.375rem;
+  font: inherit;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .empty-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .offline-note {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background: #fff4e5;
+  color: #8c4b00;
+  font-size: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .btn-neutral {
+  border: 1px solid #c9c9c9;
+  background: #fff;
+  border-radius: 0.375rem;
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .btn-brand {
+  border: 1px solid #0176d3;
+  background: #0176d3;
+  color: #fff;
+  border-radius: 0.375rem;
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-agent-insights .btn-brand:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (min-width: 48rem) {
+  .osr-lwc-mirror.pharmacy-sales-agent-insights .rec-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

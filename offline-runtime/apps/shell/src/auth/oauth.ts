@@ -12,13 +12,16 @@ import {
   SyncEngine,
   createMockSyncClient,
   OSR_API,
-  sfFetch
+  sfFetch,
+  buildPharmacySalesMockPayload,
+  buildPharmacySalesInsightsMockPayload
 } from '@osr/sync';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorHttp } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
 import { Preferences } from '@capacitor/preferences';
+import { OsrOAuth } from '../plugins/osr-oauth';
 
 const PKCE_VERIFIER_KEY = 'osr.oauth.pkce_verifier';
 const OAUTH_STATE_KEY = 'osr.oauth.state';
@@ -133,6 +136,15 @@ async function prefGet(key: string): Promise<string | null> {
   return value;
 }
 
+/** localhost, loopback, or LAN IP — use current origin for OAuth callback in dev. */
+function isLocalDevHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  return false;
+}
+
 export function getOAuthConfig(): OAuthConfig {
   const isNative = Capacitor.isNativePlatform();
   const clientId = import.meta.env.VITE_SF_CLIENT_ID ?? '';
@@ -142,9 +154,9 @@ export function getOAuthConfig(): OAuthConfig {
     redirectUri = import.meta.env.VITE_SF_REDIRECT_URI ?? 'com.osr.offline://oauth/callback';
   } else if (
     typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    isLocalDevHost(window.location.hostname)
   ) {
-    // Local Vite dev — must match Connected App callback (any port on this host).
+    // Local Vite dev (desktop or phone on same Wi‑Fi) — match Connected App callback URL.
     redirectUri = `${window.location.origin}/oauth/callback`;
   } else {
     redirectUri =
@@ -216,10 +228,24 @@ export async function exchangeCodeRobust(
   };
 }
 
+export function oauthCallbackScheme(redirectUri: string): string {
+  const match = redirectUri.match(/^([a-zA-Z][\w+.-]*):/);
+  return match?.[1] ?? 'com.osr.offline';
+}
+
+async function dismissOAuthBrowser(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await Browser.close();
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function beginSalesforceLogin(
   db: SqlExecutor,
   opts?: { loginUrl?: string }
-): Promise<void> {
+): Promise<TokenSet | null> {
   const cfg = getOAuthConfig();
   if (opts?.loginUrl) cfg.loginUrl = opts.loginUrl.replace(/\/$/, '');
   if (!cfg.clientId || cfg.clientId.includes('YOUR_')) {
@@ -234,11 +260,34 @@ export async function beginSalesforceLogin(
   await prefSet('osr.oauth.redirect_uri', cfg.redirectUri);
   const url = buildAuthorizeUrl(cfg, challenge, state);
 
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url, windowName: '_blank', presentationStyle: 'popover' });
-  } else {
-    window.location.assign(url);
+  if (Capacitor.getPlatform() === 'ios') {
+    try {
+      const { url: callbackUrl } = await OsrOAuth.openOAuthSession({
+        url,
+        callbackScheme: oauthCallbackScheme(cfg.redirectUri)
+      });
+      return completeSalesforceLogin(db, callbackUrl);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('CANCELLED') || msg.toLowerCase().includes('cancel')) {
+        return null;
+      }
+      throw e;
+    }
   }
+
+  if (Capacitor.isNativePlatform()) {
+    await Browser.open({ url, presentationStyle: 'fullscreen' });
+    return null;
+  }
+
+  window.location.assign(url);
+  return null;
+}
+
+export function isOAuthCallbackUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return lower.includes('oauth') && lower.includes('callback');
 }
 
 export async function completeSalesforceLogin(
@@ -273,13 +322,7 @@ export async function completeSalesforceLogin(
   // Also persist tokens in Preferences for process restarts with memory DB
   await prefSet('osr.oauth.tokens', JSON.stringify(tokens));
 
-  if (Capacitor.isNativePlatform()) {
-    try {
-      await Browser.close();
-    } catch {
-      /* ignore */
-    }
-  }
+  await dismissOAuthBrowser();
   return tokens;
 }
 
@@ -319,18 +362,96 @@ export function installOAuthDeepLinkHandler(
   if (!Capacitor.isNativePlatform()) {
     return () => undefined;
   }
-  const sub = CapApp.addListener('appUrlOpen', async ({ url }) => {
-    if (!url.includes('oauth') || !url.includes('callback')) return;
+  const handle = async (url: string) => {
+    if (!isOAuthCallbackUrl(url)) return;
+    await dismissOAuthBrowser();
     try {
       const tokens = await completeSalesforceLogin(db, url);
       onSuccess(tokens);
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
+  };
+  const sub = CapApp.addListener('appUrlOpen', ({ url }) => {
+    void handle(url);
   });
   return () => {
     void sub.then((s) => s.remove());
   };
+}
+
+/** OAuth redirect when the native app was cold-started from the callback URL. */
+export async function completeOAuthFromLaunchUrl(db: SqlExecutor): Promise<TokenSet | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  const launch = await CapApp.getLaunchUrl();
+  if (!launch?.url || !isOAuthCallbackUrl(launch.url)) return null;
+  return completeSalesforceLogin(db, launch.url);
+}
+
+/** Offline tab metadata overrides (FlexiPage tabs in SF → direct LWC fidelity ports). */
+export const KNOWN_OFFLINE_TAB_OVERRIDES: Record<
+  string,
+  { label?: string; tab: Record<string, unknown> }
+> = {
+  Field_Rep_Planner: {
+    label: 'Planner',
+    tab: { tabType: 'flexipage', pageDeveloperName: 'Field_Rep_Planner' }
+  },
+  CLM_Presentations: {
+    label: 'CLM Presentations',
+    tab: { tabType: 'lwc', lwcBundle: 'c/clmPresentationsHub' }
+  },
+  Accounts_Tab: {
+    label: 'Accounts',
+    tab: { tabType: 'lwc', lwcBundle: 'c/accountsTab' }
+  },
+  My_Learning: {
+    label: 'My Learning',
+    tab: { tabType: 'lwc', lwcBundle: 'c/myLearning' }
+  },
+  Request_Time_Off: {
+    label: 'Request Time Off',
+    tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
+  },
+  Time_Off_Submission: {
+    label: 'Request Time Off',
+    tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
+  },
+  Pharmacy_Sales_Dashboard: {
+    label: 'Pharmacy Sales',
+    tab: { tabType: 'lwc', lwcBundle: 'c/pharmacySalesDashboard' }
+  }
+};
+
+export function applyKnownCustomTabMetadata<
+  T extends { developerName: string; label: string; tab: Record<string, unknown> }
+>(row: T): T {
+  const known =
+    KNOWN_OFFLINE_TAB_OVERRIDES[row.developerName] ??
+    KNOWN_OFFLINE_TAB_OVERRIDES[String(row.tab.pageDeveloperName ?? '')];
+  if (!known) return row;
+  const tab = { ...row.tab, ...known.tab };
+  if (known.tab.tabType === 'lwc') {
+    delete tab.pageDeveloperName;
+    delete tab.flexiPage;
+  }
+  return {
+    ...row,
+    label: known.label ?? row.label,
+    tab
+  };
+}
+
+export function knownLwcBundleForTab(
+  developerName: string,
+  tab?: { lwcBundle?: string; pageDeveloperName?: string }
+): string | null {
+  if (tab?.lwcBundle) return String(tab.lwcBundle);
+  const known =
+    KNOWN_OFFLINE_TAB_OVERRIDES[developerName] ??
+    (tab?.pageDeveloperName ? KNOWN_OFFLINE_TAB_OVERRIDES[tab.pageDeveloperName] : undefined);
+  const bundle = known?.tab.lwcBundle;
+  return bundle ? String(bundle) : null;
 }
 
 /** Prefer Sync Pack; fall back to standard Salesforce REST for any org. */
@@ -433,35 +554,7 @@ export function createRestFallbackClient(tokens: TokenSet): SyncHttpClient {
     'Event'
   ];
 
-  const KNOWN_CUSTOM_TABS: Record<
-    string,
-    { label: string; tab: Record<string, unknown> }
-  > = {
-    Field_Rep_Planner: {
-      label: 'Planner',
-      tab: { tabType: 'flexipage', pageDeveloperName: 'Field_Rep_Planner' }
-    },
-    CLM_Presentations: {
-      label: 'CLM Presentations',
-      tab: { tabType: 'lwc', lwcBundle: 'c/clmPresentationsHub' }
-    },
-    Accounts_Tab: {
-      label: 'Accounts',
-      tab: { tabType: 'lwc', lwcBundle: 'c/accountsTab' }
-    },
-    My_Learning: {
-      label: 'My Learning',
-      tab: { tabType: 'lwc', lwcBundle: 'c/myLearning' }
-    },
-    Request_Time_Off: {
-      label: 'Request Time Off',
-      tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
-    },
-    Time_Off_Submission: {
-      label: 'Request Time Off',
-      tab: { tabType: 'lwc', lwcBundle: 'c/timeOffSubmission' }
-    }
-  };
+  const KNOWN_CUSTOM_TABS = KNOWN_OFFLINE_TAB_OVERRIDES;
 
   function isPharmaFieldApp(developerName: string, label: string): boolean {
     const dn = developerName.toLowerCase();
@@ -1288,6 +1381,135 @@ function startOfSundayIso(iso?: string): string {
   return localDateIso(x);
 }
 
+async function buildPharmacySalesRestPayload(
+  sfGet: SfGet
+): Promise<{ pharmacySalesData: unknown; pharmacySalesInsights: unknown }> {
+  type WithdrawalRec = {
+    Id: string;
+    Report_Month__c?: string;
+    Data_Source__c?: string;
+    Quantity_Withdrawn__c?: number;
+    Unit_Price__c?: number;
+    Pharmacy_Account__c?: string;
+    Pharmacy_Account__r?: { Name?: string };
+    Product2_Id__c?: string;
+    Brick__c?: string;
+    Brick__r?: { Name?: string };
+    Revenue__c?: number;
+  };
+
+  type ProductRec = {
+    Id: string;
+    Name?: string;
+    Family?: string;
+    Therapy_Area__c?: string;
+  };
+
+  const monthKeyFromDate = (iso?: string): string => {
+    if (!iso || iso.length < 7) return '';
+    return iso.slice(0, 7);
+  };
+
+  const monthLabelFromKey = (key: string): string => {
+    const [y, m] = key.split('-').map(Number);
+    if (!y || !m) return key;
+    return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  };
+
+  try {
+    const rows = await soqlQuery<WithdrawalRec>(
+      sfGet,
+      `SELECT Id, Report_Month__c, Data_Source__c, Quantity_Withdrawn__c, Unit_Price__c,
+        Pharmacy_Account__c, Pharmacy_Account__r.Name,
+        Product2_Id__c, Brick__c, Brick__r.Name, Revenue__c
+       FROM Pharmacy_Sales_Withdrawal__c
+       ORDER BY Report_Month__c DESC
+       LIMIT 500`
+    );
+    if (!rows.length) {
+      return {
+        pharmacySalesData: buildPharmacySalesMockPayload(),
+        pharmacySalesInsights: buildPharmacySalesInsightsMockPayload()
+      };
+    }
+
+    const productIds = [
+      ...new Set(
+        rows.map((row) => String(row.Product2_Id__c ?? '').trim()).filter((id) => id.length >= 15)
+      )
+    ];
+    const productsById = new Map<string, ProductRec>();
+    for (let i = 0; i < productIds.length; i += 200) {
+      const chunk = productIds.slice(i, i + 200);
+      const inList = chunk.map((id) => `'${id.replace(/'/g, "\\'")}'`).join(',');
+      const products = await soqlQuery<ProductRec>(
+        sfGet,
+        `SELECT Id, Name, Family, Therapy_Area__c FROM Product2 WHERE Id IN (${inList})`
+      );
+      for (const product of products) {
+        productsById.set(product.Id, product);
+      }
+    }
+
+    const therapySet = new Set<string>();
+    const familySet = new Set<string>();
+    const brickMap = new Map<string, string>();
+    const pharmMap = new Map<string, string>();
+    const sourceSet = new Set<string>();
+
+    const detailRows = rows.map((row) => {
+      const monthKey = monthKeyFromDate(row.Report_Month__c);
+      const product = row.Product2_Id__c ? productsById.get(row.Product2_Id__c) : undefined;
+      if (product?.Family) familySet.add(product.Family);
+      if (product?.Therapy_Area__c) therapySet.add(product.Therapy_Area__c);
+      if (row.Brick__c) brickMap.set(row.Brick__c, row.Brick__r?.Name ?? row.Brick__c);
+      if (row.Pharmacy_Account__c) {
+        pharmMap.set(row.Pharmacy_Account__c, row.Pharmacy_Account__r?.Name ?? row.Pharmacy_Account__c);
+      }
+      if (row.Data_Source__c) sourceSet.add(row.Data_Source__c);
+      const qty = Number(row.Quantity_Withdrawn__c ?? 0);
+      const unitPrice = Number(row.Unit_Price__c ?? 0);
+      const revenue = Number(row.Revenue__c ?? qty * unitPrice);
+      return {
+        recordId: row.Id,
+        monthKey,
+        monthLabel: monthLabelFromKey(monthKey),
+        pharmacyName: row.Pharmacy_Account__r?.Name ?? '',
+        pharmacyId: row.Pharmacy_Account__c ?? '',
+        brickName: row.Brick__r?.Name ?? '',
+        brickId: row.Brick__c ?? '',
+        productId: row.Product2_Id__c ?? '',
+        productName: product?.Name ?? '',
+        productFamily: product?.Family ?? '',
+        therapyArea: product?.Therapy_Area__c ?? '',
+        dataSource: row.Data_Source__c ?? '',
+        quantity: qty,
+        unitPrice,
+        revenue
+      };
+    });
+
+    const opt = (value: string, label?: string) => ({ value, label: label ?? value });
+    const filterOptions = {
+      therapyAreas: [opt('All'), ...[...therapySet].sort().map((v) => opt(v))],
+      productFamilies: [opt('All'), ...[...familySet].sort().map((v) => opt(v))],
+      bricks: [opt('All'), ...[...brickMap.entries()].map(([value, label]) => opt(value, label))],
+      pharmacies: [opt('All'), ...[...pharmMap.entries()].map(([value, label]) => opt(value, label))],
+      dataSources: [opt('All'), ...[...sourceSet].sort().map((v) => opt(v))]
+    };
+
+    return {
+      pharmacySalesData: { filterOptions, detailRows },
+      pharmacySalesInsights: buildPharmacySalesInsightsMockPayload()
+    };
+  } catch {
+    return {
+      pharmacySalesData: buildPharmacySalesMockPayload(),
+      pharmacySalesInsights: buildPharmacySalesInsightsMockPayload()
+    };
+  }
+}
+
 /** Build Sync Pack–shaped apex-cache entries from standard REST SOQL (no Sync Pack). */
 async function buildRestApexCacheEntries(
   sfGet: SfGet,
@@ -1480,6 +1702,8 @@ async function buildRestApexCacheEntries(
     calculatedClassification: a.classification
   }));
 
+  const pharmacySales = await buildPharmacySalesRestPayload(sfGet);
+
   return [
     {
       key: 'todayPlan',
@@ -1572,6 +1796,16 @@ async function buildRestApexCacheEntries(
       key: 'myLearning',
       fetchedAt: now,
       payload: []
+    },
+    {
+      key: 'pharmacySalesData',
+      fetchedAt: now,
+      payload: pharmacySales.pharmacySalesData
+    },
+    {
+      key: 'pharmacySalesInsights',
+      fetchedAt: now,
+      payload: pharmacySales.pharmacySalesInsights
     }
   ];
 }

@@ -9,6 +9,50 @@ export type UserNavItem = {
   pageReference?: Record<string, unknown> | null;
 };
 
+export type UserNavFormFactor = 'Small' | 'Medium' | 'Large';
+
+export function parseUserNavItems(raw: Record<string, unknown>[]): UserNavItem[] {
+  const userNavItems: UserNavItem[] = [];
+  for (const item of raw) {
+    const developerName = String(item.developerName ?? '').trim();
+    if (!developerName) continue;
+    userNavItems.push({
+      developerName,
+      label: item.label != null ? String(item.label) : undefined,
+      iconUrl: item.iconUrl != null ? String(item.iconUrl) : null,
+      objectApiName: item.objectApiName != null ? String(item.objectApiName) : null,
+      itemType: item.itemType != null ? String(item.itemType) : null,
+      pageReference:
+        item.pageReference && typeof item.pageReference === 'object'
+          ? (item.pageReference as Record<string, unknown>)
+          : null
+    });
+  }
+  return userNavItems;
+}
+
+/** Prefer personalized nav for the active form factor (phone → Small). */
+export function pickUserNavItems(
+  app: {
+    userNavItems?: UserNavItem[];
+    userNavItemsSmall?: UserNavItem[];
+    userNavItemsMedium?: UserNavItem[];
+  },
+  formFactor: UserNavFormFactor = 'Large'
+): UserNavItem[] | undefined {
+  const byFactor: Record<UserNavFormFactor, UserNavItem[] | undefined> = {
+    Small: app.userNavItemsSmall,
+    Medium: app.userNavItemsMedium,
+    Large: app.userNavItems
+  };
+  const preferred = byFactor[formFactor];
+  if (preferred?.length) return preferred;
+  if (app.userNavItems?.length) return app.userNavItems;
+  if (app.userNavItemsSmall?.length) return app.userNavItemsSmall;
+  if (app.userNavItemsMedium?.length) return app.userNavItemsMedium;
+  return undefined;
+}
+
 export type NavTabRow = {
   developerName: string;
   label: string;
@@ -50,7 +94,89 @@ function navItemKeys(item: UserNavItem): string[] {
   return [...keys];
 }
 
-/** Order/filter synced tabs to match the user's personalized nav bar. */
+/** Build a navigable tab row from a UI API nav item when metadata sync has no matching tab. */
+export function synthesizeTabFromUserNavItem(item: UserNavItem): NavTabRow {
+  const developerName = item.developerName.replace(/^standard-/, '');
+  const objectApi = item.objectApiName?.replace(/^standard-/, '') ?? null;
+  const pr = item.pageReference as
+    | { attributes?: Record<string, unknown>; type?: string }
+    | undefined;
+  const attrs = pr?.attributes ?? {};
+  const pageApi =
+    (typeof attrs.apiName === 'string' && attrs.apiName) ||
+    (typeof attrs.pageName === 'string' && attrs.pageName) ||
+    null;
+  const prObjectApi =
+    typeof attrs.objectApiName === 'string' ? attrs.objectApiName.replace(/^standard-/, '') : null;
+  const label = item.label?.trim() || developerName.replace(/_/g, ' ');
+  const itemType = String(item.itemType ?? '');
+
+  if (itemType === 'Entity' || pr?.type === 'standard__objectPage') {
+    const api = prObjectApi || objectApi || developerName;
+    return {
+      developerName,
+      label,
+      tab: {
+        objectApi: api,
+        tabType: 'object',
+        iconUrl: item.iconUrl ?? null
+      }
+    };
+  }
+
+  if (
+    itemType.includes('FlexiPage') ||
+    itemType.includes('Aura') ||
+    pr?.type === 'standard__navItemPage'
+  ) {
+    const page = pageApi || developerName;
+    return {
+      developerName,
+      label,
+      tab: {
+        pageDeveloperName: page,
+        tabType: itemType.includes('Aura') ? 'lwc' : 'flexipage',
+        iconUrl: item.iconUrl ?? null
+      }
+    };
+  }
+
+  if (objectApi || prObjectApi) {
+    const api = prObjectApi || objectApi!;
+    return {
+      developerName,
+      label,
+      tab: {
+        objectApi: api,
+        tabType: 'object',
+        iconUrl: item.iconUrl ?? null
+      }
+    };
+  }
+
+  if (pageApi) {
+    return {
+      developerName,
+      label,
+      tab: {
+        pageDeveloperName: pageApi,
+        tabType: 'flexipage',
+        iconUrl: item.iconUrl ?? null
+      }
+    };
+  }
+
+  return {
+    developerName,
+    label,
+    tab: {
+      tabType: 'unknown',
+      iconUrl: item.iconUrl ?? null
+    }
+  };
+}
+
+/** Order tabs to match the user's personalized nav bar (never falls back to app tab lists). */
 export function resolveTabsFromUserNav(
   userNavItems: UserNavItem[],
   allTabs: NavTabRow[]
@@ -70,7 +196,8 @@ export function resolveTabsFromUserNav(
       match = byKey.get(k);
       if (match) break;
     }
-    if (!match || seen.has(match.developerName)) continue;
+    if (!match) match = synthesizeTabFromUserNavItem(item);
+    if (seen.has(match.developerName)) continue;
     seen.add(match.developerName);
     ordered.push({
       ...match,
@@ -81,5 +208,5 @@ export function resolveTabsFromUserNav(
       }
     });
   }
-  return ordered.length ? ordered : allTabs;
+  return ordered;
 }

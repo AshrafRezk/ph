@@ -1,0 +1,480 @@
+.osr-lwc-mirror.pharmacy-sales-dashboard .sales-card {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .sales-header {
+  padding: 0.875rem 1rem 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .sales-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .sales-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .cached-pill {
+  display: inline-flex;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  background: #fff4e5;
+  color: #8c4b00;
+  border: 1px solid rgba(140, 75, 0, 0.2);
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #032d60;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters-body {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters--open .filters-body {
+  display: flex;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters-row--dates {
+  grid-template-columns: 1fr 1fr;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filters-row--compact {
+  grid-template-columns: 1fr;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filter-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: #3e3e3c;
+  margin-bottom: 0.25rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .filter-field input,
+.osr-lwc-mirror.pharmacy-sales-dashboard .filter-field select {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #c9c9c9;
+  border-radius: 0.375rem;
+  font: inherit;
+  background: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .preset-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .preset-label {
+  font-size: 0.75rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .preset-chip {
+  border: 1px solid #c9c9c9;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-height: 2rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .preset-chip--active {
+  background: #0176d3;
+  border-color: #0176d3;
+  color: #fff;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .kpi-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .kpi-tile {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 0.625rem;
+  background: #fafbfc;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .kpi-tile-label {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .kpi-tile-value {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .kpi-tile-hint {
+  font-size: 0.625rem;
+  color: #939393;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .panel {
+  padding: 0 1rem 1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .panel-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-card {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 0.625rem;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: #0176d3;
+  font-weight: 700;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-chevron--open {
+  transform: rotate(90deg);
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-name {
+  font-weight: 700;
+  color: #032d60;
+  font-size: 0.875rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-badge {
+  grid-column: 2;
+  justify-self: start;
+  font-size: 0.6875rem;
+  background: #eef4ff;
+  color: #0176d3;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-metrics {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #3e3e3c;
+  flex-wrap: wrap;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-roi-breakdown {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .roi-positive {
+  color: #2e844a;
+  font-weight: 700;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .roi-negative {
+  color: #ba0517;
+  font-weight: 700;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .roi-neutral {
+  color: #706e6b;
+  font-weight: 600;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .family-products {
+  padding: 0.5rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-image--placeholder {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+  color: #939393;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #181818;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-stats {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-roi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.15rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .product-roi-detail {
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-table {
+  width: 100%;
+  min-width: 32rem;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-table th,
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-table td {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0.45rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-table th:first-child,
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-brick {
+  text-align: left;
+  font-weight: 600;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-cell {
+  background: transparent;
+  border: 0;
+  color: #0176d3;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  min-height: 2rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-cell:disabled {
+  color: #939393;
+  cursor: default;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .matrix-total {
+  font-weight: 700;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table-wrap {
+  overflow-x: auto;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table th,
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table td {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table th {
+  background: #f3f3f3;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-table .num {
+  text-align: right;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.625rem;
+  padding: 0.75rem;
+  background: #fafbfc;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-month {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #032d60;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-revenue {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0176d3;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-product {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #181818;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-meta,
+.osr-lwc-mirror.pharmacy-sales-dashboard .detail-card-stats {
+  margin: 0;
+  font-size: 0.6875rem;
+  color: #706e6b;
+}
+
+.osr-lwc-mirror.pharmacy-sales-dashboard .empty-copy {
+  margin: 0;
+  color: #706e6b;
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 48rem) {
+  .osr-lwc-mirror.pharmacy-sales-dashboard .filters-toggle {
+    display: none;
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .filters-body {
+    display: flex;
+    margin-top: 0;
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .filters-row--compact {
+    grid-template-columns: repeat(5, minmax(8rem, 1fr));
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .kpi-strip {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .family-header {
+    grid-template-columns: auto 1fr auto auto;
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .family-badge {
+    grid-column: auto;
+  }
+
+  .osr-lwc-mirror.pharmacy-sales-dashboard .family-metrics {
+    grid-column: auto;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .osr-lwc-mirror.pharmacy-sales-dashboard .detail-table-wrap {
+    display: none;
+  }
+}
+
+@media (min-width: 48rem) {
+  .osr-lwc-mirror.pharmacy-sales-dashboard .detail-cards {
+    display: none;
+  }
+}

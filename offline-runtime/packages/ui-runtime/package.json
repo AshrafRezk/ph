@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/index.test.ts src/parity.test.ts"
+    "test": "node --import tsx --test src/index.test.ts src/parity.test.ts src/user-nav.test.ts"
   },
   "dependencies": {
     "@osr/db": "0.1.0",

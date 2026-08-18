@@ -34,6 +34,7 @@ import {
 } from '../widgets/account-panels';
 import { renderCoachingEventEvaluation, renderCoachingEventInsights } from '../widgets/coaching-event';
 import { renderMyLearning } from '../widgets/my-learning';
+import { renderPharmacySalesDashboard } from '../widgets/pharmacy-sales-dashboard';
 import { renderLwcIframe } from '../lwc-iframe';
 import type { LocationTrackerState } from '../../location/rep-location-tracker';
 import type { PlannerAccountFilters, PlannerCollection } from '../planner-accounts';
@@ -472,6 +473,16 @@ register('c/myLearning', (ctx) =>
     onOpenCourse: (id) => ctx.actions.setMyLearningInstanceId?.(id),
     onBackToCatalog: () => ctx.actions.setMyLearningInstanceId?.(null),
     onShowCertificate: (id) => ctx.actions.setMyLearningInstanceId?.(id)
+  })
+);
+
+register('c/pharmacySalesDashboard', (ctx) =>
+  renderPharmacySalesDashboard({
+    label: ctx.label,
+    data: ctx.snap?.pharmacySalesData ?? null,
+    insights: ctx.snap?.pharmacySalesInsights ?? null,
+    cached: ctx.cached,
+    online: ctx.online
   })
 );
 

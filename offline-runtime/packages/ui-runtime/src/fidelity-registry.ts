@@ -29,6 +29,10 @@ export const APEX_BINDING_TO_CACHE_KEY: Record<string, string> = {
   'HomeOfficeMessageController.getActiveMessages': 'officeMessages',
   'ClmMetricsController.getRepPresentationManifest': 'clmManifest',
   'ClmMetricsController.getDeployedRatingLayoutJson': 'clmManifest',
+  'PharmacySalesAnalyticsController.getFilterOptions': 'pharmacySalesData',
+  'PharmacySalesAnalyticsController.getDashboardData': 'pharmacySalesData',
+  'PharmacySalesAnalyticsController.getOfflineCachePayload': 'pharmacySalesData',
+  'PharmacySalesInsightsController.generateInsights': 'pharmacySalesInsights',
   'MyLearningController.getMyCourses': 'myLearning'
 };
 
@@ -185,6 +189,12 @@ const ENTRIES: FidelityEntry[] = [
     cacheKeys: ['myLearning'],
     mode: 'vite',
     label: 'My Learning'
+  },
+  {
+    bundle: 'c/pharmacySalesDashboard',
+    cacheKeys: ['pharmacySalesData', 'pharmacySalesInsights'],
+    mode: 'vite',
+    label: 'Pharmacy Sales'
   },
   // Visit children — rendered inside visitCallShell; registered for FlexiPage/hydrate skip
   {

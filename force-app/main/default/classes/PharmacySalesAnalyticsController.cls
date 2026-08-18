@@ -85,6 +85,7 @@ public with sharing class PharmacySalesAnalyticsController {
         @AuraEnabled public Id pharmacyId;
         @AuraEnabled public String brickName;
         @AuraEnabled public Id brickId;
+        @AuraEnabled public Id productId;
         @AuraEnabled public String productName;
         @AuraEnabled public String productFamily;
         @AuraEnabled public String therapyArea;
@@ -99,6 +100,12 @@ public with sharing class PharmacySalesAnalyticsController {
         @AuraEnabled public List<FamilyBreakdown> familyBreakdown;
         @AuraEnabled public List<String> matrixMonthKeys;
         @AuraEnabled public List<BrickMonthRow> brickMonthMatrix;
+        @AuraEnabled public List<DetailRow> detailRows;
+    }
+
+    /** Payload for OSR offline apex-cache (filter options + detail rows). */
+    public class OfflineCachePayload {
+        @AuraEnabled public FilterOptions filterOptions;
         @AuraEnabled public List<DetailRow> detailRows;
     }
 
@@ -218,6 +225,22 @@ public with sharing class PharmacySalesAnalyticsController {
         data.brickMonthMatrix = buildBrickMonthMatrix(filtered, data.matrixMonthKeys, brickContext, priceByProduct);
         data.detailRows = buildDetailRows(filtered, productsById, brickContext, priceByProduct);
         return data;
+    }
+
+    /** Last 12 months of sell-out detail rows for offline SQLite cache. */
+    @AuraEnabled(cacheable=true)
+    public static OfflineCachePayload getOfflineCachePayload() {
+        OfflineCachePayload payload = new OfflineCachePayload();
+        payload.filterOptions = getFilterOptions();
+        DashboardFilterInput filters = new DashboardFilterInput();
+        Date today = Date.today();
+        filters.startMonth = today.toStartOfMonth().addMonths(-11);
+        filters.endMonth = today.toStartOfMonth();
+        filters.dataSource = 'All';
+        filters.therapyArea = 'All';
+        filters.productFamily = 'All';
+        payload.detailRows = getDashboardData(filters).detailRows;
+        return payload;
     }
 
     @AuraEnabled
@@ -557,6 +580,7 @@ public with sharing class PharmacySalesAnalyticsController {
             detail.pharmacyId = row.Pharmacy_Account__c;
             detail.brickName = PharmacySalesFieldSupport.resolveBrickName(row, brickContext);
             detail.brickId = PharmacySalesFieldSupport.resolveBrickId(row, brickContext);
+            detail.productId = product != null ? product.Id : null;
             detail.productName = product != null ? product.Name : '';
             detail.productFamily = product != null ? product.Family : '';
             detail.therapyArea = product != null ? product.Therapy_Area__c : '';

@@ -1245,6 +1245,12 @@ global with sharing class OsrMetadataService {
                 'type' => 'lwc',
                 'lwcBundle' => 'c/clmPresentationsHub',
                 'lwcComponent' => 'clmPresentationsHub'
+            },
+            'Pharmacy_Sales_Dashboard' => new Map<String, Object>{
+                'tabType' => 'lwc',
+                'type' => 'lwc',
+                'lwcBundle' => 'c/pharmacySalesDashboard',
+                'lwcComponent' => 'pharmacySalesDashboard'
             }
         };
 

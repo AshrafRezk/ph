@@ -6,6 +6,9 @@ import {
   myDomainLoginUrlFromLabel,
   loginUrlFromPageParams,
   isStandardSalesforceLogin,
+  isOAuthCallbackUrl,
+  oauthCallbackScheme,
+  applyKnownCustomTabMetadata,
   PRODUCTION_LOGIN,
   SANDBOX_LOGIN
 } from './oauth.js';
@@ -60,5 +63,32 @@ describe('login URL params / My Domain', () => {
     assert.equal(isStandardSalesforceLogin(PRODUCTION_LOGIN), true);
     assert.equal(isStandardSalesforceLogin(SANDBOX_LOGIN), true);
     assert.equal(isStandardSalesforceLogin('https://zetapharma.my.salesforce.com'), false);
+  });
+
+  it('detects native OAuth callback URLs', () => {
+    assert.equal(
+      isOAuthCallbackUrl('com.osr.offline://oauth/callback?code=abc&state=xyz'),
+      true
+    );
+    assert.equal(isOAuthCallbackUrl('https://localhost:5173/oauth/callback?code=abc'), true);
+    assert.equal(isOAuthCallbackUrl('com.osr.offline://home'), false);
+  });
+
+  it('extracts OAuth callback scheme from redirect URI', () => {
+    assert.equal(oauthCallbackScheme('com.osr.offline://oauth/callback'), 'com.osr.offline');
+  });
+
+  it('normalizes Pharmacy Sales tab to direct LWC metadata', () => {
+    const row = applyKnownCustomTabMetadata({
+      developerName: 'Pharmacy_Sales_Dashboard',
+      label: 'Pharmacy Sales',
+      tab: {
+        tabType: 'flexipage',
+        pageDeveloperName: 'Pharmacy_Sales_Dashboard'
+      }
+    });
+    assert.equal((row.tab as Record<string, unknown>).tabType, 'lwc');
+    assert.equal((row.tab as Record<string, unknown>).lwcBundle, 'c/pharmacySalesDashboard');
+    assert.equal((row.tab as Record<string, unknown>).pageDeveloperName, undefined);
   });
 });

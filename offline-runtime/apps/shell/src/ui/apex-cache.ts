@@ -24,7 +24,9 @@ export const APEX_CACHE_KEYS = [
   'nextBestCustomers',
   'officeMessages',
   'clmManifest',
-  'myLearning'
+  'myLearning',
+  'pharmacySalesData',
+  'pharmacySalesInsights'
 ] as const;
 
 export type ApexCacheKey = (typeof APEX_CACHE_KEYS)[number];
@@ -115,6 +117,88 @@ export interface OfficeMessageDto {
   audienceLabel?: string;
 }
 
+export interface PharmacySalesOptionDto {
+  value?: string;
+  label?: string;
+}
+
+export interface PharmacySalesFilterOptionsDto {
+  therapyAreas?: PharmacySalesOptionDto[];
+  productFamilies?: PharmacySalesOptionDto[];
+  bricks?: PharmacySalesOptionDto[];
+  pharmacies?: PharmacySalesOptionDto[];
+  dataSources?: PharmacySalesOptionDto[];
+}
+
+export interface PharmacySalesDetailRowDto {
+  recordId?: string;
+  monthKey?: string;
+  monthLabel?: string;
+  pharmacyName?: string;
+  pharmacyId?: string;
+  brickName?: string;
+  brickId?: string;
+  productId?: string;
+  productName?: string;
+  productFamily?: string;
+  therapyArea?: string;
+  dataSource?: string;
+  quantity?: number;
+  unitPrice?: number;
+  revenue?: number;
+  visitCountWithDetailing?: number;
+  commuteCostEstimate?: number;
+  roiPercent?: number;
+}
+
+export interface PharmacySalesCachePayload {
+  filterOptions?: PharmacySalesFilterOptionsDto;
+  detailRows?: PharmacySalesDetailRowDto[];
+}
+
+export interface PharmacySalesTrendDto {
+  id?: string;
+  category?: string;
+  title?: string;
+  metric?: string;
+  direction?: string;
+  narrative?: string;
+}
+
+export interface PharmacySalesRecommendationDto {
+  recordId?: string;
+  key?: string;
+  recommendationType?: string;
+  title?: string;
+  description?: string;
+  status?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  sortOrder?: number;
+  selected?: boolean;
+}
+
+export interface PharmacySalesVisionDto {
+  id?: string;
+  territory2Id?: string;
+  visionSummary?: string;
+  focusTherapyAreas?: string;
+  focusProductFamilies?: string;
+  classificationVisitWeights?: string;
+}
+
+export interface PharmacySalesInsightsPayloadDto {
+  sessionId?: string;
+  headline?: string;
+  marketSummary?: string;
+  brandSummary?: string;
+  planSummary?: string;
+  marketTrends?: PharmacySalesTrendDto[];
+  brandTrends?: PharmacySalesTrendDto[];
+  recommendations?: PharmacySalesRecommendationDto[];
+  vision?: PharmacySalesVisionDto;
+}
+
 export interface MyLearningCourseDto {
   instanceId?: string;
   materialId?: string;
@@ -189,6 +273,8 @@ export interface ApexCacheSnapshot {
   officeMessages: OfficeMessageDto[] | null;
   clmManifest: { presentations?: unknown[]; ratingLayoutJson?: string | null } | null;
   myLearning: MyLearningCourseDto[] | null;
+  pharmacySalesData: PharmacySalesCachePayload | null;
+  pharmacySalesInsights: PharmacySalesInsightsPayloadDto | null;
   fetchedAt: Partial<Record<ApexCacheKey, string>>;
   fromCache: boolean;
 }
@@ -207,6 +293,8 @@ function emptySnapshot(fromCache: boolean): ApexCacheSnapshot {
     officeMessages: null,
     clmManifest: null,
     myLearning: null,
+    pharmacySalesData: null,
+    pharmacySalesInsights: null,
     fetchedAt: {},
     fromCache
   };
@@ -262,6 +350,12 @@ export async function loadApexCacheSnapshot(db: SqlExecutor): Promise<ApexCacheS
         break;
       case 'myLearning':
         snap.myLearning = asArray<MyLearningCourseDto>(p);
+        break;
+      case 'pharmacySalesData':
+        snap.pharmacySalesData = (p as PharmacySalesCachePayload) ?? null;
+        break;
+      case 'pharmacySalesInsights':
+        snap.pharmacySalesInsights = (p as PharmacySalesInsightsPayloadDto) ?? null;
         break;
     }
   }
