@@ -33,10 +33,14 @@ import { Preferences } from '@capacitor/preferences';
 import {
   beginSalesforceLogin,
   completeSalesforceLogin,
+  completeOAuthFromLaunchUrl,
+  applyKnownCustomTabMetadata,
+  knownLwcBundleForTab,
   createLiveSyncEngine,
   installOAuthDeepLinkHandler,
   clearSession,
   loadSession,
+  pullPharmacySalesApexCache,
   loginUrlFromPageParams,
   extractMyDomainLabel,
   myDomainLoginUrlFromLabel,
@@ -71,6 +75,7 @@ import {
   type FlexiComponent,
   type LayoutModel,
   loadNavigation,
+  pickUserNavItems,
   loadHomeView,
   loadRecordView,
   isSparseRecord,
@@ -138,6 +143,7 @@ import {
   type FidelityCtx
 } from './fidelity/bridge';
 import { mirrorStyles } from './widgets/mirror-styles';
+import { callAdminApex } from './widgets/admin-modules/api';
 import { renderAccountHub } from './widgets/account-panels';
 import { prefetchAllPresentations } from './clm/clm-content-cache';
 
@@ -451,6 +457,7 @@ export class OsrApp extends LitElement {
   @state() private customDomainInput = '';
   @state() private loginEnv: 'production' | 'sandbox' | 'custom' = 'production';
   @state() private userLabel = 'Not signed in';
+  @state() private syncScopePromptOpen = false;
   @state() private syncing = false;
   /** Live channel/object progress from SyncEngine (null when idle). */
   @state() private syncProgress: SyncProgress | null = null;
@@ -577,6 +584,7 @@ export class OsrApp extends LitElement {
       width: 100%;
       max-width: 100%;
       overflow-x: hidden;
+      touch-action: manipulation;
       background: var(--sf-bg);
       color: var(--sf-text);
       font-family: var(--font);
@@ -604,6 +612,7 @@ export class OsrApp extends LitElement {
       min-width: 0;
       width: 100%;
       max-width: 100%;
+      overflow: hidden;
       padding: 8px 12px;
       background: var(--sf-surface);
       border-bottom: 1px solid var(--sf-border);
@@ -618,6 +627,9 @@ export class OsrApp extends LitElement {
       z-index: 20;
       background: var(--sf-surface);
       border-bottom: 1px solid var(--sf-border);
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .topbar-wrap .topbar {
@@ -733,6 +745,8 @@ export class OsrApp extends LitElement {
       background: #eef4ff;
       color: var(--sf-blue-dark);
       border: none;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .pill.offline {
@@ -751,6 +765,7 @@ export class OsrApp extends LitElement {
       cursor: pointer;
       display: grid;
       place-items: center;
+      flex-shrink: 0;
     }
 
     .icon-btn:disabled {
@@ -2065,6 +2080,37 @@ export class OsrApp extends LitElement {
       color: var(--sf-muted);
     }
 
+    .sync-scope-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .sync-scope-actions button {
+      width: 100%;
+      min-height: 44px;
+      border-radius: 12px;
+      border: 1px solid var(--sf-border);
+      background: var(--sf-surface);
+      color: var(--sf-text);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .sync-scope-actions button.primary {
+      background: var(--sf-blue);
+      border-color: var(--sf-blue);
+      color: #fff;
+    }
+
+    .sync-scope-actions button.ghost {
+      background: transparent;
+      color: var(--sf-muted);
+      font-weight: 500;
+    }
+
     /* —— Initial sync overlay —— */
     .sync-overlay {
       position: fixed;
@@ -2416,6 +2462,14 @@ export class OsrApp extends LitElement {
         min-width: 0;
       }
 
+      .topbar-wrap.is-syncing .top-search-wrap {
+        display: none;
+      }
+
+      .topbar-wrap.is-syncing .top-title p {
+        max-width: 9rem;
+      }
+
       .top-search-wrap {
         flex: 1 1 96px;
         max-width: none;
@@ -2690,6 +2744,21 @@ export class OsrApp extends LitElement {
       }
     }
 
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const launchTokens = await completeOAuthFromLaunchUrl(db);
+        if (launchTokens) {
+          this.tokens = launchTokens;
+          await this.afterLogin(launchTokens);
+          return;
+        }
+      } catch (e) {
+        this.syncMode = 'logged-out';
+        this.status = `Login failed: ${e instanceof Error ? e.message : String(e)}`;
+        return;
+      }
+    }
+
     this.tokens = await loadSession(db);
     if (this.tokens) {
       await this.afterLogin(this.tokens);
@@ -2733,9 +2802,9 @@ export class OsrApp extends LitElement {
 
   private async refreshNav() {
     if (!this.db) return;
-    const nav = await loadNavigation(this.db, this.currentApp);
+    const nav = await loadNavigation(this.db, this.currentApp, this.formFactor);
     this.apps = nav.apps;
-    this.tabs = nav.tabs as typeof this.tabs;
+    this.tabs = (nav.tabs as TabRow[]).map(applyKnownCustomTabMetadata);
     if (this.currentApp) {
       const app = this.apps.find((a) => a.developerName === this.currentApp);
       this.appLabel = app?.label ?? this.currentApp;
@@ -2774,10 +2843,17 @@ export class OsrApp extends LitElement {
     return `Sync issues · ${failed.slice(0, 2).join('; ')}`;
   }
 
-  /** Status line while sync is running: "Syncing in background… Accounts (3/8)". */
+  /** Short subtitle under the app title — never long sync channel names. */
+  private topbarSubtitle(): string {
+    if (this.syncing) return 'Syncing…';
+    const outbox = this.pendingCount ? ` · outbox ${this.pendingCount}` : '';
+    return `${this.status}${outbox}`;
+  }
+
+  /** Status line while sync is running (progress bar aria-label / logs). */
   private formatSyncingStatus(progress?: SyncProgress | null): string {
     const channel = progress?.channel?.trim();
-    return channel ? `Syncing in background… ${channel}` : 'Syncing in background…';
+    return channel ? `Syncing… ${channel}` : 'Syncing…';
   }
 
   private startBackgroundSync() {
@@ -2893,7 +2969,58 @@ export class OsrApp extends LitElement {
     `;
   }
 
-  private async runSync(opts: { initial?: boolean; background?: boolean } = {}) {
+  private requestManualSync() {
+    if (!this.db || !this.tokens || this.syncing) return;
+    this.syncScopePromptOpen = true;
+  }
+
+  private chooseSyncScope(scope: 'all' | 'records') {
+    this.syncScopePromptOpen = false;
+    void this.runSync({ scope });
+  }
+
+  private renderSyncScopePrompt() {
+    if (!this.syncScopePromptOpen) return nothing;
+    return html`
+      <div
+        class="sync-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sync-scope-title"
+        @click=${(e: Event) => {
+          if (e.target === e.currentTarget) this.syncScopePromptOpen = false;
+        }}
+      >
+        <div class="sync-modal" style="text-align:left;align-items:stretch">
+          <h2 id="sync-scope-title" style="text-align:center">Refresh from Salesforce</h2>
+          <p class="sync-modal-status" style="max-height:none;text-align:center">
+            Choose what to download while online.
+          </p>
+          <div class="sync-scope-actions">
+            <button type="button" class="primary" @click=${() => this.chooseSyncScope('all')}>
+              Everything
+              <span style="display:block;font-size:12px;font-weight:500;opacity:0.9;margin-top:4px">
+                Apps, tabs, layouts, LWCs, files, and records
+              </span>
+            </button>
+            <button type="button" @click=${() => this.chooseSyncScope('records')}>
+              Records only
+              <span style="display:block;font-size:12px;font-weight:500;color:var(--sf-muted);margin-top:4px">
+                Re-download data — keeps apps and layout as-is
+              </span>
+            </button>
+            <button type="button" class="ghost" @click=${() => (this.syncScopePromptOpen = false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private async runSync(
+    opts: { initial?: boolean; background?: boolean; scope?: 'all' | 'records' } = {}
+  ) {
     if (!this.db || !this.tokens) return;
     if (this.syncing) return;
     if (opts.background && !this.online) return;
@@ -2905,7 +3032,9 @@ export class OsrApp extends LitElement {
     }
     this.status = opts.background
       ? 'Background sync…'
-      : this.formatSyncingStatus();
+      : opts.scope === 'records'
+        ? 'Syncing records…'
+        : this.formatSyncingStatus();
     const SYNC_TIMEOUT_MS = opts.background ? 120_000 : 180_000;
     try {
       if (!this.successfulSyncCount) await this.loadSuccessfulSyncCount();
@@ -2922,36 +3051,56 @@ export class OsrApp extends LitElement {
       }
       const weekStart = this.plannerWeekStart || sundayWeekRange().weekStart;
       const { weekEnd } = sundayWeekRange(new Date(weekStart + 'T12:00:00'));
-      const syncPromise = engine.fullSync({
-        apexCache: {
-          weekStart,
-          weekEnd,
-          planDate: isoDateLocal(),
-          contextUserId: this.selectedContextUserId ?? undefined
-        },
-        onProgress: (progress) => {
-          if (!opts.background) this.applySyncProgress(progress);
-          else {
-            this.syncProgress = progress;
-            const channel = progress.channel?.trim();
-            this.status = channel ? `Background sync… ${channel}` : 'Background sync…';
-          }
-        },
-        afterMetadata: async () => {
-          await this.refreshNav();
-          if (this.apps.length > 0) {
-            this.syncFailedMessage = null;
-          }
-          if (!opts.background && !this.syncProgress) {
-            this.status = this.formatSyncingStatus({
-              phase: 'metadata',
-              channel: 'Apps',
-              current: 1,
-              total: 0
-            });
-          }
-        }
-      });
+      const syncFn =
+        opts.scope === 'records' && !opts.initial
+          ? () => engine.recordsSync({
+              apexCache: {
+                weekStart,
+                weekEnd,
+                planDate: isoDateLocal(),
+                contextUserId: this.selectedContextUserId ?? undefined
+              },
+              onProgress: (progress) => {
+                if (!opts.background) this.applySyncProgress(progress);
+                else {
+                  this.syncProgress = progress;
+                  const channel = progress.channel?.trim();
+                  this.status = channel ? `Background sync… ${channel}` : 'Background sync…';
+                }
+              }
+            })
+          : () =>
+              engine.fullSync({
+                apexCache: {
+                  weekStart,
+                  weekEnd,
+                  planDate: isoDateLocal(),
+                  contextUserId: this.selectedContextUserId ?? undefined
+                },
+                onProgress: (progress) => {
+                  if (!opts.background) this.applySyncProgress(progress);
+                  else {
+                    this.syncProgress = progress;
+                    const channel = progress.channel?.trim();
+                    this.status = channel ? `Background sync… ${channel}` : 'Background sync…';
+                  }
+                },
+                afterMetadata: async () => {
+                  await this.refreshNav();
+                  if (this.apps.length > 0) {
+                    this.syncFailedMessage = null;
+                  }
+                  if (!opts.background && !this.syncProgress) {
+                    this.status = this.formatSyncingStatus({
+                      phase: 'metadata',
+                      channel: 'Apps',
+                      current: 1,
+                      total: 0
+                    });
+                  }
+                }
+              });
+      const syncPromise = syncFn();
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(
           () =>
@@ -2966,8 +3115,11 @@ export class OsrApp extends LitElement {
         );
       });
       const result = await Promise.race([syncPromise, timeoutPromise]);
-      await this.refreshNav();
+      if (opts.scope !== 'records' || opts.initial) {
+        await this.refreshNav();
+      }
       await this.refreshApexSnapshot();
+      if (opts.scope !== 'records') {
       // Runtime-compile synced Tooling LWC sources into kv cache for iframe engine
       try {
         const bundles = [
@@ -2999,6 +3151,7 @@ export class OsrApp extends LitElement {
         }
       } catch (e) {
         console.warn('[osr] LWC compile pass failed', e);
+      }
       }
 
       const successCount = await this.bumpSuccessfulSyncCount();
@@ -3049,9 +3202,9 @@ export class OsrApp extends LitElement {
         }
       }
 
-      this.status = `${this.formatSyncStatus(result.pull.channels, mode)}${validationNote}${
-        opts.background ? ' · auto' : ''
-      }`;
+      this.status = `${this.formatSyncStatus(result.pull.channels, mode)}${
+        opts.scope === 'records' ? ' · records' : ''
+      }${validationNote}${opts.background ? ' · auto' : ''}`;
       this.pendingCount = (await listPendingOutbox(this.db)).length;
       // Enrich local support logs with UI context (auto / outbox) for CloudAstick exports
       const failedChannels = Object.entries(result.pull.channels).filter(([, c]) => !c.ok);
@@ -3199,7 +3352,8 @@ export class OsrApp extends LitElement {
   private hasUserNavPrefs(): boolean {
     if (!this.currentApp) return false;
     const app = this.apps.find((a) => a.developerName === this.currentApp);
-    return (app?.userNavItems?.length ?? 0) > 0;
+    if (!app) return false;
+    return (pickUserNavItems(app, this.formFactor)?.length ?? 0) > 0;
   }
 
   private isHomeNavTab(t: TabRow): boolean {
@@ -3246,19 +3400,18 @@ export class OsrApp extends LitElement {
     this.usableLwc = next;
   }
 
-  /** Known custom-tab → LWC when FlexiPage sync left a record-layout stub. */
+  /** FlexiPage tabs that should mount a fidelity LWC when the synced page is a stub. */
   private knownTabLwcFallback(t: TabRow): string | null {
+    const fromKnown = knownLwcBundleForTab(t.developerName, t.tab);
+    if (fromKnown) return normalizeLwcBundleName(fromKnown);
     const page = t.tab.pageDeveloperName ?? t.developerName;
-    const map: Record<string, string> = {
-      Field_Rep_Planner: 'c/fieldRepPlanner',
-      Accounts_Tab: 'c/accountsTab',
-      Request_Time_Off: 'c/timeOffSubmission',
-      Time_Off_Submission: 'c/timeOffSubmission',
-      CLM_Presentations: 'c/clmPresentationsHub',
-      My_Learning: 'c/myLearning'
+    const fromPage = knownLwcBundleForTab(page, t.tab);
+    if (fromPage) return normalizeLwcBundleName(fromPage);
+    const stubMap: Record<string, string> = {
+      Field_Rep_Planner: 'c/fieldRepPlanner'
     };
-    if (t.tab.lwcBundle) return normalizeLwcBundleName(t.tab.lwcBundle);
-    return map[t.developerName] ?? map[page] ?? null;
+    const stub = stubMap[t.developerName] ?? stubMap[page];
+    return stub ? normalizeLwcBundleName(stub) : null;
   }
 
   /** True when FlexiPage only has record chrome (highlights / fields / related). */
@@ -3321,7 +3474,11 @@ export class OsrApp extends LitElement {
           this.plannerWeekStart = sundayWeekRange().weekStart;
         }
         await this.refreshApexSnapshot(
-          b === 'c/fieldRepPlanner' ? { weekStart: this.plannerWeekStart || undefined } : undefined
+          b === 'c/fieldRepPlanner'
+            ? { weekStart: this.plannerWeekStart || undefined }
+            : b === 'c/pharmacySalesDashboard'
+              ? { keys: ['pharmacySalesData', 'pharmacySalesInsights'] }
+              : undefined
         );
         return;
       }
@@ -3344,16 +3501,32 @@ export class OsrApp extends LitElement {
       }
     };
 
+    const fidelityFallback = this.knownTabLwcFallback(t);
+    if (fidelityFallback && isFidelityBundle(fidelityFallback)) {
+      const pageName = t.tab.pageDeveloperName ?? t.developerName;
+      const raw = pageName ? await getFlexiPage(this.db, pageName) : null;
+      const flexi = raw ? parseFlexiPage(raw) : null;
+      if (!flexi || this.isRecordLayoutStub(flexi)) {
+        await mountLwcTab(fidelityFallback);
+        return;
+      }
+    }
+
     if (typ === 'lwc' && t.tab.lwcBundle) {
       await mountLwcTab(normalizeLwcBundleName(t.tab.lwcBundle));
       return;
     }
     if (typ === 'flexipage' || t.tab.pageDeveloperName) {
       const pageName = t.tab.pageDeveloperName ?? t.developerName;
+      const knownLwc = this.knownTabLwcFallback(t);
+      if (knownLwc && isFidelityBundle(knownLwc)) {
+        await mountLwcTab(knownLwc);
+        return;
+      }
       const raw = await getFlexiPage(this.db, pageName);
       const flexi = parseFlexiPage(raw);
       if (!flexi || this.isRecordLayoutStub(flexi)) {
-        const fallback = this.knownTabLwcFallback(t);
+        const fallback = knownLwc ?? this.knownTabLwcFallback(t);
         if (fallback) {
           await mountLwcTab(fallback);
           return;
@@ -3484,11 +3657,18 @@ export class OsrApp extends LitElement {
   }
 
   /** Online: refresh Apex DTOs via Sync Pack / REST fallback; offline: last SQLite snapshot. */
-  private async refreshApexSnapshot(opts?: { weekStart?: string; contextUserId?: string | null }) {
+  private async refreshApexSnapshot(opts?: {
+    weekStart?: string;
+    contextUserId?: string | null;
+    keys?: string[];
+  }) {
     if (!this.db) return;
     const weekStart = opts?.weekStart || this.plannerWeekStart || undefined;
     const contextUserId =
       opts?.contextUserId !== undefined ? opts.contextUserId : this.selectedContextUserId;
+    const wantsPharmacy =
+      !opts?.keys?.length ||
+      opts.keys.some((k) => k === 'pharmacySalesData' || k === 'pharmacySalesInsights');
     try {
       if (this.online && this.tokens) {
         const { engine } = await createLiveSyncEngine(this.db, this.tokens);
@@ -3498,6 +3678,7 @@ export class OsrApp extends LitElement {
           weekEnd?: string;
           planDate?: string;
           contextUserId?: string;
+          keys?: string[];
         } = { planDate: isoDateLocal() };
         if (weekStart) {
           const { weekEnd } = sundayWeekRange(new Date(weekStart + 'T12:00:00'));
@@ -3505,7 +3686,14 @@ export class OsrApp extends LitElement {
           pullOpts.weekEnd = weekEnd;
         }
         if (contextUserId) pullOpts.contextUserId = contextUserId;
+        if (opts?.keys?.length) pullOpts.keys = opts.keys;
         await engine.pullApexCache(pullOpts);
+        if (wantsPharmacy && this.tokens) {
+          let snap = await loadApexCacheSnapshot(this.db);
+          if (!(snap.pharmacySalesData?.detailRows?.length ?? 0)) {
+            await pullPharmacySalesApexCache(this.db, this.tokens);
+          }
+        }
         let snap = await loadApexCacheSnapshot(this.db);
         snap.fromCache = false;
         const sqliteAccounts = await listRecords(this.db, 'Account', 500);
@@ -3679,6 +3867,25 @@ export class OsrApp extends LitElement {
       sfAuth: this.tokens
         ? { accessToken: this.tokens.accessToken, instanceUrl: this.tokens.instanceUrl }
         : null,
+      db: this.db,
+      invokeAdminApex: async (method, params = {}) => {
+        if (!this.tokens) throw new Error('Not authenticated');
+        return callAdminApex(this.tokens, method, params);
+      },
+      openRecord: (objectApi, id) => void this.openRecord(objectApi, id),
+      openTab: (developerName) => {
+        const tab = this.tabs.find(
+          (t) => t.developerName === developerName || t.tab.pageDeveloperName === developerName
+        );
+        if (tab) void this.openAppTab(tab);
+        else this.status = `Tab “${developerName}” is not available offline.`;
+      },
+      toast: (detail) => {
+        this.toastMessage = [detail.title, detail.message].filter(Boolean).join(' — ') || 'Notification';
+        window.setTimeout(() => {
+          this.toastMessage = null;
+        }, 3200);
+      },
       clmPrefetching: this.clmPrefetching,
       requestUpdate: () => this.requestUpdate(),
       actions: {
@@ -4231,6 +4438,8 @@ export class OsrApp extends LitElement {
       officeMessages: null,
       clmManifest: null,
       myLearning: null,
+      pharmacySalesData: null,
+      pharmacySalesInsights: null,
       fetchedAt: {},
       fromCache: true
     };
@@ -4749,6 +4958,10 @@ export class OsrApp extends LitElement {
     }
   }
 
+  private bottomNavTabLimit(): number {
+    return this.hasUserNavPrefs() ? 5 : 4;
+  }
+
   private navItems() {
     const userNav = this.hasUserNavPrefs();
     const items: {
@@ -4776,7 +4989,7 @@ export class OsrApp extends LitElement {
       });
     }
 
-    for (const t of this.appNavTabs().slice(0, 4)) {
+    for (const t of this.appNavTabs().slice(0, this.bottomNavTabLimit())) {
       const typ = this.tabTypeOf(t);
       const iconName = t.tab.objectApi ?? t.developerName;
       const homeTab = this.isHomeNavTab(t);
@@ -4833,13 +5046,13 @@ export class OsrApp extends LitElement {
     const showChromeNav = this.route.kind !== 'launcher';
     return html`
       <div class="shell">
-        <div class="topbar-wrap">
+        <div class="topbar-wrap ${this.syncing ? 'is-syncing' : ''}">
           <header class="topbar">
             <img class="topbar-logo" src="/salesforce-cloud.png" alt="Salesforce" height="28" />
             <div class="avatar">${(this.userLabel || 'SF').slice(0, 2).toUpperCase()}</div>
             <div class="top-title">
               <h1>${this.titleText()}</h1>
-              <p>${this.status}${this.pendingCount ? ` · outbox ${this.pendingCount}` : ''}</p>
+              <p>${this.topbarSubtitle()}</p>
             </div>
             ${showChromeNav
               ? html`
@@ -4867,7 +5080,7 @@ export class OsrApp extends LitElement {
                 `
               : nothing}
             <span class="pill ${this.online ? '' : 'offline'}">${this.online ? 'Online' : 'Offline'}</span>
-            <button class="icon-btn" ?disabled=${this.syncing} @click=${() => this.runSync()} title="Sync">
+            <button class="icon-btn" ?disabled=${this.syncing} @click=${() => this.requestManualSync()} title="Sync">
               ↻
             </button>
           </header>
@@ -4912,6 +5125,7 @@ export class OsrApp extends LitElement {
         ${this.visitShellId ? this.renderVisitShellOverlay() : nothing}
         ${this.clmPlayerOverlayOpen && this.clmPlayerId ? this.renderClmPlayerOverlay() : nothing}
         ${this.renderSyncOverlay()}
+        ${this.renderSyncScopePrompt()}
         ${this.renderErrorPopup()}
         ${this.toastMessage
           ? html`<div class="osr-toast" role="status">${this.toastMessage}</div>`
@@ -5029,7 +5243,11 @@ export class OsrApp extends LitElement {
               this.loginUrl = resolved;
               this.status = 'Opening sign-in…';
               try {
-                await beginSalesforceLogin(this.db, { loginUrl: resolved });
+                const tokens = await beginSalesforceLogin(this.db, { loginUrl: resolved });
+                if (tokens) {
+                  this.tokens = tokens;
+                  await this.afterLogin(tokens);
+                }
               } catch (e) {
                 this.status =
                   e instanceof Error && e.message
@@ -5173,7 +5391,7 @@ export class OsrApp extends LitElement {
                     <button
                       class="primary"
                       style="width:auto;padding:0 16px"
-                      @click=${() => this.runSync()}
+                      @click=${() => this.requestManualSync()}
                     >
                       Sync now
                     </button>
@@ -5302,7 +5520,7 @@ export class OsrApp extends LitElement {
           <div><strong>Outbox:</strong> ${this.pendingCount}</div>
           <div><strong>Conflicts:</strong> ${this.conflicts.length}</div>
           <div class="cta-row" style="padding-left:0;border:none">
-            <button class="ghost" style="padding-left:0" @click=${() => this.runSync()}>
+            <button class="ghost" style="padding-left:0" @click=${() => this.requestManualSync()}>
               Sync now
             </button>
           </div>
@@ -6443,7 +6661,7 @@ export class OsrApp extends LitElement {
           >
             <span>App Launcher (${this.apps.length} apps)</span><span>›</span>
           </button>
-          <button @click=${() => this.runSync()}>
+          <button @click=${() => this.requestManualSync()}>
             <span>Sync now (${this.syncMode})</span><span>›</span>
           </button>
           <button
@@ -6465,7 +6683,9 @@ export class OsrApp extends LitElement {
             <span>Log Out</span><span>›</span>
           </button>
         </div>
-        <h3 style="margin:20px 0 8px;font-size:14px;color:var(--sf-muted)">All tabs in this app</h3>
+        <h3 style="margin:20px 0 8px;font-size:14px;color:var(--sf-muted)">
+          ${this.hasUserNavPrefs() ? 'Your navigation' : 'All tabs in this app'}
+        </h3>
         <div class="menu-list">
           ${navTabs.length === 0
             ? html`<button disabled><span>No tabs synced</span></button>`

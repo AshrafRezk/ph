@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview",
-    "cap:sync": "cap sync",
+    "cap:sync": "cap sync && node scripts/ensure-ios-oauth.mjs",
+    "cap:open:ios": "cap open ios",
+    "cap:run:ios": "npm run build && cap sync ios && node scripts/ensure-ios-oauth.mjs && cap run ios",
     "cap:add:ios": "cap add ios",
     "cap:add:android": "cap add android"
   },
@@ -20,6 +22,7 @@
     "@capacitor/device": "^6.0.3",
     "@capacitor/filesystem": "^6.0.2",
     "@capacitor/geolocation": "^6.1.1",
+    "@capacitor/ios": "^6.2.1",
     "@capacitor/network": "^6.0.3",
     "@capacitor/preferences": "^6.0.3",
     "@lwc/engine-dom": "^9.3.6",

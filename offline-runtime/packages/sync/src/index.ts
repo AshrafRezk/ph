@@ -35,6 +35,7 @@ import {
   listListViewsForObject,
   getCompactLayoutForObject
 } from '@osr/db';
+import { buildPharmacySalesMockPayload, buildPharmacySalesInsightsMockPayload } from './pharmacy-sales-mock';
 
 const SYNC_FIELD_BASE = ['Id', 'Name', 'Subject', 'SystemModstamp'] as const;
 const MAX_SYNC_FIELDS = 120;
@@ -241,6 +242,71 @@ export function createSfClient(tokens: TokenSet, apiVersion = '61.0'): SyncHttpC
     get: (path) => request('GET', path),
     post: (path, body) => request('POST', path, body)
   };
+}
+
+/** Salesforce record ids are exactly 15 or 18 alphanumeric chars (not stub keys like app_Foo). */
+export function isSalesforceRecordId(id: string): boolean {
+  return /^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$/.test(id);
+}
+
+/** UI API apps use `appId`; older payloads may use `id`. */
+export function uiAppRecordId(app: { id?: string; appId?: string } | null | undefined): string {
+  const id = String(app?.appId ?? app?.id ?? '').trim();
+  return isSalesforceRecordId(id) ? id : '';
+}
+
+export function parseUiNavRecords(raw: Record<string, unknown>[]): {
+  developerName: string;
+  label?: string;
+  iconUrl?: string | null;
+  objectApiName?: string | null;
+  itemType?: string | null;
+  pageReference?: Record<string, unknown> | null;
+}[] {
+  const userNavItems: {
+    developerName: string;
+    label?: string;
+    iconUrl?: string | null;
+    objectApiName?: string | null;
+    itemType?: string | null;
+    pageReference?: Record<string, unknown> | null;
+  }[] = [];
+  for (const item of raw) {
+    const developerName = String(item.developerName ?? '').trim();
+    if (!developerName) continue;
+    userNavItems.push({
+      developerName,
+      label: item.label != null ? String(item.label) : undefined,
+      iconUrl: item.iconUrl != null ? String(item.iconUrl) : null,
+      objectApiName: item.objectApiName != null ? String(item.objectApiName) : null,
+      itemType: item.itemType != null ? String(item.itemType) : null,
+      pageReference:
+        item.pageReference && typeof item.pageReference === 'object'
+          ? (item.pageReference as Record<string, unknown>)
+          : null
+    });
+  }
+  return userNavItems;
+}
+
+/** True for Lightning apps worth a user-nav-items call (skip bare portal tab sets). */
+export function shouldSyncUserNavForApp(app: {
+  developerName: string;
+  app: Record<string, unknown>;
+}): boolean {
+  const tabs = app.app.tabDeveloperNames;
+  if (!Array.isArray(tabs) || tabs.length < 3) return false;
+  const normalized = tabs.map((t) => String(t).replace(/^standard-/, ''));
+  const customLike = normalized.filter(
+    (t) =>
+      t.includes('_') ||
+      /_Tab$/i.test(t) ||
+      t.endsWith('__c') ||
+      t.endsWith('_Dashboard') ||
+      t === 'CLM_Presentations' ||
+      t === 'Admin_Console'
+  );
+  return customLike.length > 0;
 }
 
 /** True when running in a browser tab (not Capacitor native). */
@@ -558,6 +624,81 @@ export class SyncEngine {
     });
     result.channels.prefs = await this.safe('prefs', () => this.pullPrefs());
     return result;
+  }
+
+  /** Re-download record data (+ apex cache) using existing local metadata — no layout/LWC refresh. */
+  async pullRecordsOnly(profile?: SyncProfile, hooks?: SyncHooks): Promise<PullResult> {
+    let p = profile ?? (await this.fetchProfile());
+    p = await this.enrichProfileFromLocalMetadata(p);
+    p = await this.filterQueryableObjects(p);
+    const result: PullResult = { channels: {} };
+    const report = (progress: SyncProgress) => {
+      try {
+        hooks?.onProgress?.(progress);
+      } catch {
+        /* UI progress must not fail sync */
+      }
+    };
+    const objectCount = p.objects.length;
+    const total = 1 + objectCount;
+
+    report({ phase: 'apexCache', channel: 'Caching widgets…', current: 1, total });
+    result.channels.apexCache = await this.safe('apexCache', () =>
+      this.pullApexCache(hooks?.apexCache)
+    );
+
+    const dataResult = await this.pullDataResilient(p, {
+      onObject: (obj, index, ofTotal) => {
+        const step = 1 + index;
+        report({
+          phase: 'data',
+          channel: `${syncChannelLabel(obj.apiName)} (${index}/${ofTotal})`,
+          objectApi: obj.apiName,
+          current: step,
+          total
+        });
+      }
+    });
+    result.channels.data = {
+      ok: dataResult.errors.length === 0,
+      count: dataResult.count,
+      error: dataResult.errors.length
+        ? dataResult.errors.slice(0, 5).join('; ')
+        : undefined
+    };
+    for (const err of dataResult.errors) {
+      const api = err.split(':')[0]?.trim() || 'object';
+      result.channels[`data:${api}`] = { ok: false, count: 0, error: err };
+    }
+    return result;
+  }
+
+  async recordsSync(
+    hooks?: SyncHooks
+  ): Promise<{ pull: PullResult; push: PushOutboxResult }> {
+    let push: PushOutboxResult = { synced: 0, failed: 0, conflicts: 0, failures: [] };
+    try {
+      hooks?.onProgress?.({ phase: 'push', channel: 'Outbox', current: 0, total: 0 });
+    } catch {
+      /* ignore */
+    }
+    try {
+      push = await this.drainOutbox();
+    } catch (e) {
+      try {
+        await appendLog(this.db, {
+          category: 'sync',
+          source: 'outbox',
+          message: e instanceof Error ? e.message : String(e),
+          detail: { stack: e instanceof Error ? e.stack?.slice(0, 2000) : undefined },
+          tags: ['push', 'batch-error', 'records']
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+    const pull = await this.pullRecordsOnly(undefined, hooks);
+    return { pull, push };
   }
 
   /** Keep only objects present in local meta_objects (described/queryable). */
@@ -884,51 +1025,80 @@ export class SyncEngine {
 
   /** UI API: user's personalized nav bar order per Lightning app. */
   async pullUserNavPreferences(apiVersion = '61.0'): Promise<number> {
+    type UiApp = {
+      id?: string;
+      appId?: string;
+      developerName?: string;
+      name?: string;
+    };
+
+    const catalogs = await Promise.all(
+      (['Large', 'Small'] as const).map(async (formFactor) => {
+        try {
+          const catalog = await this.client.get<{ apps?: UiApp[] } | UiApp[]>(
+            `/services/data/v${apiVersion}/ui-api/apps?formFactor=${formFactor}`
+          );
+          const uiApps = Array.isArray(catalog) ? catalog : (catalog.apps ?? []);
+          const idByDeveloperName = new Map<string, string>();
+          for (const ua of uiApps) {
+            if (ua && typeof ua === 'object' && 'errorCode' in ua) continue;
+            const id = uiAppRecordId(ua);
+            const dn = String(ua.developerName ?? ua.name ?? '').trim();
+            if (dn && id) idByDeveloperName.set(dn, id);
+          }
+          return { formFactor, idByDeveloperName };
+        } catch {
+          return {
+            formFactor,
+            idByDeveloperName: new Map<string, string>()
+          };
+        }
+      })
+    );
+
+    const hasCatalog = catalogs.some((c) => c.idByDeveloperName.size > 0);
+    if (!hasCatalog) return 0;
+
     const apps = await listApps(this.db);
     let n = 0;
     for (const app of apps) {
-      const id = app.id?.trim() ?? '';
-      if (!/^[a-zA-Z0-9]{15,18}$/.test(id)) continue;
-      try {
-        const res = await this.client.get<{ navItems?: Record<string, unknown>[] }>(
-          `/services/data/v${apiVersion}/ui-api/apps/${id}/user-nav-items?formFactor=Large`
-        );
-        const raw = res.navItems ?? [];
-        if (!raw.length) continue;
-        const userNavItems: {
-          developerName: string;
-          label?: string;
-          iconUrl?: string | null;
-          objectApiName?: string | null;
-          itemType?: string | null;
-          pageReference?: Record<string, unknown> | null;
-        }[] = [];
-        for (const item of raw) {
-          const developerName = String(item.developerName ?? '').trim();
-          if (!developerName) continue;
-          userNavItems.push({
-            developerName,
-            label: item.label != null ? String(item.label) : undefined,
-            iconUrl: item.iconUrl != null ? String(item.iconUrl) : null,
-            objectApiName: item.objectApiName != null ? String(item.objectApiName) : null,
-            itemType: item.itemType != null ? String(item.itemType) : null,
-            pageReference:
-              item.pageReference && typeof item.pageReference === 'object'
-                ? (item.pageReference as Record<string, unknown>)
-                : null
-          });
+      if (!shouldSyncUserNavForApp(app)) continue;
+
+      const navByFactor: Partial<
+        Record<'Large' | 'Small', ReturnType<typeof parseUiNavRecords>>
+      > = {};
+
+      for (const catalog of catalogs) {
+        let appId = catalog.idByDeveloperName.get(app.developerName) ?? '';
+        if (!isSalesforceRecordId(appId)) {
+          appId = uiAppRecordId({ id: app.id, appId: app.id });
         }
-        if (!userNavItems.length) continue;
-        await upsertApp(this.db, {
-          id: app.id,
-          developerName: app.developerName,
-          label: app.label,
-          app: { ...app.app, userNavItems }
-        });
-        n++;
-      } catch {
-        /* UI API unavailable for this app/user — fall back to app tab list */
+        if (!isSalesforceRecordId(appId)) continue;
+
+        try {
+          const res = await this.client.get<{ navItems?: Record<string, unknown>[] }>(
+            `/services/data/v${apiVersion}/ui-api/apps/${appId}/user-nav-items?formFactor=${catalog.formFactor}`
+          );
+          const parsed = parseUiNavRecords(res.navItems ?? []);
+          if (parsed.length) navByFactor[catalog.formFactor] = parsed;
+        } catch {
+          /* user-nav-items unavailable for this app/user */
+        }
       }
+
+      if (!navByFactor.Large?.length && !navByFactor.Small?.length) continue;
+
+      await upsertApp(this.db, {
+        id: app.id,
+        developerName: app.developerName,
+        label: app.label,
+        app: {
+          ...app.app,
+          ...(navByFactor.Large?.length ? { userNavItems: navByFactor.Large } : {}),
+          ...(navByFactor.Small?.length ? { userNavItemsSmall: navByFactor.Small } : {})
+        }
+      });
+      n++;
     }
     return n;
   }
@@ -1732,7 +1902,8 @@ export function createMockSyncClient(seed?: Partial<SyncProfile>): SyncHttpClien
       'c/fieldRepHomeClmPrefetch',
       'c/homeOfficeMessages',
       'c/repLocationPublisher',
-      'c/reportsHub'
+      'c/reportsHub',
+      'c/pharmacySalesDashboard'
     ],
     fileScopes: seed?.fileScopes ?? [{ linkedEntityObject: 'Visit__c', maxBytes: 5_000_000 }]
   };
@@ -2469,6 +2640,16 @@ export function createMockSyncClient(seed?: Partial<SyncProfile>): SyncHttpClien
               ]
             },
             {
+              key: 'pharmacySalesData',
+              fetchedAt: now,
+              payload: buildPharmacySalesMockPayload()
+            },
+            {
+              key: 'pharmacySalesInsights',
+              fetchedAt: now,
+              payload: buildPharmacySalesInsightsMockPayload()
+            },
+            {
               key: 'accountCoverage',
               fetchedAt: now,
               payload: []
@@ -2496,3 +2677,8 @@ export function createMockSyncClient(seed?: Partial<SyncProfile>): SyncHttpClien
     }
   };
 }
+
+export {
+  buildPharmacySalesMockPayload,
+  buildPharmacySalesInsightsMockPayload
+} from './pharmacy-sales-mock';

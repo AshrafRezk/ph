@@ -1,0 +1,253 @@
+.osr-lwc-mirror.admin-console-root {
+  display: block;
+}
+
+.osr-lwc-mirror .admin-console {
+  --admin-radius: 14px;
+  --admin-border-color: #e5e7eb;
+  --admin-border: 1px solid var(--admin-border-color);
+  --admin-shadow-hover: 0 6px 18px rgba(15, 23, 42, 0.08);
+  --admin-brand: #0176d3;
+  --admin-muted: #5f6368;
+  --admin-title: #1f2937;
+  --admin-bg-tint: #f8fafc;
+  --admin-surface: #ffffff;
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius);
+  border: var(--admin-border);
+  overflow: hidden;
+}
+
+.osr-lwc-mirror .admin-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border-color);
+}
+
+.osr-lwc-mirror .admin-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eaf3fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-brand);
+}
+
+.osr-lwc-mirror .admin-header-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--admin-title);
+  margin: 0;
+}
+
+.osr-lwc-mirror .admin-header-subtitle {
+  font-size: 0.875rem;
+  color: var(--admin-muted);
+  margin: 0.125rem 0 0;
+}
+
+.osr-lwc-mirror .admin-body {
+  padding: 1.25rem;
+}
+
+.osr-lwc-mirror .admin-search {
+  max-width: 360px;
+  margin-bottom: 1.25rem;
+}
+
+.osr-lwc-mirror .admin-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--admin-border-color);
+  border-radius: 0.375rem;
+  font: inherit;
+  background: #fff;
+}
+
+.osr-lwc-mirror .admin-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.osr-lwc-mirror .admin-section-chevron {
+  display: flex;
+  color: var(--admin-muted);
+}
+
+.osr-lwc-mirror .admin-section-label {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.osr-lwc-mirror .admin-section-count {
+  font-size: 0.8125rem;
+  color: var(--admin-muted);
+}
+
+.osr-lwc-mirror .admin-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .osr-lwc-mirror .admin-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .osr-lwc-mirror .admin-cards-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.osr-lwc-mirror .admin-card {
+  display: grid;
+  grid-template-columns: 104px 1fr auto;
+  min-height: 116px;
+  background: var(--admin-surface);
+  border: var(--admin-border);
+  border-radius: var(--admin-radius);
+  overflow: hidden;
+  cursor: pointer;
+  --c-tint: #eaf3fb;
+  --c-strong: var(--admin-brand);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.osr-lwc-mirror .admin-card--blue { --c-tint: #eaf3fb; --c-strong: #0176d3; }
+.osr-lwc-mirror .admin-card--teal { --c-tint: #e6f7f2; --c-strong: #0a8a6e; }
+.osr-lwc-mirror .admin-card--pink { --c-tint: #fce8f3; --c-strong: #d63384; }
+.osr-lwc-mirror .admin-card--indigo { --c-tint: #eeefff; --c-strong: #4f46e5; }
+.osr-lwc-mirror .admin-card--orange { --c-tint: #fff4e5; --c-strong: #dd7a01; }
+.osr-lwc-mirror .admin-card--green { --c-tint: #e8f5e9; --c-strong: #2e844a; }
+.osr-lwc-mirror .admin-card--purple { --c-tint: #f3e8ff; --c-strong: #7c3aed; }
+.osr-lwc-mirror .admin-card--slate { --c-tint: #eef2f7; --c-strong: #475569; }
+
+.osr-lwc-mirror .admin-card:hover,
+.osr-lwc-mirror .admin-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--c-strong);
+  background: var(--admin-bg-tint);
+  box-shadow: var(--admin-shadow-hover);
+  outline: none;
+}
+
+.osr-lwc-mirror .admin-card-icon-panel {
+  background: var(--c-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-strong);
+}
+
+.osr-lwc-mirror .admin-card-body {
+  padding: 1rem 1.125rem;
+  min-width: 0;
+}
+
+.osr-lwc-mirror .admin-card-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--c-strong);
+  margin: 0 0 0.25rem;
+}
+
+.osr-lwc-mirror .admin-card-desc {
+  font-size: 0.875rem;
+  color: var(--admin-muted);
+  margin: 0;
+}
+
+.osr-lwc-mirror .admin-card-chevron {
+  display: flex;
+  align-items: center;
+  padding-right: 1rem;
+  opacity: 0.35;
+  color: var(--admin-muted);
+}
+
+.osr-lwc-mirror .admin-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--admin-muted);
+}
+
+.osr-lwc-mirror .admin-console-modal-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
+.osr-lwc-mirror .admin-console-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.osr-lwc-mirror .admin-console-modal.slds-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9001;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
+.osr-lwc-mirror .admin-console-modal .slds-modal__container {
+  pointer-events: auto;
+  position: relative;
+  z-index: 9002;
+  background: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  max-width: 92vw;
+  width: 92vw;
+  max-height: calc(100vh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.osr-lwc-mirror .admin-console-modal .slds-modal__content {
+  max-height: 80vh;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.osr-lwc-mirror .admin-module-host {
+  min-height: 12rem;
+}
+
+.osr-lwc-mirror .admin-module-placeholder {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--admin-muted);
+}
+
+.osr-lwc-mirror .admin-module-placeholder strong {
+  display: block;
+  color: var(--admin-title);
+  margin-bottom: 0.5rem;
+}

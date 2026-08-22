@@ -35,7 +35,9 @@ global with sharing class OsrApexCacheService {
         'rankings',
         'nextBestCustomers',
         'officeMessages',
-        'clmManifest'
+        'clmManifest',
+        'pharmacySalesData',
+        'pharmacySalesInsights'
     };
 
     @HttpPost
@@ -175,6 +177,21 @@ global with sharing class OsrApexCacheService {
                 out.put('ratingLayoutJson', null);
             }
             return out;
+        }
+        if (key == 'pharmacySalesData') {
+            return PharmacySalesAnalyticsController.getOfflineCachePayload();
+        }
+        if (key == 'pharmacySalesInsights') {
+            PharmacySalesInsightsTypes.FilterInput filters = new PharmacySalesInsightsTypes.FilterInput();
+            Date today = Date.today();
+            filters.startMonth = today.toStartOfMonth().addMonths(-5);
+            filters.endMonth = today.toStartOfMonth();
+            filters.dataSource = 'All';
+            filters.therapyArea = 'All';
+            filters.productFamily = 'All';
+            PharmacySalesInsightsOrchestrator.GenerationOutcome outcome =
+                PharmacySalesInsightsOrchestrator.generate(filters);
+            return outcome.payload;
         }
         throw new AuraHandledException('Unknown apex-cache key: ' + key);
     }

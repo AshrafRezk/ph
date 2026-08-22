@@ -24,7 +24,13 @@ import {
 } from '@osr/db';
 import { FormulaEvaluator, validateRecord, type ValidationResult } from '@osr/validation';
 import { localSaveRecord, localDeleteRecord } from '@osr/sync';
-import { resolveTabsFromUserNav, type UserNavItem, type NavTabRow } from './user-nav.js';
+import {
+  pickUserNavItems,
+  resolveTabsFromUserNav,
+  type UserNavFormFactor,
+  type UserNavItem,
+  type NavTabRow
+} from './user-nav.js';
 
 import {
   formFactorFromWidth,
@@ -516,12 +522,23 @@ export type AppSummary = {
   iconUrl?: string | null;
   logoUrl?: string | null;
   userNavItems?: UserNavItem[];
+  userNavItemsSmall?: UserNavItem[];
+  userNavItemsMedium?: UserNavItem[];
 };
 
-export type { UserNavItem } from './user-nav.js';
-export { resolveTabsFromUserNav } from './user-nav.js';
+export type { UserNavItem, UserNavFormFactor } from './user-nav.js';
+export {
+  pickUserNavItems,
+  parseUserNavItems,
+  resolveTabsFromUserNav,
+  synthesizeTabFromUserNavItem
+} from './user-nav.js';
 
-export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?: string | null) {
+export async function loadNavigation(
+  db: SqlExecutor,
+  selectedAppDeveloperName?: string | null,
+  formFactor: UserNavFormFactor = 'Large'
+) {
   const appsRaw = await listApps(db);
   const tabs = await listTabs(db);
   const apps: AppSummary[] = appsRaw.map((a) => ({
@@ -534,14 +551,21 @@ export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?:
     logoUrl: (a.app.logoUrl as string | null | undefined) ?? null,
     userNavItems: Array.isArray(a.app.userNavItems)
       ? (a.app.userNavItems as UserNavItem[])
+      : undefined,
+    userNavItemsSmall: Array.isArray(a.app.userNavItemsSmall)
+      ? (a.app.userNavItemsSmall as UserNavItem[])
+      : undefined,
+    userNavItemsMedium: Array.isArray(a.app.userNavItemsMedium)
+      ? (a.app.userNavItemsMedium as UserNavItem[])
       : undefined
   }));
 
   let appTabs = tabs;
   if (selectedAppDeveloperName) {
     const app = apps.find((a) => a.developerName === selectedAppDeveloperName);
-    if (app?.userNavItems?.length) {
-      appTabs = resolveTabsFromUserNav(app.userNavItems, tabs as NavTabRow[]) as typeof tabs;
+    const userNav = app ? pickUserNavItems(app, formFactor) : undefined;
+    if (userNav?.length) {
+      appTabs = resolveTabsFromUserNav(userNav, tabs as NavTabRow[]) as typeof tabs;
     } else if (app?.tabDeveloperNames?.length) {
       const order = app.tabDeveloperNames.map((n) => n.replace(/^standard-/, ''));
       const allowed = new Set(order);

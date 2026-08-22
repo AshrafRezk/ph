@@ -11,6 +11,10 @@ import accountsTabCss from './styles/accounts-tab.css?inline';
 import visitCallShellCss from './styles/visit-call-shell.css?inline';
 import affiliationNetworkCss from './styles/affiliation-network.css?inline';
 import myLearningCss from './styles/my-learning.css?inline';
+import pharmacySalesDashboardCss from './styles/pharmacy-sales-dashboard.css?inline';
+import pharmacySalesAgentInsightsCss from './styles/pharmacy-sales-agent-insights.css?inline';
+import adminConsoleCss from './styles/admin-console.css?inline';
+import adminModulesCss from './styles/admin-modules.css?inline';
 
 /** Org LWC CSS + SLDS token bridge + Leaflet (shadow-DOM safe). */
 export const mirrorStyles = css`
@@ -26,6 +30,10 @@ export const mirrorStyles = css`
   ${unsafeCSS(visitCallShellCss)}
   ${unsafeCSS(affiliationNetworkCss)}
   ${unsafeCSS(myLearningCss)}
+  ${unsafeCSS(pharmacySalesDashboardCss)}
+  ${unsafeCSS(pharmacySalesAgentInsightsCss)}
+  ${unsafeCSS(adminConsoleCss)}
+  ${unsafeCSS(adminModulesCss)}
 
   /* Shell supplements for interactive chrome shared across overlays */
   .osr-lwc-mirror .scope-chip {

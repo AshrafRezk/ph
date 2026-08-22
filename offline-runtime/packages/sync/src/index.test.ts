@@ -1,7 +1,53 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDatabase } from '@osr/db';
-import { SyncEngine, createMockSyncClient, localSaveRecord, syncChannelLabel } from './index.js';
+import { SyncEngine, createMockSyncClient, isSalesforceRecordId, localSaveRecord, parseUiNavRecords, shouldSyncUserNavForApp, syncChannelLabel, uiAppRecordId } from './index.js';
+
+test('isSalesforceRecordId accepts 15/18-char ids only', () => {
+  assert.equal(isSalesforceRecordId('06m3B000000CbQ3QAK'), true);
+  assert.equal(isSalesforceRecordId('06m3B000000CbQ3'), true);
+  assert.equal(isSalesforceRecordId('app_Pharma_Management'), false);
+  assert.equal(isSalesforceRecordId('appPharmaManagem0'), false);
+});
+
+test('uiAppRecordId prefers appId from UI API catalog', () => {
+  assert.equal(uiAppRecordId({ appId: '06mHu000004ygjXIAQ' }), '06mHu000004ygjXIAQ');
+  assert.equal(uiAppRecordId({ id: '06mHu000004ygjXIAQ' }), '06mHu000004ygjXIAQ');
+  assert.equal(uiAppRecordId({ appId: 'not-an-id' }), '');
+});
+
+test('parseUiNavRecords skips items without developerName', () => {
+  const rows = parseUiNavRecords([
+    { developerName: 'Visit__c', label: 'Visits', objectApiName: 'Visit__c' },
+    { label: 'Orphan' }
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].developerName, 'Visit__c');
+});
+
+test('shouldSyncUserNavForApp skips bare portal apps', () => {
+  assert.equal(
+    shouldSyncUserNavForApp({
+      developerName: 'LightningSales',
+      app: {
+        tabDeveloperNames: [
+          'Field_Rep_Planner',
+          'Accounts_Tab',
+          'Visit__c',
+          'CLM_Presentations'
+        ]
+      }
+    }),
+    true
+  );
+  assert.equal(
+    shouldSyncUserNavForApp({
+      developerName: 'Portal',
+      app: { tabDeveloperNames: ['Account', 'Contact'] }
+    }),
+    false
+  );
+});
 
 test('mock full sync primes metadata and data', async () => {
   const db = await openDatabase();
