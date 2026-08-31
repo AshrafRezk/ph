@@ -787,10 +787,18 @@
 
 .calendar-events-layer .event-block {
     pointer-events: auto;
+    border-width: 0;
+    font: inherit;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.calendar-events-layer .event-block.visit {
+    border-style: solid;
 }
 
 /* While dragging, let drops hit the hour cells under event blocks. */
-.calendar-canvas.is-dnd-active .calendar-events-layer .event-block {
+.calendar-canvas.is-dnd-active .calendar-events-layer .event-block:not(.is-dragging) {
     pointer-events: none;
 }
 
@@ -898,6 +906,22 @@
     cursor: pointer;
     z-index: 2;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.event-block.is-grabbable {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.event-block.is-grabbable:active {
+    cursor: grabbing;
+}
+
+.event-block .event-title,
+.event-block .event-time {
+    pointer-events: none;
+    user-select: none;
 }
 
 .event-block.visit.draft {

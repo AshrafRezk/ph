@@ -20,8 +20,56 @@ import {
   lwcBundleFromComponent,
   isCustomLwcType,
   normalizeLwcBundleName,
-  humanizeComponentLabel
+  humanizeComponentLabel,
+  extractRequiredFields,
+  isSparseRecord
 } from './index.js';
+
+test('isSparseRecord detects Id-only cached rows', () => {
+  assert.equal(isSparseRecord(null), true);
+  assert.equal(isSparseRecord({ Id: '001xx' }), true);
+  assert.equal(
+    isSparseRecord({ Id: '001xx', SystemModstamp: '2026-01-01T00:00:00.000Z' }),
+    true
+  );
+  assert.equal(isSparseRecord({ Id: '001xx', Name: 'Acme' }), false);
+});
+
+test('extractRequiredFields skips read-only system fields like IsDeleted', () => {
+  const fields = extractRequiredFields(
+    {
+      fields: [
+        {
+          name: 'IsDeleted',
+          label: 'Deleted',
+          nillable: false,
+          createable: false,
+          updateable: false
+        },
+        {
+          name: 'Status__c',
+          label: 'Status',
+          required: true,
+          nillable: false,
+          createable: true,
+          updateable: true
+        },
+        {
+          name: 'Event_Start__c',
+          label: 'Event Start',
+          nillable: false,
+          createable: true,
+          updateable: true
+        }
+      ]
+    },
+    { isNew: false }
+  );
+  assert.deepEqual(
+    fields.filter((f) => f.required).map((f) => f.apiName),
+    ['Status__c', 'Event_Start__c']
+  );
+});
 
 test('visit/CLM/planner journey ports enqueue outbox', async () => {
   const db = await openDatabase();

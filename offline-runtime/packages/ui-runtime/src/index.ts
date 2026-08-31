@@ -24,6 +24,7 @@ import {
 } from '@osr/db';
 import { FormulaEvaluator, validateRecord, type ValidationResult } from '@osr/validation';
 import { localSaveRecord, localDeleteRecord } from '@osr/sync';
+import { resolveTabsFromUserNav, type UserNavItem, type NavTabRow } from './user-nav.js';
 
 import {
   formFactorFromWidth,
@@ -426,17 +427,54 @@ export function humanizeComponentLabel(typeOrBundle: string): string {
 }
 
 export function extractRequiredFields(
-  describe: Record<string, unknown> | null
+  describe: Record<string, unknown> | null,
+  opts?: { isNew?: boolean }
 ): { apiName: string; label: string; required: boolean }[] {
   if (!describe) return [];
-  const fields = (describe.fields as { name: string; label: string; required?: boolean; nillable?: boolean; createable?: boolean; updateable?: boolean; type?: string }[]) ?? [];
+  const READONLY_SYSTEM = new Set([
+    'Id',
+    'IsDeleted',
+    'SystemModstamp',
+    'CreatedDate',
+    'CreatedById',
+    'LastModifiedDate',
+    'LastModifiedById',
+    'LastViewedDate',
+    'LastReferencedDate'
+  ]);
+  const isNew = opts?.isNew ?? false;
+  const fields =
+    (describe.fields as {
+      name: string;
+      label: string;
+      required?: boolean;
+      nillable?: boolean;
+      createable?: boolean;
+      updateable?: boolean;
+      type?: string;
+    }[]) ?? [];
   return fields
-    .filter((f) => f.name !== 'Id')
+    .filter((f) => !READONLY_SYSTEM.has(f.name))
     .map((f) => ({
       apiName: f.name,
       label: f.label,
-      required: Boolean(f.required) || f.nillable === false
+      required: isFieldRequiredForSave(f, isNew)
     }));
+}
+
+function isFieldRequiredForSave(
+  f: {
+    name: string;
+    required?: boolean;
+    nillable?: boolean;
+    createable?: boolean;
+    updateable?: boolean;
+  },
+  isNew: boolean
+): boolean {
+  if (f.required != null) return Boolean(f.required);
+  const writable = isNew ? f.createable !== false : f.updateable !== false;
+  return f.nillable === false && writable;
 }
 
 export async function saveWithValidation(
@@ -447,7 +485,7 @@ export async function saveWithValidation(
 ): Promise<{ ok: boolean; validation: ValidationResult; recordId?: string; outboxId?: string }> {
   const describe = await getObjectDescribe(db, objectApi);
   const rules = await getValidationRules(db, objectApi);
-  const required = extractRequiredFields(describe).filter((f) => f.required);
+  const required = extractRequiredFields(describe, { isNew }).filter((f) => f.required);
   const validation = validateRecord(record, rules, required);
   if (!validation.ok) {
     return { ok: false, validation };
@@ -477,7 +515,11 @@ export type AppSummary = {
   homeFlexiPageDeveloperName?: string | null;
   iconUrl?: string | null;
   logoUrl?: string | null;
+  userNavItems?: UserNavItem[];
 };
+
+export type { UserNavItem } from './user-nav.js';
+export { resolveTabsFromUserNav } from './user-nav.js';
 
 export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?: string | null) {
   const appsRaw = await listApps(db);
@@ -489,13 +531,18 @@ export async function loadNavigation(db: SqlExecutor, selectedAppDeveloperName?:
     tabDeveloperNames: (a.app.tabDeveloperNames as string[]) ?? tabs.map((t) => t.developerName),
     homeFlexiPageDeveloperName: (a.app.homeFlexiPageDeveloperName as string | null | undefined) ?? null,
     iconUrl: (a.app.iconUrl as string | null | undefined) ?? null,
-    logoUrl: (a.app.logoUrl as string | null | undefined) ?? null
+    logoUrl: (a.app.logoUrl as string | null | undefined) ?? null,
+    userNavItems: Array.isArray(a.app.userNavItems)
+      ? (a.app.userNavItems as UserNavItem[])
+      : undefined
   }));
 
   let appTabs = tabs;
   if (selectedAppDeveloperName) {
     const app = apps.find((a) => a.developerName === selectedAppDeveloperName);
-    if (app?.tabDeveloperNames?.length) {
+    if (app?.userNavItems?.length) {
+      appTabs = resolveTabsFromUserNav(app.userNavItems, tabs as NavTabRow[]) as typeof tabs;
+    } else if (app?.tabDeveloperNames?.length) {
       const order = app.tabDeveloperNames.map((n) => n.replace(/^standard-/, ''));
       const allowed = new Set(order);
       const byKey = new Map<string, (typeof tabs)[0]>();
@@ -584,6 +631,19 @@ export async function loadHomeView(db: SqlExecutor, appDeveloperName: string | n
     }
   }
   return { appLabel, homeDeveloperName: homeName, flexiPage, lwcBundles };
+}
+
+const RECORD_SYSTEM_KEYS = new Set(['Id', 'SystemModstamp', 'attributes', 'deleted']);
+
+/** True when SQLite has no row or only Id/stamp — layout renders but values are blank. */
+export function isSparseRecord(record: Record<string, unknown> | null | undefined): boolean {
+  if (!record) return true;
+  const keys = Object.keys(record).filter((k) => !RECORD_SYSTEM_KEYS.has(k));
+  if (!keys.length) return true;
+  const hasTitle = record.Name != null && String(record.Name) !== '';
+  const hasSubject = record.Subject != null && String(record.Subject) !== '';
+  if (!hasTitle && !hasSubject && keys.length <= 2) return true;
+  return false;
 }
 
 export async function loadRecordView(db: SqlExecutor, objectApi: string, recordId: string) {

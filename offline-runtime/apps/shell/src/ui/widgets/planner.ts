@@ -36,6 +36,7 @@ const GUTTER_W = 56;
 const DEFAULT_VISIT_MS = 60 * 60 * 1000;
 const HOURS = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i);
 const TOUCH_DRAG_THRESHOLD_PX = 12;
+const MOUSE_DRAG_THRESHOLD_PX = 4;
 
 const TOT_TYPES = [
   { label: 'Holiday', value: 'Holiday' },
@@ -52,6 +53,16 @@ let dragAccountId: string | null = null;
 let dragVisitId: string | null = null;
 /** True while HTML5 or touch DnD is active — used to let drops hit day columns under events. */
 let calendarDndActive = false;
+type DragPayload =
+  | {
+      kind: 'visit';
+      id: string;
+      durationMs: number;
+      nextLat?: number | null;
+      nextLon?: number | null;
+    }
+  | { kind: 'account'; id: string; nextLat?: number | null; nextLon?: number | null };
+let dragPayload: DragPayload | null = null;
 type TouchDragState = {
   kind: 'account' | 'visit';
   id: string;
@@ -67,6 +78,10 @@ let touchDrag: TouchDragState | null = null;
 let touchGhostEl: HTMLElement | null = null;
 let touchHighlightEl: HTMLElement | null = null;
 let touchListenersBound = false;
+let pointerListenersBound = false;
+let pointerDragEl: HTMLElement | null = null;
+/** Skip visit open click after a drag gesture. */
+let suppressVisitClick = false;
 let touchLongPressTimer: ReturnType<typeof setTimeout> | null = null;
 const TOUCH_LONG_PRESS_MS = 280;
 /** Local optimized order for map day (visit ids). */
@@ -154,6 +169,83 @@ function setDragHotspot(e: DragEvent, el: HTMLElement): void {
   } catch {
     /* setDragImage unsupported in some WebViews — slot floor still helps */
   }
+}
+
+function syncCalendarDndClass(root?: ParentNode | null): void {
+  const nodes: ParentNode[] = [];
+  if (root) nodes.push(root);
+  if (typeof document !== 'undefined') nodes.push(document);
+  for (const scope of nodes) {
+    const canvases = scope.querySelectorAll?.('.calendar-canvas');
+    canvases?.forEach((el) => {
+      el.classList.toggle('is-dnd-active', calendarDndActive);
+    });
+  }
+}
+
+function clearCalendarDropHighlights(root?: ParentNode | null): void {
+  const nodes: ParentNode[] = [];
+  if (root) nodes.push(root);
+  if (typeof document !== 'undefined') nodes.push(document);
+  for (const scope of nodes) {
+    scope.querySelectorAll?.('.day-column.calendar-drop-target').forEach((el) => {
+      el.classList.remove('calendar-drop-target');
+    });
+  }
+}
+
+function resolveCalendarDropTarget(
+  clientX: number,
+  clientY: number,
+  root?: ParentNode | null
+): { day: Date; hour: number; cell: HTMLElement } | null {
+  const col = findDayColumnAtPoint(clientX, clientY, root);
+  if (!col) return null;
+  const dayKey = col.getAttribute('data-day-key') || '';
+  const hour = Number(col.getAttribute('data-hour'));
+  const [y, m, d] = dayKey.split('-').map(Number);
+  if (!dayKey || !Number.isFinite(hour) || !y || !m || !d) return null;
+  return { day: new Date(y, m - 1, d), hour, cell: col };
+}
+
+function beginHtmlCalendarDrag(
+  root: ParentNode,
+  payload: DragPayload,
+  e: DragEvent,
+  el: HTMLElement
+): void {
+  dragPayload = payload;
+  calendarDndActive = true;
+  if (payload.kind === 'visit') {
+    dragVisitId = payload.id;
+    dragAccountId = null;
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  } else {
+    dragAccountId = payload.id;
+    dragVisitId = null;
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+  }
+  syncCalendarDndClass(root);
+  setDragHotspot(e, el);
+  el.classList.add('is-dragging');
+}
+
+function endHtmlCalendarDrag(root: ParentNode, el: HTMLElement | null, bump?: () => void): void {
+  el?.classList.remove('is-dragging');
+  calendarDndActive = false;
+  dragPayload = null;
+  syncCalendarDndClass(root);
+  clearCalendarDropHighlights(root);
+  setTimeout(() => {
+    dragVisitId = null;
+    dragAccountId = null;
+    bump?.();
+  }, 50);
+}
+
+function visitDragLocked(v: VisitSummaryDto): boolean {
+  const status = String(v.status ?? '').toLowerCase();
+  return status === 'completed' || status === 'cancelled';
 }
 
 function findDayColumnAtPoint(clientX: number, clientY: number, root?: ParentNode | null): HTMLElement | null {
@@ -310,13 +402,53 @@ function teardownTouchDrag(bump?: () => void): void {
     document.removeEventListener('touchcancel', onDocumentTouchEnd);
     touchListenersBound = false;
   }
+  if (pointerListenersBound) {
+    document.removeEventListener('pointermove', onDocumentPointerMove);
+    document.removeEventListener('pointerup', onDocumentPointerUp);
+    document.removeEventListener('pointercancel', onDocumentPointerUp);
+    pointerListenersBound = false;
+  }
+  pointerDragEl?.classList.remove('is-dragging');
+  pointerDragEl = null;
   removeTouchGhost();
   clearTouchHighlight();
   touchDrag = null;
   calendarDndActive = false;
+  dragPayload = null;
   dragAccountId = null;
   dragVisitId = null;
+  syncCalendarDndClass(touchDropContext?.root);
+  clearCalendarDropHighlights(touchDropContext?.root);
   bump?.();
+}
+
+function finishCalendarDragAt(clientX: number, clientY: number): void {
+  const ctx = touchDropContext;
+  const state = touchDrag;
+  if (!state?.active || !ctx || ctx.isReadOnly) return;
+  const col = findDayColumnAtPoint(clientX, clientY, ctx.root);
+  if (!col) return;
+  const dayKey = col.getAttribute('data-day-key') || '';
+  const hour = Number(col.getAttribute('data-hour'));
+  const [y, m, d] = dayKey.split('-').map(Number);
+  if (!dayKey || !Number.isFinite(hour) || !y || !m || !d) return;
+  const dropped = applyPlannerCalendarDrop({
+    day: new Date(y, m - 1, d),
+    hour,
+    clientY,
+    cell: col,
+    visits: ctx.visits,
+    allAccounts: ctx.allAccounts,
+    isReadOnly: ctx.isReadOnly,
+    selectedAccountId: ctx.selectedAccountId,
+    accountIdHint: state.kind === 'account' ? state.id : null,
+    visitIdHint: state.kind === 'visit' ? state.id : null,
+    onRescheduleVisit: ctx.onRescheduleVisit,
+    onCreateDraft: ctx.onCreateDraft,
+    onOpenPlanChoice: ctx.onOpenPlanChoice,
+    onSelectAccount: ctx.onSelectAccount
+  });
+  if (dropped) suppressVisitClick = true;
 }
 
 type CalendarDropOpts = {
@@ -341,15 +473,21 @@ function applyPlannerCalendarDrop(args: CalendarDropOpts): boolean {
   const rawStartIso = slotIsoFromCell(args.day, args.hour, args.clientY, args.cell);
   const dayKey = isoDateLocal(args.day);
   const dayVisitsForPack = args.visits.filter((v) => dateKeyOf(v.startDateTime) === dayKey);
-  const visitId = args.visitIdHint || dragVisitId || '';
+  const visitId =
+    args.visitIdHint ||
+    dragVisitId ||
+    (dragPayload?.kind === 'visit' ? dragPayload.id : '') ||
+    '';
   if (visitId && args.onRescheduleVisit) {
     const existing = args.visits.find((v) => String(v.id) === visitId);
     const oldStart = existing?.startDateTime ? new Date(existing.startDateTime) : null;
     const oldEnd = existing?.endDateTime ? new Date(existing.endDateTime) : null;
+    const payloadDur = dragPayload?.kind === 'visit' ? dragPayload.durationMs : undefined;
     const durMs =
-      oldStart && oldEnd && !Number.isNaN(oldStart.getTime())
+      payloadDur ??
+      (oldStart && oldEnd && !Number.isNaN(oldStart.getTime())
         ? Math.max(SLOT_MINUTES * 60 * 1000, oldEnd.getTime() - oldStart.getTime())
-        : DEFAULT_VISIT_MS;
+        : DEFAULT_VISIT_MS);
     const startIso = packDropStartIso(dayKey, rawStartIso, dayVisitsForPack, {
       movingVisitId: visitId,
       nextLat: existing?.accountLatitude,
@@ -432,36 +570,78 @@ function onDocumentTouchEnd(event: TouchEvent): void {
     return;
   }
   const wasActive = touchDrag.active;
-  const state = touchDrag;
   const touch = event.changedTouches?.[0];
   const ctx = touchDropContext;
   if (wasActive && touch && ctx && !ctx.isReadOnly) {
-    const col = findDayColumnAtPoint(touch.clientX, touch.clientY, ctx.root);
-    if (col) {
-      const dayKey = col.getAttribute('data-day-key') || '';
-      const hour = Number(col.getAttribute('data-hour'));
-      const [y, m, d] = dayKey.split('-').map(Number);
-      if (dayKey && Number.isFinite(hour) && y && m && d) {
-        applyPlannerCalendarDrop({
-          day: new Date(y, m - 1, d),
-          hour,
-          clientY: touch.clientY,
-          cell: col,
-          visits: ctx.visits,
-          allAccounts: ctx.allAccounts,
-          isReadOnly: ctx.isReadOnly,
-          selectedAccountId: ctx.selectedAccountId,
-          accountIdHint: state.kind === 'account' ? state.id : null,
-          visitIdHint: state.kind === 'visit' ? state.id : null,
-          onRescheduleVisit: ctx.onRescheduleVisit,
-          onCreateDraft: ctx.onCreateDraft,
-          onOpenPlanChoice: ctx.onOpenPlanChoice,
-          onSelectAccount: ctx.onSelectAccount
-        });
-      }
-    }
+    finishCalendarDragAt(touch.clientX, touch.clientY);
   }
   teardownTouchDrag(ctx?.bump);
+}
+
+function onDocumentPointerMove(event: PointerEvent): void {
+  if (!touchDrag) return;
+  const dx = event.clientX - touchDrag.startX;
+  const dy = event.clientY - touchDrag.startY;
+  const dist = Math.hypot(dx, dy);
+
+  if (!touchDrag.active) {
+    if (event.pointerType === 'mouse') {
+      if (dist >= MOUSE_DRAG_THRESHOLD_PX) activateTouchDrag();
+    } else if (dist >= TOUCH_DRAG_THRESHOLD_PX) {
+      teardownTouchDrag(touchDropContext?.bump);
+    }
+    return;
+  }
+
+  event.preventDefault();
+  showTouchGhost(touchDrag.label, event.clientX, event.clientY);
+  clearTouchHighlight();
+  const col = findDayColumnAtPoint(event.clientX, event.clientY, touchDropContext?.root);
+  if (col) {
+    col.classList.add('calendar-drop-target');
+    touchHighlightEl = col;
+  }
+}
+
+function onDocumentPointerUp(event: PointerEvent): void {
+  if (!touchDrag) {
+    teardownTouchDrag(touchDropContext?.bump);
+    return;
+  }
+  const wasActive = touchDrag.active;
+  const ctx = touchDropContext;
+  if (wasActive && ctx && !ctx.isReadOnly) {
+    finishCalendarDragAt(event.clientX, event.clientY);
+  }
+  teardownTouchDrag(ctx?.bump);
+}
+
+function beginVisitPointerDrag(
+  e: PointerEvent,
+  state: TouchDragState,
+  ctx: NonNullable<typeof touchDropContext>,
+  el: HTMLElement
+): void {
+  if (e.button !== 0) return;
+  teardownTouchDrag();
+  touchDrag = state;
+  touchDropContext = ctx;
+  pointerDragEl = el;
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+  if (!pointerListenersBound) {
+    document.addEventListener('pointermove', onDocumentPointerMove, { passive: false });
+    document.addEventListener('pointerup', onDocumentPointerUp);
+    document.addEventListener('pointercancel', onDocumentPointerUp);
+    pointerListenersBound = true;
+  }
+  // Touch: long-press then drag. Mouse: drag after a small move threshold.
+  if (e.pointerType !== 'mouse') {
+    touchLongPressTimer = setTimeout(() => activateTouchDrag(), TOUCH_LONG_PRESS_MS);
+  }
 }
 
 function activateTouchDrag(): void {
@@ -469,10 +649,29 @@ function activateTouchDrag(): void {
   touchLongPressTimer = null;
   touchDrag = { ...touchDrag, active: true };
   calendarDndActive = true;
-  if (touchDrag.kind === 'account') dragAccountId = touchDrag.id;
-  else dragVisitId = touchDrag.id;
+  if (touchDrag.kind === 'account') {
+    dragAccountId = touchDrag.id;
+    dragPayload = {
+      kind: 'account',
+      id: touchDrag.id,
+      nextLat: touchDrag.nextLat,
+      nextLon: touchDrag.nextLon
+    };
+  } else {
+    dragVisitId = touchDrag.id;
+    dragPayload = {
+      kind: 'visit',
+      id: touchDrag.id,
+      durationMs: touchDrag.durationMs ?? DEFAULT_VISIT_MS,
+      nextLat: touchDrag.nextLat,
+      nextLon: touchDrag.nextLon
+    };
+  }
+  pointerDragEl?.classList.add('is-dragging');
   showTouchGhost(touchDrag.label, touchDrag.startX, touchDrag.startY);
-  touchDropContext?.bump?.();
+  syncCalendarDndClass(touchDropContext?.root);
+  // Re-render only for account sidebar touch state — visit drag must not re-render mid-gesture.
+  if (touchDrag.kind === 'account') touchDropContext?.bump?.();
 }
 
 function beginTouchDrag(
@@ -681,13 +880,15 @@ export function renderFidelityPlanner(opts: {
     : undefined;
 
   const mountMap = (el: Element | undefined) => {
-    if (!(el instanceof HTMLElement) || mode !== 'map') {
+    if (mode !== 'map') {
       if (activePlannerMap) {
         activePlannerMap.destroy();
         activePlannerMap = null;
       }
       return;
     }
+    // Lit calls ref(undefined) before every re-render; do not destroy the map there.
+    if (!(el instanceof HTMLElement)) return;
     const markers = [
       ...(currentLocation
         ? [
@@ -711,6 +912,10 @@ export function renderFidelityPlanner(opts: {
         }))
     ];
     let handle = plannerMaps.get(el);
+    if (handle && !handle.isAlive()) {
+      plannerMaps.delete(el);
+      handle = undefined;
+    }
     if (!handle) {
       handle = createOsrMap(el, { fitBounds: true });
       plannerMaps.set(el, handle);
@@ -1089,22 +1294,26 @@ export function renderFidelityPlanner(opts: {
                           return;
                         }
                         const id = a.id ? String(a.id) : '';
-                        dragAccountId = id || null;
-                        dragVisitId = null;
-                        calendarDndActive = true;
-                        opts.onSelectAccount?.(dragAccountId);
+                        if (!id) return;
+                        const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
+                        beginHtmlCalendarDrag(
+                          root,
+                          {
+                            kind: 'account',
+                            id,
+                            nextLat: a.latitude,
+                            nextLon: a.longitude
+                          },
+                          e,
+                          e.currentTarget as HTMLElement
+                        );
+                        opts.onSelectAccount?.(id);
                         e.dataTransfer?.setData('text/plain', id);
                         e.dataTransfer?.setData('application/x-osr-account-id', id);
-                        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
-                        setDragHotspot(e, e.currentTarget as HTMLElement);
-                        bump();
                       }}
-                      @dragend=${() => {
-                        calendarDndActive = false;
-                        setTimeout(() => {
-                          dragAccountId = null;
-                          bump();
-                        }, 50);
+                      @dragend=${(e: DragEvent) => {
+                        const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
+                        endHtmlCalendarDrag(root, e.currentTarget as HTMLElement, bump);
                       }}
                       @touchstart=${(e: TouchEvent) => {
                         if (isReadOnly) return;
@@ -1285,7 +1494,67 @@ export function renderFidelityPlanner(opts: {
               `
             : html`
                 <div class="calendar-view">
-                  <div class="calendar-scroll">
+                  <div
+                    class="calendar-scroll"
+                    @dragover=${(e: DragEvent) => {
+                      if (isReadOnly) return;
+                      e.preventDefault();
+                      if (e.dataTransfer) {
+                        e.dataTransfer.dropEffect =
+                          dragVisitId || dragPayload?.kind === 'visit' ? 'move' : 'copy';
+                      }
+                      const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
+                      clearCalendarDropHighlights(root);
+                      const target = resolveCalendarDropTarget(e.clientX, e.clientY, root);
+                      target?.cell.classList.add('calendar-drop-target');
+                    }}
+                    @dragleave=${(e: DragEvent) => {
+                      const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
+                      if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                        clearCalendarDropHighlights(root);
+                      }
+                    }}
+                    @drop=${(e: DragEvent) => {
+                      if (isReadOnly) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
+                      clearCalendarDropHighlights(root);
+                      calendarDndActive = false;
+                      syncCalendarDndClass(root);
+                      const target = resolveCalendarDropTarget(e.clientX, e.clientY, root);
+                      if (target) {
+                        const mimeVisit =
+                          e.dataTransfer?.getData('application/x-osr-visit-id') || '';
+                        const mimeAccount =
+                          e.dataTransfer?.getData('application/x-osr-account-id') ||
+                          e.dataTransfer?.getData('text/plain') ||
+                          '';
+                        applyPlannerCalendarDrop({
+                          day: target.day,
+                          hour: target.hour,
+                          clientY: e.clientY,
+                          cell: target.cell,
+                          visits,
+                          allAccounts,
+                          isReadOnly,
+                          selectedAccountId: opts.selectedAccountId,
+                          visitIdHint: dragVisitId || mimeVisit || null,
+                          accountIdHint: dragAccountId || (!mimeVisit ? mimeAccount : null),
+                          onRescheduleVisit: opts.onRescheduleVisit,
+                          onCreateDraft: opts.onCreateDraft,
+                          onOpenPlanChoice: opts.onOpenPlanChoice,
+                          onSelectAccount: opts.onSelectAccount
+                        });
+                      }
+                      dragPayload = null;
+                      setTimeout(() => {
+                        dragVisitId = null;
+                        dragAccountId = null;
+                        bump();
+                      }, 50);
+                    }}
+                  >
                     <div
                       class="calendar-canvas ${calendarDndActive || touchDrag?.active ? 'is-dnd-active' : ''}"
                       style="min-width:56rem;height:${canvasHeight}px;position:relative"
@@ -1330,46 +1599,6 @@ export function renderFidelityPlanner(opts: {
                                     : ''} ${weekend ? 'is-weekend' : ''}"
                                   data-day-key=${key}
                                   data-hour=${h}
-                                  @dragover=${(e: DragEvent) => {
-                                    e.preventDefault();
-                                    // Match the active drag type — visit moves use "move".
-                                    if (e.dataTransfer) {
-                                      e.dataTransfer.dropEffect = dragVisitId ? 'move' : 'copy';
-                                    }
-                                    (e.currentTarget as HTMLElement).classList.add('calendar-drop-target');
-                                  }}
-                                  @dragleave=${(e: DragEvent) => {
-                                    (e.currentTarget as HTMLElement).classList.remove('calendar-drop-target');
-                                  }}
-                                  @drop=${(e: DragEvent) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    (e.currentTarget as HTMLElement).classList.remove('calendar-drop-target');
-                                    calendarDndActive = false;
-                                    const mimeVisit =
-                                      e.dataTransfer?.getData('application/x-osr-visit-id') || '';
-                                    const mimeAccount =
-                                      e.dataTransfer?.getData('application/x-osr-account-id') ||
-                                      e.dataTransfer?.getData('text/plain') ||
-                                      '';
-                                    applyPlannerCalendarDrop({
-                                      day: d,
-                                      hour: h,
-                                      clientY: e.clientY,
-                                      cell: e.currentTarget as HTMLElement,
-                                      visits,
-                                      allAccounts,
-                                      isReadOnly,
-                                      selectedAccountId: opts.selectedAccountId,
-                                      visitIdHint: dragVisitId || mimeVisit || null,
-                                      accountIdHint: dragAccountId || (!mimeVisit ? mimeAccount : null),
-                                      onRescheduleVisit: opts.onRescheduleVisit,
-                                      onCreateDraft: opts.onCreateDraft,
-                                      onOpenPlanChoice: opts.onOpenPlanChoice,
-                                      onSelectAccount: opts.onSelectAccount
-                                    });
-                                    bump();
-                                  }}
                                   @click=${(e: MouseEvent) => {
                                     if (isReadOnly) return;
                                     const startIso = slotIsoFromCell(
@@ -1393,33 +1622,14 @@ export function renderFidelityPlanner(opts: {
                         ${visits.map((v) =>
                           renderEventBlock(v, days, 'visit', opts.onOpenVisit, {
                             readOnly: isReadOnly,
-                            onDragStart: (id) => {
-                              dragVisitId = id;
-                              dragAccountId = null;
-                              calendarDndActive = true;
-                              bump();
-                            },
-                            onDragEnd: () => {
-                              calendarDndActive = false;
-                              setTimeout(() => {
-                                dragVisitId = null;
-                                bump();
-                              }, 50);
-                            },
-                            onTouchStart: (state, root) => {
-                              beginTouchDrag(state, {
-                                visits,
-                                allAccounts,
-                                isReadOnly,
-                                selectedAccountId: opts.selectedAccountId,
-                                onRescheduleVisit: opts.onRescheduleVisit,
-                                onCreateDraft: opts.onCreateDraft,
-                                onOpenPlanChoice: opts.onOpenPlanChoice,
-                                onSelectAccount: opts.onSelectAccount,
-                                bump,
-                                root
-                              });
-                            }
+                            bump,
+                            visits,
+                            allAccounts,
+                            selectedAccountId: opts.selectedAccountId,
+                            onRescheduleVisit: opts.onRescheduleVisit,
+                            onCreateDraft: opts.onCreateDraft,
+                            onOpenPlanChoice: opts.onOpenPlanChoice,
+                            onSelectAccount: opts.onSelectAccount
                           })
                         )}
                         ${tots.map((t) => renderTotEvent(t, days))}
@@ -1797,11 +2007,16 @@ function renderEventBlock(
   days: Date[],
   kind: 'visit',
   onOpen?: (id: string) => void,
-  dragOpts?: {
+  dragCtx?: {
     readOnly?: boolean;
-    onDragStart?: (id: string) => void;
-    onDragEnd?: () => void;
-    onTouchStart?: (state: TouchDragState, root: ParentNode) => void;
+    bump?: () => void;
+    visits: VisitSummaryDto[];
+    allAccounts: AccountSummaryDto[];
+    selectedAccountId?: string | null;
+    onRescheduleVisit?: (visitId: string, startIso: string, endIso: string) => void;
+    onCreateDraft?: (accountId: string, startIso: string) => void;
+    onOpenPlanChoice?: (startIso: string) => void;
+    onSelectAccount?: (id: string | null) => void;
   }
 ): TemplateResult | typeof nothing {
   const key = dateKeyOf(v.startDateTime);
@@ -1828,67 +2043,76 @@ function renderEventBlock(
     .join(' ');
   const leftPct = (dayIndex / 7) * 100;
   const widthPct = 100 / 7;
-  const canDrag = !dragOpts?.readOnly && !!v.id;
+  const locked = visitDragLocked(v);
+  const canDrag = !dragCtx?.readOnly && !!v.id && !locked;
   const oldStart = v.startDateTime ? new Date(v.startDateTime) : null;
   const oldEnd = v.endDateTime ? new Date(v.endDateTime) : null;
   const durationMs =
     oldStart && oldEnd && !Number.isNaN(oldStart.getTime())
       ? Math.max(SLOT_MINUTES * 60 * 1000, oldEnd.getTime() - oldStart.getTime())
       : DEFAULT_VISIT_MS;
+  const grabbableClass = canDrag ? 'is-grabbable' : '';
   return html`
-    <button
-      type="button"
-      class=${cls}
-      draggable=${canDrag ? 'true' : 'false'}
-      title=${canDrag ? 'Drag to reschedule' : ''}
-      style="top:${top}px;height:${height}px;left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 6px);position:absolute;border:none;text-align:left;cursor:${canDrag
-        ? 'grab'
-        : 'pointer'}"
-      @dragstart=${(e: DragEvent) => {
-        if (!canDrag || !v.id) return;
-        dragOpts?.onDragStart?.(String(v.id));
-        e.dataTransfer?.setData('application/x-osr-visit-id', String(v.id));
-        e.dataTransfer?.setData('text/plain', String(v.id));
-        // copyMove so day-column dropEffect "move" or "copy" both succeed across browsers.
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copyMove';
-        setDragHotspot(e, e.currentTarget as HTMLElement);
-        (e.currentTarget as HTMLElement).classList.add('is-dragging');
-      }}
-      @dragend=${(e: DragEvent) => {
-        (e.currentTarget as HTMLElement).classList.remove('is-dragging');
-        dragOpts?.onDragEnd?.();
-      }}
-      @touchstart=${(e: TouchEvent) => {
-        if (!canDrag || !v.id) return;
-        const touch = e.touches?.[0];
-        if (!touch) return;
-        const root = (e.currentTarget as HTMLElement).getRootNode() as ParentNode;
-        dragOpts?.onTouchStart?.(
+    <div
+      class="${cls} ${grabbableClass}"
+      role="button"
+      tabindex="0"
+      title=${canDrag ? 'Drag to reschedule' : locked ? 'Completed or cancelled visits cannot be moved' : ''}
+      style="top:${top}px;height:${height}px;left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 6px);position:absolute;text-align:left"
+      @pointerdown=${(e: PointerEvent) => {
+        if (!canDrag || !v.id || !dragCtx) return;
+        e.stopPropagation();
+        const el = e.currentTarget as HTMLElement;
+        const root = el.getRootNode() as ParentNode;
+        beginVisitPointerDrag(
+          e,
           {
             kind: 'visit',
             id: String(v.id),
             label: v.accountName || v.name || 'Visit',
             active: false,
-            startX: touch.clientX,
-            startY: touch.clientY,
+            startX: e.clientX,
+            startY: e.clientY,
             durationMs,
             nextLat: v.accountLatitude,
             nextLon: v.accountLongitude
           },
-          root
+          {
+            visits: dragCtx.visits,
+            allAccounts: dragCtx.allAccounts,
+            isReadOnly: !!dragCtx.readOnly,
+            selectedAccountId: dragCtx.selectedAccountId,
+            onRescheduleVisit: dragCtx.onRescheduleVisit,
+            onCreateDraft: dragCtx.onCreateDraft,
+            onOpenPlanChoice: dragCtx.onOpenPlanChoice,
+            onSelectAccount: dragCtx.onSelectAccount,
+            bump: dragCtx.bump,
+            root
+          },
+          el
         );
       }}
       @click=${(e: Event) => {
         e.stopPropagation();
-        if (touchDrag?.active) return;
+        if (touchDrag?.active || suppressVisitClick) {
+          suppressVisitClick = false;
+          return;
+        }
         if (v.id) onOpen?.(String(v.id));
+      }}
+      @keydown=${(e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (v.id) onOpen?.(String(v.id));
+        }
       }}
     >
       <div class="event-title">
         ${status === 'draft' ? 'Draft' : v.status || 'Visit'} · ${v.accountName || v.name || ''}
       </div>
       <div class="event-time">${formatVisitTimeRange(v.startDateTime, v.endDateTime)}</div>
-    </button>
+    </div>
   `;
 }
 

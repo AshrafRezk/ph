@@ -7,12 +7,13 @@ export function renderFidelityClmPrefetch(opts: {
   cached?: boolean;
   syncing?: boolean;
   onBrowse?: () => void;
+  onPrefetch?: () => void;
 }): TemplateResult {
   const n = opts.presentations?.length ?? 0;
   const label = opts.syncing
-    ? 'Caching CLM content…'
+    ? 'Caching CLM slides…'
     : n > 0
-      ? `${n} CLM(s) ready on device`
+      ? `${n} CLM deck(s) · tap to open`
       : 'No CLM content cached yet';
   return html`
     <div
@@ -21,6 +22,7 @@ export function renderFidelityClmPrefetch(opts: {
       aria-live="polite"
       @click=${() => opts.onBrowse?.()}
       style="cursor:${opts.onBrowse ? 'pointer' : 'default'}"
+      title="Open CLM presentations"
     >
       <span class="prefetch-icon" aria-hidden="true">⬇</span>
       <span>${label}</span>

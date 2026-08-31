@@ -29,19 +29,51 @@ global with sharing class OsrOutboxService {
     }
 
     public static OutboxResponse buildResponse() {
-        OutboxRequest req = (OutboxRequest) JSON.deserialize(
-            RestContext.request.requestBody.toString(),
-            OutboxRequest.class
-        );
         OutboxResponse res = new OutboxResponse();
         res.results = new List<OutboxResult>();
-        if (req == null || req.actions == null) {
+        if (RestContext.request == null || RestContext.request.requestBody == null) {
             return res;
         }
-        for (OutboxAction action : req.actions) {
-            res.results.add(processOne(action));
+        String raw = RestContext.request.requestBody.toString();
+        if (String.isBlank(raw)) {
+            return res;
+        }
+        Object rootObj = JSON.deserializeUntyped(raw);
+        if (!(rootObj instanceof Map<String, Object>)) {
+            return res;
+        }
+        Map<String, Object> root = (Map<String, Object>) rootObj;
+        List<Object> actionsRaw = (List<Object>) root.get('actions');
+        if (actionsRaw == null) {
+            return res;
+        }
+        for (Object actionObj : actionsRaw) {
+            if (!(actionObj instanceof Map<String, Object>)) {
+                continue;
+            }
+            res.results.add(processOne(parseAction((Map<String, Object>) actionObj)));
         }
         return res;
+    }
+
+    private static OutboxAction parseAction(Map<String, Object> actionMap) {
+        OutboxAction action = new OutboxAction();
+        action.clientId = actionMap.containsKey('clientId') ? String.valueOf(actionMap.get('clientId')) : null;
+        action.op = actionMap.containsKey('op') ? String.valueOf(actionMap.get('op')) : null;
+        action.objectApi = actionMap.containsKey('objectApi')
+            ? String.valueOf(actionMap.get('objectApi'))
+            : null;
+        action.recordId = actionMap.containsKey('recordId')
+            ? String.valueOf(actionMap.get('recordId'))
+            : null;
+        if (actionMap.containsKey('attempts') && actionMap.get('attempts') != null) {
+            action.attempts = Integer.valueOf(String.valueOf(actionMap.get('attempts')));
+        }
+        Object payloadObj = actionMap.get('payload');
+        action.payload = payloadObj instanceof Map<String, Object>
+            ? (Map<String, Object>) payloadObj
+            : new Map<String, Object>();
+        return action;
     }
 
     private static void writeJson(Object value) {
@@ -58,8 +90,13 @@ global with sharing class OsrOutboxService {
             if (op == 'create' || op == 'update' || op == 'visit.upsert') {
                 r = upsertRecord(action, r);
             } else if (op == 'delete') {
-                deleteRecord(action);
-                r.status = 'synced';
+                String deleteError = deleteRecord(action);
+                if (deleteError != null) {
+                    r.status = 'failed';
+                    r.error = deleteError;
+                } else {
+                    r.status = 'synced';
+                }
             } else if (op == 'location.upsert') {
                 upsertRepLocation(action);
                 r.status = 'synced';
@@ -91,6 +128,7 @@ global with sharing class OsrOutboxService {
             return r;
         }
         Map<String, Object> payload = action.payload == null ? new Map<String, Object>() : action.payload;
+        payload = normalizeOutboxPayload(action.objectApi, payload);
         String recordId = action.recordId;
         if (String.isBlank(recordId) && payload.containsKey('Id')) {
             recordId = String.valueOf(payload.get('Id'));
@@ -121,6 +159,7 @@ global with sharing class OsrOutboxService {
         }
 
         SObject sob = t.newSObject();
+        Boolean inserting = isLocal || String.isBlank(recordId);
         for (String key : payload.keySet()) {
             if (key == 'Id' || key.startsWith('_')) {
                 continue;
@@ -128,7 +167,10 @@ global with sharing class OsrOutboxService {
             if (!fmap.containsKey(key)) {
                 continue;
             }
-            sob.put(key, payload.get(key));
+            applyPayloadField(sob, fmap.get(key), payload.get(key), inserting);
+        }
+        if (isLocal && action.objectApi == 'Visit__c') {
+            applyVisitCreateDefaults(sob, fmap);
         }
         if (!isLocal && String.isNotBlank(recordId)) {
             sob.put('Id', recordId);
@@ -142,14 +184,70 @@ global with sharing class OsrOutboxService {
         return r;
     }
 
-    private static void deleteRecord(OutboxAction action) {
+    /** Map legacy client field names and fill Visit__c defaults for planner sync. */
+    private static Map<String, Object> normalizeOutboxPayload(String objectApi, Map<String, Object> payload) {
+        Map<String, Object> p = payload == null ? new Map<String, Object>() : new Map<String, Object>(payload);
+        if (objectApi != 'Visit__c') {
+            return p;
+        }
+        aliasPayloadField(p, 'StartDateTime__c', 'Start_Date__c');
+        aliasPayloadField(p, 'EndDateTime__c', 'End_Date__c');
+        if (!p.containsKey('Visit_Date__c') && p.containsKey('Planned_Date__c')) {
+            p.put('Visit_Date__c', p.get('Planned_Date__c'));
+        }
+        if (!p.containsKey('Start_Date__c') && p.containsKey('Visit_Date__c')) {
+            p.put('Start_Date__c', p.get('Visit_Date__c'));
+        }
+        if (!p.containsKey('End_Date__c') && p.containsKey('Start_Date__c')) {
+            Datetime startDt = tryParse(String.valueOf(p.get('Start_Date__c')));
+            if (startDt != null) {
+                p.put('End_Date__c', startDt.addHours(1));
+            }
+        }
+        p.remove('Planned_Date__c');
+        p.remove('StartDateTime__c');
+        p.remove('EndDateTime__c');
+        p.remove('Name');
+        return p;
+    }
+
+    private static void aliasPayloadField(Map<String, Object> payload, String fromKey, String toKey) {
+        if (!payload.containsKey(toKey) && payload.containsKey(fromKey)) {
+            payload.put(toKey, payload.get(fromKey));
+        }
+    }
+
+    private static void applyVisitCreateDefaults(SObject sob, Map<String, Schema.SObjectField> fmap) {
+        if (fmap.containsKey('Assigned_To__c') && sob.get('Assigned_To__c') == null) {
+            sob.put('Assigned_To__c', UserInfo.getUserId());
+        }
+        if (fmap.containsKey('Visit_Type__c') && sob.get('Visit_Type__c') == null) {
+            sob.put('Visit_Type__c', 'Planned (Automatically)');
+        }
+        if (fmap.containsKey('Status__c') && sob.get('Status__c') == null) {
+            sob.put('Status__c', 'Draft');
+        }
+    }
+
+    /** @return error message when delete failed; null when synced or skipped */
+    private static String deleteRecord(OutboxAction action) {
         if (String.isBlank(action.objectApi) || String.isBlank(action.recordId)) {
-            return;
+            return null;
         }
         if (action.recordId.startsWith('local_')) {
-            return;
+            return null;
         }
-        Database.delete(Id.valueOf(action.recordId), false);
+        Database.DeleteResult[] results = Database.delete(
+            new List<Id>{ Id.valueOf(action.recordId) },
+            false
+        );
+        if (results.isEmpty() || !results[0].isSuccess()) {
+            String msg = 'Delete failed';
+            if (!results.isEmpty() && !results[0].getErrors().isEmpty()) {
+                msg = results[0].getErrors()[0].getMessage();
+            }
+            return msg;
+        }
         if (Schema.getGlobalDescribe().containsKey('Offline_Tombstone__c')) {
             SObject tomb = Schema.getGlobalDescribe().get('Offline_Tombstone__c').newSObject();
             tomb.put('Object_API__c', action.objectApi);
@@ -157,6 +255,7 @@ global with sharing class OsrOutboxService {
             tomb.put('Deleted_At__c', Datetime.now());
             insert tomb;
         }
+        return null;
     }
 
     private static void upsertRepLocation(OutboxAction action) {
@@ -260,6 +359,58 @@ global with sharing class OsrOutboxService {
         if (!updates.isEmpty()) {
             update updates;
         }
+    }
+
+    private static void applyPayloadField(SObject sob, Schema.SObjectField field, Object value, Boolean inserting) {
+        if (field == null || value == null) {
+            return;
+        }
+        Schema.DescribeFieldResult d = field.getDescribe();
+        if (inserting && !d.isCreateable()) {
+            return;
+        }
+        if (!inserting && !d.isUpdateable()) {
+            return;
+        }
+        String name = d.getName();
+        Schema.DisplayType type = d.getType();
+        if (type == Schema.DisplayType.DATETIME) {
+            Datetime dt = tryParse(String.valueOf(value));
+            if (dt != null) {
+                sob.put(name, dt);
+            }
+            return;
+        }
+        if (type == Schema.DisplayType.DATE) {
+            Datetime dt = tryParse(String.valueOf(value));
+            if (dt != null) {
+                sob.put(name, dt.date());
+                return;
+            }
+            try {
+                sob.put(name, Date.valueOf(String.valueOf(value)));
+            } catch (Exception e) {
+                /* skip invalid date */
+            }
+            return;
+        }
+        if (type == Schema.DisplayType.BOOLEAN) {
+            if (value instanceof Boolean) {
+                sob.put(name, (Boolean) value);
+            } else {
+                sob.put(name, Boolean.valueOf(String.valueOf(value)));
+            }
+            return;
+        }
+        if (
+            type == Schema.DisplayType.DOUBLE ||
+            type == Schema.DisplayType.CURRENCY ||
+            type == Schema.DisplayType.PERCENT
+        ) {
+            sob.put(name, toDecimal(value));
+            return;
+        }
+        sob.put(name, value);
     }
 
     private static Datetime tryParse(String iso) {

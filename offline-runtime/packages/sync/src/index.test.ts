@@ -29,6 +29,30 @@ test('syncChannelLabel pluralizes common APIs', () => {
   assert.equal(syncChannelLabel('Opportunity'), 'Opportunities');
 });
 
+test('fullSync pushes outbox before pull', async () => {
+  const db = await openDatabase();
+  const calls: string[] = [];
+  const base = createMockSyncClient();
+  const client: typeof base = {
+    get: async (path) => {
+      calls.push(`GET ${path}`);
+      return base.get(path);
+    },
+    post: async (path, body) => {
+      calls.push(`POST ${path}`);
+      return base.post(path, body);
+    }
+  };
+  const engine = new SyncEngine(db, client);
+  await localSaveRecord(db, 'Account', { Name: 'Queued Co' }, true);
+  await engine.fullSync();
+  const outboxIdx = calls.findIndex((c) => c.includes('/outbox'));
+  const dataIdx = calls.findIndex((c) => c.includes('/data'));
+  assert.ok(outboxIdx >= 0, 'outbox push expected');
+  assert.ok(dataIdx >= 0, 'data pull expected');
+  assert.ok(outboxIdx < dataIdx, 'outbox must run before data pull');
+});
+
 test('fullSync emits onProgress with channel steps', async () => {
   const db = await openDatabase();
   const engine = new SyncEngine(db, createMockSyncClient());
