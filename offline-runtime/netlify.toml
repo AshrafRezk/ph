@@ -5,6 +5,12 @@
   # Skip Netlify builds when the commit only touches Salesforce/Plan/etc.
   ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
 
+[[headers]]
+  for = "/downloads/*.apk"
+  [headers.values]
+    Content-Type = "application/vnd.android.package-archive"
+    Content-Disposition = "attachment; filename=\"OSR-0.1.0-beta.21-debug.apk\""
+
 [[redirects]]
   from = "/oauth/callback"
   to = "/index.html"

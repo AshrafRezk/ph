@@ -8,6 +8,7 @@ apps/shell/android/
 .capacitor/
 .netlify/
 *.apk
+!apps/shell/public/downloads/*.apk
 gradle-*.zip
 
 .env

@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import fs from 'node:fs';
 import path from 'node:path';
 import { resolve } from 'node:path';
 
@@ -72,10 +73,44 @@ function salesforceProxyPlugin(): Plugin {
   };
 }
 
+/** Copy the newest local debug APK into dist so `/downloads/osr-offline-latest.apk` stays current. */
+function copyLatestApkPlugin(): Plugin {
+  const destName = 'downloads/osr-offline-latest.apk';
+  const searchDirs = [
+    path.resolve(__dirname, '../dist-android'),
+    path.resolve(__dirname, '../../dist-android')
+  ];
+
+  function findLatestApk(): string | null {
+    let best: { file: string; mtime: number } | null = null;
+    for (const dir of searchDirs) {
+      if (!fs.existsSync(dir)) continue;
+      for (const name of fs.readdirSync(dir)) {
+        if (!name.endsWith('.apk')) continue;
+        const file = path.join(dir, name);
+        const mtime = fs.statSync(file).mtimeMs;
+        if (!best || mtime > best.mtime) best = { file, mtime };
+      }
+    }
+    return best?.file ?? null;
+  }
+
+  return {
+    name: 'copy-latest-apk',
+    closeBundle() {
+      const src = findLatestApk();
+      if (!src) return;
+      const dest = path.resolve(__dirname, 'dist', destName);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+    }
+  };
+}
+
 export default defineConfig({
   root: '.',
   server: { port: 5173, host: true },
-  plugins: [salesforceProxyPlugin()],
+  plugins: [salesforceProxyPlugin(), copyLatestApkPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

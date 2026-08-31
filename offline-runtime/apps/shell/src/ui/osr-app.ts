@@ -128,6 +128,10 @@ const CURRENT_APP_KEY = 'osr.currentApp';
 const SYNC_SUCCESS_COUNT_KEY = 'osr.sync.successCount';
 /** Auto background sync while online. */
 const BG_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+/** Stable URL for the latest debug APK (Vite copies public/downloads into dist). */
+const ANDROID_APK_HREF = '/downloads/osr-offline-latest.apk';
+const ANDROID_APK_FILENAME = 'OSR-0.1.0-beta.21-debug.apk';
+const ANDROID_APK_VERSION = '0.1.0-beta.21';
 /** Run local↔server integrity check every N successful syncs. */
 const VALIDATE_EVERY_N_SYNCS = 5;
 
@@ -1996,7 +2000,8 @@ export class OsrApp extends LitElement {
       overflow: hidden;
     }
 
-    .menu-list button {
+    .menu-list button,
+    .menu-list a {
       width: 100%;
       display: flex;
       align-items: center;
@@ -2006,13 +2011,16 @@ export class OsrApp extends LitElement {
       border: none;
       border-bottom: 1px solid var(--sf-border);
       background: transparent;
+      color: inherit;
       text-align: left;
+      text-decoration: none;
       cursor: pointer;
       min-height: var(--sf-touch);
       font-size: 15px;
     }
 
-    .menu-list button:last-child {
+    .menu-list button:last-child,
+    .menu-list a:last-child {
       border-bottom: none;
     }
 
@@ -6123,6 +6131,18 @@ export class OsrApp extends LitElement {
           >
             <span>Support logs (${this.supportLogCount})</span><span>›</span>
           </button>
+          ${Capacitor.isNativePlatform()
+            ? nothing
+            : html`
+                <a
+                  href=${ANDROID_APK_HREF}
+                  download=${ANDROID_APK_FILENAME}
+                  rel="noopener"
+                >
+                  <span>Download latest APK (${ANDROID_APK_VERSION})</span>
+                  <span>↓</span>
+                </a>
+              `}
           <button @click=${() => this.logout()}>
             <span>Log Out</span><span>›</span>
           </button>

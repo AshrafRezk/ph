@@ -62,6 +62,7 @@ profile-deploy.zip
 
 # Android / mobile build artifacts (tracked under offline-runtime/.gitignore too)
 *.apk
+!offline-runtime/apps/shell/public/downloads/*.apk
 dist-android/
 
 # Large client-provided BRD binaries (exceed GitHub 100MB limit / not source)
