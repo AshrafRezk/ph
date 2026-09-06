@@ -415,8 +415,8 @@ async function refreshAccessToken() {
 function isOAuthCallbackLocation(href = window.location.href) {
     try {
         const u = new URL(href);
-        if (u.searchParams.has('code') || u.searchParams.has('error')) return true;
-        return u.pathname.includes('/oauth/callback');
+        // Only treat as callback when Salesforce actually sent code/error.
+        return u.searchParams.has('code') || u.searchParams.has('error');
     } catch {
         return false;
     }
