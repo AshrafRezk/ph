@@ -1,0 +1,67 @@
+<template>
+    <section class="switcher">
+        <header class="switcher-header">
+            <p class="eyebrow">Working territory</p>
+            <h2 class="current-name">{selectedTerritoryName}</h2>
+            <p class="status">{statusLabel}</p>
+        </header>
+
+        <lightning-input
+            type="search"
+            variant="label-hidden"
+            label="Search territories"
+            placeholder="Search territories..."
+            value={searchTerm}
+            onchange={handleSearch}
+        ></lightning-input>
+
+        <template if:true={errorMessage}>
+            <p class="error">{errorMessage}</p>
+        </template>
+
+        <ul class="tree" role="listbox" aria-label="Territories">
+            <li class={allRowClass} role="option">
+                <button class="select-btn" type="button" onclick={handleSelectAll} disabled={isSaving}>
+                    All assigned territories
+                </button>
+            </li>
+            <template if:true={hasRows}>
+                <template for:each={filteredRows} for:item="row">
+                    <li key={row.id} class={row.rowClass} role="option">
+                        <div class="row-inner" style={row.depthStyle}>
+                            <template if:true={row.hasChildren}>
+                                <button
+                                    class="toggle-btn"
+                                    type="button"
+                                    data-id={row.id}
+                                    onclick={handleToggle}
+                                    title="Expand or collapse"
+                                >
+                                    <lightning-icon icon-name={row.chevronIcon} size="xx-small"></lightning-icon>
+                                </button>
+                            </template>
+                            <template if:false={row.hasChildren}>
+                                <span class="toggle-spacer"></span>
+                            </template>
+                            <button
+                                class="select-btn"
+                                type="button"
+                                data-id={row.id}
+                                data-name={row.name}
+                                onclick={handleSelect}
+                                disabled={isSaving}
+                            >
+                                <span class="row-name">{row.name}</span>
+                                <span class="row-level">{row.level}</span>
+                            </button>
+                        </div>
+                    </li>
+                </template>
+            </template>
+        </ul>
+
+        <template if:false={hasAssignment}>
+            <p class="empty">You are not assigned to a territory yet.</p>
+        </template>
+    </section>
+</template>

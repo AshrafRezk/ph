@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningMessageChannel xmlns="http://soap.sforce.com/2006/04/metadata">
+    <masterLabel>Territory Context</masterLabel>
+    <isExposed>true</isExposed>
+    <description>Published when the user switches their working territory.</description>
+    <lightningMessageFields>
+        <fieldName>territoryId</fieldName>
+        <description>Selected Territory2 Id, or empty for all assigned territories.</description>
+    </lightningMessageFields>
+    <lightningMessageFields>
+        <fieldName>territoryName</fieldName>
+        <description>Selected territory name.</description>
+    </lightningMessageFields>
+</LightningMessageChannel>

@@ -207,6 +207,14 @@ global with sharing class PlannerMobileRestService {
         writeJson(res, 200, AccountsTabController.getAccountsTabRecordTypeOptions());
         return;
       }
+      if (path == 'territory-context') {
+        writeJson(res, 200, TerritoryContextService.getSwitcherContext());
+        return;
+      }
+      if (path == 'me') {
+        writeJson(res, 200, buildCurrentUserProfile());
+        return;
+      }
       writeJson(res, 404, new ErrorResponse('Unknown GET path: ' + path));
     } catch (Exception e) {
       writeJson(res, 400, new ErrorResponse(e.getMessage()));
@@ -427,6 +435,20 @@ global with sharing class PlannerMobileRestService {
       }
       if (path == 'outbox') {
         writeJson(res, 200, drainOutbox(body));
+        return;
+      }
+      if (path == 'territory-context') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        Id territoryId = null;
+        if (m != null && m.get('territoryId') != null && String.isNotBlank(String.valueOf(m.get('territoryId')))) {
+          territoryId = (Id) String.valueOf(m.get('territoryId'));
+        }
+        writeJson(res, 200, TerritoryContextService.setSelectedTerritory(territoryId));
+        return;
+      }
+      if (path == 'me/photo') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(res, 200, updateCurrentUserPhoto(m));
         return;
       }
       writeJson(res, 404, new ErrorResponse('Unknown POST path: ' + path));
@@ -702,6 +724,179 @@ global with sharing class PlannerMobileRestService {
       'userId' => resolvedUserId,
       'rows' => rows == null ? new List<Object>() : rows
     };
+  }
+
+  @TestVisible
+  private static Map<String, Object> buildCurrentUserProfile() {
+    Id userId = UserInfo.getUserId();
+    User currentUser = [
+      SELECT
+        Id,
+        FirstName,
+        LastName,
+        Name,
+        Email,
+        Username,
+        Title,
+        Phone,
+        MobilePhone,
+        SmallPhotoUrl,
+        MediumPhotoUrl,
+        FullPhotoUrl,
+        LastLoginDate,
+        Profile.Name,
+        ManagerId,
+        Manager.Name
+      FROM User
+      WHERE Id = :userId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+
+    TerritoryContextService.SwitcherContext territoryContext = TerritoryContextService.getSwitcherContext();
+    String roleInTerritory = null;
+    Map<Id, String> roles = TerritoryHierarchyService.resolvePrimaryRoleByUser(new Set<Id>{ userId });
+    if (roles != null && roles.containsKey(userId)) {
+      roleInTerritory = roles.get(userId);
+    }
+
+    ManagerResolution manager = resolveTerritoryManager(userId, territoryContext);
+
+    return new Map<String, Object>{
+      'id' => currentUser.Id,
+      'firstName' => currentUser.FirstName,
+      'lastName' => currentUser.LastName,
+      'name' => currentUser.Name,
+      'email' => currentUser.Email,
+      'username' => currentUser.Username,
+      'title' => currentUser.Title,
+      'phone' => currentUser.Phone,
+      'mobilePhone' => currentUser.MobilePhone,
+      'smallPhotoUrl' => currentUser.SmallPhotoUrl,
+      'mediumPhotoUrl' => currentUser.MediumPhotoUrl,
+      'fullPhotoUrl' => currentUser.FullPhotoUrl,
+      'photoUrl' => String.isNotBlank(currentUser.MediumPhotoUrl)
+        ? currentUser.MediumPhotoUrl
+        : currentUser.SmallPhotoUrl,
+      'lastLoginDate' => currentUser.LastLoginDate,
+      'profileName' => currentUser.Profile != null ? currentUser.Profile.Name : null,
+      'managerId' => manager.managerId,
+      'managerName' => manager.managerName,
+      'managerSource' => manager.source,
+      'roleInTerritory' => roleInTerritory,
+      'territoryId' => territoryContext.selectedTerritoryId,
+      'territoryName' => territoryContext.selectedTerritoryName,
+      'territoryLevel' => territoryContext.selectedLevel,
+      'usingAllAssigned' => territoryContext.usingAllAssigned,
+      'hasAssignment' => territoryContext.hasAssignment
+    };
+  }
+
+  private class ManagerResolution {
+    Id managerId;
+    String managerName;
+    String source;
+  }
+
+  @TestVisible
+  private static ManagerResolution resolveTerritoryManager(
+    Id userId,
+    TerritoryContextService.SwitcherContext territoryContext
+  ) {
+    ManagerResolution result = new ManagerResolution();
+    Id seedTerritoryId = territoryContext != null ? territoryContext.selectedTerritoryId : null;
+    if (seedTerritoryId == null) {
+      for (UserTerritory2Association uta : [
+        SELECT Territory2Id
+        FROM UserTerritory2Association
+        WHERE UserId = :userId
+        WITH SYSTEM_MODE
+        ORDER BY RoleInTerritory2 ASC, Territory2Id ASC
+        LIMIT 1
+      ]) {
+        seedTerritoryId = uta.Territory2Id;
+      }
+    }
+
+    if (seedTerritoryId != null) {
+      Set<Id> walk = new Set<Id>();
+      Id currentTerritoryId = seedTerritoryId;
+      Integer guard = 0;
+      while (currentTerritoryId != null && guard < 12) {
+        guard++;
+        if (walk.contains(currentTerritoryId)) {
+          break;
+        }
+        walk.add(currentTerritoryId);
+
+        for (UserTerritory2Association uta : [
+          SELECT UserId, User.Name, RoleInTerritory2
+          FROM UserTerritory2Association
+          WHERE
+            Territory2Id = :currentTerritoryId
+            AND RoleInTerritory2 IN ('District Manager', 'Region Manager')
+            AND UserId != :userId
+            AND User.IsActive = TRUE
+          WITH SYSTEM_MODE
+          ORDER BY RoleInTerritory2 ASC, User.Name ASC
+          LIMIT 1
+        ]) {
+          result.managerId = uta.UserId;
+          result.managerName = uta.User != null ? uta.User.Name : null;
+          result.source = 'territory';
+          return result;
+        }
+
+        List<Territory2> parents = [
+          SELECT ParentTerritory2Id
+          FROM Territory2
+          WHERE Id = :currentTerritoryId
+          WITH SYSTEM_MODE
+          LIMIT 1
+        ];
+        currentTerritoryId = parents.isEmpty() ? null : parents[0].ParentTerritory2Id;
+      }
+    }
+
+    User currentUser = [
+      SELECT ManagerId, Manager.Name
+      FROM User
+      WHERE Id = :userId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (currentUser.ManagerId != null) {
+      result.managerId = currentUser.ManagerId;
+      result.managerName = currentUser.Manager != null ? currentUser.Manager.Name : null;
+      result.source = 'user';
+    }
+    return result;
+  }
+
+  @TestVisible
+  private static Map<String, Object> updateCurrentUserPhoto(Map<String, Object> payload) {
+    if (payload == null) {
+      throw new AuraHandledException('Photo payload is required.');
+    }
+    String fileName = payload.get('fileName') == null ? 'profile.jpg' : String.valueOf(payload.get('fileName'));
+    String contentType = payload.get('contentType') == null
+      ? 'image/jpeg'
+      : String.valueOf(payload.get('contentType'));
+    String base64Data = payload.get('base64Data') == null ? null : String.valueOf(payload.get('base64Data'));
+    if (String.isBlank(base64Data)) {
+      throw new AuraHandledException('Photo data is required.');
+    }
+    if (base64Data.contains(',')) {
+      base64Data = base64Data.substringAfter(',');
+    }
+
+    ConnectApi.BinaryInput photoInput = new ConnectApi.BinaryInput(
+      EncodingUtil.base64Decode(base64Data),
+      contentType,
+      fileName
+    );
+    ConnectApi.UserProfiles.setPhoto(null, UserInfo.getUserId(), photoInput);
+    return buildCurrentUserProfile();
   }
 
   private static void writeJson(RestResponse res, Integer statusCode, Object payload) {

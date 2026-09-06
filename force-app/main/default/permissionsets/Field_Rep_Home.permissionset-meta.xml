@@ -13,6 +13,14 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>TerritoryContextService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritorySwitcherController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>RepLocationService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -22,6 +30,14 @@
     </classAccesses>
     <classAccesses>
         <apexClass>PharmacySalesAnalyticsController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>HcpProductRoiController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>HcpProductRoiService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
@@ -152,6 +168,24 @@
         <allowEdit>false</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>false</modifyAllRecords>
+        <viewAllRecords>true</viewAllRecords>
+        <object>HCP_Engagement_Spend__c</object>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>false</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <viewAllRecords>true</viewAllRecords>
+        <object>HCP_Product_Rating_Snapshot__c</object>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>false</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
         <object>Home_Office_Message__c</object>
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
@@ -165,6 +199,46 @@
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
 
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Author__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Is_Active__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Message_Body__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Priority__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Published_On__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Target_Bu_Territory_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Target_District_Territory_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Home_Office_Message__c.Target_Line_Territory_Id__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
         <field>Employee_Time_Card_Account_Target__c.Account__c</field>
@@ -366,6 +440,41 @@
         <field>Account.Specialty_1__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.Bank_Account_Holder__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.Bank_Account_Number__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.Bank_Name__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.Honorarium_Fee_Notes__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.Honorarium_Standard_Fee__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.IBAN__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account.SWIFT_BIC__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
 
     <fieldPermissions>
         <editable>true</editable>
@@ -390,6 +499,16 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>Account_Territory_Fields__c.Potential__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Fields__c.Is_Speaker__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Fields__c.HCP_Classification__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -431,6 +550,61 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>Account_Territory_Product_Fields__c.Product_Matrix_Rating__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Product_Fields__c.Potential__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Product_Fields__c.Penetration__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Engagement_Spend__c.External_ID__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Engagement_Spend__c.Fiscal_Year__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Engagement_Spend__c.Product__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.Classification__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.Classification_Score__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.External_ID__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.Penetration__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.Potential__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>HCP_Product_Rating_Snapshot__c.Product__c</field>
         <readable>true</readable>
     </fieldPermissions>
 

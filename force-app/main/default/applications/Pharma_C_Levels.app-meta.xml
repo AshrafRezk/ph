@@ -19,6 +19,7 @@
     <tabs>Reports_Hub</tabs>
     <tabs>Pharmacy_Sales_Dashboard</tabs>
     <tabs>Admin_Console</tabs>
+    <tabs>My_Learning</tabs>
     <tabs>Project_Management</tabs>
     <tabs>Pharma_Project__c</tabs>
     <tabs>Cross_Dept_Hub</tabs>
@@ -31,6 +32,7 @@
     <tabs>standard-Dashboard</tabs>
     <tabs>standard-report</tabs>
     <uiType>Lightning</uiType>
+    <utilityBar>Pharma_UtilityBar</utilityBar>
     <actionOverrides>
         <actionName>View</actionName>
         <comment>Project Management native record page</comment>

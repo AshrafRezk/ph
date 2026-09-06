@@ -1,7 +1,8 @@
-import { LightningElement, track } from 'lwc';
+import { LightningElement, track, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import LightningConfirm from 'lightning/confirm';
+import { MessageContext } from 'lightning/messageService';
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
 import fetchPlannerData from '@salesforce/apex/FieldPlannerController.fetchPlannerData';
 import getMapAccounts from '@salesforce/apex/FieldPlannerController.getMapAccounts';
@@ -49,6 +50,10 @@ import {
     loadAccountCollections,
     saveAccountCollections
 } from 'c/plannerAccountCollections';
+import {
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
 import Id from '@salesforce/user/Id';
 import {
     getMapAccountsCache,
@@ -484,10 +489,19 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     touchDropHighlightClass;
     _handleDocumentTouchMove;
     _handleDocumentTouchEnd;
+    _messageContext;
+    territoryContextSubscription;
+
+    @wire(MessageContext)
+    wiredMessageContext(value) {
+        this._messageContext = value;
+        this.subscribeTerritoryContext();
+    }
 
     connectedCallback() {
         this._handleDocumentTouchMove = this.handleDocumentTouchMove.bind(this);
         this._handleDocumentTouchEnd = this.handleDocumentTouchEnd.bind(this);
+        this.subscribeTerritoryContext();
         this.bootstrapPlanner();
     }
 
@@ -524,6 +538,18 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         window.clearTimeout(this.routePreviewTimer);
         window.removeEventListener('mousemove', this.handleResizeMove);
         window.removeEventListener('mouseup', this.handleResizeEnd);
+        unsubscribeTerritoryContext(this.territoryContextSubscription);
+        this.territoryContextSubscription = undefined;
+    }
+
+    subscribeTerritoryContext() {
+        if (this.territoryContextSubscription || !this._messageContext) {
+            return;
+        }
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+            this.destroyMap();
+            void this.bootstrapPlanner();
+        });
     }
 
     get isViewingSelf() {

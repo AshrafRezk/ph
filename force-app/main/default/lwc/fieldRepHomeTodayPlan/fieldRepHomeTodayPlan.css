@@ -290,11 +290,11 @@
     flex-wrap: wrap;
     align-items: stretch;
     gap: 0;
-    border: 1.5px solid #1b1b1b;
-    border-radius: 0.65rem;
+    border: 1px solid #dddbda;
+    border-radius: 0.55rem;
     overflow: hidden;
-    background: #f3f3f3;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+    background: #fff;
+    box-shadow: none;
 }
 
 .route-stop-btn {
@@ -303,8 +303,8 @@
     min-height: 2.25rem;
     padding: 0.4rem 0.85rem;
     border: 0;
-    border-right: 1.5px solid #1b1b1b;
-    background: #f3f3f3;
+    border-right: 1px solid #e5e5e5;
+    background: #fff;
     color: #181818;
     font-size: 0.75rem;
     font-weight: 700;
@@ -318,7 +318,7 @@
 }
 
 .route-stop-btn:hover:not(:disabled) {
-    background: #e8e8e8;
+    background: #f4f8fd;
 }
 
 .route-stop-btn:disabled {

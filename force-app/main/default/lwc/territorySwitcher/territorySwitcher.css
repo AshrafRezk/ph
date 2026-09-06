@@ -1,0 +1,110 @@
+.switcher {
+    padding: 0.75rem;
+    background: #fff;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.switcher-header {
+    border-bottom: 1px solid #ecebea;
+    padding-bottom: 0.55rem;
+}
+
+.eyebrow {
+    margin: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #706e6b;
+    font-weight: 600;
+}
+
+.current-name {
+    margin: 0.15rem 0 0;
+    font-size: 1rem;
+    color: #181818;
+    font-weight: 700;
+}
+
+.status {
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
+    color: #0176d3;
+    font-weight: 600;
+}
+
+.tree {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    flex: 1;
+    min-height: 12rem;
+}
+
+.tree-row {
+    border-radius: 0.25rem;
+}
+
+.tree-row--selected {
+    background: #eef4ff;
+}
+
+.row-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.1rem;
+}
+
+.toggle-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0.35rem 0.1rem;
+    line-height: 0;
+    flex-shrink: 0;
+}
+
+.toggle-spacer {
+    display: inline-block;
+    width: 1.1rem;
+    flex-shrink: 0;
+}
+
+.select-btn {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 0.35rem 0.3rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.row-name {
+    font-size: 0.8125rem;
+    color: #181818;
+    font-weight: 600;
+}
+
+.row-level {
+    font-size: 0.6875rem;
+    color: #706e6b;
+}
+
+.error {
+    margin: 0;
+    color: #ba0517;
+    font-size: 0.75rem;
+}
+
+.empty {
+    margin: 0.5rem 0 0;
+    color: #706e6b;
+    font-size: 0.8125rem;
+}

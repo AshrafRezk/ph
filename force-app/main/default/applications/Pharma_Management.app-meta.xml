@@ -6,7 +6,7 @@
         <logoVersion>1</logoVersion>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
-    <description>Pharma Management — team KPIs, reports, pharmacy sales, and admin console for DMs and RMs.</description>
+    <description>Pharma Management — team KPIs, field voice insights, reports, pharmacy sales, and admin console for DMs and RMs.</description>
     <formFactors>Small</formFactors>
     <formFactors>Large</formFactors>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
@@ -18,7 +18,9 @@
     <tabs>Field_Tracking</tabs>
     <tabs>Reports_Hub</tabs>
     <tabs>Pharmacy_Sales_Dashboard</tabs>
+    <tabs>Field_Voice_Insights</tabs>
     <tabs>Admin_Console</tabs>
+    <tabs>My_Learning</tabs>
     <tabs>Coaching_Event__c</tabs>
     <tabs>Visit__c</tabs>
     <tabs>Accounts_Tab</tabs>
@@ -26,4 +28,5 @@
     <tabs>standard-Dashboard</tabs>
     <tabs>standard-report</tabs>
     <uiType>Lightning</uiType>
+    <utilityBar>Pharma_UtilityBar</utilityBar>
 </CustomApplication>

@@ -781,11 +781,13 @@ public with sharing class FieldPlannerController {
     if (hasFullPlannerAccountAccess()) {
       ctx.viewerMode = 'admin';
       ctx.canSwitchView = true;
-      ctx.options = buildViewerOptionsForTerritories(
-        headOfficeId != null
-          ? expandTerritoryHierarchy(new Set<Id>{ headOfficeId })
-          : new Set<Id>()
+      Set<Id> scopedTerritoryIds = expandTerritoryHierarchy(
+        TerritoryContextService.getEffectiveTerritoryIds(UserInfo.getUserId())
       );
+      if (scopedTerritoryIds.isEmpty() && headOfficeId != null) {
+        scopedTerritoryIds = expandTerritoryHierarchy(new Set<Id>{ headOfficeId });
+      }
+      ctx.options = buildViewerOptionsForTerritories(scopedTerritoryIds);
     }
     return ctx;
   }
@@ -1637,16 +1639,7 @@ public with sharing class FieldPlannerController {
 
   @TestVisible
   private static Set<Id> getUserTerritoryIds() {
-    Set<Id> territoryIds = new Set<Id>();
-    for (UserTerritory2Association assignment : [
-      SELECT Territory2Id
-      FROM UserTerritory2Association
-      WHERE UserId = :UserInfo.getUserId()
-      WITH SYSTEM_MODE
-    ]) {
-      territoryIds.add(assignment.Territory2Id);
-    }
-    return territoryIds;
+    return TerritoryContextService.getEffectiveTerritoryIds(UserInfo.getUserId());
   }
 
   @TestVisible
@@ -1818,15 +1811,38 @@ public with sharing class FieldPlannerController {
   }
 
   private static Set<Id> resolveScopedAccountIds(Id contextUserId) {
-    if (contextUserId == UserInfo.getUserId() && hasFullPlannerAccountAccess()) {
+    if (
+      contextUserId == UserInfo.getUserId() &&
+      hasFullPlannerAccountAccess() &&
+      !TerritoryContextService.hasSelectedTerritory()
+    ) {
       return null;
     }
-    Set<Id> accountIds = getTerritoryAccountIdsForUser(contextUserId);
+    Set<Id> accountIds = resolveTerritoryAccountIds(getTerritoryScopeTerritoryIds(contextUserId));
     if (!accountIds.isEmpty()) {
       return accountIds;
     }
+    if (
+      TerritoryContextService.hasSelectedTerritory() &&
+      (contextUserId == UserInfo.getUserId() || hasFullPlannerAccountAccess())
+    ) {
+      return new Set<Id>();
+    }
     // Match Field Rep Home: fall back to the rep's monthly time-card account targets.
     return getTimeCardAccountIdsForUser(contextUserId);
+  }
+
+  private static Set<Id> getTerritoryScopeTerritoryIds(Id contextUserId) {
+    Id runningUserId = UserInfo.getUserId();
+    if (contextUserId == null || contextUserId == runningUserId) {
+      return expandTerritoryHierarchy(getUserTerritoryIdsForUser(runningUserId));
+    }
+    if (hasFullPlannerAccountAccess() && TerritoryContextService.hasSelectedTerritory()) {
+      return expandTerritoryHierarchy(
+        TerritoryContextService.getEffectiveTerritoryIds(runningUserId)
+      );
+    }
+    return expandTerritoryHierarchy(getUserTerritoryIdsForUser(contextUserId));
   }
 
   private static Set<Id> getTimeCardAccountIdsForUser(Id userId) {
@@ -1943,16 +1959,7 @@ public with sharing class FieldPlannerController {
   }
 
   private static Set<Id> getUserTerritoryIdsForUser(Id userId) {
-    Set<Id> territoryIds = new Set<Id>();
-    for (UserTerritory2Association assignment : [
-      SELECT Territory2Id
-      FROM UserTerritory2Association
-      WHERE UserId = :userId
-      WITH SYSTEM_MODE
-    ]) {
-      territoryIds.add(assignment.Territory2Id);
-    }
-    return territoryIds;
+    return TerritoryContextService.getEffectiveTerritoryIds(userId);
   }
 
   private static Set<Id> getTerritoryAccountIdsForUser(Id userId) {

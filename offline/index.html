@@ -87,11 +87,16 @@
             </div>
             <nav id="app-tabs" class="nav-tabs" role="tablist"></nav>
             <div class="nav-actions nav-sidebar-actions">
-                <button id="switch-app-btn" class="nav-btn-switch" type="button" title="Choose a different app">
-                    Switch app
-                </button>
-                <button id="logout-btn" class="nav-btn-logout" type="button" title="Log out and clear access token">
-                    Log out
+                <button
+                    id="nav-user-avatar-btn"
+                    class="user-avatar-btn"
+                    type="button"
+                    data-user-avatar
+                    title="Account menu"
+                    aria-label="Account menu"
+                >
+                    <img class="user-avatar-img" alt="" hidden />
+                    <span class="user-avatar-fallback" aria-hidden="true">?</span>
                 </button>
             </div>
         </header>
@@ -224,8 +229,16 @@
                     <h1 class="chooser-title">App Launcher</h1>
                     <p class="chooser-sub">Open an app, or jump straight to an item. Pharma Field works fully offline.</p>
                 </div>
-                <button id="chooser-logout-btn" class="nav-btn-logout" type="button" title="Log out">
-                    Log out
+                <button
+                    id="chooser-user-avatar-btn"
+                    class="user-avatar-btn user-avatar-btn--light"
+                    type="button"
+                    data-user-avatar
+                    title="Account menu"
+                    aria-label="Account menu"
+                >
+                    <img class="user-avatar-img" alt="" hidden />
+                    <span class="user-avatar-fallback" aria-hidden="true">?</span>
                 </button>
             </header>
             <div class="chooser-search-wrap">
@@ -249,9 +262,82 @@
             <div id="view-clm" class="view-panel"></div>
             <div id="view-visitcall" class="view-panel"></div>
             <div id="view-learning" class="view-panel"></div>
+            <div id="view-chatter" class="view-panel"></div>
+            <div id="view-reports" class="view-panel"></div>
+            <div id="view-dashboards" class="view-panel"></div>
             <div id="view-entity" class="view-panel"></div>
             <div id="view-unsupported" class="view-panel"></div>
         </main>
+
+        <div id="user-menu-sheet" class="user-overlay user-menu-sheet" hidden>
+            <button class="user-overlay-backdrop" type="button" data-user-menu-close aria-label="Close menu"></button>
+            <div class="user-menu-panel" role="dialog" aria-label="Account menu">
+                <button id="user-menu-header-btn" class="user-menu-header" type="button">
+                    <span class="user-menu-header-avatar">
+                        <img id="user-menu-header-img" alt="" hidden />
+                        <span id="user-menu-header-fallback" class="user-avatar-fallback" aria-hidden="true">?</span>
+                    </span>
+                    <span class="user-menu-header-text">
+                        <strong id="user-menu-name">User</strong>
+                        <span id="user-menu-email"></span>
+                        <span class="user-menu-header-hint">View profile</span>
+                    </span>
+                </button>
+                <div class="user-menu-actions">
+                    <button id="user-menu-territory-btn" class="user-menu-action" type="button">
+                        <span class="user-menu-action-label">Territory switcher</span>
+                        <span id="user-menu-territory-label" class="user-menu-action-meta">All assigned territories</span>
+                    </button>
+                    <button id="user-menu-switch-app-btn" class="user-menu-action" type="button">
+                        <span class="user-menu-action-label">App switcher</span>
+                        <span class="user-menu-action-meta">Open App Launcher</span>
+                    </button>
+                    <button id="user-menu-open-profile" class="user-menu-action" type="button">
+                        <span class="user-menu-action-label">My profile</span>
+                        <span class="user-menu-action-meta">Photo and account details</span>
+                    </button>
+                    <button id="user-menu-logout-btn" class="user-menu-action user-menu-action--danger" type="button">
+                        <span class="user-menu-action-label">Log out</span>
+                    </button>
+                </div>
+                <button class="user-menu-close" type="button" data-user-menu-close>Close</button>
+            </div>
+        </div>
+
+        <div id="territory-switcher-panel" class="user-overlay territory-panel" hidden>
+            <button class="user-overlay-backdrop" type="button" data-territory-close aria-label="Close territory switcher"></button>
+            <div class="territory-panel-card" role="dialog" aria-label="Territory switcher">
+                <header class="switcher-header">
+                    <button class="panel-back-btn" type="button" data-territory-close>Back</button>
+                    <p class="eyebrow">Working territory</p>
+                    <h2 id="territory-current-name" class="current-name">All assigned territories</h2>
+                    <p id="territory-status-label" class="status">All assigned</p>
+                </header>
+                <p id="territory-offline-note" class="territory-offline-note" hidden>
+                    Connect to switch territory. Showing the last saved selection.
+                </p>
+                <input
+                    id="territory-search"
+                    class="territory-search"
+                    type="search"
+                    placeholder="Search territories..."
+                    aria-label="Search territories"
+                />
+                <p id="territory-error" class="error"></p>
+                <ul id="territory-tree-list" class="tree" role="listbox" aria-label="Territories"></ul>
+            </div>
+        </div>
+
+        <div id="user-profile-panel" class="user-overlay profile-panel" hidden>
+            <button class="user-overlay-backdrop" type="button" data-profile-close aria-label="Close profile"></button>
+            <div class="profile-panel-card" role="dialog" aria-label="My profile">
+                <header class="profile-panel-head">
+                    <button class="panel-back-btn" type="button" data-profile-close>Back</button>
+                    <h2>My profile</h2>
+                </header>
+                <div id="user-profile-body" class="profile-panel-body"></div>
+            </div>
+        </div>
 
         <script type="module" src="/src/main.js"></script>
     </body>

@@ -333,14 +333,14 @@
 }
 
 .slds-button_neutral {
-    border: 1px solid #c9c7c5;
+    border: 1px solid #dddbda;
     background: #fff;
     color: #0176d3;
 }
 
 .slds-button_neutral:hover {
-    background: #f3f3f3;
-    border-color: #b0adab;
+    background: #f4f8fd;
+    border-color: #0176d3;
 }
 
 .slds-button_brand {
@@ -410,17 +410,34 @@
 
 .slds-button_icon-border,
 .slds-button_icon-border-filled {
-    border: 1.5px solid #1b1b1b;
-    border-radius: 0.55rem;
-    background: #f3f3f3;
-    color: #181818;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+    border: 1px solid #dddbda;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #0176d3;
+    box-shadow: none;
 }
 
 .slds-button_icon-border:hover,
 .slds-button_icon-border-filled:hover {
-    background: #e8e8e8;
+    background: #f4f8fd;
+    border-color: #0176d3;
+    color: #014486;
+}
+
+.slds-button_icon-bare {
+    border: 0;
+    background: transparent;
     color: #0176d3;
+    box-shadow: none;
+    min-height: 1.75rem;
+    height: 1.75rem;
+    min-width: 1.75rem;
+    padding: 0;
+}
+
+.slds-button_icon-bare:hover:not([disabled]) {
+    background: #f4f8fd;
+    color: #014486;
 }
 
 .slds-button_icon-small {
@@ -475,23 +492,54 @@
 
 .slds-button-group {
     display: inline-flex;
-    border-radius: 0.25rem;
+    align-items: stretch;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid #dddbda;
+    background: #fff;
+    box-shadow: none;
 }
 
 .slds-button-group .slds-button {
     border-radius: 0;
-    margin-left: -1px;
-}
-
-.slds-button-group .slds-button:first-child {
-    border-top-left-radius: 0.25rem;
-    border-bottom-left-radius: 0.25rem;
     margin-left: 0;
+    border: 0;
+    border-right: 1px solid #e5e5e5;
+    background: #fff;
+    box-shadow: none;
+    min-height: 2.25rem;
+    height: 2.25rem;
 }
 
 .slds-button-group .slds-button:last-child {
-    border-top-right-radius: 0.25rem;
-    border-bottom-right-radius: 0.25rem;
+    border-right: 0;
+}
+
+.slds-button-group .slds-button_brand {
+    background: #0176d3;
+    color: #fff;
+}
+
+.slds-button-group .slds-button_brand:hover {
+    background: #0b5cab;
+    color: #fff;
+}
+
+.slds-button-group .slds-button_neutral:hover,
+.slds-button-group .slds-button_icon:hover,
+.slds-button-group .slds-button_icon-border:hover,
+.slds-button-group .slds-button_icon-border-filled:hover {
+    background: #f4f8fd;
+    color: #014486;
+}
+
+.slds-button-group .slds-button_icon,
+.slds-button-group .slds-button_icon-border,
+.slds-button-group .slds-button_icon-border-filled {
+    min-width: 2.25rem;
+    background: #fff;
+    color: #0176d3;
+    box-shadow: none;
 }
 
 /* Form Elements */

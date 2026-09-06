@@ -28,6 +28,13 @@ import { setupToastListener } from './toastManager';
 import { mountChatterView as renderChatterView } from './views/chatterView';
 import { mountReportsView as renderReportsView } from './views/reportsView';
 import { mountDashboardsView as renderDashboardsView } from './views/dashboardsView';
+import {
+    initUserMenu,
+    refreshUserChrome,
+    clearUserMenuCache,
+    closeUserMenu,
+    paintUserAvatars
+} from './userMenu';
 import './slds-shim.css';
 import './shell.css';
 
@@ -37,6 +44,9 @@ const INSTANCE_URL_KEY = 'zeta.pwa.sfInstanceUrl';
 const USER_NAME_KEY = 'zeta.pwa.sfUserName';
 const USER_USERNAME_KEY = 'zeta.pwa.sfUserUsername';
 const USER_ID_KEY = 'zeta.pwa.sfUserId';
+const USER_PICTURE_KEY = 'zeta.pwa.sfUserPicture';
+const USER_FIRST_NAME_KEY = 'zeta.pwa.sfUserFirstName';
+const USER_LAST_NAME_KEY = 'zeta.pwa.sfUserLastName';
 const SESSION_CONFIRMED_KEY = 'zeta.pwa.sessionConfirmed';
 const LAST_WORKSPACE_KEY = 'zeta.pwa.lastWorkspace';
 const APP_VERSION_KEY = 'zeta.pwa.appVersion';
@@ -253,20 +263,31 @@ function readStoredIdentity() {
     return {
         name: (window.localStorage.getItem(USER_NAME_KEY) || '').trim(),
         username: (window.localStorage.getItem(USER_USERNAME_KEY) || '').trim(),
-        userId: (window.localStorage.getItem(USER_ID_KEY) || '').trim()
+        userId: (window.localStorage.getItem(USER_ID_KEY) || '').trim(),
+        picture: (window.localStorage.getItem(USER_PICTURE_KEY) || '').trim(),
+        firstName: (window.localStorage.getItem(USER_FIRST_NAME_KEY) || '').trim(),
+        lastName: (window.localStorage.getItem(USER_LAST_NAME_KEY) || '').trim()
     };
 }
 
-function saveIdentity({ name, username, userId }) {
+function saveIdentity({ name, username, userId, picture, firstName, lastName }) {
     if (name) window.localStorage.setItem(USER_NAME_KEY, name);
     if (username) window.localStorage.setItem(USER_USERNAME_KEY, username);
     if (userId) window.localStorage.setItem(USER_ID_KEY, userId);
+    if (picture) window.localStorage.setItem(USER_PICTURE_KEY, picture);
+    if (firstName) window.localStorage.setItem(USER_FIRST_NAME_KEY, firstName);
+    if (lastName) window.localStorage.setItem(USER_LAST_NAME_KEY, lastName);
+    paintUserAvatars();
 }
 
 function clearIdentity() {
     window.localStorage.removeItem(USER_NAME_KEY);
     window.localStorage.removeItem(USER_USERNAME_KEY);
     window.localStorage.removeItem(USER_ID_KEY);
+    window.localStorage.removeItem(USER_PICTURE_KEY);
+    window.localStorage.removeItem(USER_FIRST_NAME_KEY);
+    window.localStorage.removeItem(USER_LAST_NAME_KEY);
+    clearUserMenuCache();
 }
 
 function isSessionConfirmed() {
@@ -355,8 +376,9 @@ function isPharmaWorkspace(saved) {
 }
 
 function applyResumeUserLabels() {
-    const { name, username } = readStoredIdentity();
-    const display = name || username || 'Someone';
+    const { name, username, firstName, lastName } = readStoredIdentity();
+    const composed = `${firstName || ''} ${lastName || ''}`.trim();
+    const display = composed || name || username || 'Someone';
     const nameEl = document.getElementById('resume-user-name');
     if (nameEl) nameEl.textContent = display;
     const unameEl = document.getElementById('resume-user-username');
@@ -407,7 +429,10 @@ async function fetchAndStoreUserIdentity() {
             info?.preferred_username || info?.username || info?.email || ''
         ).trim();
         const userId = String(info?.user_id || '').trim();
-        saveIdentity({ name, username, userId });
+        const picture = String(info?.picture || '').trim();
+        const firstName = String(info?.given_name || info?.first_name || '').trim();
+        const lastName = String(info?.family_name || info?.last_name || '').trim();
+        saveIdentity({ name, username, userId, picture, firstName, lastName });
         applyResumeUserLabels();
     } catch (error) {
         console.warn('[Auth] Could not load user identity:', error);
@@ -426,6 +451,7 @@ function enterAuthenticatedApp() {
     confirmSession();
     document.documentElement.classList.add('osr-session-confirmed');
     configureRuntime(token);
+    void refreshUserChrome();
     if (!restoreLastLightningApp()) {
         buildAppChooser();
     } else {
@@ -863,6 +889,7 @@ function logout() {
     clearIdentity();
     clearSessionConfirmed();
     clearLastWorkspace();
+    closeUserMenu();
     document.documentElement.classList.remove('osr-restore-app');
     configureRuntime('');
     unmountApp();
@@ -2090,26 +2117,17 @@ function setupSessionBar(token) {
     sessionBarWired = true;
 
     const loginBtn = document.getElementById('login-btn');
-    const logoutBtn = document.getElementById('logout-btn');
     const envSelect = document.getElementById('login-env');
     const domainInput = document.getElementById('custom-domain-input');
     const continueBtn = document.getElementById('continue-session-btn');
     const switchUserBtn = document.getElementById('switch-user-btn');
 
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', logout);
-    }
-
-    const chooserLogoutBtn = document.getElementById('chooser-logout-btn');
-    if (chooserLogoutBtn) {
-        chooserLogoutBtn.addEventListener('click', logout);
-    }
-
-    // "Switch app" returns to the launcher without dropping the session.
-    const switchAppBtn = document.getElementById('switch-app-btn');
-    if (switchAppBtn) {
-        switchAppBtn.addEventListener('click', buildAppChooser);
-    }
+    initUserMenu({
+        onSwitchApp: buildAppChooser,
+        onLogout: logout,
+        getIdentity: readStoredIdentity,
+        saveIdentity
+    });
 
     prefillsCustomDomainFromEnv();
     if (envSelect) {

@@ -16,6 +16,14 @@
         <apexClass>PlannerMobileRestService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <classAccesses>
+        <apexClass>TerritoryContextService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritorySwitcherController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <description>Grants native Planner mobile REST access (deploy alongside Field_Planner_Module).</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>Planner Mobile API</label>

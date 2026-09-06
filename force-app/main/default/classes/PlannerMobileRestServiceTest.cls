@@ -313,4 +313,24 @@ private class PlannerMobileRestServiceTest {
     System.assertEquals(200, outboxRes.statusCode);
     System.assertEquals(400, weekMissing.statusCode);
   }
+
+  @IsTest
+  static void getMeAndTerritoryContext_ok() {
+    Test.startTest();
+    RestResponse meRes = invokeGetWithParams('me', null);
+    RestResponse territoryRes = invokeGetWithParams('territory-context', null);
+    RestResponse clearRes = invokePost(
+      'territory-context',
+      JSON.serialize(new Map<String, Object>{ 'territoryId' => null })
+    );
+    Test.stopTest();
+
+    System.assertEquals(200, meRes.statusCode);
+    String meBody = meRes.responseBody.toString();
+    System.assert(meBody.contains('firstName') || meBody.contains('name'));
+    System.assert(meBody.contains('email'));
+    System.assertEquals(200, territoryRes.statusCode);
+    System.assert(territoryRes.responseBody.toString().contains('usingAllAssigned'));
+    System.assertEquals(200, clearRes.statusCode);
+  }
 }
