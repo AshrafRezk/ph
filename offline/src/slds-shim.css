@@ -349,6 +349,31 @@
     color: #fff;
 }
 
+/* Lightning "base" = text link (Postpone / Remove, etc.) — not a grey chip */
+.slds-button_base {
+    min-height: 0;
+    height: auto;
+    padding: 0.15rem 0.35rem;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: #0176d3;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    box-shadow: none;
+}
+
+.slds-button_base:hover:not([disabled]) {
+    background: transparent;
+    color: #014486;
+    text-decoration: underline;
+}
+
+.slds-button_base:focus-visible {
+    outline: 2px solid #0176d3;
+    outline-offset: 2px;
+}
+
 .slds-button_brand:hover {
     background: #014486;
     border-color: #014486;
@@ -407,6 +432,39 @@
 .slds-icon-glyph {
     font-style: normal;
     line-height: 1;
+}
+
+.slds-icon-svg {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.slds-icon-svg svg {
+    display: block;
+    width: 1em;
+    height: 1em;
+}
+
+.slds-icon_container .slds-icon-svg {
+    font-size: 1rem;
+}
+
+.slds-icon-xx-small .slds-icon-svg {
+    font-size: 0.75rem;
+}
+
+.slds-icon-x-small .slds-icon-svg {
+    font-size: 0.875rem;
+}
+
+.slds-icon-small .slds-icon-svg {
+    font-size: 1rem;
+}
+
+.slds-button_icon .slds-icon-svg {
+    font-size: 1rem;
 }
 
 .slds-button[disabled] {

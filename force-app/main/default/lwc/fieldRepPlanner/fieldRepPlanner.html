@@ -53,7 +53,11 @@
                             aria-label="Calendar view"
                             onclick={handleShowCalendar}
                         >
-                            <span class="view-mode-switch__glyph" aria-hidden="true">📅</span>
+                            <span class="view-mode-switch__glyph" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
+                                    <path d="M18 8a2 2 0 0 1 2 2v2h12V10a2 2 0 1 1 4 0v2h2a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4h2V10a2 2 0 0 1 2-2zm20 16H14v16h24V24zM14 16v4h24v-4H14z"/>
+                                </svg>
+                            </span>
                             <span class="view-mode-switch__label">Calendar</span>
                         </button>
                         <button
@@ -64,7 +68,11 @@
                             aria-label="Map and route view"
                             onclick={handleShowMap}
                         >
-                            <span class="view-mode-switch__glyph" aria-hidden="true">🗺️</span>
+                            <span class="view-mode-switch__glyph" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
+                                    <path d="M8 12.5 20 8l12 6 12-4.5V39.5L32 44l-12-6-12 4.5V12.5zm4 3.2v22.6l8-3V12.7l-8 3zm12 20.4 8 4V18.7l-8-4v21.4zm12-17.2v22.8l8-3V15.9l-8 3z"/>
+                                </svg>
+                            </span>
                             <span class="view-mode-switch__label">Map</span>
                         </button>
                     </div>
@@ -120,7 +128,7 @@
                     aria-selected={isMobileCalendarTab}
                     onclick={handleSelectMobileCalendar}
                 >
-                    📅 Calendar Grid
+                    Calendar Grid
                 </button>
                 <button
                     type="button"
@@ -129,7 +137,7 @@
                     aria-selected={isMobileAccountsTab}
                     onclick={handleSelectMobileAccounts}
                 >
-                    📋 Accounts ({totalAccountCount})
+                    Accounts ({totalAccountCount})
                 </button>
             </div>
 

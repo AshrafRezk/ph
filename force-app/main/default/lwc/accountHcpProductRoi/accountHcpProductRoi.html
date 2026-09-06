@@ -1,0 +1,260 @@
+<template>
+    <lightning-card title="HCP Product ROI" icon-name="standard:product">
+        <div slot="actions">
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={handleRefresh}>
+            </lightning-button-icon>
+        </div>
+
+        <div class="roi-body">
+            <template lwc:if={isLoading}>
+                <div class="loading-wrap">
+                    <lightning-spinner alternative-text="Loading HCP product ROI" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <template lwc:if={errorMessage}>
+                <div class="slds-notify slds-notify_alert slds-theme_error" role="alert">
+                    <span>{errorMessage}</span>
+                </div>
+            </template>
+
+            <template lwc:if={hasPayload}>
+                <template lwc:if={hasProducts}>
+                    <div class="toolbar">
+                        <lightning-combobox
+                            name="product"
+                            label="Product"
+                            value={selectedProductId}
+                            options={productOptions}
+                            onchange={handleProductChange}
+                            class="product-picker">
+                        </lightning-combobox>
+                        <template lwc:if={roiMultipleLabel}>
+                            <span class="roi-badge">{roiMultipleLabel}</span>
+                        </template>
+                    </div>
+
+                    <p class="cta">{ctaText}</p>
+
+                    <div class="kpi-grid">
+                        <template for:each={kpiCards} for:item="card">
+                            <article key={card.id} class="kpi-card">
+                                <p class="kpi-label">{card.label}</p>
+                                <p class="kpi-value">{card.value}</p>
+                                <p class="kpi-hint">{card.hint}</p>
+                            </article>
+                        </template>
+                    </div>
+
+                    <section class="section">
+                        <h3 class="section-title">Prescribed products ranking</h3>
+                        <div class="table-wrap">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered product-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Product</th>
+                                        <th scope="col">Written</th>
+                                        <th scope="col">Potential</th>
+                                        <th scope="col">Gap</th>
+                                        <th scope="col">Org rank</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={productRows} for:item="row">
+                                        <tr key={row.key} class={row.rowClass}>
+                                            <td>
+                                                <div class="product-cell">
+                                                    <c-product-thumbnail
+                                                        image-url={row.imageUrl}
+                                                        product-name={row.productName}
+                                                        size="sm">
+                                                    </c-product-thumbnail>
+                                                    <div class="product-text">
+                                                        <div class="product-name">{row.productName}</div>
+                                                        <div class="product-family">{row.productFamily}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{row.writtenDisplay}</td>
+                                            <td>{row.potentialDisplay}</td>
+                                            <td>
+                                                <div>{row.gapDisplay}</div>
+                                                <div class="muted">{row.gapPercentDisplay}</div>
+                                            </td>
+                                            <td>{row.rankDisplay}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="section">
+                        <h3 class="section-title">{timelineTitle}</h3>
+                        <template lwc:if={hasSpendTimeline}>
+                            <div class="timeline-shell" role="img" aria-label="Engagement spend timeline">
+                                <div class="timeline-legend">
+                                    <span class="legend-item speaker">Speaker / RTD</span>
+                                    <span class="legend-item samples">Samples</span>
+                                    <span class="legend-item brochures">Brochures</span>
+                                    <span class="legend-item today">Today</span>
+                                </div>
+
+                                <div class="timeline-scroll">
+                                    <div class="timeline-canvas">
+                                        <div class="class-band">
+                                            <div class="class-band-label">Classification</div>
+                                            <div class="class-band-track">
+                                                <template lwc:if={classificationBand.hasData}>
+                                                    <svg
+                                                        class="class-line"
+                                                        viewBox={classificationBand.viewBox}
+                                                        preserveAspectRatio="none">
+                                                        <path
+                                                            d={classificationBand.path}
+                                                            fill="none"
+                                                            stroke="#1b7f4a"
+                                                            stroke-width="3">
+                                                        </path>
+                                                        <template for:each={classificationBand.dots} for:item="dot">
+                                                            <circle
+                                                                key={dot.key}
+                                                                cx={dot.cx}
+                                                                cy={dot.cy}
+                                                                r="4"
+                                                                fill="#1b7f4a">
+                                                                <title>{dot.title}</title>
+                                                            </circle>
+                                                        </template>
+                                                    </svg>
+                                                </template>
+                                                <template lwc:else>
+                                                    <div class="class-band-empty">No classification history for selected product</div>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <template for:each={spendLanes} for:item="lane">
+                                            <div key={lane.key} class="spend-lane">
+                                                <div class="lane-label">{lane.label}</div>
+                                                <div class={lane.trackClass}>
+                                                    <div class="lane-fill"></div>
+                                                    <template for:each={lane.events} for:item="evt">
+                                                        <div key={evt.key} class={evt.markerClass} style={evt.style} title={evt.title}>
+                                                            <div class="event-stem"></div>
+                                                            <div class="event-bubble">
+                                                                <template lwc:if={evt.hasImage}>
+                                                                    <img src={evt.imageUrl} alt={evt.productName} class="event-product-img" />
+                                                                </template>
+                                                                <span class="event-amount">{evt.amountDisplay}</span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <div class="today-marker" style={todayMarkerStyle}>
+                                            <div class="today-line"></div>
+                                            <div class="today-dot"></div>
+                                        </div>
+
+                                        <div class="month-axis">
+                                            <template for:each={monthMarkers} for:item="month">
+                                                <div key={month.key} class="month-pill" style={month.style}>
+                                                    {month.label}
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <div class="day-axis">
+                                            <template for:each={dayMarkers} for:item="day">
+                                                <span key={day.key} class="day-tick" style={day.style}>{day.label}</span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ul class="spend-list compact">
+                                    <template for:each={spendRows} for:item="row">
+                                        <li key={row.key} class="spend-item">
+                                            <span>{row.spendType}</span>
+                                            <strong>{row.amountDisplay}</strong>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <p class="empty-hint">No engagement spend recorded for this HCP yet.</p>
+                        </template>
+                    </section>
+
+                    <div class="charts-grid">
+                        <section class="section chart-section">
+                            <h3 class="section-title">Sell-out growth (affiliated pharmacies)</h3>
+                            <template lwc:if={salesChart.hasData}>
+                                <svg class="chart" viewBox={salesChart.viewBox} role="img" aria-label="Sell-out growth chart">
+                                    <path d={salesChart.path} fill="none" stroke={salesChart.color} stroke-width="3"></path>
+                                    <template for:each={salesChart.dots} for:item="dot">
+                                        <circle
+                                            key={dot.key}
+                                            cx={dot.cx}
+                                            cy={dot.cy}
+                                            r="4"
+                                            fill={salesChart.color}>
+                                            <title>{dot.title}</title>
+                                        </circle>
+                                    </template>
+                                    <template for:each={salesChart.labels} for:item="label">
+                                        <text key={label.key} x={label.x} y="172" text-anchor="middle" class="axis-label">
+                                            {label.label}
+                                        </text>
+                                    </template>
+                                </svg>
+                            </template>
+                            <template lwc:else>
+                                <p class="empty-hint">No affiliated pharmacy sell-out for this product yet.</p>
+                            </template>
+                        </section>
+
+                        <section class="section chart-section">
+                            <h3 class="section-title">Rep classification movement</h3>
+                            <template lwc:if={ratingChart.hasData}>
+                                <svg class="chart" viewBox={ratingChart.viewBox} role="img" aria-label="Rep classification movement chart">
+                                    <path d={ratingChart.path} fill="none" stroke={ratingChart.color} stroke-width="3"></path>
+                                    <template for:each={ratingChart.dots} for:item="dot">
+                                        <circle
+                                            key={dot.key}
+                                            cx={dot.cx}
+                                            cy={dot.cy}
+                                            r="4"
+                                            fill={ratingChart.color}>
+                                            <title>{dot.title}</title>
+                                        </circle>
+                                    </template>
+                                    <template for:each={ratingChart.labels} for:item="label">
+                                        <text key={label.key} x={label.x} y="172" text-anchor="middle" class="axis-label">
+                                            {label.label}
+                                        </text>
+                                    </template>
+                                </svg>
+                            </template>
+                            <template lwc:else>
+                                <p class="empty-hint">No historical classification snapshots for this product yet.</p>
+                            </template>
+                        </section>
+                    </div>
+                </template>
+
+                <template lwc:else>
+                    <p class="empty-hint">No active product ratings on this account yet.</p>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>
