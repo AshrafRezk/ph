@@ -965,17 +965,18 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
 
             this.filterOptions = filterOpts || this.filterOptions;
 
-            const actualTotal = Math.round(metrics.actualVisitsTotal || 0);
-            const targetTotal = Math.round(metrics.targetVisitsTotal || 0);
-            const rfMet = Math.round(((metrics.rfPercentTotal || 0) / 100) * (metrics.targetVisitsTotal > 0 ? rows.length : 0));
+            const safeMetrics = metrics || { ...EMPTY_METRICS, byClassification: [] };
+            const safeRows = rows || [];
+            const actualTotal = Math.round(safeMetrics.actualVisitsTotal || 0);
+            const targetTotal = Math.round(safeMetrics.targetVisitsTotal || 0);
             // RF count from rows for accurate display
-            const rfCount = (rows || []).filter(
+            const rfCount = safeRows.filter(
                 (r) => r.frequencyStatus === 'RCF' || r.frequencyStatus === 'MCF'
             ).length;
-            const totalAccounts = (rows || []).length;
-            const visitedCount = (rows || []).filter((r) => r.isVisited).length;
+            const totalAccounts = safeRows.length;
+            const visitedCount = safeRows.filter((r) => r.isVisited).length;
 
-            metrics.byClassification = (metrics.byClassification || []).map((row) => {
+            safeMetrics.byClassification = (safeMetrics.byClassification || []).map((row) => {
                 const visitPct = Math.round(row.visitCoveragePercent || 0);
                 return {
                     ...row,
@@ -987,29 +988,29 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 };
             });
 
-            const plannedTotal = Math.round(metrics.plannedVisitsTotal || 0);
+            const plannedTotal = Math.round(safeMetrics.plannedVisitsTotal || 0);
 
             this.metrics = {
-                ...metrics,
-                visitCoveragePercentDisplay: Math.round(metrics.visitCoveragePercent || 0),
-                customerCoveragePercentDisplay: Math.round(metrics.customerCoveragePercent || 0),
-                rfPercentTotalDisplay: Math.round(metrics.rfPercentTotal || 0),
+                ...safeMetrics,
+                visitCoveragePercentDisplay: Math.round(safeMetrics.visitCoveragePercent || 0),
+                customerCoveragePercentDisplay: Math.round(safeMetrics.customerCoveragePercent || 0),
+                rfPercentTotalDisplay: Math.round(safeMetrics.rfPercentTotal || 0),
                 actualVisitsTotalDisplay: actualTotal,
                 targetVisitsTotalDisplay: targetTotal,
                 plannedVisitsTotalDisplay: plannedTotal,
-                remainingCallsDisplay: Math.round(metrics.remainingCalls || 0),
+                remainingCallsDisplay: Math.round(safeMetrics.remainingCalls || 0),
                 visitCountLabel: `${actualTotal}/${targetTotal}`,
                 visitPlannedLabel: `${plannedTotal} planned`,
                 customerCountLabel: `${visitedCount}/${totalAccounts}`,
                 rfCountLabel: `${rfCount}/${totalAccounts}`,
-                visitRingStroke: ringStroke(metrics.visitCoveragePercent),
-                customerRingStroke: ringStroke(metrics.customerCoveragePercent),
-                rfRingStroke: ringStroke(metrics.rfPercentTotal)
+                visitRingStroke: ringStroke(safeMetrics.visitCoveragePercent),
+                customerRingStroke: ringStroke(safeMetrics.customerCoveragePercent),
+                rfRingStroke: ringStroke(safeMetrics.rfPercentTotal)
             };
-            this.gamification = gamification;
+            this.gamification = gamification || { ...EMPTY_GAMIFICATION };
             this.rankings = rankings || { ...EMPTY_RANKINGS };
 
-            this.allAccountRows = (rows || []).map((row) => this.enrichAccountRow(row));
+            this.allAccountRows = safeRows.map((row) => this.enrichAccountRow(row));
             this.applyClassFilter();
 
             await putHomeMetrics(getUserHomeMetricsKey(Id), {

@@ -1,4 +1,7 @@
 let toastContainerEl = null;
+let listenerBound = false;
+let lastToastKey = '';
+let lastToastAt = 0;
 
 function ensureToastContainer() {
     if (toastContainerEl && document.body.contains(toastContainerEl)) {
@@ -30,6 +33,17 @@ export function showToast({ title = '', message = '', variant = 'info', mode = '
     ) {
         return;
     }
+
+    // Collapse identical toasts fired within a short window (e.g. duplicate
+    // listeners or parallel component errors).
+    const key = `${variant}|${title}|${message}`;
+    const now = Date.now();
+    if (key === lastToastKey && now - lastToastAt < 800) {
+        return;
+    }
+    lastToastKey = key;
+    lastToastAt = now;
+
     const container = ensureToastContainer();
 
     const toastItem = document.createElement('div');
@@ -73,7 +87,8 @@ export function showToast({ title = '', message = '', variant = 'info', mode = '
 }
 
 export function setupToastListener() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || listenerBound) return;
+    listenerBound = true;
 
     const handleToastEvent = (event) => {
         const detail = event.detail || {};
@@ -82,6 +97,7 @@ export function setupToastListener() {
         }
     };
 
-    window.addEventListener('lightning__showtoast', handleToastEvent, true);
-    document.addEventListener('lightning__showtoast', handleToastEvent, true);
+    // One listener only. composed events reach window; listening on both
+    // window + document was showing every toast 2–3 times.
+    window.addEventListener('lightning__showtoast', handleToastEvent);
 }
