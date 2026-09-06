@@ -6,8 +6,10 @@
  *
  * Optional Netlify env: SF_CLIENT_SECRET (only if Connected App requires it).
  * Prefer PKCE public clients with isConsumerSecretOptional=true — do not put secrets in VITE_*.
+ *
+ * Must use ESM `export` — offline/package.json has "type": "module".
  */
-exports.handler = async function (event) {
+export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -62,7 +64,7 @@ exports.handler = async function (event) {
       body: JSON.stringify({ error: e instanceof Error ? e.message : String(e) })
     };
   }
-};
+}
 
 function corsHeaders() {
   return {

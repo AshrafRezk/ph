@@ -112,7 +112,11 @@ const MY_DOMAIN_SUFFIX = '.my.salesforce.com';
 const APP_SCHEME = 'com.zetapharma.fieldpwa';
 const LOGIN_URL_KEY = 'zeta.pwa.sfLoginUrl';
 const REDIRECT_URI_KEY = 'zeta.pwa.sfRedirectUri';
+const PKCE_VERIFIER_KEY = 'zeta.pwa.oauthPkceVerifier';
+const OAUTH_STATE_KEY = 'zeta.pwa.oauthState';
 const TOKEN_PROXY_URL = '/.netlify/functions/sf-token';
+/** @type {'login' | 'chooser' | 'app' | null} */
+let currentScreen = null;
 
 function defaultInstanceUrl() {
     const fromEnv = (import.meta.env.VITE_SF_INSTANCE_URL || '').trim();
@@ -169,6 +173,7 @@ function getOAuthClientId() {
 }
 
 const OAUTH_CONFIG = {
+    // Full API context for Allow Access + refresh for offline session restore.
     scopes: 'id api web full refresh_token',
     get clientId() {
         return getOAuthClientId();
@@ -182,6 +187,12 @@ const OAUTH_CONFIG = {
     },
     set loginUrl(url) {
         window.localStorage.setItem(LOGIN_URL_KEY, String(url || '').replace(/\/$/, ''));
+    },
+    get redirectUri() {
+        return window.localStorage.getItem(REDIRECT_URI_KEY) || getOAuthCallbackUrl();
+    },
+    set redirectUri(uri) {
+        window.localStorage.setItem(REDIRECT_URI_KEY, String(uri || ''));
     },
     get callbackUrl() {
         return getOAuthCallbackUrl();
@@ -248,19 +259,26 @@ async function generateAuthUrl(loginUrl) {
         throw new Error('Connected App client id is not configured (VITE_SF_CLIENT_ID).');
     }
     const resolvedLogin = (loginUrl || OAUTH_CONFIG.loginUrl).replace(/\/$/, '');
+    const redirectUri = getOAuthCallbackUrl();
     OAUTH_CONFIG.loginUrl = resolvedLogin;
-    window.localStorage.setItem(REDIRECT_URI_KEY, OAUTH_CONFIG.callbackUrl);
+    OAUTH_CONFIG.redirectUri = redirectUri;
 
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = await generateCodeChallenge(codeVerifier);
+    const state = generateState();
+    // Persist outside navigation so PKCE/state survive the Salesforce round-trip (OSR pattern).
+    window.localStorage.setItem(PKCE_VERIFIER_KEY, codeVerifier);
+    window.localStorage.setItem(OAUTH_STATE_KEY, state);
+    // Legacy keys — kept for in-flight logins started before this rename.
     window.localStorage.setItem('oauth_code_verifier', codeVerifier);
+    window.localStorage.setItem('oauth_state', state);
 
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: clientId,
-        redirect_uri: OAUTH_CONFIG.callbackUrl,
+        redirect_uri: redirectUri,
         scope: OAUTH_CONFIG.scopes,
-        state: generateState(),
+        state,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         prompt: 'login'
@@ -269,22 +287,48 @@ async function generateAuthUrl(loginUrl) {
 }
 
 function generateState() {
-    const state = Math.random().toString(36).substring(2, 15);
-    window.localStorage.setItem('oauth_state', state);
-    return state;
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+function readPkceVerifier() {
+    return (
+        window.localStorage.getItem(PKCE_VERIFIER_KEY) ||
+        window.localStorage.getItem('oauth_code_verifier') ||
+        ''
+    );
+}
+
+function readOAuthState() {
+    return (
+        window.localStorage.getItem(OAUTH_STATE_KEY) ||
+        window.localStorage.getItem('oauth_state') ||
+        ''
+    );
+}
+
+function clearOAuthTransientState() {
+    window.localStorage.removeItem(PKCE_VERIFIER_KEY);
+    window.localStorage.removeItem(OAUTH_STATE_KEY);
+    window.localStorage.removeItem('oauth_code_verifier');
+    window.localStorage.removeItem('oauth_state');
 }
 
 async function exchangeCodeForToken(code) {
-    const codeVerifier = window.localStorage.getItem('oauth_code_verifier');
-    window.localStorage.removeItem('oauth_code_verifier');
+    const codeVerifier = readPkceVerifier();
     if (!codeVerifier) {
         throw new Error('Missing PKCE verifier — restart login');
     }
 
-    const redirectUri =
-        window.localStorage.getItem(REDIRECT_URI_KEY) || OAUTH_CONFIG.callbackUrl;
+    const redirectUri = OAUTH_CONFIG.redirectUri || getOAuthCallbackUrl();
     const loginUrl = OAUTH_CONFIG.loginUrl;
     const tokenUrl = `${loginUrl}/services/oauth2/token`;
+    const clientId = OAUTH_CONFIG.clientId;
+    if (!clientId) {
+        throw new Error('Connected App client id is not configured (VITE_SF_CLIENT_ID).');
+    }
 
     const response = await fetch(TOKEN_PROXY_URL, {
         method: 'POST',
@@ -292,27 +336,43 @@ async function exchangeCodeForToken(code) {
         body: JSON.stringify({
             tokenUrl,
             grant_type: 'authorization_code',
-            client_id: OAUTH_CONFIG.clientId,
+            client_id: clientId,
             redirect_uri: redirectUri,
             code,
             code_verifier: codeVerifier
         })
     });
 
+    const text = await response.text();
     if (!response.ok) {
-        const text = await response.text();
         console.error('Token exchange failed:', response.status, text);
-        throw new Error('Failed to exchange code for token: ' + response.status);
+        let detail = text;
+        try {
+            const parsed = JSON.parse(text);
+            detail =
+                parsed.error_description ||
+                parsed.errorMessage ||
+                parsed.error ||
+                text;
+        } catch {
+            /* keep raw text */
+        }
+        throw new Error(`Token exchange failed (${response.status}): ${detail}`);
     }
 
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text.substring(0, 500));
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch {
+        console.error('Non-JSON token response:', text.substring(0, 500));
         throw new Error('Invalid response from token proxy');
     }
-
-    return response.json();
+    if (!json?.access_token) {
+        throw new Error('Token exchange returned no access_token');
+    }
+    // Only clear PKCE after a successful exchange (OSR keeps prefs until clearSession).
+    clearOAuthTransientState();
+    return json;
 }
 
 async function refreshAccessToken() {
@@ -351,22 +411,65 @@ async function refreshAccessToken() {
     return response.json();
 }
 
-function handleOAuthCallback() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    const err = urlParams.get('error');
-    if (err) {
-        console.error('[OAuth] error:', err, urlParams.get('error_description'));
+/** True when this navigation is an OAuth redirect (path and/or ?code=). */
+function isOAuthCallbackLocation(href = window.location.href) {
+    try {
+        const u = new URL(href);
+        if (u.searchParams.has('code') || u.searchParams.has('error')) return true;
+        return u.pathname.includes('/oauth/callback');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Parse OAuth callback params (OSR-style). Throws on Salesforce error or state mismatch.
+ * Returns null when this page load is not an OAuth callback.
+ */
+function parseOAuthCallback(href = window.location.href) {
+    let u;
+    try {
+        u = new URL(href);
+    } catch {
         return null;
     }
-    const savedState = window.localStorage.getItem('oauth_state');
+    if (!isOAuthCallbackLocation(href)) return null;
 
-    if (code && state === savedState) {
-        window.localStorage.removeItem('oauth_state');
-        return code;
+    const code = u.searchParams.get('code');
+    const state = u.searchParams.get('state');
+    const err = u.searchParams.get('error');
+    if (err) {
+        throw new Error(u.searchParams.get('error_description') || err);
     }
-    return null;
+    if (!code) {
+        throw new Error('OAuth callback missing authorization code');
+    }
+
+    const expectedState = readOAuthState();
+    // OSR: only fail when both sides are present and disagree (survives missing storage edge cases).
+    if (expectedState && state && expectedState !== state) {
+        throw new Error('OAuth state mismatch — try signing in again');
+    }
+    return code;
+}
+
+/** Exchange code, persist tokens, clean URL. Mirrors OSR completeSalesforceLogin. */
+async function completeWebOAuthLogin(href = window.location.href) {
+    const code = parseOAuthCallback(href);
+    if (!code) return null;
+
+    setLoginStatus('Completing sign-in…');
+    showScreen('login');
+
+    const tokenData = await exchangeCodeForToken(code);
+    const { access_token, refresh_token, instance_url } = tokenData;
+    window.localStorage.setItem(TOKEN_KEY, access_token);
+    configureRuntime(access_token, refresh_token, instance_url);
+    // Always land on app root after success (not /oauth/callback).
+    window.history.replaceState({}, document.title, '/');
+    console.log('[OAuth] Token exchange successful');
+    console.log('[OAuth] Instance URL:', instance_url);
+    return tokenData;
 }
 
 function setLoginStatus(message, isError = false) {
@@ -397,13 +500,25 @@ function syncLoginFormUi() {
     const customField = document.getElementById('custom-domain-field');
     const ready = document.getElementById('login-ready');
     const loginBtn = document.getElementById('login-btn');
-    const env = envSelect?.value || 'custom';
-    if (customField) customField.hidden = env !== 'custom';
-    const customReady = env !== 'custom' || !!myDomainLoginUrlFromLabel(
-        document.getElementById('custom-domain-input')?.value
-    );
-    if (ready) ready.hidden = !(env === 'custom' && customReady);
-    if (loginBtn) loginBtn.disabled = env === 'custom' && !customReady;
+    const env = envSelect?.value || 'production';
+    // Live + Sandbox must never show the company My Domain field.
+    const showCustom = env === 'custom';
+    if (customField) {
+        customField.hidden = !showCustom;
+        customField.style.display = showCustom ? '' : 'none';
+        if (!showCustom) {
+            customField.setAttribute('hidden', '');
+        } else {
+            customField.removeAttribute('hidden');
+        }
+    }
+    const customReady =
+        !showCustom ||
+        !!myDomainLoginUrlFromLabel(document.getElementById('custom-domain-input')?.value);
+    if (ready) {
+        ready.hidden = !(showCustom && customReady);
+    }
+    if (loginBtn) loginBtn.disabled = showCustom && !customReady;
 }
 
 function prefillsCustomDomainFromEnv() {
@@ -462,32 +577,33 @@ async function login() {
 async function handleCapacitorCallback(url) {
     if (!url) return;
 
-    // Parse the callback URL (custom schemes need a fake base)
-    let urlObj;
+    let normalized = url;
     try {
-        urlObj = new URL(url);
+        // eslint-disable-next-line no-new
+        new URL(url);
     } catch {
-        urlObj = new URL(url.replace(`${APP_SCHEME}://`, 'https://oauth.local/'));
+        normalized = url
+            .replace(`${APP_SCHEME}://`, 'https://oauth.local/')
+            .replace(`${APP_SCHEME}:/`, 'https://oauth.local/');
     }
-    const code = urlObj.searchParams.get('code');
-    const state = urlObj.searchParams.get('state');
-    const savedState = window.localStorage.getItem('oauth_state');
 
-    if (code && state === savedState) {
-        window.localStorage.removeItem('oauth_state');
-        try {
-            const tokenData = await exchangeCodeForToken(code);
-            const { access_token, refresh_token, instance_url } = tokenData;
-            window.localStorage.setItem(TOKEN_KEY, access_token);
-            configureRuntime(access_token, refresh_token, instance_url);
-            if (capacitorBrowser) {
+    try {
+        await completeWebOAuthLogin(normalized);
+        if (capacitorBrowser) {
+            try {
                 await capacitorBrowser.close();
+            } catch {
+                /* ignore */
             }
-            initializeApp();
-        } catch (error) {
-            console.error('[OAuth] Callback error:', error);
-            setLoginStatus('Login failed. Please try again.', true);
         }
+        initializeApp();
+    } catch (error) {
+        console.error('[OAuth] Callback error:', error);
+        showScreen('login');
+        setLoginStatus(
+            error instanceof Error ? error.message : 'Login failed. Please try again.',
+            true
+        );
     }
 }
 
@@ -788,16 +904,46 @@ function registerServiceWorker() {
 
 // Show exactly one top-level screen: 'login' | 'chooser' | 'app'.
 function showScreen(name) {
+    currentScreen = name;
     const login = document.getElementById('session-bar');
     const chooser = document.getElementById('app-chooser');
     const nav = document.getElementById('app-nav');
     const shell = document.getElementById('app');
-    // Toggle inline display, not the [hidden] attribute: .app-nav / .session-bar
-    // set `display` in CSS, which would otherwise override [hidden].
-    if (login) login.style.display = name === 'login' ? 'flex' : 'none';
-    if (chooser) chooser.style.display = name === 'chooser' ? 'block' : 'none';
-    if (nav) nav.style.display = name === 'app' ? 'flex' : 'none';
-    if (shell) shell.style.display = name === 'app' ? '' : 'none';
+    const toast = document.getElementById('toast-container');
+
+    document.body.dataset.screen = name;
+    document.body.classList.toggle('screen-login', name === 'login');
+    document.body.classList.toggle('screen-chooser', name === 'chooser');
+    document.body.classList.toggle('screen-app', name === 'app');
+
+    const setVisible = (el, visible, displayWhenVisible) => {
+        if (!el) return;
+        el.hidden = !visible;
+        if (visible) {
+            el.removeAttribute('hidden');
+            el.style.display = displayWhenVisible;
+        } else {
+            el.setAttribute('hidden', '');
+            el.style.display = 'none';
+        }
+    };
+
+    // Login must never leave #app-nav visible (CSS display:flex used to beat [hidden]).
+    setVisible(login, name === 'login', 'flex');
+    setVisible(chooser, name === 'chooser', 'block');
+    setVisible(nav, name === 'app', 'flex');
+    setVisible(shell, name === 'app', '');
+
+    if (toast) {
+        if (name === 'login') {
+            toast.setAttribute('hidden', '');
+            toast.style.display = 'none';
+            toast.innerHTML = '';
+        } else {
+            toast.removeAttribute('hidden');
+            toast.style.display = '';
+        }
+    }
 }
 
 // Salesforce-style App Launcher: search across apps + items, open an app or
@@ -1293,77 +1439,81 @@ async function setupLoginDownloads() {
 }
 
 async function initializeApp() {
-    // Debug: Log platform detection
     console.log('[App] Initializing...');
     console.log('[App] User Agent:', navigator.userAgent);
     console.log('[App] Initial window.Capacitor:', typeof window.Capacitor);
 
-    // Wait for Capacitor to be ready (important for remote URL loading)
+    // Hide chrome immediately so OAuth/token work never flashes the sidebar.
+    showScreen('login');
+
     const capacitorReady = await waitForCapacitor(3000);
     console.log('[App] Capacitor ready:', capacitorReady);
-    console.log('[App] After wait window.Capacitor:', typeof window.Capacitor);
-    console.log('[App] isNativePlatform:', window.Capacitor?.isNativePlatform?.());
     console.log('[App] isCapacitor():', isCapacitor());
     console.log('[App] callbackUrl:', OAUTH_CONFIG.callbackUrl);
+    console.log('[App] stored redirectUri:', OAUTH_CONFIG.redirectUri);
+    console.log('[App] stored loginUrl:', OAUTH_CONFIG.loginUrl);
 
-    // Initialize Capacitor listener for deep links
     await initCapacitorListener();
 
-    // Handle OAuth callback (web flow)
-    const code = handleOAuthCallback();
-    if (code) {
+    let oauthHandled = false;
+    if (isOAuthCallbackLocation()) {
+        oauthHandled = true;
         try {
-            const tokenData = await exchangeCodeForToken(code);
-            const { access_token, refresh_token, instance_url } = tokenData;
-            console.log('[OAuth] Token exchange successful');
-            console.log('[OAuth] Instance URL:', instance_url);
-            console.log('[OAuth] Access token (first 20 chars):', access_token?.substring(0, 20) + '...');
-            window.localStorage.setItem(TOKEN_KEY, access_token);
-            configureRuntime(access_token, refresh_token, instance_url);
-            // Clean URL (drop OAuth query params after successful exchange)
-            window.history.replaceState({}, document.title, window.location.pathname);
+            await completeWebOAuthLogin(window.location.href);
         } catch (error) {
             console.error('OAuth callback error:', error);
+            // Stay on login with a visible error — never silent Welcome bounce.
+            window.history.replaceState({}, document.title, '/');
+            setupSessionBar(null);
+            showScreen('login');
+            setLoginStatus(
+                error instanceof Error
+                    ? error.message
+                    : 'Sign-in failed after Allow Access. Please try again.',
+                true
+            );
+            registerServiceWorker();
+            return;
         }
-    } else {
-        // Try to refresh token if we have one
+    } else if (!readToken()) {
         const refreshToken = readRefreshToken();
-        if (refreshToken && !readToken()) {
+        if (refreshToken) {
             try {
                 const tokenData = await refreshAccessToken();
                 const { access_token, instance_url } = tokenData;
                 console.log('[OAuth] Token refresh successful');
-                console.log('[OAuth] Instance URL:', instance_url);
                 window.localStorage.setItem(TOKEN_KEY, access_token);
                 configureRuntime(access_token, null, instance_url);
             } catch (error) {
                 console.error('Token refresh error:', error);
-                logout();
-                return;
+                window.localStorage.removeItem(TOKEN_KEY);
+                window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+                window.localStorage.removeItem(INSTANCE_URL_KEY);
+                configureRuntime('');
             }
         }
     }
 
     const token = readToken();
     configureRuntime(token);
-    console.log('[App] PLANNER_REST_BASE:', globalThis.PLANNER_REST_BASE);
     console.log('[App] PLANNER_ACCESS_TOKEN present:', !!globalThis.PLANNER_ACCESS_TOKEN);
-    console.log('[App] PLANNER_SF_INSTANCE:', globalThis.PLANNER_SF_INSTANCE);
     setupNavigation();
     setupSessionBar(token);
     setupToastListener();
+
     if (token) {
-        // Signed in → app launcher (pick which app to open).
         buildAppChooser();
+        registerOfflineListener((status) => {
+            console.log('[OfflineSyncListener] Sync phase changed:', status);
+        });
+        startSyncService();
     } else {
         showScreen('login');
+        if (!oauthHandled) {
+            syncLoginFormUi();
+        }
     }
     registerServiceWorker();
-
-    registerOfflineListener((status) => {
-        console.log('[OfflineSyncListener] Sync phase changed:', status);
-    });
-    startSyncService();
 }
 
 initializeApp();

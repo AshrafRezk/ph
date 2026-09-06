@@ -259,6 +259,15 @@ function netlifyFunctionsPlugin() {
     return {
         name: 'zeta-netlify-functions',
         configureServer(server) {
+            // Match production: /oauth/callback must load the SPA (not a missing static file).
+            server.middlewares.use((req, res, next) => {
+                const pathOnly = (req.url || '').split('?')[0];
+                if (pathOnly === '/oauth/callback' || pathOnly === '/oauth/callback/') {
+                    req.url = '/' + ((req.url || '').includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+                }
+                next();
+            });
+
             server.middlewares.use('/.netlify/functions/sf-token', async (req, res) => {
                 if (req.method === 'OPTIONS') {
                     res.statusCode = 204;

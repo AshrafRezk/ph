@@ -23,6 +23,13 @@ function escapeHtml(str) {
 
 export function showToast({ title = '', message = '', variant = 'info', mode = 'dismissible', duration }) {
     if (typeof document === 'undefined') return;
+    // Never overlay the Welcome / login card.
+    if (
+        document.body?.classList?.contains('screen-login') ||
+        document.body?.dataset?.screen === 'login'
+    ) {
+        return;
+    }
     const container = ensureToastContainer();
 
     const toastItem = document.createElement('div');

@@ -12,10 +12,19 @@
     Content-Type = "application/vnd.android.package-archive"
     Content-Disposition = "attachment; filename=\"OSR-0.1.0-beta.21-debug.apk\""
 
+# force=true so a leftover public/oauth/callback file cannot shadow the SPA
+# (directory index caused a trailing-slash 301 that complicated the code handoff).
 [[redirects]]
   from = "/oauth/callback"
   to = "/index.html"
   status = 200
+  force = true
+
+[[redirects]]
+  from = "/oauth/callback/"
+  to = "/index.html"
+  status = 200
+  force = true
 
 # SPA fallback. Netlify matches /.netlify/functions/* before redirects,
 # so this catch-all does not swallow the sf-token / sf-api proxies.

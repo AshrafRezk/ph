@@ -1,8 +1,10 @@
 /**
  * Proxies authenticated Salesforce REST/content requests (CORS-safe for web shell).
  * POST JSON: { url, method, authorization, body?, headers? }
+ *
+ * Must use ESM `export` — offline/package.json has "type": "module".
  */
-exports.handler = async function (event) {
+export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders(), body: '' };
   }
@@ -61,7 +63,7 @@ exports.handler = async function (event) {
       body: JSON.stringify({ error: e instanceof Error ? e.message : String(e) })
     };
   }
-};
+}
 
 function corsHeaders() {
   return {

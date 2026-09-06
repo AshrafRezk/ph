@@ -24,6 +24,29 @@ body {
     background: #f3f3f3;
 }
 
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+/* CSS display rules must not defeat the hidden attribute (login field + app-nav). */
+[hidden] {
+    display: none !important;
+}
+
+body.screen-login #app-nav,
+body.screen-login .app-nav,
+body.screen-login #app-chooser,
+body.screen-login #app,
+body.screen-login #toast-container,
+body.screen-chooser #app-nav,
+body.screen-chooser .app-nav {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 body {
     display: flex;
     flex-direction: column;
@@ -261,6 +284,7 @@ body {
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
+    align-items: center;
     justify-content: center;
     padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, #eaf5fe 0%, #f3f3f3 45%);
@@ -275,6 +299,7 @@ body {
     border-radius: 12px;
     padding: 28px 20px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
 }
 
 .login-card h1 {
@@ -292,9 +317,9 @@ body {
 }
 
 .login-brand img {
-    height: 64px;
+    height: 56px;
     width: auto;
-    max-width: 180px;
+    max-width: 200px;
     object-fit: contain;
 }
 
@@ -437,6 +462,7 @@ body {
     flex-direction: column;
     gap: 10px;
     margin: 18px 0 0;
+    width: 100%;
 }
 
 .login-download-btn {
@@ -444,6 +470,7 @@ body {
     align-items: center;
     gap: 12px;
     width: 100%;
+    max-width: 100%;
     min-height: 48px;
     padding: 10px 14px;
     border: 1px solid #e5e5e5;
@@ -454,6 +481,8 @@ body {
     cursor: pointer;
     font: inherit;
     text-align: left;
+    box-sizing: border-box;
+    overflow: hidden;
     transition: background-color 0.15s, border-color 0.15s;
 }
 
@@ -465,7 +494,8 @@ body {
 .login-download-logo {
     width: 28px;
     height: 28px;
-    flex-shrink: 0;
+    flex: 0 0 28px;
+    object-fit: contain;
     color: #032d60;
 }
 
@@ -474,6 +504,7 @@ body {
     flex-direction: column;
     gap: 2px;
     min-width: 0;
+    flex: 1 1 auto;
 }
 
 .login-download-title {
