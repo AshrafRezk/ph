@@ -376,19 +376,37 @@
 }
 
 .slds-button_icon {
-    padding: 0 0.65rem;
-    font-size: 0.75rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
-.slds-button_icon-border {
-    border: 1px solid #c9c7c5;
-    background: #fff;
-    color: #706e6b;
-}
-
-.slds-button_icon-border:hover {
+.slds-button_icon-border,
+.slds-button_icon-border-filled {
+    border: 1.5px solid #1b1b1b;
+    border-radius: 0.55rem;
     background: #f3f3f3;
+    color: #181818;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.slds-button_icon-border:hover,
+.slds-button_icon-border-filled:hover {
+    background: #e8e8e8;
     color: #0176d3;
+}
+
+.slds-button_icon-small {
+    min-width: 2rem;
+    min-height: 2rem;
+    font-size: 0.85rem;
+}
+
+.slds-icon-glyph {
+    font-style: normal;
+    line-height: 1;
 }
 
 .slds-button[disabled] {

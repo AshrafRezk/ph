@@ -1826,53 +1826,66 @@ function renderVisitDetailModal(
           <label class="slds-form-element__label slds-m-top_small">Cancellation Reason</label>
           <textarea class="slds-textarea" data-field="cancellation"></textarea>
         </div>
-        <footer class="slds-modal__footer" style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end">
-          <button
-            type="button"
-            class="slds-button slds-button_destructive"
-            @click=${() => {
-              if (visit.id) opts.onRemoveVisit?.(String(visit.id));
-              opts.onCloseVisitDetail?.();
-            }}
-          >
-            Remove visit
-          </button>
-          <button
-            type="button"
-            class="slds-button slds-button_neutral"
-            @click=${() => {
-              if (visit.id) opts.onPostponeVisit?.(String(visit.id));
-              opts.onCloseVisitDetail?.();
-            }}
-          >
-            Postpone to tomorrow
-          </button>
-          <button type="button" class="slds-button slds-button_neutral" @click=${() => opts.onCloseVisitDetail?.()}>
-            Close
-          </button>
-          <button
-            type="button"
-            class="slds-button slds-button_brand"
-            @click=${() => visit.id && opts.onViewVisit?.(String(visit.id))}
-          >
-            View Visit
-          </button>
-          <button
-            type="button"
-            class="slds-button slds-button_brand"
-            @click=${() => {
-              const root = document.getElementById(formId);
-              const status =
-                (root?.querySelector('[data-field="status"]') as HTMLSelectElement | null)?.value ||
-                String(visit.status || 'Draft');
-              const cancellation =
-                (root?.querySelector('[data-field="cancellation"]') as HTMLTextAreaElement | null)?.value ||
-                '';
-              if (visit.id) opts.onSaveVisitDetail?.(String(visit.id), status, cancellation);
-            }}
-          >
-            Save
-          </button>
+        <footer class="slds-modal__footer visit-modal-footer">
+          <div class="visit-modal-action-bar" role="group" aria-label="Visit actions">
+            <button
+              type="button"
+              class="visit-bar-btn visit-bar-btn-primary"
+              @click=${() => visit.id && opts.onViewVisit?.(String(visit.id))}
+            >
+              View Visit
+            </button>
+            <button
+              type="button"
+              class="visit-bar-btn"
+              @click=${() => {
+                const root = document.getElementById(formId);
+                const status =
+                  (root?.querySelector('[data-field="status"]') as HTMLSelectElement | null)?.value ||
+                  String(visit.status || 'Draft');
+                const cancellation =
+                  (root?.querySelector('[data-field="cancellation"]') as HTMLTextAreaElement | null)?.value ||
+                  '';
+                if (visit.id) opts.onSaveVisitDetail?.(String(visit.id), status, cancellation);
+              }}
+            >
+              Save
+            </button>
+            <button type="button" class="visit-bar-btn" @click=${() => opts.onCloseVisitDetail?.()}>
+              Close
+            </button>
+            <div class="visit-bar-more">
+              <details class="visit-bar-more-details">
+                <summary class="visit-bar-btn visit-bar-more-toggle" title="More actions" aria-label="More actions">
+                  ⋯
+                </summary>
+                <div class="visit-bar-menu" role="menu">
+                  <button
+                    type="button"
+                    class="visit-bar-menu-item"
+                    role="menuitem"
+                    @click=${() => {
+                      if (visit.id) opts.onPostponeVisit?.(String(visit.id));
+                      opts.onCloseVisitDetail?.();
+                    }}
+                  >
+                    Postpone to tomorrow
+                  </button>
+                  <button
+                    type="button"
+                    class="visit-bar-menu-item visit-bar-menu-danger"
+                    role="menuitem"
+                    @click=${() => {
+                      if (visit.id) opts.onRemoveVisit?.(String(visit.id));
+                      opts.onCloseVisitDetail?.();
+                    }}
+                  >
+                    Remove visit
+                  </button>
+                </div>
+              </details>
+            </div>
+          </div>
         </footer>
       </div>
     </section>

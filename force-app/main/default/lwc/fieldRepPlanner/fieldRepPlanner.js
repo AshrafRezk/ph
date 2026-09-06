@@ -427,6 +427,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track showPlanChoiceModal = false;
     @track showVisitModal = false;
     @track showVisitDetailModal = false;
+    @track showVisitMoreMenu = false;
     @track showVisitPickerModal = false;
     @track visitPickerOptions = [];
     @track visitAccountId = '';
@@ -4030,6 +4031,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     async handleVisitDetailRemove() {
+        this.showVisitMoreMenu = false;
         const visit = this.visits.find((item) => item.id === this.visitDetailId);
         if (!visit) {
             return;
@@ -4046,6 +4048,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     async handleVisitDetailPostpone() {
+        this.showVisitMoreMenu = false;
         const visit = this.visits.find((item) => item.id === this.visitDetailId);
         if (!visit) {
             return;
@@ -4200,6 +4203,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.visitDetailCancellationReason = visit.cancellationReason || '';
         this.visitDetailStartLabel = start ? `${formatDateLabel(start)} ${formatTime(start)}` : '';
         this.visitDetailEndLabel = end ? formatTime(end) : '';
+        this.showVisitMoreMenu = false;
         this.showVisitDetailModal = true;
     }
 
@@ -4215,12 +4219,19 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleVisitDetailCancel() {
+        this.showVisitMoreMenu = false;
         this.showVisitDetailModal = false;
         this.visitDetailId = '';
     }
 
+    handleToggleVisitMoreMenu(event) {
+        event?.stopPropagation?.();
+        this.showVisitMoreMenu = !this.showVisitMoreMenu;
+    }
+
     handleViewVisit() {
         const visitId = this.visitDetailId;
+        this.showVisitMoreMenu = false;
         this.showVisitDetailModal = false;
         this.visitDetailId = '';
         if (!visitId) {

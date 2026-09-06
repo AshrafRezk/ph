@@ -120,27 +120,33 @@
                                             </template>
                                         </div>
                                         <div class="route-stop-actions">
-                                            <lightning-button
-                                                variant="base"
-                                                label="View call"
+                                            <button
+                                                type="button"
+                                                class="route-stop-btn"
                                                 data-visit-id={v.id}
                                                 onclick={handleOpenVisit}
-                                            ></lightning-button>
+                                            >
+                                                View call
+                                            </button>
                                             <template if:true={v.canMutate}>
-                                                <lightning-button
-                                                    variant="base"
-                                                    label="Postpone"
+                                                <button
+                                                    type="button"
+                                                    class="route-stop-btn"
                                                     data-visit-id={v.id}
                                                     onclick={handlePostponeVisit}
                                                     disabled={isMutatingVisit}
-                                                ></lightning-button>
-                                                <lightning-button
-                                                    variant="base"
-                                                    label="Remove"
+                                                >
+                                                    Postpone
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="route-stop-btn route-stop-btn-danger"
                                                     data-visit-id={v.id}
                                                     onclick={handleRemoveVisit}
                                                     disabled={isMutatingVisit}
-                                                ></lightning-button>
+                                                >
+                                                    Remove
+                                                </button>
                                             </template>
                                         </div>
                                     </div>

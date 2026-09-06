@@ -42,7 +42,7 @@
                         onclick={handleTogglePlanningPalette}
                         disabled={isReadOnlyPlannerView}
                     >
-                        <lightning-icon icon-name="utility:add" size="x-small"></lightning-icon>
+                        <span class="planning-plus-glyph" aria-hidden="true">＋</span>
                     </button>
                     <div class="view-mode-switch" role="group" aria-label="Planner view">
                         <button
@@ -53,7 +53,7 @@
                             aria-label="Calendar view"
                             onclick={handleShowCalendar}
                         >
-                            <lightning-icon icon-name="utility:event" size="x-small"></lightning-icon>
+                            <span class="view-mode-switch__glyph" aria-hidden="true">📅</span>
                             <span class="view-mode-switch__label">Calendar</span>
                         </button>
                         <button
@@ -64,7 +64,7 @@
                             aria-label="Map and route view"
                             onclick={handleShowMap}
                         >
-                            <lightning-icon icon-name="utility:checkin" size="x-small"></lightning-icon>
+                            <span class="view-mode-switch__glyph" aria-hidden="true">🗺️</span>
                             <span class="view-mode-switch__label">Map</span>
                         </button>
                     </div>
@@ -728,49 +728,99 @@
                         </p>
                     </div>
                     <footer class="slds-modal__footer visit-modal-footer">
-                        <div class="visit-modal-actions">
-                            <template if:true={visitDetailCanMutate}>
-                                <lightning-button
-                                    class="visit-modal-btn visit-modal-btn-danger"
-                                    label="Remove visit"
-                                    variant="destructive-text"
-                                    onclick={handleVisitDetailRemove}
-                                    disabled={isSaving}
-                                ></lightning-button>
-                                <lightning-button
-                                    class="visit-modal-btn"
-                                    label="Postpone to tomorrow"
-                                    onclick={handleVisitDetailPostpone}
-                                    disabled={isSaving}
-                                ></lightning-button>
-                            </template>
-                            <lightning-button
-                                class="visit-modal-btn"
-                                label="Close"
-                                onclick={handleVisitDetailCancel}
-                            ></lightning-button>
-                            <lightning-button
-                                class="visit-modal-btn visit-modal-btn-primary"
-                                label="View Visit"
-                                variant="brand"
+                        <div class="visit-modal-action-bar" role="group" aria-label="Visit actions">
+                            <button
+                                type="button"
+                                class="visit-bar-btn visit-bar-btn-primary"
                                 onclick={handleViewVisit}
-                            ></lightning-button>
+                            >
+                                View Visit
+                            </button>
                             <template if:false={visitDetailReadOnly}>
-                                <template if:true={visitDetailCanSubmit}>
-                                    <lightning-button
-                                        class="visit-modal-btn visit-modal-btn-primary"
-                                        label="Submit for approval"
-                                        variant="brand"
-                                        onclick={handleSubmitVisitForApproval}
-                                        disabled={isSaving}
-                                    ></lightning-button>
-                                </template>
-                                <lightning-button
-                                    class="visit-modal-btn"
-                                    label="Save"
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn"
                                     onclick={handleVisitDetailSave}
                                     disabled={isSaving}
-                                ></lightning-button>
+                                >
+                                    Save
+                                </button>
+                                <template if:true={visitDetailCanSubmit}>
+                                    <button
+                                        type="button"
+                                        class="visit-bar-btn visit-bar-btn-primary"
+                                        onclick={handleSubmitVisitForApproval}
+                                        disabled={isSaving}
+                                    >
+                                        Submit
+                                    </button>
+                                </template>
+                                <template if:false={visitDetailCanSubmit}>
+                                    <button
+                                        type="button"
+                                        class="visit-bar-btn"
+                                        onclick={handleVisitDetailCancel}
+                                    >
+                                        Close
+                                    </button>
+                                </template>
+                            </template>
+                            <template if:true={visitDetailReadOnly}>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn"
+                                    onclick={handleVisitDetailCancel}
+                                >
+                                    Close
+                                </button>
+                            </template>
+                            <template if:true={visitDetailCanMutate}>
+                                <div class="visit-bar-more">
+                                    <button
+                                        type="button"
+                                        class="visit-bar-btn visit-bar-more-toggle"
+                                        title="More actions"
+                                        aria-label="More actions"
+                                        aria-haspopup="menu"
+                                        aria-expanded={showVisitMoreMenu}
+                                        onclick={handleToggleVisitMoreMenu}
+                                        disabled={isSaving}
+                                    >
+                                        ⋯
+                                    </button>
+                                    <template if:true={showVisitMoreMenu}>
+                                        <div class="visit-bar-menu" role="menu">
+                                            <button
+                                                type="button"
+                                                class="visit-bar-menu-item"
+                                                role="menuitem"
+                                                onclick={handleVisitDetailPostpone}
+                                                disabled={isSaving}
+                                            >
+                                                Postpone to tomorrow
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="visit-bar-menu-item visit-bar-menu-danger"
+                                                role="menuitem"
+                                                onclick={handleVisitDetailRemove}
+                                                disabled={isSaving}
+                                            >
+                                                Remove visit
+                                            </button>
+                                            <template if:true={visitDetailCanSubmit}>
+                                                <button
+                                                    type="button"
+                                                    class="visit-bar-menu-item"
+                                                    role="menuitem"
+                                                    onclick={handleVisitDetailCancel}
+                                                >
+                                                    Close
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
                             </template>
                         </div>
                     </footer>

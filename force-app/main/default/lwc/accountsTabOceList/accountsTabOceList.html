@@ -116,26 +116,26 @@
                                 </td>
                                 <td class="col-actions">
                                     <div class="row-actions">
-                                        <lightning-button-icon
-                                            icon-name="utility:preview"
-                                            alternative-text="View account"
+                                        <button
+                                            type="button"
+                                            class="row-action-btn"
                                             title="View account"
-                                            variant="border-filled"
-                                            size="small"
                                             data-id={row.accountId}
                                             data-action="view"
                                             onclick={handleQuickAction}
-                                        ></lightning-button-icon>
-                                        <lightning-button-icon
-                                            icon-name="utility:event"
-                                            alternative-text="Plan visit"
+                                        >
+                                            View
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="row-action-btn row-action-btn-brand"
                                             title="Plan visit"
-                                            variant="border-filled"
-                                            size="small"
                                             data-id={row.accountId}
                                             data-action="plan"
                                             onclick={handleQuickAction}
-                                        ></lightning-button-icon>
+                                        >
+                                            Plan
+                                        </button>
                                         <button
                                             type="button"
                                             class={row.kolSwitchClass}
