@@ -115,10 +115,8 @@ const REDIRECT_URI_KEY = 'zeta.pwa.sfRedirectUri';
 const TOKEN_PROXY_URL = '/.netlify/functions/sf-token';
 
 function defaultInstanceUrl() {
-    return (import.meta.env.VITE_SF_INSTANCE_URL || 'https://zetapharma.my.salesforce.com').replace(
-        /\/$/,
-        ''
-    );
+    const fromEnv = (import.meta.env.VITE_SF_INSTANCE_URL || '').trim();
+    return fromEnv.replace(/\/$/, '');
 }
 
 function extractMyDomainLabel(raw) {

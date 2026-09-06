@@ -378,7 +378,8 @@ function netlifyFunctionsPlugin() {
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, root, '');
-    const instanceUrl = env.VITE_SF_INSTANCE_URL || 'https://zetapharma.my.salesforce.com';
+    // Local /services proxy only — production uses Netlify sf-api. Require env; no tenant default.
+    const instanceUrl = (env.VITE_SF_INSTANCE_URL || '').replace(/\/$/, '');
 
     return {
         root,
@@ -400,15 +401,15 @@ export default defineConfig(({ mode }) => {
             fs: {
                 allow: [root, path.resolve(root, '..')]
             },
-            proxy: {
-                '/services': salesforceProxy(instanceUrl)
-            }
+            ...(instanceUrl
+                ? { proxy: { '/services': salesforceProxy(instanceUrl) } }
+                : {})
         },
         preview: {
             port: 4173,
-            proxy: {
-                '/services': salesforceProxy(instanceUrl)
-            }
+            ...(instanceUrl
+                ? { proxy: { '/services': salesforceProxy(instanceUrl) } }
+                : {})
         },
         build: {
             outDir: 'dist',

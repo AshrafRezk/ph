@@ -45,12 +45,12 @@
                 <div class="field">
                     <label for="login-env">How do you sign in?</label>
                     <select id="login-env">
-                        <option value="production">Live account</option>
+                        <option value="production" selected>Live account</option>
                         <option value="sandbox">Practice / training account</option>
-                        <option value="custom" selected>Company login page</option>
+                        <option value="custom">Company login page</option>
                     </select>
                 </div>
-                <div id="custom-domain-field" class="field">
+                <div id="custom-domain-field" class="field" hidden>
                     <label for="custom-domain-input">Company login name</label>
                     <div class="domain-combo">
                         <input
@@ -66,7 +66,7 @@
                         <span class="domain-suffix" aria-hidden="true">.my.salesforce.com</span>
                     </div>
                     <p class="login-help">
-                        Enter only the short name (for example <strong>zetapharma</strong>). Ask your
+                        Enter only the short name (for example <strong>yourcompany</strong>). Ask your
                         admin if you’re not sure.
                     </p>
                 </div>

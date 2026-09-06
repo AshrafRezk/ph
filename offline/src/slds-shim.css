@@ -632,6 +632,18 @@
     justify-content: flex-end;
 }
 
+.slds-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    background: #ecebea;
+    color: #2e2e2e;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
 @media (min-width: 768px) {
     .slds-medium-size_1-of-2 {
         width: 50%;
