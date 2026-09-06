@@ -12,6 +12,48 @@
         <link rel="icon" href="/salesforce-logo.svg" type="image/svg+xml" />
         <link rel="icon" href="/salesforce-logo.png" type="image/png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/salesforce-logo.png" />
+        <style>
+            html.osr-has-session:not(.osr-session-confirmed) #login-fresh {
+                display: none !important;
+            }
+            html.osr-has-session:not(.osr-session-confirmed) #login-resume {
+                display: block !important;
+            }
+            html.osr-has-session:not(.osr-session-confirmed) .login-title-welcome {
+                display: none !important;
+            }
+            html.osr-has-session:not(.osr-session-confirmed) .login-title-back {
+                display: block !important;
+            }
+            html.osr-session-confirmed body.screen-login #session-bar {
+                display: none !important;
+                visibility: hidden !important;
+            }
+            html.osr-session-confirmed body.screen-login #app-chooser {
+                display: block !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+            }
+        </style>
+        <script>
+            (function () {
+                try {
+                    var path = location.pathname || '';
+                    var oauth =
+                        path.indexOf('/oauth/callback') !== -1 || /[?&]code=/.test(location.search);
+                    if (oauth) return;
+                    var token = (localStorage.getItem('zeta.pwa.sfAccessToken') || '').trim();
+                    var refresh = localStorage.getItem('zeta.pwa.sfRefreshToken');
+                    if (!token && !refresh) return;
+                    document.documentElement.classList.add('osr-has-session');
+                    if (sessionStorage.getItem('zeta.pwa.sessionConfirmed') === '1') {
+                        document.documentElement.classList.add('osr-session-confirmed');
+                    }
+                } catch (e) {
+                    /* ignore */
+                }
+            })();
+        </script>
     </head>
     <body class="screen-login" data-screen="login">
         <header id="app-nav" class="app-nav" hidden style="display: none">
@@ -35,52 +77,71 @@
                 <div class="login-brand">
                     <img src="/salesforce-logo.svg" alt="Salesforce" width="180" height="126" />
                 </div>
-                <h1>Welcome</h1>
-                <p class="login-lead">
-                    Sign in with your company account. After the first sync, you can keep working even
-                    without internet.
-                </p>
-                <div id="login-ready" class="login-ready" hidden>
-                    Ready — next you’ll see your company’s usual sign-in page.
-                </div>
-                <div class="field">
-                    <label for="login-env">How do you sign in?</label>
-                    <select id="login-env">
-                        <option value="production" selected>Live account</option>
-                        <option value="sandbox">Practice / training account</option>
-                        <option value="custom">Company login page</option>
-                    </select>
-                </div>
-                <div id="custom-domain-field" class="field" hidden style="display: none">
-                    <label for="custom-domain-input">Company login name</label>
-                    <div class="domain-combo">
-                        <input
-                            id="custom-domain-input"
-                            type="text"
-                            placeholder="yourcompany"
-                            inputmode="text"
-                            autocomplete="organization"
-                            autocapitalize="off"
-                            spellcheck="false"
-                            aria-label="Company login name"
-                        />
-                        <span class="domain-suffix" aria-hidden="true">.my.salesforce.com</span>
-                    </div>
-                    <p class="login-help">
-                        Enter only the short name (for example <strong>yourcompany</strong>). Ask your
-                        admin if you’re not sure.
-                    </p>
-                </div>
-                <button id="login-btn" class="login-btn primary" type="button">Sign in</button>
-                <p id="login-status" class="login-status" hidden></p>
+                <h1 id="login-title-welcome" class="login-title-welcome">Welcome</h1>
+                <h1 id="login-title-back" class="login-title-back" hidden>Welcome back</h1>
 
-                <div class="login-downloads" aria-label="Install the app">
-                    <a
-                        id="android-download"
-                        class="login-download-btn"
-                        href="/downloads/osr-offline-latest.apk"
-                        download
-                    >
+                <div id="login-resume" class="login-resume" hidden>
+                    <p class="login-lead">
+                        <strong id="resume-user-name" class="login-resume-name">Someone</strong>
+                        is already signed in on this device<span id="resume-user-username-wrap" hidden>
+                            (<span id="resume-user-username"></span>)</span>.
+                    </p>
+                    <p class="login-lead login-lead-follow">
+                        Continue in this session, or log out and sign in as someone else.
+                    </p>
+                    <button id="continue-session-btn" class="login-btn primary" type="button">
+                        Continue
+                    </button>
+                    <button id="switch-user-btn" class="login-btn login-btn-secondary" type="button">
+                        Log out and sign in as someone else
+                    </button>
+                </div>
+
+                <div id="login-fresh">
+                    <p class="login-lead">
+                        Sign in with your company account. After the first sync, you can keep working even
+                        without internet.
+                    </p>
+                    <div id="login-ready" class="login-ready" hidden>
+                        Ready — next you’ll see your company’s usual sign-in page.
+                    </div>
+                    <div class="field">
+                        <label for="login-env">How do you sign in?</label>
+                        <select id="login-env">
+                            <option value="production" selected>Live account</option>
+                            <option value="sandbox">Practice / training account</option>
+                            <option value="custom">Company login page</option>
+                        </select>
+                    </div>
+                    <div id="custom-domain-field" class="field" hidden style="display: none">
+                        <label for="custom-domain-input">Company login name</label>
+                        <div class="domain-combo">
+                            <input
+                                id="custom-domain-input"
+                                type="text"
+                                placeholder="yourcompany"
+                                inputmode="text"
+                                autocomplete="organization"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                aria-label="Company login name"
+                            />
+                            <span class="domain-suffix" aria-hidden="true">.my.salesforce.com</span>
+                        </div>
+                        <p class="login-help">
+                            Enter only the short name (for example <strong>yourcompany</strong>). Ask your
+                            admin if you’re not sure.
+                        </p>
+                    </div>
+                    <button id="login-btn" class="login-btn primary" type="button">Sign in</button>
+
+                    <div id="login-downloads" class="login-downloads" aria-label="Install the app">
+                        <a
+                            id="android-download"
+                            class="login-download-btn"
+                            href="/downloads/osr-offline-latest.apk"
+                            download
+                        >
                         <img
                             class="login-download-logo"
                             src="/android-logo.svg"
@@ -108,9 +169,29 @@
                     </button>
                     <p id="ios-install-hint" class="login-install-hint" hidden></p>
                 </div>
+                </div>
+
+                <p id="login-status" class="login-status" hidden></p>
 
                 <p class="login-footer">Secure company sign-in</p>
             </div>
+            <script>
+                (function () {
+                    try {
+                        if (!document.documentElement.classList.contains('osr-has-session')) return;
+                        var name = (localStorage.getItem('zeta.pwa.sfUserName') || '').trim();
+                        var username = (localStorage.getItem('zeta.pwa.sfUserUsername') || '').trim();
+                        var nameEl = document.getElementById('resume-user-name');
+                        if (nameEl && (name || username)) nameEl.textContent = name || username;
+                        var unameEl = document.getElementById('resume-user-username');
+                        var wrap = document.getElementById('resume-user-username-wrap');
+                        if (unameEl) unameEl.textContent = username;
+                        if (wrap) wrap.hidden = !username || username === (name || username);
+                    } catch (e) {
+                        /* ignore */
+                    }
+                })();
+            </script>
         </div>
 
         <div id="app-chooser" class="app-chooser" hidden style="display: none">
