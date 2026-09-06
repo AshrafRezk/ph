@@ -151,6 +151,11 @@ function compileSfdxLwc() {
                 if (fs.existsSync(file)) {
                     return file;
                 }
+                const generic = path.resolve(stubsLightningDir, 'generic', 'generic.js');
+                if (fs.existsSync(generic)) {
+                    this.warn(`[osr] no dedicated stub for ${id}; using lightning/generic`);
+                    return generic;
+                }
             }
             if (id === '@salesforce/user/Id') {
                 return path.resolve(root, 'src/stubs/userId.js');

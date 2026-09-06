@@ -74,3 +74,12 @@ export async function deleteRecord(recordId) {
     });
     return { success: true };
 }
+
+/** Offline no-op — there is no Lightning Data Service cache to invalidate. */
+export function getRecordNotifyChange(_recordIds) {
+    return undefined;
+}
+
+export function notifyRecordUpdateAvailable(_recordIds) {
+    return Promise.resolve();
+}
