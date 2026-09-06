@@ -35,10 +35,10 @@ export function showToast({ title = '', message = '', variant = 'info', mode = '
     }
 
     // Collapse identical toasts fired within a short window (e.g. duplicate
-    // listeners or parallel component errors).
+    // drop handlers, dual listeners, or parallel component errors).
     const key = `${variant}|${title}|${message}`;
     const now = Date.now();
-    if (key === lastToastKey && now - lastToastAt < 800) {
+    if (key === lastToastKey && now - lastToastAt < 2000) {
         return;
     }
     lastToastKey = key;

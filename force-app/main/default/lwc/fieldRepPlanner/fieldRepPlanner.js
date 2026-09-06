@@ -3316,6 +3316,12 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (!start || !payload) {
             return;
         }
+        // Drop can hit both the planning-palette backdrop and the calendar
+        // scroll container in one gesture; only process the first drop.
+        if (this._calendarDropInFlight) {
+            return;
+        }
+        this._calendarDropInFlight = true;
         if (this.showPlanningPalettePanel) {
             this.showPlanningPalettePanel = false;
         }
@@ -3325,6 +3331,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 'Visits can only be scheduled Saturday through Wednesday.',
                 'error'
             );
+            this.dragPayload = undefined;
+            this.setDragActiveState(false);
+            this._calendarDropInFlight = false;
             return;
         }
         try {
@@ -3363,6 +3372,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         } finally {
             this.dragPayload = undefined;
             this.setDragActiveState(false);
+            this._calendarDropInFlight = false;
         }
     }
 

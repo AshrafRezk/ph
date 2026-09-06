@@ -36,6 +36,28 @@ private class PlannerMobileRestServiceTest {
   }
 
   @IsTest
+  static void getTimeOff_returnsMyRequests() {
+    Time_Off_Request__c request = new Time_Off_Request__c(
+      Type__c = 'Holiday',
+      Span_Type__c = 'Full_Day',
+      Start_Date_Time__c = DateTime.newInstance(Date.today(), Time.newInstance(9, 0, 0, 0)),
+      End_Date_Time__c = DateTime.newInstance(Date.today(), Time.newInstance(17, 0, 0, 0)),
+      Stage__c = 'Draft'
+    );
+    insert request;
+
+    Test.startTest();
+    RestResponse res = invokeGetWithParams(
+      'time-off',
+      new Map<String, String>{ 'limitSize' => '5' }
+    );
+    Test.stopTest();
+    System.assertEquals(200, res.statusCode);
+    String body = res.responseBody.toString();
+    System.assert(body.contains(String.valueOf(request.Id)) || body.contains('Holiday'));
+  }
+
+  @IsTest
   static void getHomeDashboard_returnsPayload() {
     Test.startTest();
     RestResponse res = invokeGetWithParams('home/dashboard', null);

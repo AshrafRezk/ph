@@ -167,7 +167,13 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
             this.resetForm();
             await this.loadRequests();
             this.showToast(successTitle, successMessage, 'success');
-            this.navigateToRecord(created.id);
+            if (created?.id) {
+                try {
+                    this.navigateToRecord(created.id);
+                } catch (_navError) {
+                    // Offline shell has no record pages; list refresh is enough.
+                }
+            }
         } catch (error) {
             this.showToast('Save Failed', this.reduceError(error), 'error');
         } finally {

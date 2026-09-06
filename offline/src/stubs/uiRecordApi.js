@@ -50,13 +50,46 @@ export function getFieldValue(record, field) {
     return entry ? entry.value : undefined;
 }
 
+function fieldValue(fields, apiName) {
+    if (!fields || !apiName) {
+        return undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, apiName)) {
+        return fields[apiName];
+    }
+    // Tolerate fully-qualified keys like Time_Off_Request__c.Type__c
+    const short = String(apiName).includes('.') ? String(apiName).split('.').pop() : apiName;
+    if (Object.prototype.hasOwnProperty.call(fields, short)) {
+        return fields[short];
+    }
+    const qualified = Object.keys(fields).find((key) => key === apiName || key.endsWith(`.${short}`));
+    return qualified ? fields[qualified] : undefined;
+}
+
+function mapTimeOffCreateBody(fields) {
+    return {
+        typeValue: fieldValue(fields, 'Type__c'),
+        spanType: fieldValue(fields, 'Span_Type__c'),
+        durationHours: fieldValue(fields, 'Span_Duration_Select__c'),
+        startDateTime: fieldValue(fields, 'Start_Date_Time__c'),
+        comments: fieldValue(fields, 'Comments__c'),
+        stage: fieldValue(fields, 'Stage__c')
+    };
+}
+
 export async function createRecord(recordInput) {
-    const { apiName, fields } = recordInput;
+    const { apiName, fields } = recordInput || {};
+    if (apiName && apiName !== 'Time_Off_Request__c') {
+        throw {
+            body: { message: `createRecord is only supported for Time_Off_Request__c (got ${apiName}).` }
+        };
+    }
     const result = await plannerApiFetch('/services/apexrest/planner/v1/time-off', {
         method: 'POST',
-        body: JSON.stringify({ apiName, fields })
+        body: JSON.stringify(mapTimeOffCreateBody(fields || {}))
     });
-    return result || { id: `tmp_${Date.now()}`, success: true };
+    const id = result?.id || result?.Id || `tmp_${Date.now()}`;
+    return { id, success: true, ...result };
 }
 
 export async function updateRecord(recordInput) {

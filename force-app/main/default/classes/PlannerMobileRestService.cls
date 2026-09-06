@@ -215,6 +215,18 @@ global with sharing class PlannerMobileRestService {
         writeJson(res, 200, buildCurrentUserProfile());
         return;
       }
+      if (path == 'time-off' || path.startsWith('time-off?')) {
+        Integer limitSize = 10;
+        if (params != null && String.isNotBlank(params.get('limitSize'))) {
+          try {
+            limitSize = Integer.valueOf(params.get('limitSize'));
+          } catch (Exception ignore) {
+            limitSize = 10;
+          }
+        }
+        writeJson(res, 200, TimeOffRequestController.getMyRequests(limitSize));
+        return;
+      }
       writeJson(res, 404, new ErrorResponse('Unknown GET path: ' + path));
     } catch (Exception e) {
       writeJson(res, 400, new ErrorResponse(e.getMessage()));

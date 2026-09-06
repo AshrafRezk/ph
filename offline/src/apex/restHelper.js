@@ -76,7 +76,11 @@ export async function plannerApiFetch(path, options = {}) {
         let detail = `HTTP ${response.status}`;
         try {
             const failed = await response.json();
-            detail = failed?.message || detail;
+            if (Array.isArray(failed) && failed[0] && failed[0].message) {
+                detail = failed[0].message;
+            } else if (failed && typeof failed === 'object') {
+                detail = failed.message || failed.error || detail;
+            }
         } catch (_parseError) {
             const text = await response.text();
             console.error('[REST] Non-JSON error response:', text.substring(0, 1000));
