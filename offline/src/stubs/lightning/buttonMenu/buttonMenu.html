@@ -1,0 +1,22 @@
+<template>
+    <div class={computedClass}>
+        <button
+            type="button"
+            class="slds-button slds-button_icon slds-button_icon-border-filled"
+            title={title}
+            disabled={disabled}
+            aria-haspopup="true"
+            onclick={toggle}
+        >
+            <span class="slds-assistive-text">{alternativeText}</span>
+            ?
+        </button>
+        <template if:true={open}>
+            <div class="slds-dropdown slds-dropdown_right" role="menu">
+                <ul class="slds-dropdown__list" role="presentation">
+                    <slot></slot>
+                </ul>
+            </div>
+        </template>
+    </div>
+</template>

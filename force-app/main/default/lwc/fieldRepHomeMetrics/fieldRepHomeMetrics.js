@@ -1,14 +1,9 @@
 import { LightningElement, track } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import Id from '@salesforce/user/Id';
-
-import getHomeMetrics from '@salesforce/apex/FieldRepHomeController.getHomeMetrics';
-import getAccountCoverageRows from '@salesforce/apex/FieldRepHomeController.getAccountCoverageRows';
-import getPerformanceGamification from '@salesforce/apex/FieldRepHomeController.getPerformanceGamification';
-import getPerformanceRankings from '@salesforce/apex/FieldRepHomeController.getPerformanceRankings';
+import getHomeDashboard from '@salesforce/apex/PlannerMobileRestService.getHomeDashboard';
 import { getHomeMetricsCache, getUserHomeMetricsKey, putHomeMetrics } from 'c/clmOfflineStore';
-import { isOfflineMode } from 'c/clmOfflineSync';
+
+const HOME_DASHBOARD_PATH = '/services/apexrest/planner/v1/home/dashboard';
+const CACHE_USER_FALLBACK = 'me';
 
 const BADGE_DEFINITIONS = [
     {
@@ -237,13 +232,6 @@ const EMPTY_RANKINGS = {
     isFirstInBu: false
 };
 
-function currentMonthStartIso() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}-01`;
-}
-
 function tokenizeSearch(raw) {
     return (raw || '')
         .trim()
@@ -331,8 +319,7 @@ function matchesAccountSearch(row, rawTerm) {
     });
 }
 
-export default class FieldRepHomeMetrics extends NavigationMixin(LightningElement) {
-    @track isLoading = true;
+export default class FieldRepHomeMetrics extends LightningElement {
     @track metrics = { ...EMPTY_METRICS };
     @track gamification = { ...EMPTY_GAMIFICATION };
     @track rankings = { ...EMPTY_RANKINGS };
@@ -344,6 +331,8 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
     @track sortField = 'name';
     @track sortDirection = 'asc';
     @track isSearching = false;
+    @track syncStatus = 'idle';
+    @track errorMessage = '';
 
     allAccountRows = [];
     classFilteredRows = [];
@@ -353,6 +342,8 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
     @track badgeModalTitle = '';
     @track badgeModalMessage = '';
     searchDebounceTimer;
+    cacheUserKey = CACHE_USER_FALLBACK;
+    hasCachedData = false;
 
     get byClassification() {
         return this.metrics?.byClassification || [];
@@ -529,6 +520,31 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         return this.metrics?.visitCoveragePercentDisplay != null;
     }
 
+    get showSyncChip() {
+        return this.syncStatus === 'cached' || this.syncStatus === 'updating' || this.syncStatus === 'offline';
+    }
+
+    get syncChipLabel() {
+        if (this.syncStatus === 'updating') {
+            return 'Updating…';
+        }
+        if (this.syncStatus === 'offline') {
+            return 'Offline';
+        }
+        if (this.syncStatus === 'cached') {
+            return 'Cached';
+        }
+        return '';
+    }
+
+    get syncChipClass() {
+        return `sync-chip sync-chip-${this.syncStatus}`;
+    }
+
+    get showErrorBanner() {
+        return Boolean(this.errorMessage);
+    }
+
     get kpiCards() {
         return [
             buildKpiCard(
@@ -644,84 +660,198 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         if (this.searchDebounceTimer) {
             clearTimeout(this.searchDebounceTimer);
         }
+        if (this.refreshAbort) {
+            this.refreshAbort.abort();
+            this.refreshAbort = null;
+        }
+        if (this._onOnline) {
+            window.removeEventListener('online', this._onOnline);
+        }
+        if (this._onOffline) {
+            window.removeEventListener('offline', this._onOffline);
+        }
+    }
+
+    bindConnectivityListeners() {
+        if (this._connectivityBound || typeof window === 'undefined') {
+            return;
+        }
+        this._connectivityBound = true;
+        this._onOnline = () => {
+            this.init();
+        };
+        this._onOffline = () => {
+            // Abort in-flight requests but don't immediately show offline
+            // The API call failure in catch block will handle real network failures
+            if (this.refreshAbort) {
+                this.refreshAbort.abort();
+            }
+        };
+        window.addEventListener('online', this._onOnline);
+        window.addEventListener('offline', this._onOffline);
     }
 
     async init() {
-        this.isLoading = true;
-        try {
-            if (isOfflineMode()) {
-                const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
-                if (cached) {
-                    this.applyCachedBundle(cached);
-                } else {
-                    throw new Error('Home metrics are not cached for offline use.');
-                }
-            } else {
-            const [metrics, rows, gamification, rankings] = await Promise.all([
-                getHomeMetrics({ contextUserId: null }),
-                getAccountCoverageRows({ contextUserId: null, classificationFilter: 'All' }),
-                getPerformanceGamification({ contextUserId: null, monthStart: currentMonthStartIso() }),
-                getPerformanceRankings({ contextUserId: null })
-            ]);
-
-            metrics.byClassification = (metrics.byClassification || []).map((row) => {
-                const visitPct = Math.round(row.visitCoveragePercent || 0);
-                const customerPct = Math.round(row.customerCoveragePercent || 0);
-                const colors = CLASS_COLORS[row.classification] || {
-                    accent: '#706e6b',
-                    bg: 'rgba(112, 110, 107, 0.08)'
-                };
-                return {
-                    ...row,
-                    visitCoveragePercentDisplay: visitPct,
-                    customerCoveragePercentDisplay: customerPct,
-                    rfPercentDisplay: Math.round(row.rfPercent || 0),
-                    lfPercentDisplay: Math.round(row.lfPercent || 0),
-                    progressStyle: `width: ${visitPct}%`,
-                    tileStyle: `border-left: 4px solid ${colors.accent}; background: ${colors.bg}`
-                };
-            });
-
-            this.metrics = {
-                ...metrics,
-                visitCoveragePercentDisplay: Math.round(metrics.visitCoveragePercent || 0),
-                customerCoveragePercentDisplay: Math.round(metrics.customerCoveragePercent || 0),
-                rfPercentTotalDisplay: Math.round(metrics.rfPercentTotal || 0),
-                visitRingStroke: ringStroke(metrics.visitCoveragePercent),
-                customerRingStroke: ringStroke(metrics.customerCoveragePercent),
-                rfRingStroke: ringStroke(metrics.rfPercentTotal)
-            };
-            this.gamification = gamification;
-            this.rankings = rankings || { ...EMPTY_RANKINGS };
-
-            this.allAccountRows = (rows || []).map((row) => this.enrichAccountRow(row));
-            this.applyClassFilter();
-
-            await putHomeMetrics(getUserHomeMetricsKey(Id), {
-                metrics: this.metrics,
-                gamification: this.gamification,
-                rankings: this.rankings,
-                allAccountRows: this.allAccountRows
-            });
-            }
-        } catch (e) {
-            const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
-            if (cached) {
-                this.applyCachedBundle(cached);
-            } else {
-            this.metrics = { ...EMPTY_METRICS };
-            this.gamification = { ...EMPTY_GAMIFICATION };
-            this.rankings = { ...EMPTY_RANKINGS };
-            this.allAccountRows = [];
-            this.classFilteredRows = [];
-            this.filteredAccountRows = [];
-            this.displayAccountRows = [];
-            this.searchDraft = '';
-            this.showErrorToast(e, 'Unable to load rep metrics.');
-            }
-        } finally {
-            this.isLoading = false;
+        this.bindConnectivityListeners();
+        this.errorMessage = '';
+        const cached = await this.readCache();
+        if (cached) {
+            this.applyCachedBundle(cached);
+            this.hasCachedData = true;
+            this.syncStatus = 'cached';
+        } else {
+            this.hasCachedData = false;
         }
+
+        // Note: navigator.onLine is unreliable in Capacitor WebView
+        // Always try the API call - catch block handles real network failures
+        this.syncStatus = 'updating';
+        try {
+            const payload = await this.fetchHomeDashboard();
+            this.applyDashboardPayload(payload);
+            this.cacheUserKey = payload?.userId || CACHE_USER_FALLBACK;
+            await this.writeCache();
+            this.hasCachedData = true;
+            this.errorMessage = '';
+            this.syncStatus = 'idle';
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return;
+            }
+            this.syncStatus = 'offline';
+            if (!this.hasCachedData) {
+                this.errorMessage = this.isConnectivityError(error)
+                    ? 'You are offline. Connect to load metrics.'
+                    : this.reduceError(error) || 'Unable to load rep metrics.';
+            }
+        }
+    }
+
+    async readCache() {
+        const primary = await getHomeMetricsCache(getUserHomeMetricsKey(this.cacheUserKey));
+        if (primary) {
+            return primary;
+        }
+        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
+            return getHomeMetricsCache(getUserHomeMetricsKey(CACHE_USER_FALLBACK));
+        }
+        return null;
+    }
+
+    async writeCache() {
+        const bundle = {
+            metrics: this.metrics,
+            gamification: this.gamification,
+            rankings: this.rankings,
+            allAccountRows: this.allAccountRows
+        };
+        await putHomeMetrics(getUserHomeMetricsKey(this.cacheUserKey), bundle);
+        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
+            await putHomeMetrics(getUserHomeMetricsKey(CACHE_USER_FALLBACK), bundle);
+        }
+    }
+
+    async fetchHomeDashboard() {
+        const restBase = typeof globalThis !== 'undefined' ? globalThis.PLANNER_REST_BASE : '';
+        if (restBase) {
+            return this.fetchHomeDashboardRest(restBase);
+        }
+        // Lightning UI sessions cannot call Apex REST (401). Same payload via AuraEnabled.
+        return getHomeDashboard({ contextUserId: null });
+    }
+
+    async fetchHomeDashboardRest(restBase) {
+        const token = typeof globalThis !== 'undefined' ? globalThis.PLANNER_ACCESS_TOKEN : '';
+        const headers = { Accept: 'application/json' };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        const path = `${String(restBase).replace(/\/$/, '')}${HOME_DASHBOARD_PATH}`;
+        if (this.refreshAbort) {
+            this.refreshAbort.abort();
+        }
+        this.refreshAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        let response;
+        try {
+            response = await fetch(path, {
+                method: 'GET',
+                credentials: token ? 'omit' : 'same-origin',
+                headers,
+                signal: this.refreshAbort ? this.refreshAbort.signal : undefined
+            });
+        } catch (fetchError) {
+            // Network error (TypeError, etc.) - manual mode, no auto-detection
+            console.warn('[HomeMetrics] Network error detected:', fetchError.message);
+            const offlineError = new Error('Offline');
+            offlineError.name = 'OfflineError';
+            throw offlineError;
+        }
+        // Manual mode - no auto-detection of online status
+        if (!response.ok) {
+            if (response.status >= 500) {
+                const offlineError = new Error('Offline');
+                offlineError.name = 'OfflineError';
+                throw offlineError;
+            }
+            let detail = `HTTP ${response.status}`;
+            try {
+                const failed = await response.json();
+                detail = failed?.message || detail;
+            } catch (_parseError) {
+                // Keep the HTTP status message when the body is not JSON.
+            }
+            throw new Error(detail);
+        }
+        return response.json();
+    }
+
+    isConnectivityError(error) {
+        const name = error?.name || '';
+        if (name === 'AbortError' || name === 'TypeError' || name === 'OfflineError') {
+            return true;
+        }
+        const message = error?.message || '';
+        return /offline|failed to fetch|networkerror|load failed/i.test(message);
+    }
+
+    applyDashboardPayload(payload) {
+        const metrics = payload?.metrics || {};
+        this.metrics = this.mapMetrics(metrics);
+        this.gamification = payload?.gamification || { ...EMPTY_GAMIFICATION };
+        this.rankings = payload?.rankings || { ...EMPTY_RANKINGS };
+        this.allAccountRows = (payload?.accountCoverageRows || []).map((row) => this.enrichAccountRow(row));
+        this.applyClassFilter();
+    }
+
+    mapMetrics(metrics) {
+        const byClassification = (metrics.byClassification || []).map((row) => {
+            const visitPct = Math.round(row.visitCoveragePercent || 0);
+            const customerPct = Math.round(row.customerCoveragePercent || 0);
+            const colors = CLASS_COLORS[row.classification] || {
+                accent: '#706e6b',
+                bg: 'rgba(112, 110, 107, 0.08)'
+            };
+            return {
+                ...row,
+                visitCoveragePercentDisplay: visitPct,
+                customerCoveragePercentDisplay: customerPct,
+                rfPercentDisplay: Math.round(row.rfPercent || 0),
+                lfPercentDisplay: Math.round(row.lfPercent || 0),
+                progressStyle: `width: ${visitPct}%`,
+                tileStyle: `border-left: 4px solid ${colors.accent}; background: ${colors.bg}`
+            };
+        });
+
+        return {
+            ...metrics,
+            byClassification,
+            visitCoveragePercentDisplay: Math.round(metrics.visitCoveragePercent || 0),
+            customerCoveragePercentDisplay: Math.round(metrics.customerCoveragePercent || 0),
+            rfPercentTotalDisplay: Math.round(metrics.rfPercentTotal || 0),
+            visitRingStroke: ringStroke(metrics.visitCoveragePercent),
+            customerRingStroke: ringStroke(metrics.customerCoveragePercent),
+            rfRingStroke: ringStroke(metrics.rfPercentTotal)
+        };
     }
 
     applyCachedBundle(cached) {
@@ -922,15 +1052,7 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         if (!accountId) {
             return;
         }
-        this[NavigationMixin.Navigate]({
-            type: 'standard__recordPage',
-            attributes: { recordId: accountId, objectApiName: 'Account', actionName: 'view' }
-        });
-    }
-
-    showErrorToast(error, fallbackMessage) {
-        const message = this.reduceError(error) || fallbackMessage;
-        this.dispatchEvent(new ShowToastEvent({ title: 'Error', message, variant: 'error' }));
+        window.open(`/lightning/r/Account/${accountId}/view`, '_self');
     }
 
     reduceError(error) {
@@ -940,10 +1062,6 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         if (typeof error === 'string') {
             return error;
         }
-        return (
-            error?.body?.message ||
-            error?.message ||
-            (Array.isArray(error?.body) ? error.body.map((e) => e.message).join(', ') : null)
-        );
+        return error?.message || null;
     }
 }

@@ -17,7 +17,7 @@ const SECTIONS = [
     { id: 'affiliations', label: 'Affiliations' },
     { id: 'attendees', label: 'Attendees' },
     { id: 'products', label: 'Products' },
-    { id: 'samples', label: 'Samples' },
+    { id: 'samples', label: 'Dispense' },
     { id: 'presentations', label: 'Presentations' }
 ];
 
@@ -174,6 +174,18 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
 
     get isSamplesSection() {
         return this.activeSection === 'samples';
+    }
+
+    get selectedBrandIds() {
+        const ids = new Set();
+        for (const row of this.products || []) {
+            if (row.productType === 'Brand' && row.productId) {
+                ids.add(row.productId);
+            } else if (row.parentProductId) {
+                ids.add(row.parentProductId);
+            }
+        }
+        return [...ids];
     }
 
     get isPresentationsSection() {
@@ -340,7 +352,7 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
         this.isSaving = true;
         try {
             const saveRequest = {
-                visitId: this.recordId,
+                visitId: this.recordId || this.payload?.visit?.id,
                 status: this.statusValue,
                 visitObjective: this.visitObjective,
                 visitNotes: this.visitNotes,
@@ -352,6 +364,11 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
                 samples: this.samples,
                 clmSessions: []
             };
+
+            if (!saveRequest.visitId) {
+                this.showToast('Save failed', 'Visit Id is required.', 'error');
+                return;
+            }
 
             if (isOfflineMode()) {
                 const offlinePayload = {
@@ -368,11 +385,11 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
                     samples: this.samples,
                     clmSessions: this.payload?.clmSessions || []
                 };
-                await putVisitPayload(this.recordId, offlinePayload);
+                await putVisitPayload(this.recordId || saveRequest.visitId, offlinePayload);
                 await queueOfflineAction({
                     actionType: 'SAVE_CALL_REPORT',
-                    visitId: this.recordId,
-                    clientActionKey: `save_call_${this.recordId}_${Date.now()}`,
+                    visitId: saveRequest.visitId,
+                    clientActionKey: `save_call_${saveRequest.visitId}_${Date.now()}`,
                     callReportJson: JSON.stringify(saveRequest)
                 });
                 this.applyPayload(offlinePayload);
@@ -384,9 +401,9 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
                 return;
             }
 
-            const saved = await saveCallReport(saveRequest);
+            const saved = await saveCallReport({ requestJson: JSON.stringify(saveRequest) });
             this.applyPayload(saved);
-            await putVisitPayload(this.recordId, saved);
+            await putVisitPayload(saveRequest.visitId, saved);
             await refreshApex(this.wiredPayloadResult);
             this.showToast('Visit saved', saved.visit.accountName, 'success');
         } catch (error) {

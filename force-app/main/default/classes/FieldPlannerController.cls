@@ -217,6 +217,42 @@ public with sharing class FieldPlannerController {
     public List<VisitSummary> visits;
     @AuraEnabled
     public List<TotSummary> timeOffBlocks;
+    @AuraEnabled
+    public List<MeetingSummary> meetings;
+  }
+
+  public class MeetingSummary {
+    @AuraEnabled
+    public Id id;
+    @AuraEnabled
+    public String name;
+    @AuraEnabled
+    public String title;
+    @AuraEnabled
+    public String status;
+    @AuraEnabled
+    public String recordTypeDeveloperName;
+    @AuraEnabled
+    public String recordTypeLabel;
+    @AuraEnabled
+    public DateTime startDateTime;
+    @AuraEnabled
+    public DateTime endDateTime;
+    @AuraEnabled
+    public Id pharmaProjectId;
+    @AuraEnabled
+    public String pharmaProjectName;
+  }
+
+  public class WeekSubmitResult {
+    @AuraEnabled
+    public Integer submittedCount;
+    @AuraEnabled
+    public Integer failedCount;
+    @AuraEnabled
+    public List<VisitSummary> visits;
+    @AuraEnabled
+    public List<String> errors;
   }
 
   public class AccountPageResult {
@@ -369,7 +405,17 @@ public with sharing class FieldPlannerController {
 
     PlannerPayload payload = new PlannerPayload();
     payload.visits = queryVisits(rangeStart, rangeEnd, resolvedUserId);
-    payload.timeOffBlocks = queryTimeOff(rangeStart, rangeEnd, resolvedUserId);
+    try {
+      payload.timeOffBlocks = queryTimeOff(rangeStart, rangeEnd, resolvedUserId);
+    } catch (Exception timeOffError) {
+      payload.timeOffBlocks = new List<TotSummary>();
+    }
+    // Meetings are optional — never block visits/TOT if Meeting__c access is missing.
+    try {
+      payload.meetings = queryMeetings(rangeStart, rangeEnd, resolvedUserId);
+    } catch (Exception meetingError) {
+      payload.meetings = new List<MeetingSummary>();
+    }
     return payload;
   }
 
@@ -2078,5 +2124,198 @@ public with sharing class FieldPlannerController {
       }
     }
     return summaries;
+  }
+
+  private static List<MeetingSummary> queryMeetings(DateTime rangeStart, DateTime rangeEnd, Id userId) {
+    List<MeetingSummary> results = new List<MeetingSummary>();
+    for (Meeting__c meeting : [
+      SELECT
+        Id,
+        Name,
+        Status__c,
+        Objectives__c,
+        Start_Date_Time__c,
+        End_Date_Time__c,
+        Pharma_Project__c,
+        Pharma_Project__r.Name,
+        RecordType.DeveloperName,
+        RecordType.Name
+      FROM Meeting__c
+      WHERE
+        OwnerId = :userId
+        AND Start_Date_Time__c < :rangeEnd
+        AND End_Date_Time__c > :rangeStart
+        AND Status__c NOT IN ('Cancelled')
+      WITH USER_MODE
+      ORDER BY Start_Date_Time__c ASC
+    ]) {
+      results.add(mapMeeting(meeting));
+    }
+    return results;
+  }
+
+  private static MeetingSummary mapMeeting(Meeting__c meeting) {
+    MeetingSummary summary = new MeetingSummary();
+    summary.id = meeting.Id;
+    summary.name = meeting.Name;
+    summary.title = String.isNotBlank(meeting.Objectives__c) ? meeting.Objectives__c : meeting.Name;
+    summary.status = meeting.Status__c;
+    summary.startDateTime = meeting.Start_Date_Time__c;
+    summary.endDateTime = meeting.End_Date_Time__c;
+    summary.pharmaProjectId = meeting.Pharma_Project__c;
+    summary.pharmaProjectName = meeting.Pharma_Project__r != null
+      ? meeting.Pharma_Project__r.Name
+      : null;
+    summary.recordTypeDeveloperName = meeting.RecordType != null
+      ? meeting.RecordType.DeveloperName
+      : null;
+    summary.recordTypeLabel = meeting.RecordType != null ? meeting.RecordType.Name : null;
+    return summary;
+  }
+
+  @AuraEnabled
+  public static VisitSummary submitVisit(Id visitId) {
+    assertCanMutatePlanner();
+    if (visitId == null) {
+      throw new AuraHandledException('Visit Id is required.');
+    }
+    Visit__c visit = [
+      SELECT
+        Id,
+        Status__c,
+        Visit_Type__c,
+        Assigned_To__c,
+        Start_Date__c,
+        End_Date__c
+      FROM Visit__c
+      WHERE Id = :visitId AND Assigned_To__c = :UserInfo.getUserId()
+      WITH USER_MODE
+      LIMIT 1
+    ];
+    if (!VisitStatusHelper.isPlannedVisitType(visit.Visit_Type__c)) {
+      throw new AuraHandledException('Only planned visits can be submitted for approval.');
+    }
+    VisitStatusHelper.assertTransitionAllowed(
+      visit.Status__c,
+      VisitStatusHelper.STATUS_SUBMITTED,
+      visit.Visit_Type__c,
+      false
+    );
+    VisitConflictService.assertNoConflicts(
+      visit.Assigned_To__c,
+      visit.Start_Date__c,
+      visit.End_Date__c,
+      visit.Id
+    );
+    Visit__c userUpdate = new Visit__c(
+      Id = visit.Id,
+      Status__c = VisitStatusHelper.STATUS_SUBMITTED
+    );
+    update as user userUpdate;
+    stampSubmittedAt(visit.Id);
+    submitForApprovalInternal(visit.Id);
+
+    return mapVisit(queryPlannerVisitById(visit.Id));
+  }
+
+  @AuraEnabled
+  public static WeekSubmitResult submitWeekPlans(Date weekStart, Date weekEnd) {
+    assertCanMutatePlanner();
+    if (weekStart == null || weekEnd == null) {
+      throw new AuraHandledException('Week start and end dates are required.');
+    }
+
+    DateTime rangeStart = DateTime.newInstance(weekStart, Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(weekEnd.addDays(1), Time.newInstance(0, 0, 0, 0));
+    Id userId = UserInfo.getUserId();
+    List<Visit__c> drafts = [
+      SELECT Id
+      FROM Visit__c
+      WHERE
+        Assigned_To__c = :userId
+        AND Status__c = :VisitStatusHelper.STATUS_DRAFT
+        AND Visit_Type__c IN (
+          :VisitStatusHelper.TYPE_PLANNED_AUTO,
+          :VisitStatusHelper.TYPE_PLANNED_MANAGER
+        )
+        AND Start_Date__c >= :rangeStart
+        AND Start_Date__c < :rangeEnd
+      WITH USER_MODE
+      ORDER BY Start_Date__c ASC
+    ];
+
+    WeekSubmitResult result = new WeekSubmitResult();
+    result.submittedCount = 0;
+    result.failedCount = 0;
+    result.visits = new List<VisitSummary>();
+    result.errors = new List<String>();
+    for (Visit__c draft : drafts) {
+      try {
+        result.visits.add(submitVisit(draft.Id));
+        result.submittedCount++;
+      } catch (Exception ex) {
+        result.failedCount++;
+        result.errors.add(formatPlannerException(ex));
+      }
+    }
+    return result;
+  }
+
+  private static void submitForApprovalInternal(Id visitId) {
+    if (visitId == null) {
+      return;
+    }
+    try {
+      Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
+      approvalRequest.setComments('Visit plan submitted.');
+      approvalRequest.setObjectId(visitId);
+      Approval.ProcessResult result = Approval.process(approvalRequest, false);
+      if (result != null && !result.isSuccess()) {
+        List<String> messages = new List<String>();
+        for (Database.Error err : result.getErrors()) {
+          messages.add(err.getMessage());
+        }
+        System.debug(
+          LoggingLevel.WARN,
+          'Native visit approval was not started for ' +
+          visitId +
+          ': ' +
+          String.join(messages, '; ')
+        );
+      }
+    } catch (Exception ex) {
+      System.debug(
+        LoggingLevel.WARN,
+        'Native visit approval skipped for ' + visitId + ': ' + ex.getMessage()
+      );
+    }
+  }
+
+  private static void stampSubmittedAt(Id visitId) {
+    if (visitId == null) {
+      return;
+    }
+    stampSubmittedAt(new Set<Id>{ visitId });
+  }
+
+  private static void stampSubmittedAt(Set<Id> visitIds) {
+    if (visitIds == null || visitIds.isEmpty()) {
+      return;
+    }
+    List<Visit__c> stamps = new List<Visit__c>();
+    for (Id visitId : visitIds) {
+      stamps.add(new Visit__c(Id = visitId, Submitted_At__c = System.now()));
+    }
+    update as system stamps;
+  }
+
+  private static String formatPlannerException(Exception ex) {
+    if (ex == null) {
+      return 'Unexpected error';
+    }
+    if (ex instanceof AuraHandledException && String.isNotBlank(ex.getMessage())) {
+      return ex.getMessage();
+    }
+    return String.isBlank(ex.getMessage()) ? 'Unexpected error' : ex.getMessage();
   }
 }

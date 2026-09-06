@@ -18,6 +18,8 @@
                 </template>
                 <lightning-button-group>
                     <lightning-button label="Today" onclick={handleToday}></lightning-button>
+                    <lightning-button label="This week" onclick={handleThisWeek}></lightning-button>
+                    <lightning-button label="Next week" onclick={handleJumpNextWeek}></lightning-button>
                     <lightning-button-icon icon-name="utility:chevronleft" alternative-text="Previous week" onclick={handlePrevWeek}></lightning-button-icon>
                     <lightning-button-icon icon-name="utility:chevronright" alternative-text="Next week" onclick={handleNextWeek}></lightning-button-icon>
                 </lightning-button-group>
@@ -25,12 +27,18 @@
                 <div class="slds-text-heading_small slds-m-left_small">{weekLabel}</div>
 
                 <div class="slds-col_bump-left toolbar-view-actions">
+                    <lightning-button
+                        label={submitWeekLabel}
+                        variant="brand"
+                        onclick={handleSubmitWeek}
+                        disabled={isSubmitWeekDisabled}
+                    ></lightning-button>
                     <button
                         type="button"
                         class={planningPlusButtonClass}
-                        title="Add TOT or promotional event"
+                        title="Add TOT or meeting"
                         aria-expanded={showPlanningPalettePanel}
-                        aria-label="Add TOT or promotional event"
+                        aria-label="Add TOT or meeting"
                         onclick={handleTogglePlanningPalette}
                         disabled={isReadOnlyPlannerView}
                     >
@@ -104,7 +112,28 @@
                 <div class="planner-readonly-banner">{viewerContextLabel}</div>
             </template>
 
-            <div class="planner-body">
+            <div class="mobile-planner-nav" role="tablist" aria-label="Mobile view sections">
+                <button
+                    type="button"
+                    class={mobileCalendarBtnClass}
+                    role="tab"
+                    aria-selected={isMobileCalendarTab}
+                    onclick={handleSelectMobileCalendar}
+                >
+                    📅 Calendar Grid
+                </button>
+                <button
+                    type="button"
+                    class={mobileAccountsBtnClass}
+                    role="tab"
+                    aria-selected={isMobileAccountsTab}
+                    onclick={handleSelectMobileAccounts}
+                >
+                    📋 Accounts ({totalAccountCount})
+                </button>
+            </div>
+
+            <div class="planner-body" data-mobile-sub-view={mobileSubView}>
                 <aside class="planner-sidebar">
                     <div class="sidebar-section-title">Accounts — drag to calendar</div>
                     <div class="slds-p-horizontal_small slds-p-bottom_x-small account-filters">
@@ -313,7 +342,12 @@
                     </template>
 
                     <template if:true={showPlanningPalettePanel}>
-                        <div class="main-overlay-backdrop" onclick={handleClosePlanningPalette}></div>
+                        <div
+                            class="main-overlay-backdrop"
+                            onclick={handleClosePlanningPalette}
+                            ondragover={handleDragOver}
+                            ondrop={handleCalendarDrop}
+                        ></div>
                         <div class="main-overlay-panel planning-palette-panel" onclick={handleFilterPanelClick}>
                             <div class="account-filter-panel-header">
                                 <span class="account-filter-panel-title">Add to calendar</span>
@@ -339,6 +373,8 @@
                                             data-drag-type="tot"
                                             ondragstart={handleQuickTotDragStart}
                                             ondragend={handleSidebarDragEnd}
+                                            ontouchstart={handleQuickTotTouchStart}
+                                            onclick={handleTotPresetClick}
                                         >
                                             {preset.label}
                                         </div>
@@ -351,19 +387,9 @@
                                     ondragstart={handleTotDragStart}
                                     ondragend={handleSidebarDragEnd}
                                     ontouchstart={handleTotTouchStart}
+                                    onclick={handleCustomTotClick}
                                 >
                                     Custom TOT…
-                                </div>
-
-                                <div class="planning-palette-section-title">Promotional Events</div>
-                                <div
-                                    class="promo-palette-item"
-                                    draggable="true"
-                                    data-drag-type="promo"
-                                    ondragstart={handlePromoDragStart}
-                                    ondragend={handleSidebarDragEnd}
-                                >
-                                    Drag to calendar to plan promo event
                                 </div>
                             </div>
                             <div class="account-filter-panel-footer">
@@ -724,6 +750,15 @@
                             onclick={handleViewVisit}
                         ></lightning-button>
                         <template if:false={visitDetailReadOnly}>
+                            <template if:true={visitDetailCanSubmit}>
+                                <lightning-button
+                                    class="slds-m-left_x-small"
+                                    label="Submit for approval"
+                                    variant="brand"
+                                    onclick={handleSubmitVisitForApproval}
+                                    disabled={isSaving}
+                                ></lightning-button>
+                            </template>
                             <lightning-button
                                 class="slds-m-left_x-small"
                                 label="Save"
@@ -761,9 +796,9 @@
                             ></lightning-button>
                             <lightning-button
                                 class="plan-choice-button"
-                                label="Promotional Event"
-                                icon-name="utility:campaign"
-                                onclick={handlePlanPromoChoice}
+                                label="Meeting"
+                                icon-name="utility:groups"
+                                onclick={handlePlanMeetingChoice}
                             ></lightning-button>
                         </div>
                     </div>
@@ -1034,6 +1069,59 @@
                             variant="brand"
                             onclick={handlePromoSave}
                             disabled={isPromoSaveDisabled}
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <template if:true={showMeetingModal}>
+            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-text-heading_medium">Plan a Meeting</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <p class="slds-m-bottom_small">
+                            <strong>Start:</strong> {pendingSlotLabel}
+                            <span class="slds-m-left_small"><strong>End:</strong> {meetingEndLabel}</span>
+                        </p>
+                        <lightning-combobox
+                            label="Meeting type"
+                            placeholder="Select a type"
+                            value={meetingRecordType}
+                            options={meetingRecordTypeOptions}
+                            onchange={handleMeetingRecordTypeChange}
+                            required
+                        ></lightning-combobox>
+                        <lightning-input
+                            class="slds-m-top_small"
+                            label="Meeting title"
+                            placeholder="e.g. Regional speaker dinner, RTD kickoff"
+                            value={meetingTitle}
+                            onchange={handleMeetingTitleChange}
+                            required
+                        ></lightning-input>
+                        <lightning-combobox
+                            class="slds-m-top_small"
+                            label="Project (optional)"
+                            placeholder="Link to a project"
+                            value={meetingProjectId}
+                            options={promoProjectOptions}
+                            onchange={handleMeetingProjectChange}
+                        ></lightning-combobox>
+                        <p class="slds-m-top_medium slds-text-body_small slds-text-color_weak">
+                            Creates a Draft Meeting on your calendar. Open it to manage members, expenses, and approval.
+                        </p>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={handleMeetingCancel}></lightning-button>
+                        <lightning-button
+                            label="Save Meeting"
+                            variant="brand"
+                            onclick={handleMeetingSave}
+                            disabled={isMeetingSaveDisabled}
                         ></lightning-button>
                     </footer>
                 </div>

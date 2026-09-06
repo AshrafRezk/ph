@@ -16,6 +16,11 @@
                 <label>Draft</label>
             </value>
             <value>
+                <fullName>Submitted</fullName>
+                <default>false</default>
+                <label>Submitted</label>
+            </value>
+            <value>
                 <fullName>Scheduled</fullName>
                 <default>false</default>
                 <label>Scheduled</label>

@@ -1169,5 +1169,133 @@ public with sharing class FieldRepHomeController {
         }
         throw new AuraHandledException('You cannot view home metrics for other users.');
     }
+
+    @AuraEnabled
+    public static MonthlyTimecardSummary getMonthlyTimecardSummary(Id contextUserId) {
+        Id resolvedUserId = resolveUserId(contextUserId);
+        Employee_Time_Card__c timeCard = resolveOrEnsureTimeCard(resolvedUserId);
+        MonthlyTimecardSummary result = new MonthlyTimecardSummary();
+        if (timeCard == null) {
+            return result;
+        }
+
+        Date monthStart = Date.today().toStartOfMonth();
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+
+        Integer fieldDays = 0;
+        Integer coachedDays = 0;
+        Integer activityDays = 0;
+        Integer submittedCalls = 0;
+
+        for (Employee_Time_Card_Day_Entry__c entry : [
+            SELECT
+                Calendar_Working_Days__c,
+                Days_with_Activities__c,
+                Submitted_Calls__c
+            FROM Employee_Time_Card_Day_Entry__c
+            WHERE Employee_Time_Card__c = :timeCard.Id
+            WITH USER_MODE
+        ]) {
+            if (valueOrZero(entry.Calendar_Working_Days__c) > 0) {
+                fieldDays++;
+            }
+            if (valueOrZero(entry.Days_with_Activities__c) > 0) {
+                activityDays++;
+            }
+            submittedCalls += valueOrZeroInt(
+                Integer.valueOf(entry.Submitted_Calls__c == null ? 0 : entry.Submitted_Calls__c.intValue())
+            );
+        }
+
+        LeaveBreakdown leaves = loadLeaveBreakdown(resolvedUserId, monthStart, monthEnd);
+        Boolean isManager = isManagerUser(resolvedUserId);
+
+        result.fieldDays = fieldDays;
+        result.coachedDays = coachedDays;
+        result.coachingDays = isManager ? coachedDays : 0;
+        result.activityDays = activityDays;
+        result.submittedCalls = submittedCalls;
+        result.leaveDays = leaves.totalLeaveDays;
+        result.sickLeaveDays = leaves.sickLeaveDays;
+        result.annualVacationDays = leaves.annualVacationDays;
+        result.conferenceDays = leaves.conferenceDays;
+        result.publicHolidayDays = leaves.publicHolidayDays;
+        result.isManager = isManager;
+        result.monthLabel = monthStart.format();
+        return result;
+    }
+
+    public class MonthlyTimecardSummary {
+        @AuraEnabled public Integer fieldDays;
+        @AuraEnabled public Integer coachedDays;
+        @AuraEnabled public Integer coachingDays;
+        @AuraEnabled public Integer activityDays;
+        @AuraEnabled public Integer submittedCalls;
+        @AuraEnabled public Integer leaveDays;
+        @AuraEnabled public Integer sickLeaveDays;
+        @AuraEnabled public Integer annualVacationDays;
+        @AuraEnabled public Integer conferenceDays;
+        @AuraEnabled public Integer publicHolidayDays;
+        @AuraEnabled public Boolean isManager;
+        @AuraEnabled public String monthLabel;
+    }
+
+    private class LeaveBreakdown {
+        public Integer totalLeaveDays = 0;
+        public Integer sickLeaveDays = 0;
+        public Integer annualVacationDays = 0;
+        public Integer conferenceDays = 0;
+        public Integer publicHolidayDays = 0;
+    }
+
+    private static LeaveBreakdown loadLeaveBreakdown(Id userId, Date monthStart, Date monthEnd) {
+        LeaveBreakdown result = new LeaveBreakdown();
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        for (Time_Off_Request__c tot : [
+            SELECT Type__c, Span_Duration__c, Stage__c
+            FROM Time_Off_Request__c
+            WHERE
+                OwnerId = :userId
+                AND Stage__c = 'Approved'
+                AND Start_Date_Time__c <= :endDt
+                AND End_Date_Time__c >= :startDt
+            WITH USER_MODE
+        ]) {
+            Decimal days = valueOrZero(tot.Span_Duration__c);
+            if (days <= 0) {
+                days = 1;
+            }
+            Integer dayCount = Integer.valueOf(days.intValue());
+            result.totalLeaveDays += dayCount;
+            if (tot.Type__c == 'Sick Leave') {
+                result.sickLeaveDays += dayCount;
+            } else if (tot.Type__c == 'Annual Vacation') {
+                result.annualVacationDays += dayCount;
+            } else if (tot.Type__c == 'Conference') {
+                result.conferenceDays += dayCount;
+            } else if (tot.Type__c == 'Holiday') {
+                result.publicHolidayDays += dayCount;
+            }
+        }
+        return result;
+    }
+
+    private static Boolean isManagerUser(Id userId) {
+        List<User> users = [
+            SELECT Profile.Name
+            FROM User
+            WHERE Id = :userId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (users.isEmpty()) {
+            return false;
+        }
+        String profileName = users[0].Profile.Name == null ? '' : users[0].Profile.Name.toLowerCase();
+        return profileName.contains('manager')
+            || profileName.contains('district')
+            || profileName.contains('nsm');
+    }
 }
 

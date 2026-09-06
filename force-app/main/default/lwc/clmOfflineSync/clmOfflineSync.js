@@ -12,7 +12,7 @@ import {
 const MAX_RETRIES = 5;
 const listeners = new Set();
 let syncInFlight = false;
-let listenerRegistered = false;
+let forceOffline = false;
 
 function notify(status) {
     listeners.forEach((listener) => {
@@ -27,29 +27,62 @@ function notify(status) {
 
 export function registerOfflineListener(listener) {
     listeners.add(listener);
-    ensureOnlineListener();
     return () => listeners.delete(listener);
 }
 
 export function isOfflineMode() {
-    return typeof navigator !== 'undefined' && !navigator.onLine;
+    // Only use manual mode selection - no auto-detection
+    return forceOffline;
 }
 
-function ensureOnlineListener() {
-    if (listenerRegistered || typeof window === 'undefined') {
-        return;
+export function setForceOffline(forced) {
+    forceOffline = forced;
+    console.log('[OfflineSync] Force offline mode:', forced);
+    // Notify listeners of status change
+    notify({ phase: forced ? 'forced-offline' : 'forced-online', pending: 0 });
+}
+
+export function getForceOffline() {
+    return forceOffline;
+}
+
+// Manual mode change - trigger queue drain when going back online
+export function setForceOfflineAndSync(forced) {
+    const wasOffline = forceOffline;
+    forceOffline = forced;
+    console.log('[OfflineSync] Force offline mode:', forced);
+    // Notify listeners of status change
+    notify({ phase: forced ? 'forced-offline' : 'forced-online', pending: 0 });
+    
+    // When manually switching back online, trigger queue drain
+    if (!forced && wasOffline) {
+        console.log('[OfflineSync] Manual online mode - triggering queue drain');
+        drainQueue().catch((error) => {
+            console.warn('[OfflineSync] Queue drain after mode change failed:', error);
+        });
     }
-    listenerRegistered = true;
-    window.addEventListener('online', () => {
-        drainQueue();
-    });
 }
 
 export async function queueOfflineAction(action) {
+    console.log('[OfflineSync] [Step 1: Queue Action]', {
+        actionType: action?.actionType,
+        clientVisitKey: action?.clientVisitKey,
+        clientActionKey: action?.clientActionKey,
+        isOffline: isOfflineMode()
+    });
     const id = await enqueueAction(action);
-    notify({ phase: 'queued', pending: await countPendingActions() });
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
-        drainQueue();
+    const pendingCount = await countPendingActions();
+    console.log(`[OfflineSync] [Step 2: Saved to IDB Outbox] Action ID: ${id}. Total pending: ${pendingCount}`);
+    notify({ phase: 'queued', pending: pendingCount });
+
+    // Only attempt to drain if we're online
+    if (!isOfflineMode()) {
+        console.log('[OfflineSync] Online - attempting immediate queue drain...');
+        drainQueue().catch((error) => {
+            console.warn('[OfflineSync] Immediate drain failed, will retry on next online event:', error);
+        });
+    } else {
+        console.log('[OfflineSync] Offline - action queued for later sync');
     }
     return id;
 }
@@ -107,20 +140,27 @@ async function persistKeyMaps(result) {
 }
 
 export async function drainQueue() {
-    if (syncInFlight || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    // Note: navigator.onLine is unreliable in Capacitor WebView
+    // Always try to sync - let the network failure handle real offline cases
+    if (syncInFlight) {
+        console.log('[OfflineSync] Sync already in flight, skipping drain.');
         return { synced: 0 };
     }
-    syncInFlight = true;
-    notify({ phase: 'syncing' });
     let synced = 0;
     try {
         const pending = await getPendingActions();
+        console.log(`[OfflineSync] [Step 3: Reconnection / Drain] Found ${pending.length} pending action(s) in outbox.`);
         if (!pending.length) {
-            notify({ phase: 'idle', synced: 0, pending: 0 });
+            // No pending actions - don't notify to avoid UI flickering
             return { synced: 0 };
         }
+        // Only set syncInFlight and notify when there are actual actions to sync
+        syncInFlight = true;
+        notify({ phase: 'syncing' });
         const payload = pending.map(toApexAction);
+        console.log('[OfflineSync] [Step 4: Syncing with Salesforce]', payload);
         const result = await syncOfflineActions({ actions: payload });
+        console.log('[OfflineSync] [Step 5: Salesforce Result Received]', result);
         await persistKeyMaps(result);
 
         const failedKeys = new Set(result?.failedClientKeys || []);
@@ -136,20 +176,26 @@ export async function drainQueue() {
                 failedKeys.has(row.clientActionKey);
             if (failed) {
                 const retries = (row.retries || 0) + 1;
+                console.warn(`[OfflineSync] Action failed for clientKey ${failureKey}. Retry #${retries}`);
                 await updateAction(row.id, {
                     status: retries >= MAX_RETRIES ? 'dead' : 'failed',
                     retries,
                     lastError: result?.errorMessages?.[index] || 'Sync failed'
                 });
             } else {
+                console.log(`[OfflineSync] [Step 6: Outbox Cleanup] Successfully synced and removed action ID ${row.id}`);
                 await removeAction(row.id);
                 synced += 1;
             }
         }
         const remaining = await countPendingActions();
+        console.log(`[OfflineSync] [Step 7: Finished] Synced: ${synced}, Remaining pending: ${remaining}`);
         notify({ phase: 'idle', synced, pending: remaining });
         return { synced, result, pending: remaining };
     } catch (error) {
+        console.error('[OfflineSync] Drain queue error:', error);
+        // In manual mode, we don't auto-detect offline status
+        // The user must manually switch to offline mode if they have connectivity issues
         notify({ phase: 'error', error, pending: await countPendingActions() });
         throw error;
     } finally {
@@ -158,12 +204,14 @@ export async function drainQueue() {
 }
 
 export function startSyncService() {
-    ensureOnlineListener();
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
+    // Only attempt to drain if we're online (manual mode)
+    if (!isOfflineMode()) {
         drainQueue().catch((error) => {
             // eslint-disable-next-line no-console
             console.warn('CLM offline sync failed', error);
         });
+    } else {
+        console.log('[OfflineSync] Offline - skipping initial queue drain');
     }
 }
 

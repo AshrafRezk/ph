@@ -166,8 +166,10 @@
 
                     <template if:true={isSamplesSection}>
                         <c-visit-sample-grid
+                            visit-id={recordId}
                             samples={samples}
                             attendees={attendees}
+                            scoped-brand-ids={selectedBrandIds}
                             disabled={isLocked}
                             onsampleschange={handleSamplesChange}
                         ></c-visit-sample-grid>
@@ -204,12 +206,7 @@
         </template>
 
         <template if:true={showCoachingModal}>
-            <c-visit-coaching-form-modal
-                visit-id={recordId}
-                onclose={handleCloseCoachingModal}
-                oncoachingcreated={handleCoachingCreated}
-                oncoachingsubmitted={handleCoachingSubmitted}
-            ></c-visit-coaching-form-modal>
+            <!-- visit coaching modal removed for migration -->
         </template>
 
         <template if:true={showMedicalInquiryModal}>

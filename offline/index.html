@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#0176d3" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Pharma Field" />
+        <title>Pharma Field — Performance</title>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+    </head>
+    <body>
+        <header id="app-nav" class="app-nav" hidden>
+            <div class="nav-brand">
+                <span id="nav-title" class="nav-title">Pharma Field</span>
+                <span class="nav-badge">v1.0.0</span>
+            </div>
+<nav id="app-tabs" class="nav-tabs" role="tablist"></nav>
+            <div class="nav-actions nav-sidebar-actions">
+                <button id="switch-app-btn" class="nav-btn-switch" type="button" title="Choose a different app">
+                    Switch app
+                </button>
+                <button id="logout-btn" class="nav-btn-logout" type="button" title="Log out and clear access token">
+                    Log out
+                </button>
+            </div>
+        </header>
+
+        <div id="session-bar" class="session-bar" hidden>
+            <div class="login-card">
+                <div class="login-brand">
+                    <img src="/salesforce-logo.svg" alt="Salesforce" width="180" height="64" />
+                </div>
+                <h1>Welcome</h1>
+                <p class="login-lead">
+                    Sign in with your company account. After the first sync, you can keep working even
+                    without internet.
+                </p>
+                <div id="login-ready" class="login-ready" hidden>
+                    Ready — next you’ll see your company’s usual sign-in page.
+                </div>
+                <div class="field">
+                    <label for="login-env">How do you sign in?</label>
+                    <select id="login-env">
+                        <option value="production">Live account</option>
+                        <option value="sandbox">Practice / training account</option>
+                        <option value="custom" selected>Company login page</option>
+                    </select>
+                </div>
+                <div id="custom-domain-field" class="field">
+                    <label for="custom-domain-input">Company login name</label>
+                    <div class="domain-combo">
+                        <input
+                            id="custom-domain-input"
+                            type="text"
+                            placeholder="yourcompany"
+                            inputmode="text"
+                            autocomplete="organization"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            aria-label="Company login name"
+                        />
+                        <span class="domain-suffix" aria-hidden="true">.my.salesforce.com</span>
+                    </div>
+                    <p class="login-help">
+                        Enter only the short name (for example <strong>zetapharma</strong>). Ask your
+                        admin if you’re not sure.
+                    </p>
+                </div>
+                <button id="login-btn" class="login-btn primary" type="button">Sign in</button>
+                <p id="login-status" class="login-status" hidden></p>
+                <p class="login-footer">Secure company sign-in</p>
+            </div>
+        </div>
+
+        <div id="app-chooser" class="app-chooser" hidden>
+            <header class="chooser-head">
+                <div>
+                    <h1 class="chooser-title">App Launcher</h1>
+                    <p class="chooser-sub">Open an app, or jump straight to an item. Pharma Field works fully offline.</p>
+                </div>
+                <button id="chooser-logout-btn" class="nav-btn-logout" type="button" title="Log out">
+                    Log out
+                </button>
+            </header>
+            <div class="chooser-search-wrap">
+                <input id="chooser-search" class="chooser-search" type="search"
+                    placeholder="Search apps and items…" autocomplete="off" autocorrect="off" />
+            </div>
+            <section class="chooser-section">
+                <h2 class="chooser-section-title">All Apps</h2>
+                <div id="app-chooser-grid" class="chooser-grid"></div>
+            </section>
+            <section class="chooser-section">
+                <h2 class="chooser-section-title">All Items</h2>
+                <div id="item-chooser-grid" class="chooser-grid chooser-grid-items"></div>
+            </section>
+        </div>
+        <main id="app" class="app-shell">
+            <div id="view-home" class="view-panel active"></div>
+            <div id="view-accounts" class="view-panel"></div>
+            <div id="view-planner" class="view-panel"></div>
+            <div id="view-timeoff" class="view-panel"></div>
+            <div id="view-clm" class="view-panel"></div>
+            <div id="view-visitcall" class="view-panel"></div>
+            <div id="view-entity" class="view-panel"></div>
+            <div id="view-unsupported" class="view-panel"></div>
+        </main>
+
+        <script type="module" src="/src/main.js"></script>
+    </body>
+</html>

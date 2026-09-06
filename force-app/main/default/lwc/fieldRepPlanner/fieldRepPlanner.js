@@ -1,8 +1,7 @@
-import { LightningElement, track, wire } from 'lwc';
+import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import LightningConfirm from 'lightning/confirm';
-import { loadScript, loadStyle } from 'lightning/platformResourceLoader';
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
 import fetchPlannerData from '@salesforce/apex/FieldPlannerController.fetchPlannerData';
 import getMapAccounts from '@salesforce/apex/FieldPlannerController.getMapAccounts';
@@ -11,8 +10,16 @@ import getPlannerAccountFilterOptions from '@salesforce/apex/FieldPlannerControl
 import getPlannerViewerContext from '@salesforce/apex/FieldPlannerController.getPlannerViewerContext';
 import {
     getVisitStatusOptions,
-    validateVisitStatusChange
+    validateVisitStatusChange,
+    isNonWorkingDay,
+    canSubmitForApproval,
+    isLockedVisitStatus,
+    isPendingApprovalStatus,
+    VISIT_STATUS_DRAFT,
+    VISIT_STATUS_SUBMITTED
 } from 'c/visitStatusUtils';
+import submitVisit from '@salesforce/apex/FieldPlannerController.submitVisit';
+import submitWeekPlans from '@salesforce/apex/FieldPlannerController.submitWeekPlans';
 import getAccountVisitTargets from '@salesforce/apex/FieldPlannerController.getAccountVisitTargets';
 import searchAccountsPage from '@salesforce/apex/FieldPlannerController.searchAccountsPage';
 import upsertVisit from '@salesforce/apex/FieldPlannerController.upsertVisit';
@@ -20,6 +27,9 @@ import rescheduleVisits from '@salesforce/apex/FieldPlannerController.reschedule
 import deleteVisit from '@salesforce/apex/FieldPlannerController.deleteVisit';
 import createTimeOff from '@salesforce/apex/FieldPlannerController.createTimeOff';
 import getPromotionalProjects from '@salesforce/apex/FieldPlannerController.getPromotionalProjects';
+import createMeeting from '@salesforce/apex/MeetingPlannerController.createMeeting';
+import getMeetingRecordTypes from '@salesforce/apex/MeetingPlannerController.getMeetingRecordTypes';
+import fetchMeetings from '@salesforce/apex/MeetingPlannerController.fetchMeetings';
 import {
     getCurrentPosition,
     fetchOsrmRoute,
@@ -28,12 +38,28 @@ import {
     buildSwapHints
 } from 'c/plannerMapUtils';
 import { detectRouteOutliers, formatDistantStopsSummary, normalizeSalesforceId } from 'c/plannerRouteUtils';
+import {
+    addOsmTileLayer,
+    createVisitPinIcon,
+    ensureLeaflet,
+    resolveAccountPinKind,
+    resolveAccountTypeLabel
+} from 'c/plannerMapPins';
+import {
+    loadAccountCollections,
+    saveAccountCollections
+} from 'c/plannerAccountCollections';
 import Id from '@salesforce/user/Id';
 import {
+    getMapAccountsCache,
     getPlannerCache,
+    getUserMapAccountsKey,
     getUserPlannerCacheKey,
     newClientKey,
-    putPlannerCache
+    putCachedAccounts,
+    putMapAccountsCache,
+    putPlannerCache,
+    searchCachedAccounts
 } from 'c/clmOfflineStore';
 import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
 
@@ -58,8 +84,8 @@ const DRAG_TYPE_TOT = 'tot';
 const DRAG_TYPE_EVENT = 'event';
 const DRAG_TYPE_PROMO = 'promo';
 const DEFAULT_PROMO_MINUTES = 120;
+const DEFAULT_MEETING_MINUTES = 120;
 const OSRM_BASE = 'https://router.project-osrm.org';
-const COLLECTIONS_STORAGE_PREFIX = 'fieldRepPlanner.collections.';
 const LIST_MODE_ALL = 'all';
 const LIST_MODE_COLLECTION = 'collection';
 const COLLECTION_FETCH_PAGE_SIZE = 200;
@@ -84,40 +110,17 @@ const TOT_QUICK_PRESETS = [
     { id: 'event-3h', label: 'Event · 3h', typeValue: 'Event', spanType: 'Hours', durationHours: '3' }
 ];
 
-const VISIT_STATUS_OPTIONS = [
-    { label: 'Draft', value: 'Draft' },
-    { label: 'Scheduled', value: 'Scheduled' },
-    { label: 'Completed', value: 'Completed' },
-    { label: 'Cancelled', value: 'Cancelled' }
-];
-
-const VISIT_STATUS_DRAFT = 'Draft';
-
-const HCP_RECORD_TYPES = new Set([
-    'SDO_PersonAccounts',
-    'Medical_Professional_HCP',
-    'PersonAccount',
-    'Business_Contact'
-]);
-
-const HCO_RECORD_TYPES = new Set(['Institution_HCO', 'Pharmacy']);
-
-const HCP_PIN_SVG =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>';
-
-const HCO_PIN_SVG =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 7V3H2v18h20V7H12zm-2 12H6v-2h4v2zm0-4H6v-2h4v2zm0-4H6V9h4v2zm0-4H6V5h4v2zm6 12h-4v-2h4v2zm0-4h-4v-2h4v2zm0-4h-4V9h4v2zm0-4h-4V5h4v2zm8 12h-6v-2h2v-2h-2v-2h2v-2h-2V9h6v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>';
-
 function startOfWeek(date) {
     const d = new Date(date);
-    d.setDate(d.getDate() - d.getDay());
+    // Saturday-start working week (Sat–Wed working days).
+    const daysFromSaturday = (d.getDay() + 1) % 7;
+    d.setDate(d.getDate() - daysFromSaturday);
     d.setHours(0, 0, 0, 0);
     return d;
 }
 
 function isWeekendDay(date) {
-    const day = date.getDay();
-    return day === 5 || day === 6;
+    return isNonWorkingDay(date);
 }
 
 function addDays(date, days) {
@@ -181,31 +184,6 @@ function normalizeLocalDateTimeString(value) {
 
 // geolocation + OSRM helpers moved to plannerMapUtils/plannerMapUtils.js
 
-function resolveAccountPinKind(recordTypeDeveloperName, recordTypeName) {
-    const developerName = recordTypeDeveloperName || '';
-    if (HCP_RECORD_TYPES.has(developerName)) {
-        return 'hcp';
-    }
-    if (HCO_RECORD_TYPES.has(developerName)) {
-        return 'hco';
-    }
-    const label = (recordTypeName || '').toLowerCase();
-    if (label.includes('hcp') || label.includes('professional') || label.includes('person')) {
-        return 'hcp';
-    }
-    if (label.includes('hco') || label.includes('institution') || label.includes('pharmacy')) {
-        return 'hco';
-    }
-    return 'hcp';
-}
-
-function resolveAccountTypeLabel(pinKind, recordTypeName) {
-    if (recordTypeName) {
-        return recordTypeName;
-    }
-    return pinKind === 'hco' ? 'Healthcare organization' : 'Healthcare professional';
-}
-
 function coerceGeoCoordinate(value) {
     if (value == null || value === '') {
         return null;
@@ -243,32 +221,6 @@ function buildOutlierIdsByDayKey(visits, dayKeys) {
         result[dayKey] = new Set(outliers.map((item) => normalizeSalesforceId(item.visitId)));
     });
     return result;
-}
-
-function createVisitPinIcon(pinKind, isOutlier = false) {
-    if (pinKind === 'unplanned') {
-        return window.L.divIcon({
-            className: 'map-pin-icon-shell',
-            html: '<div class="map-pin-marker map-pin-marker-unplanned" title="No visit planned"></div>',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
-            popupAnchor: [0, -8]
-        });
-    }
-    const svg = pinKind === 'hco' ? HCO_PIN_SVG : HCP_PIN_SVG;
-    const outlierClass = isOutlier ? ' map-pin-marker-outlier' : '';
-    const title = isOutlier
-        ? 'Route outlier — far from other stops'
-        : pinKind === 'hco'
-          ? 'HCO'
-          : 'HCP';
-    return window.L.divIcon({
-        className: 'map-pin-icon-shell',
-        html: `<div class="map-pin-marker map-pin-marker-${pinKind}${outlierClass}" title="${title}">${svg}</div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -16]
-    });
 }
 
 function buildCoordPath(points) {
@@ -422,10 +374,12 @@ function computeScheduleFromRoute(orderedStops, legs) {
 export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track weekStart = startOfWeek(new Date());
     @track viewMode = 'calendar';
+    @track mobileSubView = 'calendar';
     @track mapDayKey = toDateKey(new Date());
     @track accounts = [];
     @track visits = [];
     @track timeOffBlocks = [];
+    @track meetings = [];
     @track accountSearch = '';
     @track accountRecordType = 'All';
     @track accountSpecialty = 'All';
@@ -491,6 +445,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track promoProjectId = '';
     @track promoTitle = '';
     @track promoProjectOptions = [];
+    @track showMeetingModal = false;
+    @track meetingTitle = '';
+    @track meetingRecordType = 'Promotional_Activity';
+    @track meetingRecordTypeOptions = [];
+    @track meetingProjectId = '';
     @track totQuickPresets = TOT_QUICK_PRESETS;
     @track showAccountFilterPanel = false;
     @track showPlanningPalettePanel = false;
@@ -521,20 +480,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     suppressVisitClick = false;
     touchDragGhostEl;
     touchDropHighlightEl;
+    touchDropHighlightClass;
     _handleDocumentTouchMove;
     _handleDocumentTouchEnd;
-
-    @wire(getPlannerAccountRecordTypes)
-    wiredRecordTypes({ data, error }) {
-        if (data) {
-            this.recordTypeOptions = data;
-            if (!this.accountRecordType) {
-                this.accountRecordType = 'All';
-            }
-        } else if (error) {
-            this.recordTypeOptions = [{ label: 'All Record Types', value: 'All' }];
-        }
-    }
 
     connectedCallback() {
         this._handleDocumentTouchMove = this.handleDocumentTouchMove.bind(this);
@@ -545,10 +493,27 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     async bootstrapPlanner() {
         await this.loadViewerContext();
         await Promise.all([
+            this.loadRecordTypes(),
             this.loadFilterOptions(),
             this.loadWeek(),
             this.loadAccountsPage(true)
         ]);
+    }
+
+    async loadRecordTypes() {
+        try {
+            const data = await getPlannerAccountRecordTypes();
+            if (data && data.length) {
+                this.recordTypeOptions = data;
+                if (!this.accountRecordType) {
+                    this.accountRecordType = 'All';
+                }
+            } else {
+                this.recordTypeOptions = [{ label: 'All Record Types', value: 'All' }];
+            }
+        } catch (_error) {
+            this.recordTypeOptions = [{ label: 'All Record Types', value: 'All' }];
+        }
     }
 
     disconnectedCallback() {
@@ -585,9 +550,19 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     get plannerViewerOptions() {
-        const options = [{ label: 'My planner', value: this.plannerViewerContext?.defaultUserId }];
+        const defaultUserId = this.plannerViewerContext?.defaultUserId;
+        const options = [{ label: 'My planner', value: defaultUserId }];
+        const seen = new Set();
+        if (defaultUserId) {
+            seen.add(String(defaultUserId).substring(0, 15));
+        }
         (this.plannerViewerContext?.options || []).forEach((option) => {
-            options.push({ label: option.label, value: option.userId });
+            const val = option.userId || option.value;
+            const norm = val ? String(val).substring(0, 15) : '';
+            if (val && !seen.has(norm)) {
+                seen.add(norm);
+                options.push({ label: option.label, value: val });
+            }
         });
         return options;
     }
@@ -705,6 +680,30 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return this.totalAccountCount === 1 ? '1 account' : `${this.totalAccountCount} accounts`;
     }
 
+    get isMobileCalendarTab() {
+        return this.mobileSubView === 'calendar';
+    }
+
+    get isMobileAccountsTab() {
+        return this.mobileSubView === 'accounts';
+    }
+
+    get mobileCalendarBtnClass() {
+        return `mobile-nav-btn${this.isMobileCalendarTab ? ' is-active' : ''}`;
+    }
+
+    get mobileAccountsBtnClass() {
+        return `mobile-nav-btn${this.isMobileAccountsTab ? ' is-active' : ''}`;
+    }
+
+    handleSelectMobileCalendar() {
+        this.mobileSubView = 'calendar';
+    }
+
+    handleSelectMobileAccounts() {
+        this.mobileSubView = 'accounts';
+    }
+
     get isSaveCollectionDisabled() {
         return this.isSavingCollection || !(this.saveCollectionName || '').trim();
     }
@@ -761,6 +760,22 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return this.isSaving || !this.promoProjectId || !(this.promoTitle || '').trim();
     }
 
+    get meetingEndLabel() {
+        if (!this.pendingSlotStart) {
+            return '';
+        }
+        const end = new Date(this.pendingSlotStart.getTime() + DEFAULT_MEETING_MINUTES * 60000);
+        return formatTime(end);
+    }
+
+    get isMeetingSaveDisabled() {
+        return (
+            this.isSaving ||
+            !this.meetingRecordType ||
+            !(this.meetingTitle || '').trim()
+        );
+    }
+
     get totSubmitDisabled() {
         return this.isSaving || Boolean(this.validateTotFormState());
     }
@@ -810,7 +825,25 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     get accountChipDraggable() {
-        return this.isReadOnlyPlannerView ? 'false' : 'true';
+        if (this.isReadOnlyPlannerView) {
+            return 'false';
+        }
+        // On touch / coarse-pointer devices the native HTML5 draggable attribute
+        // hijacks the gesture (starts a native drag, swallows touchmove), so the
+        // custom touch-drag never activates. Disable it there and let the touch
+        // handlers drive; keep native drag for mouse (fine-pointer) devices.
+        if (this.isCoarsePointer) {
+            return 'false';
+        }
+        return 'true';
+    }
+
+    get isCoarsePointer() {
+        return (
+            typeof window !== 'undefined' &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(pointer: coarse)').matches
+        );
     }
 
     get hasRouteEstCost() {
@@ -889,17 +922,32 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     buildAccountFootnote(account) {
         const actual = account?.actualVisits;
         const target = account?.targetVisits;
+        const planned = account?.plannedVisits;
         const hasTarget = target != null && target !== undefined;
-        if (!hasTarget && actual == null) {
-            return '';
+        const hasActual = actual != null && actual !== undefined;
+        const hasPlanned = planned != null && planned !== undefined;
+        const parts = [];
+        if (account?.classification) {
+            parts.push(account.classification);
         }
-        const actualLabel = Math.round(Number(actual) || 0);
-        const targetLabel = hasTarget ? Math.round(Number(target) || 0) : null;
-        const visitsLabel = hasTarget
-            ? `Actual ${actualLabel} / Target ${targetLabel}`
-            : `Actual ${actualLabel}`;
-        const status = (account?.frequencyStatus || '').trim();
-        return status ? `${status} · ${visitsLabel}` : visitsLabel;
+        if (hasPlanned) {
+            parts.push(`Planned ${Math.round(Number(planned) || 0)}`);
+        }
+        if (hasTarget || hasActual) {
+            const actualLabel = Math.round(Number(actual) || 0);
+            const targetLabel = hasTarget ? Math.round(Number(target) || 0) : null;
+            parts.push(hasTarget ? `Actual ${actualLabel} / Target ${targetLabel}` : `Actual ${actualLabel}`);
+        }
+        const pace = (account?.paceStatusLabel || '').trim();
+        if (pace && pace !== 'N/A') {
+            parts.push(pace);
+        } else {
+            const status = (account?.frequencyStatus || '').trim();
+            if (status) {
+                parts.push(status);
+            }
+        }
+        return parts.join(' · ');
     }
 
     enrichAccountVisitMetrics(account) {
@@ -914,7 +962,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             ...account,
             frequencyStatus: live.frequencyStatus ?? account.frequencyStatus,
             actualVisits: live.actualVisits ?? account.actualVisits,
-            targetVisits: live.targetVisits ?? account.targetVisits
+            targetVisits: live.targetVisits ?? account.targetVisits,
+            plannedVisits: live.plannedVisits ?? account.plannedVisits,
+            paceStatus: live.paceStatus ?? account.paceStatus,
+            paceStatusLabel: live.paceStatusLabel ?? account.paceStatusLabel,
+            classification: live.classification ?? account.classification
         };
     }
 
@@ -975,37 +1027,23 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     getCollectionsStorageKey() {
-        return `${COLLECTIONS_STORAGE_PREFIX}${this.collectionsStorageUserId}`;
+        return this.collectionsStorageUserId;
     }
 
     loadCollectionsFromStorage() {
-        try {
-            const raw = window.localStorage.getItem(this.getCollectionsStorageKey());
-            if (!raw) {
-                this.accountCollections = [];
-                return;
-            }
-            const parsed = JSON.parse(raw);
-            this.accountCollections = Array.isArray(parsed?.collections) ? parsed.collections : [];
-            if (
-                this.selectedCollectionId &&
-                !this.accountCollections.some((item) => item.id === this.selectedCollectionId)
-            ) {
-                this.selectedCollectionId = null;
-                this.listViewMode = LIST_MODE_ALL;
-            }
-        } catch (error) {
-            this.accountCollections = [];
+        this.accountCollections = loadAccountCollections(this.collectionsStorageUserId);
+        if (
+            this.selectedCollectionId &&
+            !this.accountCollections.some((item) => item.id === this.selectedCollectionId)
+        ) {
+            this.selectedCollectionId = null;
+            this.listViewMode = LIST_MODE_ALL;
         }
     }
 
     saveCollectionsToStorage() {
-        try {
-            window.localStorage.setItem(
-                this.getCollectionsStorageKey(),
-                JSON.stringify({ collections: this.accountCollections })
-            );
-        } catch (error) {
+        const saved = saveAccountCollections(this.collectionsStorageUserId, this.accountCollections);
+        if (!saved) {
             this.showToast('Save failed', 'Could not save account lists on this device.', 'error');
         }
     }
@@ -1022,6 +1060,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             frequencyStatus: account.frequencyStatus,
             actualVisits: account.actualVisits,
             targetVisits: account.targetVisits,
+            plannedVisits: account.plannedVisits,
+            paceStatus: account.paceStatus,
+            paceStatusLabel: account.paceStatusLabel,
             recordTypeDeveloperName: account.recordTypeDeveloperName,
             recordTypeName: account.recordTypeName,
             specialty: account.specialty,
@@ -1251,6 +1292,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             const pageAccounts = (result?.accounts || []).map((account) =>
                 this.snapshotAccountForCollection(this.decorateAccountForDisplay(account))
             );
+            await putCachedAccounts(result?.accounts || []);
             allAccounts.push(...pageAccounts.filter(Boolean));
             hasMore = result?.hasMore === true;
             offset += pageAccounts.length;
@@ -1758,6 +1800,25 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return `${formatDateLabel(this.weekStart)} – ${formatDateLabel(end)}`;
     }
 
+    get draftPlannedVisits() {
+        return (this.visits || []).filter((visit) =>
+            canSubmitForApproval(visit?.visitType, visit?.status)
+        );
+    }
+
+    get canSubmitWeek() {
+        return !this.isReadOnlyPlannerView && this.draftPlannedVisits.length > 0;
+    }
+
+    get isSubmitWeekDisabled() {
+        return !this.canSubmitWeek || this.isSaving;
+    }
+
+    get submitWeekLabel() {
+        const count = this.draftPlannedVisits.length;
+        return count > 0 ? `Submit week (${count})` : 'Submit week';
+    }
+
     get weekDays() {
         const todayKey = toDateKey(new Date());
         return Array.from({ length: 7 }, (_, index) => {
@@ -1882,7 +1943,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     get calendarEvents() {
         const events = [];
         const outlierIdsByDay = this.calendarOutlierIdsByDayKey;
-        this.visits.forEach((visit) => {
+        (this.visits || []).forEach((visit) => {
             const isPromo = !visit.accountId && visit.zetaProjectId;
             const isLocked = visit.status === 'Completed' || visit.status === 'Cancelled';
             const visitStart = parseSalesforceDateTime(visit.startDateTime);
@@ -1927,16 +1988,68 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             }
         });
 
-        this.timeOffBlocks.forEach((tot) => {
+        (this.timeOffBlocks || []).forEach((tot) => {
+            const label = tot.typeLabel || tot.typeValue || tot.type || tot.name || tot.Type__c || 'Time Off';
+            const startRaw = tot.startDateTime || tot.Start_Date_Time__c || tot.startDate;
+            const endRaw = tot.endDateTime || tot.End_Date_Time__c || tot.endDate;
+
+            let startDate = parseSalesforceDateTime(startRaw);
+            let endDate = parseSalesforceDateTime(endRaw);
+
+            const isFullDay = tot.isFullDay || tot.spanType === 'Full_Day' || tot.Span_Type__c === 'Full_Day';
+
+            if (isFullDay && startDate) {
+                const d = new Date(startDate);
+                d.setHours(DAY_START_HOUR, 0, 0, 0);
+                startDate = d;
+                const e = new Date(startDate);
+                e.setHours(DAY_END_HOUR, 0, 0, 0);
+                endDate = e;
+            } else if (startDate && (!endDate || endDate.getTime() <= startDate.getTime())) {
+                const hours = Number(tot.durationHours || 2);
+                endDate = new Date(startDate.getTime() + hours * 3600 * 1000);
+            }
+
+            const customTimeLabel = isFullDay
+                ? 'Full Day'
+                : startDate && endDate
+                  ? `${formatTime(startDate)} – ${formatTime(endDate)}`
+                  : '';
+            const stagePrefix = tot.stage === 'Draft' ? 'Draft — ' : '';
+
             const event = this.buildPositionedEvent({
                 id: tot.id,
                 type: 'tot',
-                title: `TOT — ${tot.typeLabel}`,
-                start: parseSalesforceDateTime(tot.startDateTime),
-                end: parseSalesforceDateTime(tot.endDateTime),
+                title: `${stagePrefix}TOT — ${label}`,
+                start: startDate,
+                end: endDate,
+                customTimeLabel,
                 draggable: false,
                 resizable: false,
                 extraClass: 'tot'
+            });
+            if (event) {
+                events.push(event);
+            }
+        });
+
+        (this.meetings || []).forEach((meeting) => {
+            const isLocked =
+                meeting.status === 'Closed' ||
+                meeting.status === 'Cancelled' ||
+                meeting.status === 'Approved';
+            const titlePrefix = meeting.status === 'Draft' ? 'Draft — ' : '';
+            const typeLabel = meeting.recordTypeLabel || 'Meeting';
+            const meetingTitle = meeting.title || meeting.name || typeLabel;
+            const event = this.buildPositionedEvent({
+                id: meeting.id,
+                type: 'meeting',
+                title: `${titlePrefix}${typeLabel} — ${meetingTitle}`,
+                start: parseSalesforceDateTime(meeting.startDateTime),
+                end: parseSalesforceDateTime(meeting.endDateTime),
+                draggable: false,
+                resizable: false,
+                extraClass: 'meeting'
             });
             if (event) {
                 events.push(event);
@@ -1947,7 +2060,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     get mapStops() {
-        const dayVisits = this.visits
+        const dayVisits = (this.visits || [])
             .filter((visit) => {
                 const start = parseSalesforceDateTime(visit.startDateTime);
                 return start && toDateKey(start) === this.mapDayKey;
@@ -1964,6 +2077,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 visit.accountRecordTypeDeveloperName,
                 visit.accountRecordTypeName
             );
+            const metrics = this.resolveAccountById(visit.accountId) || {};
             return {
                 id: visit.id,
                 accountId: visit.accountId,
@@ -1977,6 +2091,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 endDateTime: visit.endDateTime,
                 durationMs: end - start,
                 timeLabel: `${formatTime(start)} – ${formatTime(end)}`,
+                classification: metrics.classification,
+                plannedVisits: metrics.plannedVisits,
+                actualVisits: metrics.actualVisits,
+                targetVisits: metrics.targetVisits,
+                paceStatusLabel: metrics.paceStatusLabel,
                 latitude,
                 longitude,
                 hasLocation
@@ -2023,7 +2142,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     get plannedAccountIdsForMapDay() {
         return new Set(
-            this.visits
+            (this.visits || [])
                 .filter((visit) => {
                     const start = parseSalesforceDateTime(visit.startDateTime);
                     return start && toDateKey(start) === this.mapDayKey && visit.accountId;
@@ -2056,6 +2175,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                     recordTypeDeveloperName: account.recordTypeDeveloperName,
                     recordTypeName: account.recordTypeName,
                     city: account.city,
+                    plannedVisits: account.plannedVisits,
+                    actualVisits: account.actualVisits,
+                    targetVisits: account.targetVisits,
+                    paceStatusLabel: account.paceStatusLabel,
                     hasLocation: true,
                     isPlanned: false
                 };
@@ -2249,7 +2372,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     get visitStatusOptions() {
         const visit = (this.visits || []).find((item) => item.id === this.visitDetailId);
-        return getVisitStatusOptions(visit?.startDateTime);
+        return getVisitStatusOptions(
+            visit?.startDateTime,
+            visit?.visitType,
+            this.visitDetailOriginalStatus || visit?.status
+        );
     }
 
     get visitShowCancellationReason() {
@@ -2259,8 +2386,16 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     get visitDetailReadOnly() {
         return (
             this.isReadOnlyPlannerView ||
-            this.visitDetailOriginalStatus === 'Completed' ||
-            this.visitDetailOriginalStatus === 'Cancelled'
+            isLockedVisitStatus(this.visitDetailOriginalStatus) ||
+            isPendingApprovalStatus(this.visitDetailOriginalStatus)
+        );
+    }
+
+    get visitDetailCanSubmit() {
+        const visit = (this.visits || []).find((item) => item.id === this.visitDetailId);
+        return (
+            !this.visitDetailReadOnly &&
+            canSubmitForApproval(visit?.visitType, this.visitDetailOriginalStatus)
         );
     }
 
@@ -2291,17 +2426,64 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return formatTime(end);
     }
 
+    resolveSlotFromCoordinates(clientX, clientY) {
+        if (clientX == null || clientY == null) {
+            return null;
+        }
+        const canvas = this.template.querySelector('.calendar-canvas');
+        if (!canvas) {
+            return null;
+        }
+        const rect = canvas.getBoundingClientRect();
+        const TIME_GUTTER_PX = 56;
+        const xRel = clientX - rect.left - TIME_GUTTER_PX;
+        const totalGridWidth = rect.width - TIME_GUTTER_PX;
+        const days = this.weekDays || [];
+        if (days.length === 0 || totalGridWidth <= 0 || xRel < 0) {
+            return null;
+        }
+        const dayWidth = totalGridWidth / days.length;
+        const dayIndex = Math.min(Math.max(0, Math.floor(xRel / dayWidth)), days.length - 1);
+        const day = days[dayIndex];
+        if (!day?.key) {
+            return null;
+        }
+
+        const yRel = clientY - rect.top - CALENDAR_HEADER_HEIGHT;
+        const rawMinutes = Math.max(0, yRel / PX_PER_MINUTE);
+        const slotMinutes = Math.min(
+            Math.floor(rawMinutes / SLOT_MINUTES) * SLOT_MINUTES,
+            this.totalMinutes - SLOT_MINUTES
+        );
+        if (Number.isNaN(slotMinutes)) {
+            return null;
+        }
+        return this.minutesToDate(day.key, slotMinutes);
+    }
+
     resolveSlotFromEvent(event) {
-        const slot = event.target.closest('[data-day-key][data-minutes]');
-        if (!slot) {
-            return null;
+        const slot = event.target?.closest?.('[data-day-key][data-minutes]');
+        if (slot) {
+            const dayKey = slot.dataset.dayKey;
+            const minutes = Number(slot.dataset.minutes);
+            if (dayKey && !Number.isNaN(minutes)) {
+                return this.minutesToDate(dayKey, minutes);
+            }
         }
-        const dayKey = slot.dataset.dayKey;
-        const minutes = Number(slot.dataset.minutes);
-        if (!dayKey || Number.isNaN(minutes)) {
-            return null;
+        const clientX = event.clientX;
+        const clientY = event.clientY;
+        if (clientX != null && clientY != null) {
+            const pointSlot = this.findCalendarSlotAtPoint(clientX, clientY);
+            if (pointSlot) {
+                const dayKey = pointSlot.dataset.dayKey;
+                const minutes = Number(pointSlot.dataset.minutes);
+                if (dayKey && !Number.isNaN(minutes)) {
+                    return this.minutesToDate(dayKey, minutes);
+                }
+            }
+            return this.resolveSlotFromCoordinates(clientX, clientY);
         }
-        return this.minutesToDate(dayKey, minutes);
+        return null;
     }
 
     parseDragPayload(event) {
@@ -2371,17 +2553,14 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         const columnLeft = `calc(3.5rem + ((100% - 3.5rem) / 7) * ${dayIndex} + 0.25rem)`;
         const columnWidth = `calc(((100% - 3.5rem) / 7) - 0.5rem)`;
         const heightPx = durationMinutes * PX_PER_MINUTE;
-        const timeLabel = `${formatTime(start)} – ${formatTime(end)}`;
+        const timeLabel = config.customTimeLabel || `${formatTime(start)} – ${formatTime(end)}`;
 
         return {
             key: `${config.type}-${config.id}`,
             id: config.id,
             type: config.type,
             title: config.title,
-            clickHint:
-                config.type === 'visit'
-                    ? `${config.title} · ${timeLabel}`
-                    : `Click to open time off`,
+            clickHint: `${config.title} · ${timeLabel}`,
             timeLabel,
             compact: heightPx < 45,
             draggable: config.draggable ? 'true' : 'false',
@@ -2401,6 +2580,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 if (cached) {
                     this.visits = cached.visits || [];
                     this.timeOffBlocks = cached.timeOffBlocks || [];
+                    this.meetings = cached.meetings || [];
                     return;
                 }
                 this.errorMessage = 'Planner data is not cached for offline use. Open planner while online first.';
@@ -2411,11 +2591,26 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 weekEnd: toApexDate(this.weekEnd),
                 contextUserId: this.contextUserId
             });
-            this.visits = payload.visits || [];
-            this.timeOffBlocks = payload.timeOffBlocks || [];
+            // payload can be null if Apex fails mid-migration (e.g. Meeting__c access);
+            // never read .visits off a null payload — that blanked the calendar.
+            this.visits = payload?.visits || [];
+            this.timeOffBlocks = payload?.timeOffBlocks || payload?.timeOff || [];
+            try {
+                this.meetings =
+                    (await fetchMeetings({
+                        weekStart: toApexDate(this.weekStart),
+                        weekEnd: toApexDate(this.weekEnd),
+                        contextUserId: this.contextUserId
+                    })) ||
+                    payload?.meetings ||
+                    [];
+            } catch (meetingError) {
+                this.meetings = payload?.meetings || [];
+            }
             await putPlannerCache(cacheKey, {
                 visits: this.visits,
-                timeOffBlocks: this.timeOffBlocks
+                timeOffBlocks: this.timeOffBlocks,
+                meetings: this.meetings
             });
             if (this.isMapView) {
                 this.resetRouteState();
@@ -2430,6 +2625,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             if (cached) {
                 this.visits = cached.visits || [];
                 this.timeOffBlocks = cached.timeOffBlocks || [];
+                this.meetings = cached.meetings || [];
                 this.errorMessage = undefined;
             } else {
                 this.errorMessage = this.reduceError(error);
@@ -2473,14 +2669,39 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.scheduleScrollCalendarToNow();
     }
 
+    async handleThisWeek() {
+        this.weekStart = startOfWeek(new Date());
+        this.syncMapDayToVisibleWeek();
+        await this.loadWeek();
+    }
+
+    async handleJumpNextWeek() {
+        this.weekStart = addDays(startOfWeek(new Date()), 7);
+        this.syncMapDayToVisibleWeek();
+        await this.loadWeek();
+    }
+
     handlePrevWeek() {
         this.weekStart = addDays(this.weekStart, -7);
+        this.syncMapDayToVisibleWeek();
         this.loadWeek();
     }
 
     handleNextWeek() {
         this.weekStart = addDays(this.weekStart, 7);
+        this.syncMapDayToVisibleWeek();
         this.loadWeek();
+    }
+
+    syncMapDayToVisibleWeek() {
+        const todayKey = toDateKey(new Date());
+        const days = this.weekDays || [];
+        if (days.some((day) => day.key === todayKey)) {
+            this.mapDayKey = todayKey;
+            return;
+        }
+        const firstWorking = days.find((day) => !day.isWeekend);
+        this.mapDayKey = firstWorking?.key || days[0]?.key || todayKey;
     }
 
     handleShowCalendar() {
@@ -2505,11 +2726,26 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     async loadMapAccounts() {
         this.isLoadingMapAccounts = true;
+        const cacheUserKey = getUserMapAccountsKey(this.contextUserId || Id);
         try {
+            if (isOfflineMode()) {
+                const cached = await getMapAccountsCache(cacheUserKey);
+                if (cached && cached.length) {
+                    this.mapAccounts = cached;
+                    return;
+                }
+            }
             this.mapAccounts = await getMapAccounts({ contextUserId: this.contextUserId });
+            await putCachedAccounts(this.mapAccounts);
+            await putMapAccountsCache(cacheUserKey, this.mapAccounts);
         } catch (error) {
-            this.showToast('Map accounts failed', this.reduceError(error), 'error');
-            this.mapAccounts = [];
+            const cached = await getMapAccountsCache(cacheUserKey);
+            if (cached && cached.length) {
+                this.mapAccounts = cached;
+            } else {
+                this.showToast('Map accounts failed', this.reduceError(error), 'error');
+                this.mapAccounts = [];
+            }
         } finally {
             this.isLoadingMapAccounts = false;
         }
@@ -2527,26 +2763,54 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
 
         this.isLoadingAccounts = true;
+        const searchParams = {
+            searchTerm: this.accountSearch || null,
+            recordTypeDeveloperName: this.accountRecordType,
+            specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
+            classification: this.accountClassification === 'All' ? null : this.accountClassification,
+            brickId: this.accountBrick === 'All' ? null : this.accountBrick,
+            offset: this.accountOffset,
+            pageSize: ACCOUNT_PAGE_SIZE,
+            contextUserId: this.contextUserId
+        };
+
         try {
-            const result = await searchAccountsPage({
-                searchTerm: this.accountSearch || null,
-                recordTypeDeveloperName: this.accountRecordType,
-                specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
-                classification: this.accountClassification === 'All' ? null : this.accountClassification,
-                brickId: this.accountBrick === 'All' ? null : this.accountBrick,
-                offset: this.accountOffset,
-                pageSize: ACCOUNT_PAGE_SIZE,
-                contextUserId: this.contextUserId
-            });
-            const pageAccounts = (result?.accounts || []).map((account) =>
+            if (isOfflineMode()) {
+                const cachedResult = await searchCachedAccounts(searchParams);
+                const pageAccounts = (cachedResult?.accounts || []).map((account) =>
+                    this.decorateAccountForDisplay(account)
+                );
+                this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
+                this.accountOffset = this.accounts.length;
+                this.hasMoreAccounts = cachedResult?.hasMore === true;
+                this.totalAccountCount = cachedResult?.totalCount || 0;
+                return;
+            }
+
+            const result = await searchAccountsPage(searchParams);
+            const rawAccounts = result?.accounts || [];
+            await putCachedAccounts(rawAccounts);
+
+            const pageAccounts = rawAccounts.map((account) =>
                 this.decorateAccountForDisplay(account)
             );
             this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
             this.accountOffset = this.accounts.length;
-            this.hasMoreAccounts = result?.hasMore === true;
+            this.hasMoreAccounts = result?.hasMore === true || (rawAccounts.length === ACCOUNT_PAGE_SIZE && this.accounts.length < (result?.totalCount || 0));
             this.totalAccountCount = result?.totalCount || 0;
         } catch (error) {
-            this.showToast('Account load failed', this.reduceError(error), 'error');
+            const cachedResult = await searchCachedAccounts(searchParams);
+            if (cachedResult && cachedResult.accounts && cachedResult.accounts.length) {
+                const pageAccounts = cachedResult.accounts.map((account) =>
+                    this.decorateAccountForDisplay(account)
+                );
+                this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
+                this.accountOffset = this.accounts.length;
+                this.hasMoreAccounts = cachedResult.hasMore === true;
+                this.totalAccountCount = cachedResult.totalCount || 0;
+            } else {
+                this.showToast('Account load failed', this.reduceError(error), 'error');
+            }
         } finally {
             this.isLoadingAccounts = false;
         }
@@ -2576,7 +2840,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             return;
         }
         const list = event.target;
-        const nearBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 48;
+        const nearBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 64;
         if (nearBottom && this.hasMoreAccounts && !this.isLoadingAccounts) {
             this.loadAccountsPage(false);
         }
@@ -2591,6 +2855,18 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
     }
 
+    setDragActiveState(active) {
+        this.isDragActive = Boolean(active);
+        const root = this.template.querySelector('.planner-root');
+        if (root) {
+            if (active) {
+                root.classList.add('is-drag-active');
+            } else {
+                root.classList.remove('is-drag-active');
+            }
+        }
+    }
+
     handleAccountDragStart(event) {
         if (this.isReadOnlyPlannerView) {
             event.preventDefault();
@@ -2598,7 +2874,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
         const accountId = event.currentTarget.dataset.accountId;
         const account = this.resolveAccountById(accountId);
-        this.isDragActive = true;
+        this.setDragActiveState(true);
         this.dragPayload = { kind: DRAG_TYPE_ACCOUNT, accountId, account };
         event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
         event.dataTransfer.setData('text/plain', accountId || '');
@@ -2614,7 +2890,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             el.classList.remove('collection-drop-zone-active');
         });
         window.setTimeout(() => {
-            this.isDragActive = false;
+            this.setDragActiveState(false);
         }, 0);
     }
 
@@ -2625,6 +2901,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.removeTouchDragGhost();
         this.clearTouchDropHighlight();
         this.touchDragState = undefined;
+        this.setDragActiveState(false);
     }
 
     beginTouchDragTracking(state) {
@@ -2652,6 +2929,26 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             accountId,
             account,
             label: account.name,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            active: false
+        });
+    }
+
+    handleQuickTotTouchStart(event) {
+        if (this.isReadOnlyPlannerView) {
+            return;
+        }
+        const touch = event.touches?.[0];
+        if (!touch) {
+            return;
+        }
+        const presetId = event.currentTarget.dataset.presetId;
+        const preset = TOT_QUICK_PRESETS.find((item) => item.id === presetId);
+        this.beginTouchDragTracking({
+            kind: DRAG_TYPE_TOT,
+            totPreset: preset,
+            label: preset ? preset.label : 'Time Off',
             startX: touch.clientX,
             startY: touch.clientY,
             active: false
@@ -2690,7 +2987,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 return;
             }
             this.touchDragState = { ...this.touchDragState, active: true };
-            this.isDragActive = true;
+            this.setDragActiveState(true);
             this.dragPayload = this.buildTouchDragPayload(this.touchDragState);
             this.showTouchDragGhost(this.touchDragState.label, touch.clientX, touch.clientY);
         }
@@ -2707,16 +3004,39 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         const wasActive = this.touchDragState.active;
         try {
             if (wasActive && touch) {
+                // Account → list (collection) drop. Native ondrop never fires on
+                // touch, so resolve the collection target here before the calendar.
+                if (this.dragPayload?.kind === DRAG_TYPE_ACCOUNT) {
+                    const collectionId = this.findCollectionTargetIdAtPoint(
+                        touch.clientX,
+                        touch.clientY
+                    );
+                    if (collectionId) {
+                        const payload = this.dragPayload;
+                        const accountId = payload.accountId || payload.account?.id;
+                        const account = this.resolveAccountById(accountId, payload.account);
+                        if (account) {
+                            this.addAccountToCollection(collectionId, account);
+                        }
+                        return;
+                    }
+                }
+                let start = null;
                 const slot = this.findCalendarSlotAtPoint(touch.clientX, touch.clientY);
                 if (slot) {
-                    const start = this.resolveSlotFromElement(slot);
+                    start = this.resolveSlotFromElement(slot);
+                }
+                if (!start) {
+                    start = this.resolveSlotFromCoordinates(touch.clientX, touch.clientY);
+                }
+                if (start && this.dragPayload) {
                     await this.processCalendarDrop(start, this.dragPayload);
                 }
             }
         } finally {
             this.teardownTouchDragListeners();
             this.dragPayload = undefined;
-            this.isDragActive = false;
+            this.setDragActiveState(false);
             if (wasActive) {
                 this.suppressVisitClick = true;
                 window.setTimeout(() => {
@@ -2738,7 +3058,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             return { kind: DRAG_TYPE_ACCOUNT, accountId: state.accountId, account: state.account };
         }
         if (state.kind === DRAG_TYPE_TOT) {
-            return { kind: DRAG_TYPE_TOT };
+            return { kind: DRAG_TYPE_TOT, totPreset: state.totPreset };
+        }
+        if (state.kind === DRAG_TYPE_PROMO) {
+            return { kind: DRAG_TYPE_PROMO };
         }
         return null;
     }
@@ -2786,19 +3109,107 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return element?.closest?.('[data-day-key][data-minutes]') || null;
     }
 
+    elementAtPoint(x, y) {
+        if (this.touchDragGhostEl) {
+            this.touchDragGhostEl.style.display = 'none';
+        }
+        let element = null;
+        if (this.template?.elementFromPoint) {
+            element = this.template.elementFromPoint(x, y);
+        }
+        if (!element) {
+            element = document.elementFromPoint(x, y);
+        }
+        if (this.touchDragGhostEl) {
+            this.touchDragGhostEl.style.display = '';
+        }
+        return element;
+    }
+
+    findCollectionTargetElementAtPoint(x, y) {
+        // 1. Try the precise point hit-test first.
+        const element = this.elementAtPoint(x, y);
+        if (element?.closest) {
+            const chip = element.closest('.collection-chip[data-collection-id]');
+            if (chip) {
+                return chip;
+            }
+            const zone = element.closest('.collection-drop-zone');
+            if (zone && this.selectedCollectionId) {
+                return zone;
+            }
+        }
+        // 2. Geometric fallback — robust to shadow DOM boundaries and the drag
+        //    ghost overlapping the point. Small tolerance makes small chips easy
+        //    to hit on touch.
+        const TOL = 10;
+        const hits = (el) => {
+            if (!el) {
+                return false;
+            }
+            const r = el.getBoundingClientRect();
+            if (!r.width && !r.height) {
+                return false;
+            }
+            return (
+                x >= r.left - TOL &&
+                x <= r.right + TOL &&
+                y >= r.top - TOL &&
+                y <= r.bottom + TOL
+            );
+        };
+        const chips = this.template.querySelectorAll('.collection-chip[data-collection-id]');
+        for (const chip of chips) {
+            if (hits(chip)) {
+                return chip;
+            }
+        }
+        if (this.selectedCollectionId) {
+            const zone = this.template.querySelector('.collection-drop-zone');
+            if (hits(zone)) {
+                return zone;
+            }
+        }
+        return null;
+    }
+
+    findCollectionTargetIdAtPoint(x, y) {
+        const el = this.findCollectionTargetElementAtPoint(x, y);
+        if (!el) {
+            return null;
+        }
+        return el.dataset?.collectionId || this.selectedCollectionId || null;
+    }
+
     highlightTouchDropTarget(x, y) {
         this.clearTouchDropHighlight();
         const slot = this.findCalendarSlotAtPoint(x, y);
         if (slot) {
             slot.classList.add('calendar-drop-target');
             this.touchDropHighlightEl = slot;
+            this.touchDropHighlightClass = 'calendar-drop-target';
+            return;
+        }
+        if (this.dragPayload?.kind === DRAG_TYPE_ACCOUNT) {
+            const target = this.findCollectionTargetElementAtPoint(x, y);
+            if (target) {
+                const cls = target.classList.contains('collection-drop-zone')
+                    ? 'collection-drop-zone-active'
+                    : 'collection-chip-drop-target';
+                target.classList.add(cls);
+                this.touchDropHighlightEl = target;
+                this.touchDropHighlightClass = cls;
+            }
         }
     }
 
     clearTouchDropHighlight() {
         if (this.touchDropHighlightEl) {
-            this.touchDropHighlightEl.classList.remove('calendar-drop-target');
+            this.touchDropHighlightEl.classList.remove(
+                this.touchDropHighlightClass || 'calendar-drop-target'
+            );
             this.touchDropHighlightEl = undefined;
+            this.touchDropHighlightClass = undefined;
         }
     }
 
@@ -2819,7 +3230,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             event.preventDefault();
             return;
         }
-        this.isDragActive = true;
+        this.setDragActiveState(true);
         this.dragPayload = { kind: DRAG_TYPE_TOT };
         event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
         event.dataTransfer.setData('text/plain', DRAG_TYPE_TOT);
@@ -2844,7 +3255,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             durationMs:
                 parseSalesforceDateTime(visit.endDateTime) - parseSalesforceDateTime(visit.startDateTime)
         };
-        this.isDragActive = true;
+        this.setDragActiveState(true);
         event.currentTarget.classList.add('is-dragging');
         event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
         event.dataTransfer.setData('text/plain', eventId);
@@ -2856,7 +3267,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.dragPayload = undefined;
         this.suppressVisitClick = true;
         window.setTimeout(() => {
-            this.isDragActive = false;
+            this.setDragActiveState(false);
             this.suppressVisitClick = false;
         }, 250);
     }
@@ -2876,6 +3287,17 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     async processCalendarDrop(start, payload) {
         if (!start || !payload) {
+            return;
+        }
+        if (this.showPlanningPalettePanel) {
+            this.showPlanningPalettePanel = false;
+        }
+        if (isNonWorkingDay(start)) {
+            this.showToast(
+                'Non-working day',
+                'Visits can only be scheduled Saturday through Wednesday.',
+                'error'
+            );
             return;
         }
         try {
@@ -2913,7 +3335,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             }
         } finally {
             this.dragPayload = undefined;
-            this.isDragActive = false;
+            this.setDragActiveState(false);
         }
     }
 
@@ -2954,6 +3376,100 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     async handlePlanPromoChoice() {
         this.showPlanChoiceModal = false;
         await this.openPromoModal();
+    }
+
+    async handlePlanMeetingChoice() {
+        this.showPlanChoiceModal = false;
+        await this.openMeetingModal();
+    }
+
+    async openMeetingModal() {
+        await Promise.all([this.loadMeetingRecordTypeOptions(), this.loadPromoProjectOptions()]);
+        if (!this.meetingRecordType) {
+            this.meetingRecordType = this.meetingRecordTypeOptions[0]?.value || '';
+        }
+        this.meetingTitle = '';
+        // Do not auto-bind a promo project — inaccessible lookups were failing insert as user.
+        this.meetingProjectId = '';
+        this.showMeetingModal = true;
+    }
+
+    async loadMeetingRecordTypeOptions() {
+        try {
+            const options = await getMeetingRecordTypes();
+            this.meetingRecordTypeOptions = (options || []).map((option) => ({
+                label: option.label,
+                value: option.value
+            }));
+            if (
+                this.meetingRecordTypeOptions.length &&
+                !this.meetingRecordTypeOptions.some((option) => option.value === this.meetingRecordType)
+            ) {
+                this.meetingRecordType = this.meetingRecordTypeOptions[0].value;
+            }
+        } catch (error) {
+            this.meetingRecordTypeOptions = [];
+            this.meetingRecordType = '';
+        }
+    }
+
+    handleMeetingRecordTypeChange(event) {
+        this.meetingRecordType = event.detail.value;
+    }
+
+    handleMeetingTitleChange(event) {
+        this.meetingTitle = event.detail.value;
+    }
+
+    handleMeetingProjectChange(event) {
+        this.meetingProjectId = event.detail.value;
+    }
+
+    handleMeetingCancel() {
+        this.showMeetingModal = false;
+        this.meetingTitle = '';
+        this.meetingProjectId = '';
+        this.pendingSlotStart = null;
+    }
+
+    async handleMeetingSave() {
+        if (!this.meetingRecordType) {
+            this.showToast('Validation', 'Select a meeting type.', 'error');
+            return;
+        }
+        if (!(this.meetingTitle || '').trim()) {
+            this.showToast('Validation', 'Enter a meeting title.', 'error');
+            return;
+        }
+        if (!this.pendingSlotStart) {
+            this.showToast('Validation', 'Select a calendar time slot.', 'error');
+            return;
+        }
+        const end = new Date(this.pendingSlotStart.getTime() + DEFAULT_MEETING_MINUTES * 60000);
+        this.isSaving = true;
+        try {
+            const saved = await createMeeting({
+                recordTypeDeveloperName: this.meetingRecordType,
+                startDateTime: toApexDateTime(this.pendingSlotStart),
+                endDateTime: toApexDateTime(end),
+                title: this.meetingTitle.trim(),
+                pharmaProjectId: this.meetingProjectId || null
+            });
+            const others = (this.meetings || []).filter((item) => item.id !== saved.id);
+            this.meetings = [...others, saved].sort(
+                (a, b) =>
+                    parseSalesforceDateTime(a.startDateTime) - parseSalesforceDateTime(b.startDateTime)
+            );
+            this.showToast('Meeting created', `${saved.title || saved.name} saved as Draft.`, 'success');
+            this.showMeetingModal = false;
+            this.meetingTitle = '';
+            this.meetingProjectId = '';
+            this.pendingSlotStart = null;
+        } catch (error) {
+            this.showToast('Save failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
     }
 
     async openPromoModal() {
@@ -3113,7 +3629,16 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     handleTotPresetClick(event) {
         const presetId = event.currentTarget.dataset.presetId;
         const preset = TOT_QUICK_PRESETS.find((item) => item.id === presetId);
-        this.applyTotPreset(preset);
+        if (preset) {
+            this.showPlanningPalettePanel = false;
+            this.applyTotPreset(preset);
+            this.showTotModal = true;
+        }
+    }
+
+    handleCustomTotClick() {
+        this.showPlanningPalettePanel = false;
+        this.openTotModal(new Date());
     }
 
     handleQuickTotDragStart(event) {
@@ -3123,7 +3648,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
         const presetId = event.currentTarget.dataset.presetId;
         const preset = TOT_QUICK_PRESETS.find((item) => item.id === presetId);
-        this.isDragActive = true;
+        this.setDragActiveState(true);
         this.dragPayload = { kind: DRAG_TYPE_TOT, totPreset: preset };
         event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
         event.dataTransfer.setData('text/plain', DRAG_TYPE_TOT);
@@ -3135,7 +3660,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             event.preventDefault();
             return;
         }
-        this.isDragActive = true;
+        this.setDragActiveState(true);
         this.dragPayload = { kind: DRAG_TYPE_PROMO };
         event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
         event.dataTransfer.setData('text/plain', DRAG_TYPE_PROMO);
@@ -3319,20 +3844,71 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
         this.isSaving = true;
         try {
-            const created = await createTimeOff({
-                typeValue: form.typeValue,
-                spanType: form.spanType,
-                durationHours: form.spanType === 'Hours' ? form.durationHours : null,
-                startDateTime,
-                comments: form.comments,
-                stage
-            });
+            let created;
+            if (isOfflineMode()) {
+                const startDateObj = new Date(startDateTime);
+                let endDateObj;
+                if (form.spanType === 'Full_Day') {
+                    startDateObj.setHours(9, 0, 0, 0);
+                    endDateObj = new Date(startDateObj);
+                    endDateObj.setHours(17, 0, 0, 0);
+                } else {
+                    const hours = Number(form.durationHours || 2);
+                    endDateObj = new Date(startDateObj.getTime() + hours * 3600 * 1000);
+                }
+                const newKey = newClientKey('tot');
+                const isoStart = startDateObj.toISOString();
+                const isoEnd = endDateObj.toISOString();
+                await queueOfflineAction({
+                    actionType: 'CREATE_TIME_OFF',
+                    clientActionKey: newKey,
+                    payloadJson: JSON.stringify({
+                        typeValue: form.typeValue,
+                        spanType: form.spanType,
+                        durationHours: form.spanType === 'Hours' ? form.durationHours : null,
+                        startDateTime: isoStart,
+                        comments: form.comments,
+                        stage
+                    })
+                });
+                created = {
+                    id: newKey,
+                    name: form.typeValue,
+                    typeLabel: form.typeValue,
+                    typeValue: form.typeValue,
+                    startDateTime: isoStart,
+                    endDateTime: isoEnd,
+                    spanType: form.spanType,
+                    stage
+                };
+            } else {
+                created = await createTimeOff({
+                    typeValue: form.typeValue,
+                    spanType: form.spanType,
+                    durationHours: form.spanType === 'Hours' ? form.durationHours : null,
+                    startDateTime,
+                    comments: form.comments,
+                    stage
+                });
+            }
+            if (created && !created.endDateTime) {
+                const s = parseSalesforceDateTime(created.startDateTime || startDateTime);
+                if (s) {
+                    const hours = Number(form.durationHours || (form.spanType === 'Full_Day' ? 8 : 2));
+                    const e = new Date(s.getTime() + hours * 3600 * 1000);
+                    created.endDateTime = e.toISOString();
+                }
+            }
             this.showTotModal = false;
             this.pendingTotStart = null;
             this.resetTotForm();
             this.mergeCreatedTot(created);
             this.showToast(
-                stage === 'Draft' ? 'TOT saved' : 'TOT submitted',
+                isOfflineMode()
+                    ? 'Queued offline'
+                    : stage === 'Draft'
+                      ? 'TOT saved'
+                      : 'TOT submitted',
                 `${created.typeLabel} request created.`,
                 'success'
             );
@@ -3424,7 +4000,13 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 this.openVisitDetailModal(visit);
             }
         } else if (eventType === 'tot') {
+            const tot = (this.timeOffBlocks || []).find((item) => String(item.id) === String(recordId));
+            const label = tot?.typeLabel || tot?.typeValue || tot?.name || 'Time Off';
+            const stage = tot?.stage || 'Submitted';
+            this.showToast('Time Off (TOT)', `${label} (${stage})`, 'info');
             this.navigateToRecord(recordId, 'Time_Off_Request__c');
+        } else if (eventType === 'meeting') {
+            this.navigateToRecord(recordId, 'Meeting__c');
         }
     }
 
@@ -3675,6 +4257,104 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.visitDetailId = '';
     }
 
+    async handleSubmitVisitForApproval() {
+        const visitId = this.visitDetailId;
+        if (!visitId) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            if (isOfflineMode()) {
+                const saved = await this.queueSubmitVisit(visitId);
+                this.replaceVisit(saved);
+                await this.cacheCurrentWeek();
+                this.showToast('Queued offline', 'Visit submit will send when you reconnect.', 'success');
+            } else {
+                const saved = await submitVisit({ visitId });
+                this.replaceVisit(saved);
+                await this.cacheCurrentWeek();
+                this.showToast('Submitted', 'Visit plan sent to your manager for approval.', 'success');
+            }
+            this.showVisitDetailModal = false;
+            this.visitDetailId = '';
+        } catch (error) {
+            this.showToast('Submit failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    replaceVisit(saved) {
+        if (!saved?.id) {
+            return;
+        }
+        const others = this.visits.filter((visit) => visit.id !== saved.id);
+        this.visits = [...others, saved].sort(
+            (a, b) => new Date(a.startDateTime) - new Date(b.startDateTime)
+        );
+    }
+
+    async handleSubmitWeek() {
+        if (!this.canSubmitWeek) {
+            return;
+        }
+        const drafts = this.draftPlannedVisits;
+        const confirmed = await LightningConfirm.open({
+            message: `Submit ${drafts.length} draft visit${drafts.length === 1 ? '' : 's'} for manager approval?`,
+            label: 'Submit week',
+            theme: 'info'
+        });
+        if (!confirmed) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            if (isOfflineMode()) {
+                for (const visit of drafts) {
+                    const saved = await this.queueSubmitVisit(visit.id);
+                    this.replaceVisit(saved);
+                }
+                await this.cacheCurrentWeek();
+                this.showToast(
+                    'Queued offline',
+                    `${drafts.length} visit${drafts.length === 1 ? '' : 's'} will submit when you reconnect.`,
+                    'success'
+                );
+                return;
+            }
+            const result = await submitWeekPlans({
+                weekStart: toApexDate(this.weekStart),
+                weekEnd: toApexDate(this.weekEnd)
+            });
+            await this.loadWeek();
+            const submitted = result?.submittedCount || 0;
+            const failed = result?.failedCount || 0;
+            if (failed > 0 && submitted > 0) {
+                this.showToast(
+                    'Week partly submitted',
+                    `${submitted} sent for approval. ${failed} could not be submitted.`,
+                    'warning'
+                );
+            } else if (failed > 0) {
+                this.showToast(
+                    'Submit failed',
+                    (result.errors || []).join(' ') || 'No visits could be submitted.',
+                    'error'
+                );
+            } else {
+                this.showToast(
+                    'Submitted',
+                    `${submitted} visit${submitted === 1 ? '' : 's'} sent to your manager for approval.`,
+                    'success'
+                );
+            }
+        } catch (error) {
+            this.showToast('Submit failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
     async persistVisit({
         id,
         accountId,
@@ -3762,6 +4442,14 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }) {
         const clientVisitKey = id && String(id).startsWith('local_') ? id : id || newClientKey('visit');
         const localId = id || clientVisitKey;
+        console.log('[Planner] [Offline Visit Creation] Preparing local visit payload...', {
+            localId,
+            clientVisitKey,
+            accountId,
+            startDateTime,
+            endDateTime,
+            status
+        });
         await queueOfflineAction({
             actionType: 'UPSERT_VISIT',
             clientVisitKey,
@@ -3780,6 +4468,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             })
         });
         const existing = this.findVisitById(localId) || {};
+        console.log('[Planner] [Offline Visit Creation] Optimistically added visit to local calendar view.');
         return {
             ...existing,
             id: localId,
@@ -3793,6 +4482,22 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             accountName: existing.accountName || 'Offline visit',
             name: existing.name || 'Offline visit',
             clientVisitKey
+        };
+    }
+
+    async queueSubmitVisit(visitId) {
+        const existing = this.findVisitById(visitId) || { id: visitId };
+        const isLocal = visitId && String(visitId).startsWith('local_');
+        await queueOfflineAction({
+            actionType: 'SUBMIT_VISIT',
+            visitId: isLocal ? null : visitId,
+            clientVisitKey: existing.clientVisitKey || visitId,
+            clientActionKey: newClientKey('submit')
+        });
+        return {
+            ...existing,
+            id: visitId,
+            status: VISIT_STATUS_SUBMITTED
         };
     }
 
@@ -3825,17 +4530,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     async ensureLeaflet() {
         if (this.leafletReady && window.L) {
-            return;
+            return window.L;
         }
-        await loadStyle(this, LEAFLET + '/leaflet.css');
-        await loadScript(this, LEAFLET + '/leaflet.js');
-        delete window.L.Icon.Default.prototype._getIconUrl;
-        window.L.Icon.Default.mergeOptions({
-            iconRetinaUrl: LEAFLET + '/marker-icon-2x.png',
-            iconUrl: LEAFLET + '/marker-icon.png',
-            shadowUrl: LEAFLET + '/marker-shadow.png'
-        });
+        await ensureLeaflet(this, LEAFLET);
         this.leafletReady = true;
+        return window.L;
     }
 
     clearMapMarkers() {
@@ -3846,7 +4545,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     getVisitPinIcon(pinKind, isOutlier = false) {
         const cacheKey = `${pinKind}${isOutlier ? '-outlier' : ''}`;
         if (!this.visitPinIcons[cacheKey]) {
-            this.visitPinIcons[cacheKey] = createVisitPinIcon(pinKind, isOutlier);
+            this.visitPinIcons[cacheKey] = createVisitPinIcon(pinKind, window.L, isOutlier);
         }
         return this.visitPinIcons[cacheKey];
     }
@@ -3881,7 +4580,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     buildVisitPopupHtml(stop, order) {
         const typeLabel = stop.accountTypeLabel || resolveAccountTypeLabel(stop.pinKind);
-        return `<strong>${order}. ${stop.accountName}</strong><br/><span>${typeLabel}</span><br/>${stop.timeLabel || ''}`;
+        const metrics = this.buildAccountFootnote(stop);
+        const metricsLine = metrics ? `<br/>${metrics}` : '';
+        return `<strong>${order}. ${stop.accountName}</strong><br/><span>${typeLabel}</span>${metricsLine}<br/>${stop.timeLabel || ''}`;
     }
 
     plotStopsOnMap(visitStops, includeCurrentLocation = false, unplannedAccounts = []) {
@@ -3917,7 +4618,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         unplannedAccounts.forEach((account) => {
             const dimmed = !accountMatchesFilters(account, filters);
             this.addMapMarker(account, {
-                popupHtml: `<strong>${account.accountName}</strong><br/><span>${account.accountTypeLabel}</span><br/>No visit planned today`,
+                popupHtml: `<strong>${account.accountName}</strong><br/><span>${account.accountTypeLabel}</span><br/>${this.buildAccountFootnote(account) || 'No visit planned today'}`,
                 dimmed,
                 onClick: unplannedMarkerClick(account)
             });
@@ -3955,10 +4656,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         const defaultZoom = viewportPoints.length === 1 ? 15 : 12;
 
         this.mapInstance = window.L.map(mapDiv).setView(defaultCenter, defaultZoom);
-        window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: 'Powered by salesforce maps'
-        }).addTo(this.mapInstance);
+        addOsmTileLayer(this.mapInstance, window.L);
 
         this.plotStopsOnMap(visitStops, Boolean(this.currentLocation), unplannedAccounts);
         this.applyInitialMapViewport();

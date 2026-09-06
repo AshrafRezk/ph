@@ -68,3 +68,7 @@ dist-android/
 # Large client-provided BRD binaries (exceed GitHub 100MB limit / not source)
 BRD/**/Zeta Provided Data/
 BRD/**/Training videos/
+
+# Zeta PWA build output
+offline/dist/
+offline/node_modules/

@@ -1,11 +1,9 @@
 import { LightningElement, track } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import FORM_FACTOR from '@salesforce/client/formFactor';
 import USER_ID from '@salesforce/user/Id';
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
-import getAccountsTabPage from '@salesforce/apex/AccountsTabController.getAccountsTabPage';
-import getAccountsTabMapPoints from '@salesforce/apex/AccountsTabController.getAccountsTabMapPoints';
-import getAccountsTabRecordTypeOptions from '@salesforce/apex/AccountsTabController.getAccountsTabRecordTypeOptions';
+import getAccountsTabPage from '@salesforce/apex/PlannerMobileRestService.getAccountsTabPage';
+import getAccountsTabMapPoints from '@salesforce/apex/PlannerMobileRestService.getAccountsTabMapPoints';
+import getAccountsTabRecordTypeOptions from '@salesforce/apex/PlannerMobileRestService.getAccountsTabRecordTypeOptions';
 import {
     addOsmTileLayer,
     ensureLeaflet,
@@ -17,6 +15,15 @@ import {
     loadAccountCollections,
     getCollectionAccountIds
 } from 'c/plannerAccountCollections';
+import {
+    getAccountsTabBusinessUnits,
+    putAccountsTabBusinessUnits,
+    getAccountsTabCache,
+    putAccountsTabCache,
+    getUserAccountsTabKey,
+    getAccountsTabRecordTypeOptionsCache,
+    putAccountsTabRecordTypeOptionsCache
+} from 'c/clmOfflineStore';
 
 const FILTER_ALL = 'All';
 const SCOPE_BOTH = 'both';
@@ -56,7 +63,7 @@ const RISK_DOT_CLASS = {
     Low: 'map-list-risk-low'
 };
 
-export default class AccountsTab extends NavigationMixin(LightningElement) {
+export default class AccountsTab extends LightningElement {
   @track rows = [];
   @track mapRows = [];
   @track summary = {
@@ -86,7 +93,6 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   listViewMode = LIST_MODE_ALL;
   selectedCollectionId = null;
   accountCollections = [];
-  filterRevision = 0;
 
   recordTypeOptions = [{ label: 'All Record Types', value: FILTER_ALL }];
   specialtyOptions = [];
@@ -102,62 +108,14 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   selectedAccountId;
 
   searchDebounce;
-
-  columns = [
-    {
-      label: 'Account',
-      fieldName: 'accountUrl',
-      type: 'url',
-      typeAttributes: { label: { fieldName: 'accountName' }, target: '_self' },
-      sortable: false
-    },
-    { label: 'Classification', fieldName: 'classification', type: 'text' },
-    { label: 'Matrix', fieldName: 'matrixRating', type: 'text' },
-    { label: 'Potential', fieldName: 'potential', type: 'text' },
-    { label: 'Penetration', fieldName: 'penetration', type: 'text' },
-    { label: 'KOL', fieldName: 'isKolLabel', type: 'text' },
-    { label: 'Plan Cycle', fieldName: 'planCycleLabel', type: 'text' },
-    {
-      label: 'Target',
-      fieldName: 'targetVisits',
-      type: 'number',
-      cellAttributes: { alignment: 'left' }
-    },
-    {
-      label: 'Actual',
-      fieldName: 'actualVisits',
-      type: 'number',
-      cellAttributes: { alignment: 'left' }
-    },
-    {
-      label: 'Gap',
-      fieldName: 'visitGap',
-      type: 'number',
-      cellAttributes: { alignment: 'left' }
-    },
-    { label: 'Frequency', fieldName: 'frequencyStatus', type: 'text' },
-    {
-      label: 'Reach %',
-      fieldName: 'reachPercentDisplay',
-      type: 'text'
-    },
-    {
-      label: 'Projected %',
-      fieldName: 'projectedPercentDisplay',
-      type: 'text'
-    },
-    { label: 'Pace', fieldName: 'paceStatusLabel', type: 'text' },
-    {
-      label: 'Agentforce',
-      fieldName: 'agentforceScoreDisplay',
-      type: 'text'
-    },
-    { label: 'Risk', fieldName: 'agentforceRisk', type: 'text' },
-    { label: 'Specialty', fieldName: 'specialty', type: 'text' },
-    { label: 'City', fieldName: 'city', type: 'text' }
-  ];
+  syncStatus = 'idle';
+  hasCachedData = false;
+  _connectivityBound = false;
+  _onOnline;
+  _onOffline;
 
   connectedCallback() {
+    this.bindConnectivityListeners();
     this.updateViewportMode();
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.handleResize);
@@ -171,6 +129,12 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.destroyMap();
     if (this.searchDebounce) {
       clearTimeout(this.searchDebounce);
+    }
+    if (this._onOnline) {
+      window.removeEventListener('online', this._onOnline);
+    }
+    if (this._onOffline) {
+      window.removeEventListener('offline', this._onOffline);
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.handleResize);
@@ -189,17 +153,30 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return;
     }
     this.isNarrowViewport = window.innerWidth <= COMPACT_BREAKPOINT_PX;
-    if (this.isCompactView && FORM_FACTOR === 'Small') {
+    if (this.isCompactView && window.innerWidth <= 640) {
       this.sidebarOpen = false;
     }
   }
 
+  bindConnectivityListeners() {
+    if (this._connectivityBound || typeof window === 'undefined') {
+      return;
+    }
+    this._connectivityBound = true;
+    this._onOnline = () => {
+      this.loadPlannerCollections();
+      this.reloadData(true);
+    };
+    this._onOffline = () => {
+      // Don't immediately show offline - let the API call failure handle it
+      // This prevents false offline status in Capacitor WebView
+    };
+    window.addEventListener('online', this._onOnline);
+    window.addEventListener('offline', this._onOffline);
+  }
+
   get isCompactView() {
-    return (
-      FORM_FACTOR === 'Small' ||
-      FORM_FACTOR === 'Medium' ||
-      this.isNarrowViewport
-    );
+    return this.isNarrowViewport;
   }
 
   get isListView() {
@@ -210,12 +187,35 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return this.viewMode === 'map';
   }
 
-  get listVariant() {
-    return this.isListView ? 'brand' : 'neutral';
+  get listViewToggleClass() {
+    return `view-toggle-btn${this.isListView ? ' view-toggle-btn-active' : ''}`;
   }
 
-  get mapVariant() {
-    return this.isMapView ? 'brand' : 'neutral';
+  get mapViewToggleClass() {
+    return `view-toggle-btn${this.isMapView ? ' view-toggle-btn-active' : ''}`;
+  }
+
+  get scopeOptionList() {
+    return this.withSelection(this.scopeOptions, this.scope);
+  }
+
+  get recordTypeOptionList() {
+    return this.withSelection(this.recordTypeOptions, this.recordType);
+  }
+
+  get classificationOptionList() {
+    return this.withSelection(this.classificationOptions, this.classification);
+  }
+
+  get sortOptionList() {
+    return this.withSelection(this.sortOptions, this.sortBy);
+  }
+
+  withSelection(options, current) {
+    return (options || []).map((option) => ({
+      ...option,
+      isSelected: option?.value === current
+    }));
   }
 
   get toolbarClass() {
@@ -307,10 +307,6 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return getCollectionAccountIds(collection);
   }
 
-  get datatableKey() {
-    return `accounts-${this.filterRevision}`;
-  }
-
   get countLabel() {
     if (this.listViewMode === LIST_MODE_COLLECTION) {
       const collection = (this.accountCollections || []).find(
@@ -354,7 +350,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
         typeLabel: pinKind === 'hco' ? 'HCO' : 'HCP',
         riskDotClass: RISK_DOT_CLASS[row.agentforceRisk] || RISK_DOT_CLASS.Low,
         itemClass: `map-account-item${isSelected ? ' map-account-item-selected' : ''}`,
-        subtitle: [row.recordTypeName, row.city].filter(Boolean).join(' · ') || '—'
+        subtitle: [row.accountSubtype || row.recordTypeName, row.city].filter(Boolean).join(' · ') || '—',
+        hasBusinessUnits: Array.isArray(row.businessUnits) && row.businessUnits.length > 0,
+        businessUnitLabel: row.businessUnitLabel || ''
       };
     });
   }
@@ -462,10 +460,71 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return !this.isLoading && !this.errorMessage && (this.rows || []).length === 0;
   }
 
+  get showSyncChip() {
+    return this.syncStatus === 'cached' || this.syncStatus === 'updating' || this.syncStatus === 'offline';
+  }
+
+  get syncChipLabel() {
+    if (this.syncStatus === 'updating') {
+      return 'Updating…';
+    }
+    if (this.syncStatus === 'offline') {
+      return 'Offline';
+    }
+    if (this.syncStatus === 'cached') {
+      return 'Cached';
+    }
+    return '';
+  }
+
+  get syncChipClass() {
+    return `sync-chip sync-chip-${this.syncStatus}`;
+  }
+
+  get showErrorBanner() {
+    return Boolean(this.errorMessage);
+  }
+
+  get cacheBaseKey() {
+    return getUserAccountsTabKey(USER_ID);
+  }
+
+  filterSignature() {
+    return [
+      this.scope,
+      (this.searchTerm || '').trim().toLowerCase(),
+      this.recordType,
+      this.classification,
+      this.sortBy,
+      this.sortDirection
+    ].join('~');
+  }
+
+  summaryCacheKey() {
+    return `${this.cacheBaseKey}.summary.${this.filterSignature()}`;
+  }
+
+  listPageCacheKey() {
+    return `${this.cacheBaseKey}.list.${this.filterSignature()}.${this.currentPage}`;
+  }
+
+  mapPageCacheKey() {
+    return `${this.cacheBaseKey}.map.${this.filterSignature()}.${this.mapCurrentPage}`;
+  }
+
   async loadFilterOptions() {
     try {
-      const recordTypes = await getAccountsTabRecordTypeOptions();
-      this.recordTypeOptions = this.normalizeComboboxOptions(recordTypes, this.recordTypeOptions);
+      const cached = await getAccountsTabRecordTypeOptionsCache(USER_ID);
+      if (cached?.length) {
+        this.recordTypeOptions = this.normalizeComboboxOptions(cached, this.recordTypeOptions);
+      }
+      // Note: navigator.onLine is unreliable in Capacitor WebView
+      // Always try to fetch - let network failures be handled gracefully
+      if (!cached?.length) {
+        const recordTypes = await getAccountsTabRecordTypeOptions();
+        await putAccountsTabRecordTypeOptionsCache(USER_ID, recordTypes);
+        this.recordTypeOptions = this.normalizeComboboxOptions(recordTypes, this.recordTypeOptions);
+      }
       this.classificationOptions = [
         { label: 'All Classifications', value: FILTER_ALL },
         { label: 'A', value: 'A' },
@@ -560,7 +619,6 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.currentPage = 1;
       this.mapCurrentPage = 1;
     }
-    this.filterRevision += 1;
     if (this.isMapView) {
       return this.refreshMapView();
     }
@@ -572,16 +630,65 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.isLoading = true;
     this.errorMessage = null;
     this.rows = [];
+
+    try {
+      const cached = await this.readPageCache();
+      if (token !== this.loadRequestToken) {
+        return;
+      }
+      if (cached.summary?.summary || cached.page?.rows?.length) {
+        if (cached.summary?.summary) {
+          this.applyPageSummary(cached.summary.summary);
+          this.recordTypeCounts = cached.summary.recordTypeCounts || [];
+        }
+        if (cached.page?.rows?.length) {
+          this.rows = cached.page.rows.map((row) => this.mapRow(row));
+        }
+        this.hasCachedData = true;
+        this.syncStatus = 'cached';
+      }
+    } catch (_cacheError) {
+      // Cache read is best-effort; continue to the network call.
+    }
+
+    // Note: navigator.onLine is unreliable in Capacitor WebView
+    // Always try the API call - catch block handles real network failures
+    this.syncStatus = 'updating';
     try {
       const result = await getAccountsTabPage(this.buildApexParams(false));
       if (token !== this.loadRequestToken) {
         return;
       }
-      this.rows = (result?.rows || []).map((row) => this.mapRow(row));
+      const mappedRows = (result?.rows || []).map((row) => this.mapRow(row));
+      this.rows = mappedRows;
+      await this.cacheBusinessUnits(mappedRows);
       this.applyPageSummary(result);
+      await this.writePageCaches(result?.rows || []);
+      this.hasCachedData = true;
+      this.errorMessage = null;
+      this.syncStatus = 'idle';
     } catch (error) {
-      if (token === this.loadRequestToken) {
-        this.errorMessage = this.reduceError(error);
+      if (token !== this.loadRequestToken) {
+        return;
+      }
+      if (error?.name === 'AbortError') {
+        return;
+      }
+      if (this.rows.length === 0) {
+        const cachedRows = await this.loadCachedPageRows();
+        if (cachedRows.length) {
+          this.rows = cachedRows;
+          this.hasCachedData = true;
+          this.syncStatus = 'cached';
+          this.errorMessage = null;
+          return;
+        }
+      }
+      this.syncStatus = 'offline';
+      if (!this.hasCachedData) {
+        this.errorMessage = this.isConnectivityError(error)
+          ? 'You are offline. Connect to load accounts.'
+          : this.reduceError(error);
       }
     } finally {
       if (token === this.loadRequestToken) {
@@ -590,11 +697,55 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     }
   }
 
+  async readPageCache() {
+    const [summary, page] = await Promise.all([
+      getAccountsTabCache(this.summaryCacheKey()),
+      getAccountsTabCache(this.listPageCacheKey())
+    ]);
+    return { summary, page };
+  }
+
+  async writePageCaches(rawRows) {
+    await putAccountsTabCache(this.summaryCacheKey(), {
+      summary: this.summary,
+      recordTypeCounts: this.recordTypeCounts,
+      mapEligibleCount: this.mapEligibleCount
+    });
+    await putAccountsTabCache(this.listPageCacheKey(), { rows: rawRows || [] });
+  }
+
   async refreshMapView() {
     const token = ++this.mapRenderToken;
     this.isLoading = true;
     this.errorMessage = null;
     this.selectedAccountId = null;
+
+    try {
+      const cached = await this.readMapCache();
+      if (token !== this.mapRenderToken) {
+        return;
+      }
+      if (cached.summary?.summary || cached.mapPage?.mapRows?.length) {
+        if (cached.summary?.summary) {
+          this.applyPageSummary(cached.summary.summary);
+          this.recordTypeCounts = cached.summary.recordTypeCounts || [];
+        }
+        if (cached.mapPage?.mapRows?.length) {
+          this.mapRows = cached.mapPage.mapRows.map((row) => this.mapRow(row));
+          this.mapEligibleCount =
+            cached.mapPage.mapEligibleCount ?? this.mapEligibleCount;
+          this.hasCachedData = true;
+          this.syncStatus = 'cached';
+          this.safelyDrawMapMarkers(token);
+        }
+      }
+    } catch (_cacheError) {
+      // Cache read is best-effort; continue to the network call.
+    }
+
+    // Note: navigator.onLine is unreliable in Capacitor WebView
+    // Always try the API call - catch block handles real network failures
+    this.syncStatus = 'updating';
     try {
       const summaryParams = {
         ...this.buildApexParams(false),
@@ -613,9 +764,22 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.mapEligibleCount = mapPage?.mapEligibleCount || 0;
       this.mapRows = (mapPage?.rows || []).map((row) => this.mapRow(row));
       await this.drawMapMarkers(this.mapRows, token);
+      await this.writeMapCaches(pageResult, mapPage);
+      this.hasCachedData = true;
+      this.errorMessage = null;
+      this.syncStatus = 'idle';
     } catch (error) {
-      if (token === this.mapRenderToken) {
-        this.errorMessage = this.reduceError(error);
+      if (token !== this.mapRenderToken) {
+        return;
+      }
+      if (error?.name === 'AbortError') {
+        return;
+      }
+      this.syncStatus = 'offline';
+      if (!this.hasCachedData) {
+        this.errorMessage = this.isConnectivityError(error)
+          ? 'You are offline. Connect to load accounts.'
+          : this.reduceError(error);
       }
     } finally {
       if (token === this.mapRenderToken) {
@@ -624,13 +788,53 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     }
   }
 
-  mapRow(row) {
+  async readMapCache() {
+    const [summary, mapPage] = await Promise.all([
+      getAccountsTabCache(this.summaryCacheKey()),
+      getAccountsTabCache(this.mapPageCacheKey())
+    ]);
+    return { summary, mapPage };
+  }
+
+  async writeMapCaches(pageResult, mapPage) {
+    await putAccountsTabCache(this.summaryCacheKey(), {
+      summary: this.summary,
+      recordTypeCounts: this.recordTypeCounts,
+      mapEligibleCount: this.mapEligibleCount
+    });
+    await putAccountsTabCache(this.mapPageCacheKey(), {
+      mapRows: mapPage?.rows || [],
+      mapEligibleCount: this.mapEligibleCount
+    });
+  }
+
+  async safelyDrawMapMarkers(token) {
+    try {
+      await this.drawMapMarkers(this.mapRows, token);
+    } catch (_mapError) {
+      // Map tiles may be unavailable offline; the list still works.
+    }
+  }
+
+  mapRow(row, businessUnitOverride) {
     const target = row.targetVisits;
     const actual = row.actualVisits || 0;
     const planned = row.plannedVisits || 0;
     const hasTarget = target != null;
+    const businessUnits =
+      businessUnitOverride ||
+      (Array.isArray(row.businessUnits) ? row.businessUnits : []);
+    const businessUnitLabel =
+      row.businessUnitLabel ||
+      businessUnits
+        .map((link) => link.chipLabel || link.businessUnitName)
+        .filter(Boolean)
+        .join(', ');
     return {
       ...row,
+      businessUnits,
+      hasBusinessUnits: businessUnits.length > 0,
+      businessUnitLabel,
       reachPercentDisplay:
         row.reachPercent != null ? `${Math.round(Number(row.reachPercent))}%` : '—',
       projectedPercentDisplay:
@@ -646,6 +850,38 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       targetVisits: hasTarget ? target : null,
       visitGap: hasTarget ? row.visitGap : null
     };
+  }
+
+  async cacheBusinessUnits(rows) {
+    if (!rows?.length) {
+      return;
+    }
+    const byAccount = {};
+    rows.forEach((row) => {
+      if (row.accountId && row.businessUnits?.length) {
+        byAccount[row.accountId] = row.businessUnits;
+      }
+    });
+    if (Object.keys(byAccount).length) {
+      await putAccountsTabBusinessUnits(USER_ID, byAccount);
+    }
+  }
+
+  async loadCachedPageRows() {
+    const byAccount = await getAccountsTabBusinessUnits(USER_ID);
+    if (!Object.keys(byAccount).length) {
+      return [];
+    }
+    return Object.entries(byAccount).map(([accountId, businessUnits]) =>
+      this.mapRow(
+        {
+          accountId,
+          accountName: businessUnits[0]?.accountName || 'Account',
+          businessUnits
+        },
+        businessUnits
+      )
+    );
   }
 
   handleShowList() {
@@ -969,24 +1205,43 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       Pace: ${row.paceStatusLabel || 'N/A'} · Score: ${Number(row.agentforceScore || 0).toFixed(1)}`;
   }
 
+  get isPwaContext() {
+    const p = window?.location?.pathname || '';
+    return p === '/' || p.endsWith('/index.html') || p.endsWith('/accounts.html') || p.endsWith('/account.html') || p.endsWith('/visits.html');
+  }
+
   navigateToAccount(accountId) {
-    this[NavigationMixin.Navigate]({
-      type: 'standard__recordPage',
-      attributes: {
-        recordId: accountId,
-        objectApiName: 'Account',
-        actionName: 'view'
-      }
-    });
+    if (this.isPwaContext) {
+      window.location.href = `/account.html?accountId=${accountId}`;
+      return;
+    }
+    const sfInstance =
+      (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || '';
+    if (sfInstance) {
+      window.open(
+        `${String(sfInstance).replace(/\/$/, '')}/lightning/r/Account/${accountId}/view`,
+        '_blank'
+      );
+    } else {
+      window.open(`/lightning/r/Account/${accountId}/view`, '_self');
+    }
   }
 
   navigateToPlanner() {
-    this[NavigationMixin.Navigate]({
-      type: 'standard__navItemPage',
-      attributes: {
-        apiName: 'Field_Rep_Planner'
-      }
-    });
+    if (this.isPwaContext) {
+      window.location.href = '/index.html';
+      return;
+    }
+    const sfInstance =
+      (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || '';
+    if (sfInstance) {
+      window.open(
+        `${String(sfInstance).replace(/\/$/, '')}/lightning/n/Field_Rep_Planner`,
+        '_blank'
+      );
+    } else {
+      window.open('/lightning/n/Field_Rep_Planner', '_self');
+    }
   }
 
   clearMarkers() {
@@ -1013,5 +1268,14 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return error.body.map((e) => e.message).join(', ');
     }
     return error?.body?.message || error?.message || 'Unable to load accounts.';
+  }
+
+  isConnectivityError(error) {
+    const name = error?.name || '';
+    if (name === 'AbortError' || name === 'TypeError') {
+      return true;
+    }
+    const message = error?.message || '';
+    return /offline|failed to fetch|networkerror|load failed/i.test(message);
   }
 }

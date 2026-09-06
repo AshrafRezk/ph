@@ -1,5 +1,5 @@
 const DB_NAME = 'pharmaClmOffline';
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 
 const STORES = {
     manifest: { name: 'manifest', keyPath: 'presentationId' },
@@ -14,7 +14,10 @@ const STORES = {
     plannerCache: { name: 'plannerCache', keyPath: 'userKey' },
     homeMetrics: { name: 'homeMetrics', keyPath: 'userKey' },
     coachingContext: { name: 'coachingContext', keyPath: 'visitId' },
-    clientKeyMap: { name: 'clientKeyMap', keyPath: 'clientKey' }
+    clientKeyMap: { name: 'clientKeyMap', keyPath: 'clientKey' },
+    accounts: { name: 'accounts', keyPath: 'id' },
+    mapAccounts: { name: 'mapAccounts', keyPath: 'userKey' },
+    accountsTab: { name: 'accountsTab', keyPath: 'key' }
 };
 
 let dbPromise = null;
@@ -52,6 +55,17 @@ function isIdbRequest(value) {
 
 function toArray(value) {
     return Array.isArray(value) ? value : [];
+}
+
+function toPlainData(value) {
+    if (value == null) {
+        return value;
+    }
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch (_error) {
+        return value;
+    }
 }
 
 async function withStore(storeName, mode, callback) {
@@ -104,13 +118,24 @@ export async function getPresentationList(userKey) {
     return withStore(STORES.presentationList.name, 'readonly', (store) => store.get(userKey));
 }
 
+function cloneForStorage(blob) {
+    if (blob instanceof ArrayBuffer) {
+        return blob.slice(0);
+    }
+    if (ArrayBuffer.isView(blob)) {
+        return blob.slice().buffer;
+    }
+    return blob;
+}
+
 export async function putAsset(assetKey, blob, metadata = {}) {
+    const stored = cloneForStorage(blob);
     return withStore(STORES.assets.name, 'readwrite', (store) =>
         store.put({
             assetKey,
-            blob,
+            blob: stored,
             cachedAt: new Date().toISOString(),
-            size: blob?.size || blob?.byteLength || 0,
+            size: stored?.size || stored?.byteLength || 0,
             ...metadata
         })
     );
@@ -222,6 +247,10 @@ export function getUserHomeMetricsKey(userId) {
     return `homeMetrics_${userId || 'anonymous'}`;
 }
 
+export function getUserNbcKey(userId) {
+    return `nbc_${userId || 'anonymous'}`;
+}
+
 export async function putVisitPayload(visitId, payload) {
     return withStore(STORES.visitPayloads.name, 'readwrite', (store) =>
         store.put({ visitId, payload, cachedAt: new Date().toISOString() })
@@ -235,7 +264,7 @@ export async function getVisitPayload(visitId) {
 
 export async function putTodayPlan(userKey, visits) {
     return withStore(STORES.todayPlan.name, 'readwrite', (store) =>
-        store.put({ userKey, visits, cachedAt: new Date().toISOString() })
+        store.put({ userKey, visits: toPlainData(visits), cachedAt: new Date().toISOString() })
     );
 }
 
@@ -246,7 +275,7 @@ export async function getTodayPlan(userKey) {
 
 export async function putPlannerCache(userKey, payload) {
     return withStore(STORES.plannerCache.name, 'readwrite', (store) =>
-        store.put({ userKey, payload, cachedAt: new Date().toISOString() })
+        store.put({ userKey, payload: toPlainData(payload), cachedAt: new Date().toISOString() })
     );
 }
 
@@ -256,8 +285,9 @@ export async function getPlannerCache(userKey) {
 }
 
 export async function putHomeMetrics(userKey, metrics) {
+    const plain = toPlainData(metrics);
     return withStore(STORES.homeMetrics.name, 'readwrite', (store) =>
-        store.put({ userKey, metrics, cachedAt: new Date().toISOString() })
+        store.put({ userKey, metrics: plain, cachedAt: new Date().toISOString() })
     );
 }
 
@@ -297,4 +327,144 @@ export function newClientKey(prefix) {
             ? crypto.randomUUID()
             : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     return `${prefix || 'key'}_${rand}`;
+}
+
+export async function putCachedAccounts(accountList) {
+    if (!accountList || !accountList.length) {
+        return;
+    }
+    const plain = toPlainData(accountList);
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORES.accounts.name, 'readwrite');
+        const store = tx.objectStore(STORES.accounts.name);
+        plain.forEach((account) => {
+            if (account && account.id) {
+                store.put(account);
+            }
+        });
+        tx.oncomplete = () => {
+            console.log(`[OfflineStore] Cached ${plain.length} account(s) in IndexedDB.`);
+            resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+export async function getCachedAccount(accountId) {
+    if (!accountId) {
+        return null;
+    }
+    return withStore(STORES.accounts.name, 'readonly', (store) => store.get(accountId));
+}
+
+export async function getAllCachedAccounts() {
+    const rows = await withStore(STORES.accounts.name, 'readonly', (store) => store.getAll());
+    return toArray(rows);
+}
+
+export async function searchCachedAccounts({
+    searchTerm,
+    recordTypeDeveloperName,
+    specialty,
+    classification,
+    brickId,
+    offset = 0,
+    pageSize = 10
+} = {}) {
+    const all = await getAllCachedAccounts();
+    const term = (searchTerm || '').trim().toLowerCase();
+
+    const filtered = all.filter((acc) => {
+        if (!acc) {
+            return false;
+        }
+        if (term) {
+            const name = (acc.name || '').toLowerCase();
+            const street = (acc.street || '').toLowerCase();
+            const city = (acc.city || '').toLowerCase();
+            const spec = (acc.specialty || '').toLowerCase();
+            if (!name.includes(term) && !street.includes(term) && !city.includes(term) && !spec.includes(term)) {
+                return false;
+            }
+        }
+        if (recordTypeDeveloperName && recordTypeDeveloperName !== 'All') {
+            if (acc.recordTypeDeveloperName !== recordTypeDeveloperName && acc.recordTypeName !== recordTypeDeveloperName) {
+                return false;
+            }
+        }
+        if (specialty && specialty !== 'All') {
+            if (acc.specialty !== specialty && acc.specialtyApiValue !== specialty) {
+                return false;
+            }
+        }
+        if (classification && classification !== 'All') {
+            if (acc.classification !== classification) {
+                return false;
+            }
+        }
+        if (brickId && brickId !== 'All') {
+            if (acc.brickId !== brickId && acc.brickName !== brickId) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    const page = filtered.slice(offset, offset + pageSize);
+    return {
+        accounts: page,
+        totalCount: filtered.length,
+        hasMore: offset + pageSize < filtered.length
+    };
+}
+
+export function getUserMapAccountsKey(userId) {
+    return `mapAccounts_${userId || 'anonymous'}`;
+}
+
+export async function putMapAccountsCache(userKey, accounts) {
+    const plain = toPlainData(accounts);
+    return withStore(STORES.mapAccounts.name, 'readwrite', (store) =>
+        store.put({ userKey, accounts: plain, cachedAt: new Date().toISOString() })
+    );
+}
+
+export async function getMapAccountsCache(userKey) {
+    const row = await withStore(STORES.mapAccounts.name, 'readonly', (store) => store.get(userKey));
+    return row?.accounts || null;
+}
+
+export function getUserAccountsTabKey(userId) {
+    return `accountsTab_${userId || 'anonymous'}`;
+}
+
+export async function putAccountsTabCache(key, value) {
+    const plain = toPlainData(value);
+    return withStore(STORES.accountsTab.name, 'readwrite', (store) =>
+        store.put({ key, value: plain, cachedAt: new Date().toISOString() })
+    );
+}
+
+export async function getAccountsTabCache(key) {
+    const row = await withStore(STORES.accountsTab.name, 'readonly', (store) => store.get(key));
+    return row?.value || null;
+}
+
+export async function putAccountsTabBusinessUnits(userId, byAccount) {
+    return putAccountsTabCache(`${getUserAccountsTabKey(userId)}.businessUnits`, byAccount);
+}
+
+export async function getAccountsTabBusinessUnits(userId) {
+    const cached = await getAccountsTabCache(`${getUserAccountsTabKey(userId)}.businessUnits`);
+    return cached && typeof cached === 'object' ? cached : {};
+}
+
+export async function putAccountsTabRecordTypeOptionsCache(userId, options) {
+    return putAccountsTabCache(`${getUserAccountsTabKey(userId)}.options`, options);
+}
+
+export async function getAccountsTabRecordTypeOptionsCache(userId) {
+    const cached = await getAccountsTabCache(`${getUserAccountsTabKey(userId)}.options`);
+    return Array.isArray(cached) ? cached : null;
 }
