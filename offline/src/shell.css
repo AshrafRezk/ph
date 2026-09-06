@@ -227,10 +227,20 @@ body {
     line-height: 1.1;
 }
 
+.nav-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    flex-shrink: 0;
+}
+
 .nav-icon {
     width: 1.375rem;
     height: 1.375rem;
     flex-shrink: 0;
+    object-fit: contain;
 }
 
 .nav-tab:hover {

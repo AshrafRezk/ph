@@ -11,9 +11,10 @@ import FieldRepPlanner from 'c/fieldRepPlanner';
 import AccountsTab from 'c/accountsTab';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
+import MyLearning from 'c/myLearning';
 import VisitCallShell from 'c/visitCallShell';
 import { startSyncService, registerOfflineListener, setForceOfflineAndSync, getForceOffline } from 'c/clmOfflineSync';
-import { fetchApps, fetchTabs, PHARMA_APP } from './apex/fetchAppTabs';
+import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons } from './apex/fetchAppTabs';
 import { setupToastListener } from './toastManager';
 import './slds-shim.css';
 import './shell.css';
@@ -26,6 +27,7 @@ const VISIT_CALL_TAB_KEY = 'Visit_Call';
 const ACTIVE_VISIT_KEY = 'zeta.pwa.activeVisitId';
 let currentTab = HOME_TAB_KEY;
 let appTabs = [];
+let currentOpenApp = null;
 
 // Capacitor plugin references (lazy loaded)
 let capacitorApp = null;
@@ -706,6 +708,16 @@ function mountClmPresentationsView() {
     }
 }
 
+function mountMyLearningView() {
+    const root = document.getElementById('view-learning');
+    if (!root) {
+        return;
+    }
+    if (!root.querySelector('c-my-learning')) {
+        root.appendChild(createElement('c-my-learning', { is: MyLearning }));
+    }
+}
+
 // Map app tab keys (UI API developerName) to their PWA view panel + renderer.
 // Entity tabs (object list views) use the generic list page via mountListView.
 // Tabs not handled render the "not available" in-panel message.
@@ -794,6 +806,7 @@ const APP_TAB_VIEWS = {
     Accounts_Tab: { panel: 'view-accounts', mount: mountAccountsView },
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
+    My_Learning: { panel: 'view-learning', mount: mountMyLearningView },
     Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView }
 };
 
@@ -883,12 +896,17 @@ function unmountApp() {
     const plannerRoot = document.getElementById('view-planner');
     const entityRoot = document.getElementById('view-entity');
     const unsupportedRoot = document.getElementById('view-unsupported');
+    const learningRoot = document.getElementById('view-learning');
+    const clmRoot = document.getElementById('view-clm');
     if (homeRoot) homeRoot.innerHTML = '';
     if (accountsRoot) accountsRoot.innerHTML = '';
     if (plannerRoot) plannerRoot.innerHTML = '';
     if (entityRoot) entityRoot.innerHTML = '';
     if (unsupportedRoot) unsupportedRoot.innerHTML = '';
+    if (learningRoot) learningRoot.innerHTML = '';
+    if (clmRoot) clmRoot.innerHTML = '';
     currentTab = HOME_TAB_KEY;
+    currentOpenApp = null;
 }
 
 function registerServiceWorker() {
@@ -958,36 +976,50 @@ function buildAppChooser() {
     const grid = document.getElementById('app-chooser-grid');
     if (!grid) return;
 
-    // Seed instantly with the local Pharma app so the launcher is never blank.
     chooserApps = [PHARMA_APP];
     chooserItems = buildItemsFromApps(chooserApps);
     renderChooser();
     wireChooserSearch();
 
-    fetchApps()
+    fetchApps({ forceRefresh: true })
         .then((apps) => {
             if (apps && apps.length) {
                 chooserApps = apps;
-                renderChooser();
+                applyChooserUpdate();
             }
         })
         .catch((error) => {
             console.warn('[AppChooser] Failed to load org apps:', error);
         });
 
-    // "All Items" comes from the org-wide /tabs list (every object + flexipage
-    // the user can open), not just the selected app's navItems.
-    fetchTabs()
+    fetchTabs({ forceRefresh: true })
         .then((tabs) => {
             if (tabs && tabs.length) {
                 chooserItems = tabs;
-                renderChooser();
+                applyChooserUpdate();
             }
         })
         .catch((error) => {
             console.warn('[AppChooser] Failed to load org tabs:', error);
         });
 }
+
+function applyChooserUpdate() {
+    chooserApps = overlayTabIcons(chooserApps, chooserItems);
+    if (!chooserItems.length) {
+        chooserItems = buildItemsFromApps(chooserApps);
+    }
+    renderChooser();
+    syncOpenAppFromOrg();
+}
+
+window.addEventListener('zeta-apps-refreshed', (event) => {
+    const apps = event.detail && event.detail.apps;
+    if (apps && apps.length) {
+        chooserApps = apps;
+        applyChooserUpdate();
+    }
+});
 
 // Flatten every app's tabs into a de-duped, sorted item list (the "All Items"
 // section — objects, record pages and flexipage tabs the user can open).
@@ -1105,6 +1137,7 @@ function renderItemCards(items) {
 // views and the "not available" fallback.
 function openItem(item) {
     if (!item || !item.key) return;
+    currentOpenApp = null;
     const tabs = [item];
     appTabs = tabs;
     const titleEl = document.getElementById('nav-title');
@@ -1117,6 +1150,7 @@ function openItem(item) {
 
 // Open the chosen app: load its tabs, render the sidebar, show the app screen.
 function openApp(app) {
+    currentOpenApp = app || null;
     const tabs = app && Array.isArray(app.tabs) ? app.tabs.slice() : [];
     appTabs = tabs;
     const titleEl = document.getElementById('nav-title');
@@ -1154,6 +1188,32 @@ function showEmptyApp(app) {
     panel.classList.add('active');
 }
 
+function syncOpenAppFromOrg() {
+    if (currentScreen !== 'app' || !currentOpenApp) return;
+    const key = currentOpenApp.developerName;
+    const fresh =
+        chooserApps.find((a) => a.developerName === key) ||
+        chooserApps.find((a) => a.fullOffline);
+    if (!fresh || !Array.isArray(fresh.tabs) || !fresh.tabs.length) return;
+
+    const sameTabs =
+        fresh.tabs.length === appTabs.length &&
+        fresh.tabs.every((tab, i) => tab.key === appTabs[i].key && tab.label === appTabs[i].label && tab.iconUrl === appTabs[i].iconUrl);
+    if (sameTabs) return;
+
+    currentOpenApp = fresh;
+    appTabs = fresh.tabs.slice();
+    const titleEl = document.getElementById('nav-title');
+    if (titleEl) titleEl.textContent = fresh.label || 'App';
+    const keep = currentTab;
+    renderTabButtons(appTabs);
+    if (keep && appTabs.some((t) => t.key === keep)) {
+        switchTab(keep);
+    } else if (appTabs[0]) {
+        switchTab(appTabs[0].key);
+    }
+}
+
 function renderTabButtons(tabs) {
     const tabsContainer = document.getElementById('app-tabs');
     if (!tabsContainer) return;
@@ -1167,16 +1227,59 @@ function renderTabButtons(tabs) {
         btn.setAttribute('aria-selected', 'false');
         btn.title = tab.label;
 
-        const icon = tab.iconUrl
-            ? `<img class="nav-icon" src="${tab.iconUrl}" alt="" loading="lazy" onerror="this.style.display='none'" />`
-            : defaultTabIcon();
-        btn.innerHTML = `${icon}<span>${tab.label}</span>`;
+        const iconWrap = document.createElement('span');
+        iconWrap.className = 'nav-icon-wrap';
+        if (tab.iconUrl) {
+            const img = document.createElement('img');
+            img.className = 'nav-icon';
+            img.src = tab.iconUrl;
+            img.alt = '';
+            img.loading = 'lazy';
+            img.addEventListener('error', () => {
+                img.replaceWith(svgIconEl(tab.key));
+            });
+            iconWrap.appendChild(img);
+        } else {
+            iconWrap.appendChild(svgIconEl(tab.key));
+        }
+
+        const label = document.createElement('span');
+        label.textContent = tab.label || tab.key;
+
+        btn.appendChild(iconWrap);
+        btn.appendChild(label);
         btn.addEventListener('click', () => switchTab(tab.key));
         tabsContainer.appendChild(btn);
     });
 }
 
-function defaultTabIcon() {
+function svgIconEl(tabKey) {
+    const span = document.createElement('span');
+    span.className = 'nav-icon-wrap';
+    span.innerHTML = defaultTabIcon(tabKey);
+    return span.firstElementChild || span;
+}
+
+function defaultTabIcon(tabKey) {
+    const key = String(tabKey || '').toLowerCase();
+    if (key.includes('planner') || key.includes('plan')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2zm12 8H5v10h14V10zM8 12h3v3H8v-3z"/></svg>`;
+    }
+    if (key.includes('account') || key.includes('customer')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 21V9l8-6 8 6v12h-6v-6H10v6H4zm2-2h2v-4h8v4h2v-9.2L12 5.5 6 9.8V19z"/></svg>`;
+    }
+    if (key.includes('learning') || key.includes('bell')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm8-6V11a8 8 0 1 0-16 0v5L2 19v1h20v-1l-2-3z"/></svg>`;
+    }
+    if (key.includes('clm') || key.includes('present')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v12H4V4zm2 2v8h12V6H6zm6 12 4 4H8l4-4z"/></svg>`;
+    }
+    if (key.includes('visit') || key.includes('map')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7zm0 4.5A2.5 2.5 0 1 0 12 11a2.5 2.5 0 0 0 0-4.5z"/></svg>`;
+    }
+    if (key.includes('time') || key.includes('off')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm1 5h-2v6l5 3 1-1.7-4-2.3V7z"/></svg>`;
+    }
     return `<svg class="nav-icon" viewBox="0 0 520 520" fill="currentColor" aria-hidden="true">
         <path d="M490 270h-50v220c0 6-4 10-10 10H330c-6 0-10-4-10-10V320H200v170c0 6-4 10-10 10H90c-6 0-10-4-10-10V270H30c-4 0-8-2-9-6-2-4-1-8 2-11L253 23c4-4 11-4 14 0l230 230c3 3 3 7 2 11s-5 6-9 6z"/>
     </svg>`;

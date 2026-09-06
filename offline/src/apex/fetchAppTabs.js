@@ -1,25 +1,31 @@
-// Fetch the org's "Pharma Field" app tabs from the standard REST UI API.
-// Tab list is cached in localStorage (stale-while-revalidate) so the sidebar
-// works offline and only re-syncs when a network call succeeds.
+// Org apps + tabs via Salesforce UI API / REST /tabs.
+// Browser traffic goes through plannerApiFetch (Netlify sf-api) so CORS cannot
+// collapse the launcher to the local Pharma Field fallback.
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs';
-const APPS_CACHE_KEY = 'zeta.pwa.apps';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs';
+import { plannerApiFetch } from './restHelper.js';
+
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v2';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v2';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v2';
 const DEFAULT_API_VERSION = 'v62.0';
+const FORM_FACTOR = 'Large';
+const HYDRATE_BATCH = 6;
 
-// The offline PWA ships full renderers only for the Pharma Field app. Its tabs
-// are the local defaults and it is always surfaced in the launcher even when
-// the org's default app differs. Keys map to the view mount functions in main.js.
+// Offline-only seed when the org cannot be reached. Labels match LightningSales.
 const FALLBACK_TABS = [
     { key: 'Field_Rep_Home_App', label: 'Home', type: 'TabFlexiPage', iconUrl: null },
-    { key: 'Field_Rep_Planner', label: 'Field Rep Planner', type: 'TabAura', iconUrl: null },
+    { key: 'Field_Rep_Planner', label: 'Planner', type: 'TabAura', iconUrl: null },
     { key: 'Accounts_Tab', label: 'Accounts', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Visit__c', label: 'Visits', type: 'Entity', iconUrl: null, objectApiName: 'Visit__c' },
     { key: 'CLM_Presentations', label: 'CLM Presentations', type: 'TabFlexiPage', iconUrl: null },
-    { key: 'Visit__c', label: 'Visits', type: 'Entity', iconUrl: null }
+    { key: 'My_Learning', label: 'My Learning', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Coaching_Event__c', label: 'Coaching Events', type: 'Entity', iconUrl: null, objectApiName: 'Coaching_Event__c' },
+    { key: 'Request_Time_Off', label: 'Request Time Off', type: 'TabFlexiPage', iconUrl: null }
 ];
 
 export const PHARMA_APP = {
-    developerName: 'PharmaField',
+    id: null,
+    developerName: 'LightningSales',
     label: 'Pharma Field',
     iconUrl: null,
     description: 'Home, planner, accounts, CLM & time off — full offline support.',
@@ -27,11 +33,13 @@ export const PHARMA_APP = {
     tabs: FALLBACK_TABS
 };
 
+const OFFLINE_HOME_TAB = 'Field_Rep_Home_App';
+
 function sfInstance() {
     return (
         (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) ||
         (typeof localStorage !== 'undefined' && localStorage.getItem('zeta.pwa.sfInstanceUrl')) ||
-        'https://zetapharma.my.salesforce.com'
+        ''
     );
 }
 
@@ -43,47 +51,173 @@ function apiToken() {
     );
 }
 
-function writeCache(data) {
-    try {
-        localStorage.setItem(APP_TABS_CACHE_KEY, JSON.stringify({
-            savedAt: Date.now(),
-            payload: data
-        }));
-    } catch (_err) { /* storage full */ }
+function resolveIconUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    const base = String(sfInstance()).replace(/\/$/, '');
+    if (!base) return trimmed;
+    return trimmed.startsWith('/') ? `${base}${trimmed}` : `${base}/${trimmed}`;
 }
 
-function readCache() {
+function cacheWrite(key, data) {
     try {
-        const raw = localStorage.getItem(APP_TABS_CACHE_KEY);
+        localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), payload: data }));
+    } catch (_err) {
+        /* storage full */
+    }
+}
+
+function cacheRead(key) {
+    try {
+        const raw = localStorage.getItem(key);
         if (!raw) return null;
-        return JSON.parse(raw);
-    } catch (_err) { /* corrupt or unavailable */ }
-    return null;
+        const parsed = JSON.parse(raw);
+        return parsed && Array.isArray(parsed.payload) && parsed.payload.length ? parsed.payload : null;
+    } catch (_err) {
+        return null;
+    }
 }
 
-// Normalize a UI API app's navItems into the shape the shell expects.
 function normalizeTabs(app) {
-    const navItems = (app && Array.isArray(app.navItems)) ? app.navItems : [];
+    const navItems = app && Array.isArray(app.navItems) ? app.navItems : [];
     return navItems
         .filter((item) => item && item.label && item.developerName)
         .map((item) => ({
             key: item.developerName,
             label: item.label,
             type: item.itemType || item.type || 'TabFlexiPage',
-            iconUrl: item.iconUrl || null,
+            iconUrl: resolveIconUrl(item.iconUrl || (item.icon && item.icon.iconUrl) || null),
             objectApiName: item.objectApiName || null
         }));
 }
 
-// Fetch tab definitions for the current user's "Pharma Field" app.
-// Returns the cached list immediately when available, then refreshes in the
-// background. On failure it falls back to cache, then to local defaults.
+function mapOrgApp(app) {
+    const iconUrl = resolveIconUrl(
+        app.iconUrl || (app.icon && (app.icon.iconUrl || app.icon.url)) || null
+    );
+    return {
+        id: app.id || app.durableId || null,
+        developerName: app.developerName || app.label,
+        label: app.label || app.developerName,
+        iconUrl,
+        description: app.description || '',
+        selected: app.selected === true,
+        fullOffline: false,
+        tabs: normalizeTabs(app)
+    };
+}
+
+async function sfGet(path) {
+    return plannerApiFetch(path, { method: 'GET' });
+}
+
+async function fetchAppListFromOrg() {
+    const token = apiToken();
+    if (!token) {
+        throw new Error('Not signed in.');
+    }
+    const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps?formFactor=${FORM_FACTOR}`;
+    const data = await sfGet(path);
+    const apps = Array.isArray(data && data.apps) ? data.apps : [];
+    return apps.map(mapOrgApp);
+}
+
+async function hydrateAppNav(app) {
+    const appId = app && (app.id || app.developerName);
+    if (!appId) return app;
+    const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps/${encodeURIComponent(appId)}?formFactor=${FORM_FACTOR}`;
+    const detail = await sfGet(path);
+    const tabs = normalizeTabs(detail);
+    return {
+        ...app,
+        id: app.id || detail.id || detail.durableId || null,
+        label: detail.label || app.label,
+        description: app.description || detail.description || '',
+        iconUrl: app.iconUrl || resolveIconUrl(detail.iconUrl || (detail.icon && detail.icon.iconUrl)),
+        tabs: tabs.length ? tabs : app.tabs || []
+    };
+}
+
+async function hydrateMissingNavItems(apps) {
+    const list = (apps || []).slice();
+    const pendingIdx = [];
+    list.forEach((app, idx) => {
+        if (!app.tabs || !app.tabs.length) {
+            pendingIdx.push(idx);
+        }
+    });
+    for (let i = 0; i < pendingIdx.length; i += HYDRATE_BATCH) {
+        const chunk = pendingIdx.slice(i, i + HYDRATE_BATCH);
+        const results = await Promise.all(
+            chunk.map(async (idx) => {
+                try {
+                    return await hydrateAppNav(list[idx]);
+                } catch (err) {
+                    console.warn('[AppTabs] hydrate failed', list[idx] && list[idx].developerName, err);
+                    return list[idx];
+                }
+            })
+        );
+        results.forEach((app, j) => {
+            list[chunk[j]] = app;
+        });
+    }
+    return list;
+}
+
+function overlayTabIcons(apps, allTabs) {
+    const byKey = new Map();
+    (allTabs || []).forEach((tab) => {
+        if (tab && tab.key) byKey.set(tab.key, tab);
+    });
+    return (apps || []).map((app) => ({
+        ...app,
+        iconUrl: app.iconUrl || null,
+        tabs: (app.tabs || []).map((tab) => {
+            const meta = byKey.get(tab.key);
+            if (!meta) return tab;
+            return {
+                ...tab,
+                iconUrl: tab.iconUrl || meta.iconUrl || null,
+                objectApiName: tab.objectApiName || meta.objectApiName || null
+            };
+        })
+    }));
+}
+
+function isFieldApp(app) {
+    if (!app) return false;
+    if (app.developerName === 'LightningSales' || app.developerName === 'PharmaField') return true;
+    return (app.tabs || []).some((t) => t.key === OFFLINE_HOME_TAB);
+}
+
+function markOfflineFirst(apps) {
+    const list = (apps || []).map((app) => {
+        if (!isFieldApp(app)) return app;
+        return {
+            ...app,
+            fullOffline: true,
+            description: app.description || PHARMA_APP.description
+        };
+    });
+    list.sort((a, b) => (b.fullOffline === true) - (a.fullOffline === true));
+    if (!list.some((a) => a.fullOffline)) {
+        list.unshift(PHARMA_APP);
+    }
+    return list;
+}
+
+async function fetchAppsFromOrg() {
+    const apps = await fetchAppListFromOrg();
+    return hydrateMissingNavItems(apps);
+}
+
 export async function fetchAppTabs({ forceRefresh = false } = {}) {
-    const cached = readCache();
-    const fromCache = cached && Array.isArray(cached.payload) && cached.payload.length ? cached.payload : null;
+    const fromCache = cacheRead(APP_TABS_CACHE_KEY);
 
     if (fromCache && !forceRefresh) {
-        // Background refresh so the sidebar stays current without blocking boot.
         refreshAppTabs().catch(() => {});
         return fromCache;
     }
@@ -91,11 +225,11 @@ export async function fetchAppTabs({ forceRefresh = false } = {}) {
     try {
         const tabs = await fetchAppTabsFromOrg();
         if (tabs.length) {
-            writeCache(tabs);
+            cacheWrite(APP_TABS_CACHE_KEY, tabs);
             return tabs;
         }
-    } catch (_err) {
-        // Fall through to cache / defaults.
+    } catch (err) {
+        console.warn('[AppTabs] fetchAppTabs failed', err);
     }
 
     if (fromCache) return fromCache;
@@ -105,7 +239,7 @@ export async function fetchAppTabs({ forceRefresh = false } = {}) {
 async function refreshAppTabs() {
     const tabs = await fetchAppTabsFromOrg();
     if (tabs.length) {
-        writeCache(tabs);
+        cacheWrite(APP_TABS_CACHE_KEY, tabs);
         return tabs;
     }
     return null;
@@ -113,115 +247,36 @@ async function refreshAppTabs() {
 
 async function fetchAppTabsFromOrg() {
     const apps = await fetchAppsFromOrg();
-    const selected = apps.find((app) => app && app.selected === true)
-        || apps.find((app) => app && app.developerName === 'LightningSales')
-        || apps[0];
+    const selected =
+        apps.find((app) => app && app.selected === true) ||
+        apps.find((app) => isFieldApp(app)) ||
+        apps[0];
     return (selected && selected.tabs) || [];
 }
 
-// ---- App launcher -------------------------------------------------------
-// The launcher lists every Lightning app the user can open. Pharma Field is
-// always merged in first (full offline renderers); other org apps render the
-// tabs the PWA supports (entity list views) and show a "not available" panel
-// for the rest.
-
-function writeAppsCache(data) {
-    try {
-        localStorage.setItem(APPS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), payload: data }));
-    } catch (_err) { /* storage full */ }
-}
-
-function readAppsCache() {
-    try {
-        const raw = localStorage.getItem(APPS_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && Array.isArray(parsed.payload) && parsed.payload.length ? parsed.payload : null;
-    } catch (_err) { /* corrupt or unavailable */ }
-    return null;
-}
-
-// The offline PWA fully renders whichever app hosts the field-rep home page.
-// Tag that app "offline ready" (keeping its real icon + navItems) and sort it
-// first. Tabs come straight from the org app's nav — nothing hard-coded.
-const OFFLINE_HOME_TAB = 'Field_Rep_Home_App';
-
-function markOfflineFirst(apps) {
-    const list = (apps || []).map((app) => {
-        const isFieldApp = (app.tabs || []).some((t) => t.key === OFFLINE_HOME_TAB)
-            || app.developerName === 'LightningSales';
-        if (!isFieldApp) {
-            return app;
-        }
-        return {
-            ...app,
-            fullOffline: true,
-            description: app.description || PHARMA_APP.description
-        };
-    });
-    // Offline-ready app first, then the rest.
-    list.sort((a, b) => (b.fullOffline === true) - (a.fullOffline === true));
-    // Guarantee the field app is present even if the org didn't return one.
-    if (!list.some((a) => a.fullOffline)) {
-        list.unshift(PHARMA_APP);
-    }
-    return list;
-}
-
-async function fetchAppsFromOrg() {
-    const token = apiToken();
-    if (!token) {
-        throw new Error('Not signed in.');
-    }
-    const base = `${String(sfInstance()).replace(/\/$/, '')}/services/data/${DEFAULT_API_VERSION}/ui-api/apps?formFactor=Small`;
-    // Bounded so the launcher can never hang on a stalled connection.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    let resp;
-    try {
-        resp = await fetch(base, {
-            method: 'GET',
-            headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-            signal: controller.signal
-        });
-    } finally {
-        clearTimeout(timer);
-    }
-    if (resp.status === 401) {
-        throw new Error('Session expired.');
-    }
-    if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-    }
-    const data = await resp.json();
-    const apps = Array.isArray(data.apps) ? data.apps : [];
-    return apps.map((app) => ({
-        developerName: app.developerName || app.label,
-        label: app.label || app.developerName,
-        iconUrl: app.iconUrl || (app.icon && app.icon.iconUrl) || null,
-        description: app.description || '',
-        selected: app.selected === true,
-        fullOffline: false,
-        tabs: normalizeTabs(app)
-    }));
-}
-
-// Returns the launcher app list (Pharma Field first). Stale-while-revalidate:
-// serves cache immediately then refreshes; falls back to Pharma-only offline.
 export async function fetchApps({ forceRefresh = false } = {}) {
-    const cached = readAppsCache();
+    const cached = cacheRead(APPS_CACHE_KEY);
     if (cached && !forceRefresh) {
-        refreshApps().catch(() => {});
+        refreshApps().catch((err) => console.warn('[AppChooser] background refresh failed', err));
         return markOfflineFirst(cached);
     }
     try {
         const apps = await fetchAppsFromOrg();
         if (apps.length) {
-            writeAppsCache(apps);
-            return markOfflineFirst(apps);
+            let itemTabs = [];
+            try {
+                itemTabs = await fetchTabsFromOrg();
+                if (itemTabs.length) cacheWrite(TABS_CACHE_KEY, itemTabs);
+            } catch (_err) {
+                /* All Items is optional for the app cards */
+            }
+            const merged = overlayTabIcons(apps, itemTabs);
+            cacheWrite(APPS_CACHE_KEY, merged);
+            console.log('[AppChooser] loaded', merged.length, 'apps from org');
+            return markOfflineFirst(merged);
         }
-    } catch (_err) {
-        // Fall through to cache / Pharma-only.
+    } catch (err) {
+        console.warn('[AppChooser] fetchApps failed', err);
     }
     if (cached) return markOfflineFirst(cached);
     return [PHARMA_APP];
@@ -230,36 +285,27 @@ export async function fetchApps({ forceRefresh = false } = {}) {
 async function refreshApps() {
     const apps = await fetchAppsFromOrg();
     if (apps.length) {
-        writeAppsCache(apps);
+        let itemTabs = cacheRead(TABS_CACHE_KEY) || [];
+        try {
+            const freshTabs = await fetchTabsFromOrg();
+            if (freshTabs.length) {
+                itemTabs = freshTabs;
+                cacheWrite(TABS_CACHE_KEY, freshTabs);
+            }
+        } catch (_err) {
+            /* keep cached items */
+        }
+        const merged = overlayTabIcons(apps, itemTabs);
+        cacheWrite(APPS_CACHE_KEY, merged);
+        const marked = markOfflineFirst(merged);
+        window.dispatchEvent(new CustomEvent('zeta-apps-refreshed', { detail: { apps: marked } }));
+        return marked;
     }
     return apps;
 }
 
-// ---- All Items ----------------------------------------------------------
-// The ui-api/apps endpoint only returns navItems for the *selected* app, so
-// other apps come back tab-less. The REST /tabs resource lists every tab the
-// user can access (objects + flexipages, with icons) regardless of app — the
-// launcher's "All Items" section, and the way to open an object directly.
-
-// 15/18-char Salesforce ids (flexipage/web tabs) vs real object api names.
 function isSalesforceId(v) {
     return typeof v === 'string' && v[0] === '0' && /^[0-9A-Za-z]{15}([0-9A-Za-z]{3})?$/.test(v);
-}
-
-function tabsCacheGet() {
-    try {
-        const raw = localStorage.getItem(TABS_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && Array.isArray(parsed.payload) && parsed.payload.length ? parsed.payload : null;
-    } catch (_err) { /* corrupt */ }
-    return null;
-}
-
-function tabsCacheSet(data) {
-    try {
-        localStorage.setItem(TABS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), payload: data }));
-    } catch (_err) { /* full */ }
 }
 
 async function fetchTabsFromOrg() {
@@ -267,23 +313,7 @@ async function fetchTabsFromOrg() {
     if (!token) {
         throw new Error('Not signed in.');
     }
-    const url = `${String(sfInstance()).replace(/\/$/, '')}/services/data/${DEFAULT_API_VERSION}/tabs`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    let resp;
-    try {
-        resp = await fetch(url, {
-            method: 'GET',
-            headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-            signal: controller.signal
-        });
-    } finally {
-        clearTimeout(timer);
-    }
-    if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
-    }
-    const data = await resp.json();
+    const data = await sfGet(`/services/data/${DEFAULT_API_VERSION}/tabs`);
     const rows = Array.isArray(data) ? data : [];
     return rows
         .filter((t) => t && t.name && t.label)
@@ -293,28 +323,31 @@ async function fetchTabsFromOrg() {
                 key: t.name,
                 label: t.label,
                 type: isObject ? 'Entity' : 'TabFlexiPage',
-                iconUrl: t.iconUrl || t.miniIconUrl || null,
+                iconUrl: resolveIconUrl(t.iconUrl || t.miniIconUrl || null),
                 objectApiName: isObject ? t.sobjectName : null
             };
         })
         .sort((a, b) => (a.label || '').localeCompare(b.label || ''));
 }
 
-// All accessible tabs (items). Stale-while-revalidate; empty on failure.
 export async function fetchTabs({ forceRefresh = false } = {}) {
-    const cached = tabsCacheGet();
+    const cached = cacheRead(TABS_CACHE_KEY);
     if (cached && !forceRefresh) {
-        fetchTabsFromOrg().then(tabsCacheSet).catch(() => {});
+        fetchTabsFromOrg()
+            .then((tabs) => cacheWrite(TABS_CACHE_KEY, tabs))
+            .catch(() => {});
         return cached;
     }
     try {
         const tabs = await fetchTabsFromOrg();
         if (tabs.length) {
-            tabsCacheSet(tabs);
+            cacheWrite(TABS_CACHE_KEY, tabs);
             return tabs;
         }
-    } catch (_err) {
-        // Fall through to cache / empty.
+    } catch (err) {
+        console.warn('[AppChooser] fetchTabs failed', err);
     }
     return cached || [];
 }
+
+export { overlayTabIcons };
