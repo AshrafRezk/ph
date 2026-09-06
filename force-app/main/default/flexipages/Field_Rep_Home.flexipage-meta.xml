@@ -8,6 +8,12 @@
     </flexiPageRegions>
     <flexiPageRegions>
         <itemInstances>
+                <componentInstance>
+                <componentName>offlineAppBanner</componentName>
+                <identifier>offlineAppBanner</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
             <componentInstance>
                 <componentName>pendingPaymentAlert</componentName>
                 <identifier>pendingPaymentAlert</identifier>

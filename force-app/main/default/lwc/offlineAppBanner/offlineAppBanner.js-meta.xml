@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Offline App Banner</masterLabel>
+    <description>Promotes the offline Field app online, and shows an update notice when the offline app is outdated.</description>
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__AppPage,lightning__HomePage,lightning__RecordPage">
+            <property
+                name="downloadBaseUrl"
+                type="String"
+                label="Offline app base URL"
+                description="Base URL for APK and version manifest (no trailing slash)."
+                default="https://salesforceoffline.com"
+            />
+            <property
+                name="hideInSalesforceApp"
+                type="Boolean"
+                label="Hide download links in Salesforce mobile app"
+                default="false"
+            />
+            <supportedFormFactors>
+                <supportedFormFactor type="Large" />
+                <supportedFormFactor type="Small" />
+            </supportedFormFactors>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

@@ -16,6 +16,7 @@ import MyLearning from 'c/myLearning';
 import CoachingEventEvaluation from 'c/coachingEventEvaluation';
 import AccountAffiliationNetwork from 'c/accountAffiliationNetwork';
 import PendingPaymentAlert from 'c/pendingPaymentAlert';
+import OfflineAppBanner from 'c/offlineAppBanner';
 import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
 import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
 import { plannerApiFetch } from './apex/restHelper';
@@ -31,6 +32,7 @@ const USER_USERNAME_KEY = 'zeta.pwa.sfUserUsername';
 const USER_ID_KEY = 'zeta.pwa.sfUserId';
 const SESSION_CONFIRMED_KEY = 'zeta.pwa.sessionConfirmed';
 const LAST_WORKSPACE_KEY = 'zeta.pwa.lastWorkspace';
+const APP_VERSION_KEY = 'zeta.pwa.appVersion';
 const HOME_TAB_KEY = 'Field_Rep_Home_App';
 const VISIT_CALL_TAB_KEY = 'Visit_Call';
 const ACTIVE_VISIT_KEY = 'zeta.pwa.activeVisitId';
@@ -865,6 +867,9 @@ function mountHomeView() {
     const homeRoot = document.getElementById('view-home');
     if (!homeRoot) {
         return;
+    }
+    if (!homeRoot.querySelector('c-offline-app-banner')) {
+        homeRoot.appendChild(createElement('c-offline-app-banner', { is: OfflineAppBanner }));
     }
     if (!homeRoot.querySelector('c-pending-payment-alert')) {
         homeRoot.appendChild(createElement('c-pending-payment-alert', { is: PendingPaymentAlert }));
@@ -2102,10 +2107,45 @@ async function setupLoginDownloads() {
     });
 }
 
+async function stampOfflineRuntimeVersion() {
+    document.documentElement.classList.add('osr-offline-shell');
+    let version = '';
+    try {
+        const local = await fetch('/downloads/apk-latest.json', { cache: 'no-store' });
+        if (local.ok) {
+            const meta = await local.json();
+            version = meta?.version ? String(meta.version) : '';
+        }
+    } catch (_e) {
+        // ignore
+    }
+    if (!version) {
+        try {
+            version = localStorage.getItem(APP_VERSION_KEY) || '';
+        } catch (_e) {
+            version = '';
+        }
+    }
+    if (version) {
+        try {
+            localStorage.setItem(APP_VERSION_KEY, version);
+        } catch (_e) {
+            // ignore
+        }
+    }
+    window.__OSR_RUNTIME__ = {
+        shell: 'offline',
+        version,
+        capacitor: isCapacitor()
+    };
+}
+
 async function initializeApp(options = {}) {
     console.log('[App] Initializing...');
     console.log('[App] User Agent:', navigator.userAgent);
     console.log('[App] Initial window.Capacitor:', typeof window.Capacitor);
+
+    await stampOfflineRuntimeVersion();
 
     const enterImmediately = !!options.enterImmediately;
     const oauthCallback = isOAuthCallbackLocation();

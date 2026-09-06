@@ -1,0 +1,160 @@
+:host {
+    display: block;
+    margin: 0 0 0.75rem;
+}
+
+.offline-app-banner {
+    border: 1px solid #d8e6f5;
+    border-radius: 0.85rem;
+    background: linear-gradient(180deg, #f7fbff 0%, #eef5fc 100%);
+    padding: 0.9rem 1rem 1rem;
+    box-shadow: 0 1px 2px rgba(1, 68, 134, 0.06);
+}
+
+.offline-app-banner.is-update {
+    border-color: #f5c26b;
+    background: linear-gradient(180deg, #fffaf0 0%, #fff4e0 100%);
+}
+
+.banner-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.banner-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+.banner-kicker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+}
+
+.mode-badge,
+.update-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.mode-badge {
+    background: #e3f0ff;
+    color: #014486;
+}
+
+.is-update .mode-badge {
+    background: #ffe8c2;
+    color: #8a4b00;
+}
+
+.update-pill {
+    background: #fe9339;
+    color: #fff;
+}
+
+.banner-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #032d60;
+    line-height: 1.3;
+}
+
+.banner-body {
+    margin: 0.3rem 0 0;
+    font-size: 0.8125rem;
+    color: #54698d;
+    line-height: 1.45;
+}
+
+.dismiss-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #706e6b;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.15rem;
+}
+
+.dismiss-btn:hover {
+    color: #181818;
+}
+
+.download-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.85rem;
+}
+
+.download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 48px;
+    min-width: 12.5rem;
+    flex: 1 1 12.5rem;
+    max-width: 100%;
+    padding: 0.55rem 0.85rem;
+    border: 1.5px solid #1b1b1b;
+    border-radius: 0.75rem;
+    background: #f3f3f3;
+    color: #181818;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+    font: inherit;
+    text-align: left;
+}
+
+.download-btn:hover {
+    background: #e8e8e8;
+}
+
+.download-logo {
+    display: inline-flex;
+    color: #032d60;
+    flex: 0 0 auto;
+}
+
+.download-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.download-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #032d60;
+    line-height: 1.2;
+}
+
+.download-meta {
+    font-size: 0.75rem;
+    color: #706e6b;
+    line-height: 1.2;
+}
+
+.ios-hint {
+    margin: 0.7rem 0 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.65rem;
+    background: #f0f7fc;
+    border: 1px solid #d5e7f5;
+    color: #54698d;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
