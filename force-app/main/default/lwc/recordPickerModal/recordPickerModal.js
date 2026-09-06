@@ -20,15 +20,15 @@ export default class RecordPickerModal extends LightningElement {
     }
 
     get dialogClass() {
-        return `slds-modal slds-fade-in-open ${this.open ? '' : 'slds-hide'}`;
+        return this.open ? 'slds-modal slds-fade-in-open' : 'slds-hide';
     }
 
     get backdropClass() {
-        return `slds-backdrop ${this.open ? 'slds-backdrop_open' : ''}`;
+        return this.open ? 'slds-backdrop slds-backdrop_open' : 'slds-hide';
     }
 
     handleSearchChange(event) {
-        this.searchTerm = event.target.value;
+        this.searchTerm = event.detail?.value ?? event.target?.value ?? '';
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
             this.runSearch(this.searchTerm);

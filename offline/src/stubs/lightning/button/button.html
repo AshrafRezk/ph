@@ -6,8 +6,14 @@
         title={title}
         onclick={handleClick}
     >
+        <template if:true={showIconLeft}>
+            <lightning-icon icon-name={iconName} size="xx-small" alternative-text=""></lightning-icon>
+        </template>
         <template if:true={label}>
-            {label}
+            <span class="slds-button__label">{label}</span>
+        </template>
+        <template if:true={showIconRight}>
+            <lightning-icon icon-name={iconName} size="xx-small" alternative-text=""></lightning-icon>
         </template>
         <slot></slot>
     </button>

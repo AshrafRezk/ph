@@ -192,6 +192,32 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
         return this.activeSection === 'presentations';
     }
 
+    get detailsPanelClass() {
+        return this.activeSection === 'details' ? 'visit-panel' : 'visit-panel visit-section-hidden';
+    }
+
+    get affiliationsPanelClass() {
+        return this.activeSection === 'affiliations'
+            ? 'visit-panel visit-panel-affiliations'
+            : 'visit-panel visit-panel-affiliations visit-section-hidden';
+    }
+
+    get attendeesPanelClass() {
+        return this.activeSection === 'attendees' ? '' : 'visit-section-hidden';
+    }
+
+    get productsPanelClass() {
+        return this.activeSection === 'products' ? '' : 'visit-section-hidden';
+    }
+
+    get samplesPanelClass() {
+        return this.activeSection === 'samples' ? '' : 'visit-section-hidden';
+    }
+
+    get presentationsPanelClass() {
+        return this.activeSection === 'presentations' ? '' : 'visit-section-hidden';
+    }
+
     get accountBadgeLabel() {
         const devName = this.visit?.accountRecordTypeDeveloperName || '';
         if (HCP_RECORD_TYPES.has(devName)) {
@@ -301,7 +327,13 @@ export default class VisitCallShell extends NavigationMixin(LightningElement) {
     }
 
     handleNavClick(event) {
-        this.activeSection = event.currentTarget.dataset.section;
+        event.preventDefault();
+        const fromButton = event.currentTarget?.dataset?.section;
+        const fromNested = event.target?.closest?.('[data-section]')?.dataset?.section;
+        const section = fromButton || fromNested;
+        if (section) {
+            this.activeSection = section;
+        }
     }
 
     handleStatusChange(event) {

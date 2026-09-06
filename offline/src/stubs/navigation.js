@@ -1,23 +1,51 @@
+const VISIT_OBJECTS = new Set(['Visit__c', 'Visit']);
+
+function objectFromPageRef(pageRef) {
+    return (
+        pageRef?.attributes?.objectApiName ||
+        pageRef?.attributes?.objectApi ||
+        pageRef?.state?.objectApiName ||
+        ''
+    );
+}
+
+function navigateInApp(recordId, objectApiName, actionName) {
+    if (!recordId) return;
+    const detail = {
+        recordId,
+        objectApiName: objectApiName || '',
+        actionName: actionName || 'view'
+    };
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('zeta-navigate-record', { detail }));
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'zeta-navigate-record', ...detail }, '*');
+    }
+}
+
 export const NavigationMixin = (Base) => {
     class Mixed extends Base {
         [NavigationMixin.Navigate](pageRef) {
             console.log('[NavigationMixin.Navigate]', pageRef);
-            if (pageRef?.attributes?.recordId) {
-                const recordId = pageRef.attributes.recordId;
-                const obj = pageRef.attributes.objectApiName || 'Account';
-                const sfInstance = (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || 'https://zetapharma.my.salesforce.com';
-                if (obj === 'Account') {
-                    window.open(`${String(sfInstance).replace(/\/$/, '')}/lightning/r/${obj}/${recordId}/view`, '_blank');
-                } else {
-                    // Non-Account records open in the generic standard-API record page.
-                    // BASE_URL keeps it under the deploy subpath (e.g. "/Zeta/").
-                    const base = (import.meta.env && import.meta.env.BASE_URL) || '/';
-                    window.open(`${base}record.html?recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(obj)}`, '_blank');
-                }
+            const recordId = pageRef?.attributes?.recordId;
+            if (!recordId) {
+                return;
             }
+            navigateInApp(recordId, objectFromPageRef(pageRef), pageRef?.attributes?.actionName);
         }
-        [NavigationMixin.GenerateUrl](_pageRef) {
-            return Promise.resolve('#');
+        [NavigationMixin.GenerateUrl](pageRef) {
+            const recordId = pageRef?.attributes?.recordId;
+            const obj = objectFromPageRef(pageRef);
+            if (!recordId) {
+                return Promise.resolve('#');
+            }
+            if (VISIT_OBJECTS.has(obj)) {
+                return Promise.resolve(`/?visit=${encodeURIComponent(recordId)}`);
+            }
+            const base = (import.meta.env && import.meta.env.BASE_URL) || '/';
+            return Promise.resolve(
+                `${base}?recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(obj || '')}`
+            );
         }
     }
     return Mixed;

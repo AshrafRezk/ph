@@ -17,6 +17,8 @@ async function soqlOne(query) {
 
 function mapVisit(v) {
     const status = v.Status__c || 'Draft';
+    const acct = v.Account__r || {};
+    const rt = acct.RecordType || null;
     return {
         id: v.Id,
         name: v.Name,
@@ -29,13 +31,16 @@ function mapVisit(v) {
         clmPresentation: v.CLM_Presentation__c,
         nextVisitDate: v.Next_Visit_Date__c,
         cancellationReason: v.Cancellation_Reason__c,
-        // Client can't check the "Amend_Completed_Visits" perm; mirror the default.
         isLocked: status === 'Completed' || status === 'Cancelled',
         isDoubleVisit: v.Is_Double_Visit__c === true,
         coachingEventId: v.Coaching_Event__c || null,
         accountId: v.Account__c,
-        accountName: v.Account__r ? v.Account__r.Name : null,
-        accountCity: v.Account__r ? v.Account__r.BillingCity : null
+        accountName: acct.Name || null,
+        accountCity: acct.BillingCity || null,
+        accountSpecialty: acct.Specialty_1__c || null,
+        accountRecordTypeDeveloperName: rt ? rt.DeveloperName : null,
+        accountRecordTypeName: rt ? rt.Name : null,
+        assignedToName: v.Assigned_To__r ? v.Assigned_To__r.Name : null
     };
 }
 
@@ -77,7 +82,8 @@ async function loadCallReportPayload(params) {
         'SELECT Id, Name, Status__c, Visit_Type__c, Start_Date__c, End_Date__c, ' +
         'Visit_Objective__c, Visit_Notes__c, CLM_Presentation__c, Next_Visit_Date__c, ' +
         'Cancellation_Reason__c, Is_Double_Visit__c, Coaching_Event__c, Account__c, ' +
-        'Account__r.Name, Account__r.BillingCity ' +
+        'Assigned_To__r.Name, Account__r.Name, Account__r.BillingCity, Account__r.Specialty_1__c, ' +
+        'Account__r.RecordType.DeveloperName, Account__r.RecordType.Name ' +
         `FROM Visit__c WHERE Id = '${visitId}' LIMIT 1`
     );
     if (!visit) {

@@ -25,7 +25,7 @@ async function loadRecord(config) {
     const result = await plannerApiFetch(path);
     const rows = result && Array.isArray(result.records) ? result.records : [];
     if (!rows.length) {
-        return undefined;
+        throw { status: 404, body: { message: 'Record not found.' } };
     }
     const row = rows[0];
     const fields = {};

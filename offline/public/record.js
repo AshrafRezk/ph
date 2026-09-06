@@ -671,6 +671,19 @@ function setupQueryParams() {
     }
     const recordId = params.get('recordId');
     const object = params.get('object');
+    if (recordId && (object === 'Visit__c' || object === 'Visit')) {
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'open-visit-call', recordId }, '*');
+            return;
+        }
+        if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'open-visit-call', recordId }, '*');
+            window.close();
+            return;
+        }
+        window.location.replace(`/?visit=${encodeURIComponent(recordId)}`);
+        return;
+    }
     if (recordId) {
         const idInput = el('record-id');
         const objectInput = el('record-object');

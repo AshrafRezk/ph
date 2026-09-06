@@ -4,9 +4,9 @@
 
 import { plannerApiFetch } from './restHelper.js';
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v3';
-const APPS_CACHE_KEY = 'zeta.pwa.apps.v3';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v3';
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v4';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v4';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v4';
 const DEFAULT_API_VERSION = 'v62.0';
 const FORM_FACTOR = 'Large';
 const HYDRATE_BATCH = 6;
@@ -184,17 +184,27 @@ async function hydrateMissingNavItems(apps) {
 }
 
 function mergeFallbackTabs(tabs) {
-    const existing = Array.isArray(tabs) ? tabs.slice() : [];
-    if (!existing.length) {
-        return FALLBACK_TABS.map((tab) => ({ ...tab }));
-    }
-    const keys = new Set(existing.map((tab) => tab.key));
-    FALLBACK_TABS.forEach((tab) => {
-        if (!keys.has(tab.key)) {
-            existing.push({ ...tab });
-        }
+    const orgTabs = Array.isArray(tabs) ? tabs : [];
+    const byKey = new Map();
+    orgTabs.forEach((tab) => {
+        if (tab && tab.key) byKey.set(tab.key, tab);
     });
-    return existing;
+    // Always use LightningSales / Pharma Field tab order. Org personalization
+    // used to prepend a subset and append the rest, so My Learning jumped ahead
+    // of Visits/CLM and icons mixed Salesforce 3D sprites with line-art SVGs.
+    return FALLBACK_TABS.map((tab) => {
+        const org = byKey.get(tab.key);
+        if (!org) return { ...tab };
+        return {
+            ...tab,
+            ...org,
+            key: tab.key,
+            label: org.label || tab.label,
+            type: org.type || tab.type,
+            objectApiName: org.objectApiName || tab.objectApiName || null,
+            iconUrl: null
+        };
+    });
 }
 
 export function ensureAppTabs(app) {
@@ -290,6 +300,12 @@ async function fetchAppTabsFromOrg() {
         apps.find((app) => isFieldApp(app)) ||
         apps[0];
     return (selected && selected.tabs) || [];
+}
+
+/** Cached Lightning apps from the last successful org fetch (empty if never synced). */
+export function readCachedApps() {
+    const cached = cacheRead(APPS_CACHE_KEY);
+    return cached && cached.length ? markOfflineFirst(cached) : [];
 }
 
 export async function fetchApps({ forceRefresh = false } = {}) {

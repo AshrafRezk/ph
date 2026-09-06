@@ -55,6 +55,7 @@
                     <template for:each={navSections} for:item="section">
                         <button
                             key={section.id}
+                            type="button"
                             class={section.className}
                             data-section={section.id}
                             onclick={handleNavClick}
@@ -65,8 +66,7 @@
                 </nav>
 
                 <main class="shell-content">
-                    <template if:true={isDetailsSection}>
-                        <article class="visit-panel">
+                    <article class={detailsPanelClass}>
                             <h2 class="visit-panel-title">Visit Details</h2>
                             <dl class="visit-detail-list">
                                 <div class="visit-detail-row">
@@ -137,34 +137,31 @@
                                 onchange={handleNextVisitChange}
                                 disabled={isLocked}
                             ></lightning-input>
-                        </article>
-                    </template>
+                    </article>
 
-                    <template if:true={isAffiliationsSection}>
-                        <article class="visit-panel visit-panel-affiliations">
-                            <c-visit-account-affiliations record-id={recordId}></c-visit-account-affiliations>
-                        </article>
-                    </template>
+                    <article class={affiliationsPanelClass}>
+                        <c-visit-account-affiliations record-id={recordId}></c-visit-account-affiliations>
+                    </article>
 
-                    <template if:true={isAttendeesSection}>
+                    <div class={attendeesPanelClass}>
                         <c-visit-attendee-picker
                             visit-id={recordId}
                             attendees={attendees}
                             disabled={isLocked}
                             onattendeeschange={handleAttendeesChange}
                         ></c-visit-attendee-picker>
-                    </template>
+                    </div>
 
-                    <template if:true={isProductsSection}>
+                    <div class={productsPanelClass}>
                         <c-visit-product-detail-panel
                             visit-id={recordId}
                             products={products}
                             disabled={isLocked}
                             onproductschange={handleProductsChange}
                         ></c-visit-product-detail-panel>
-                    </template>
+                    </div>
 
-                    <template if:true={isSamplesSection}>
+                    <div class={samplesPanelClass}>
                         <c-visit-sample-grid
                             visit-id={recordId}
                             samples={samples}
@@ -173,14 +170,14 @@
                             disabled={isLocked}
                             onsampleschange={handleSamplesChange}
                         ></c-visit-sample-grid>
-                    </template>
+                    </div>
 
-                    <template if:true={isPresentationsSection}>
+                    <div class={presentationsPanelClass}>
                         <c-clm-visit-presentations
                             record-id={recordId}
                             is-locked={isLocked}
                         ></c-clm-visit-presentations>
-                    </template>
+                    </div>
                 </main>
 
                 <aside class="shell-sidebar" aria-label="Neighbouring pharmacies and call history">
@@ -206,7 +203,12 @@
         </template>
 
         <template if:true={showCoachingModal}>
-            <!-- visit coaching modal removed for migration -->
+            <c-visit-coaching-form-modal
+                visit-id={recordId}
+                onclose={handleCloseCoachingModal}
+                oncoachingcreated={handleCoachingCreated}
+                oncoachingsubmitted={handleCoachingSubmitted}
+            ></c-visit-coaching-form-modal>
         </template>
 
         <template if:true={showMedicalInquiryModal}>

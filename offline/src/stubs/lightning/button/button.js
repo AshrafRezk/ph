@@ -15,10 +15,22 @@ export default class Button extends LightningElement {
         else if (this.variant === 'success') cls += 'slds-button_success';
         else if (this.variant === 'base') cls += 'slds-button_base';
         else cls += 'slds-button_neutral';
+        if (this.iconName) cls += ' slds-button_icon-text';
         return cls;
     }
 
+    get showIconLeft() {
+        return !!this.iconName && this.iconPosition !== 'right';
+    }
+
+    get showIconRight() {
+        return !!this.iconName && this.iconPosition === 'right';
+    }
+
     handleClick(event) {
-        // Native click bubbles up
+        if (this.disabled) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
     }
 }

@@ -141,6 +141,10 @@
     color: #fff;
 }
 
+.visit-section-hidden {
+    display: none !important;
+}
+
 .shell-content {
     min-width: 0;
 }

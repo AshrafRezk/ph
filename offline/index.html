@@ -34,6 +34,22 @@
                 visibility: visible !important;
                 pointer-events: auto !important;
             }
+            html.osr-session-confirmed.osr-restore-app body.screen-login #app-chooser {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+            html.osr-session-confirmed.osr-restore-app body.screen-login #app-nav,
+            html.osr-session-confirmed.osr-restore-app body.screen-login .app-nav {
+                display: flex !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+            }
+            html.osr-session-confirmed.osr-restore-app body.screen-login #app {
+                display: flex !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+            }
         </style>
         <script>
             (function () {
@@ -48,6 +64,14 @@
                     document.documentElement.classList.add('osr-has-session');
                     if (sessionStorage.getItem('zeta.pwa.sessionConfirmed') === '1') {
                         document.documentElement.classList.add('osr-session-confirmed');
+                        try {
+                            var ws = JSON.parse(localStorage.getItem('zeta.pwa.lastWorkspace') || 'null');
+                            if (ws && ws.screen === 'app') {
+                                document.documentElement.classList.add('osr-restore-app');
+                            }
+                        } catch (ignore) {
+                            /* ignore */
+                        }
                     }
                 } catch (e) {
                     /* ignore */
@@ -224,6 +248,7 @@
             <div id="view-timeoff" class="view-panel"></div>
             <div id="view-clm" class="view-panel"></div>
             <div id="view-visitcall" class="view-panel"></div>
+            <div id="view-learning" class="view-panel"></div>
             <div id="view-entity" class="view-panel"></div>
             <div id="view-unsupported" class="view-panel"></div>
         </main>

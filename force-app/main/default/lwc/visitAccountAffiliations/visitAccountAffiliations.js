@@ -11,15 +11,15 @@ export default class VisitAccountAffiliations extends LightningElement {
     visit;
 
     get accountId() {
-        return getFieldValue(this.visit.data, ACCOUNT_FIELD);
+        return getFieldValue(this.visit?.data, ACCOUNT_FIELD);
     }
 
     get isLoading() {
-        return !this.visit.data && !this.visit.error;
+        return this.visit === undefined;
     }
 
     get errorMessage() {
-        return this.visit.error?.body?.message || this.visit.error?.message;
+        return this.visit?.error?.body?.message || this.visit?.error?.message;
     }
 
     get hasAccount() {

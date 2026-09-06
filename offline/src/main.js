@@ -12,8 +12,9 @@ import AccountsTab from 'c/accountsTab';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
+import MyLearning from 'c/myLearning';
 import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
-import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs } from './apex/fetchAppTabs';
+import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
 import { plannerApiFetch } from './apex/restHelper';
 import { setupToastListener } from './toastManager';
 import './slds-shim.css';
@@ -26,12 +27,15 @@ const USER_NAME_KEY = 'zeta.pwa.sfUserName';
 const USER_USERNAME_KEY = 'zeta.pwa.sfUserUsername';
 const USER_ID_KEY = 'zeta.pwa.sfUserId';
 const SESSION_CONFIRMED_KEY = 'zeta.pwa.sessionConfirmed';
+const LAST_WORKSPACE_KEY = 'zeta.pwa.lastWorkspace';
 const HOME_TAB_KEY = 'Field_Rep_Home_App';
 const VISIT_CALL_TAB_KEY = 'Visit_Call';
 const ACTIVE_VISIT_KEY = 'zeta.pwa.activeVisitId';
 let currentTab = HOME_TAB_KEY;
 let appTabs = [];
 let currentOpenApp = null;
+/** Last Lightning app to reopen after a refresh while org apps are still loading. */
+let pendingRestore = null;
 
 // Capacitor plugin references (lazy loaded)
 let capacitorApp = null;
@@ -277,6 +281,67 @@ function clearSessionConfirmed() {
     }
 }
 
+function readLastWorkspace() {
+    try {
+        const raw = window.localStorage.getItem(LAST_WORKSPACE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeLastWorkspace(patch) {
+    try {
+        const prev = readLastWorkspace() || {};
+        window.localStorage.setItem(LAST_WORKSPACE_KEY, JSON.stringify({ ...prev, ...patch }));
+    } catch {
+        /* ignore */
+    }
+}
+
+function clearLastWorkspace() {
+    pendingRestore = null;
+    try {
+        window.localStorage.removeItem(LAST_WORKSPACE_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+function persistOpenWorkspace() {
+    if (!currentOpenApp) return;
+    writeLastWorkspace({
+        screen: 'app',
+        developerName: currentOpenApp.developerName || null,
+        id: currentOpenApp.id || null,
+        tabKey: currentTab || null
+    });
+}
+
+function appIdentityKey(value) {
+    return String(value || '')
+        .replace(/^standard__/i, '')
+        .toLowerCase();
+}
+
+function findAppBySaved(apps, saved) {
+    if (!saved || !Array.isArray(apps) || !apps.length) return null;
+    const name = appIdentityKey(saved.developerName);
+    const id = saved.id || '';
+    return (
+        (name && apps.find((a) => appIdentityKey(a.developerName) === name)) ||
+        (id && apps.find((a) => a.id === id)) ||
+        null
+    );
+}
+
+function isPharmaWorkspace(saved) {
+    const name = appIdentityKey(saved && saved.developerName);
+    return name === 'lightningsales' || name === 'pharmafield';
+}
+
 function applyResumeUserLabels() {
     const { name, username } = readStoredIdentity();
     const display = name || username || 'Someone';
@@ -349,7 +414,12 @@ function enterAuthenticatedApp() {
     confirmSession();
     document.documentElement.classList.add('osr-session-confirmed');
     configureRuntime(token);
-    buildAppChooser();
+    if (!restoreLastLightningApp()) {
+        buildAppChooser();
+    } else {
+        seedChooserFromCache();
+        loadOrgAppsIntoChooser();
+    }
     registerOfflineListener((status) => {
         console.log('[OfflineSyncListener] Sync phase changed:', status);
     });
@@ -780,6 +850,8 @@ function logout() {
     window.localStorage.removeItem(INSTANCE_URL_KEY);
     clearIdentity();
     clearSessionConfirmed();
+    clearLastWorkspace();
+    document.documentElement.classList.remove('osr-restore-app');
     configureRuntime('');
     unmountApp();
     showFreshLogin();
@@ -790,6 +862,9 @@ function mountHomeView() {
     const homeRoot = document.getElementById('view-home');
     if (!homeRoot) {
         return;
+    }
+    if (!homeRoot.querySelector('c-field-rep-home-clm-prefetch')) {
+        homeRoot.appendChild(createElement('c-field-rep-home-clm-prefetch', { is: FieldRepHomeClmPrefetch }));
     }
     if (!homeRoot.querySelector('c-home-office-messages')) {
         homeRoot.appendChild(createElement('c-home-office-messages', { is: HomeOfficeMessages }));
@@ -808,9 +883,6 @@ function mountHomeView() {
     }
     if (!homeRoot.querySelector('c-reports-hub')) {
         homeRoot.appendChild(createElement('c-reports-hub', { is: ReportsHub }));
-    }
-    if (!homeRoot.querySelector('c-field-rep-home-clm-prefetch')) {
-        homeRoot.appendChild(createElement('c-field-rep-home-clm-prefetch', { is: FieldRepHomeClmPrefetch }));
     }
 }
 
@@ -851,6 +923,16 @@ function mountClmPresentationsView() {
     }
     if (!clmRoot.querySelector('c-clm-presentations-hub')) {
         clmRoot.appendChild(createElement('c-clm-presentations-hub', { is: ClmPresentationsHub }));
+    }
+}
+
+function mountMyLearningView() {
+    const root = document.getElementById('view-learning');
+    if (!root) {
+        return;
+    }
+    if (!root.querySelector('c-my-learning')) {
+        root.appendChild(createElement('c-my-learning', { is: MyLearning }));
     }
 }
 
@@ -918,15 +1000,46 @@ function mountVisitCallView() {
 function openVisitCall(recordId) {
     if (recordId) {
         window.localStorage.setItem(ACTIVE_VISIT_KEY, recordId);
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('visit', recordId);
+            window.history.replaceState({}, '', url);
+        } catch (_err) {
+            /* ignore */
+        }
     }
+    closeRecordModal();
     const root = document.getElementById('view-visitcall');
     const el = root && root.querySelector('c-visit-call-shell');
     if (el && recordId) {
         el.recordId = recordId;
     }
     currentTab = VISIT_CALL_TAB_KEY;
-    switchTab(VISIT_CALL_TAB_KEY);
+    if (currentOpenApp) persistOpenWorkspace();
+    document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
+    if (root) root.classList.add('active');
+    mountVisitCallView();
+    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
+        const active = btn.dataset.tab === 'Visit__c' || btn.dataset.tab === VISIT_CALL_TAB_KEY;
+        btn.classList.toggle('nav-tab-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
 }
+
+function handleRecordNavigation(recordId, objectApiName) {
+    if (!recordId) return;
+    const obj = String(objectApiName || '');
+    if (obj === 'Visit__c' || obj === 'Visit') {
+        openVisitCall(recordId);
+        return;
+    }
+    openRecordModal(recordId, obj);
+}
+
+window.addEventListener('zeta-navigate-record', (event) => {
+    const detail = (event && event.detail) || {};
+    handleRecordNavigation(detail.recordId, detail.objectApiName);
+});
 
 // The entity list runs in an iframe; it posts here to open Visit records
 // or a record modal on this same page.
@@ -935,6 +1048,10 @@ window.addEventListener('message', (event) => {
     if (!data || typeof data !== 'object') return;
     if (data.type === 'open-visit-call' && data.recordId) {
         openVisitCall(data.recordId);
+        return;
+    }
+    if (data.type === 'zeta-navigate-record' && data.recordId) {
+        handleRecordNavigation(data.recordId, data.objectApiName || data.object);
         return;
     }
     if (data.type === 'open-record-modal' && data.recordId) {
@@ -952,7 +1069,8 @@ const APP_TAB_VIEWS = {
     Accounts_Tab: { panel: 'view-accounts', mount: mountAccountsView },
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
-    Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView }
+    Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView },
+    My_Learning: { panel: 'view-learning', mount: mountMyLearningView }
 };
 
 function isEntityTab(tab) {
@@ -969,6 +1087,7 @@ function isSupportedTab(tab) {
 function switchTab(tab) {
     if (!tab) return;
     currentTab = tab;
+    if (currentOpenApp) persistOpenWorkspace();
 
     // Update sidebar nav tab active state
     document.querySelectorAll('#app-tabs .nav-tab').forEach(btn => {
@@ -1042,12 +1161,16 @@ function unmountApp() {
     const entityRoot = document.getElementById('view-entity');
     const unsupportedRoot = document.getElementById('view-unsupported');
     const clmRoot = document.getElementById('view-clm');
+    const learningRoot = document.getElementById('view-learning');
+    const visitRoot = document.getElementById('view-visitcall');
     if (homeRoot) homeRoot.innerHTML = '';
     if (accountsRoot) accountsRoot.innerHTML = '';
     if (plannerRoot) plannerRoot.innerHTML = '';
     if (entityRoot) entityRoot.innerHTML = '';
     if (unsupportedRoot) unsupportedRoot.innerHTML = '';
     if (clmRoot) clmRoot.innerHTML = '';
+    if (learningRoot) learningRoot.innerHTML = '';
+    if (visitRoot) visitRoot.innerHTML = '';
     currentTab = HOME_TAB_KEY;
     currentOpenApp = null;
 }
@@ -1066,6 +1189,12 @@ function registerServiceWorker() {
 // Show exactly one top-level screen: 'login' | 'chooser' | 'app'.
 function showScreen(name) {
     currentScreen = name;
+    if (name === 'app' || name === 'chooser') {
+        document.documentElement.classList.toggle('osr-restore-app', name === 'app');
+        if (name === 'chooser' && !pendingRestore) {
+            writeLastWorkspace({ screen: 'chooser' });
+        }
+    }
     const login = document.getElementById('session-bar');
     const chooser = document.getElementById('app-chooser');
     const nav = document.getElementById('app-nav');
@@ -1123,7 +1252,17 @@ function buildAppChooser() {
     chooserItems = buildItemsFromApps(chooserApps);
     renderChooser();
     wireChooserSearch();
+    loadOrgAppsIntoChooser();
+}
 
+function seedChooserFromCache() {
+    const cached = readCachedApps();
+    if (!cached.length) return;
+    chooserApps = cached;
+    chooserItems = buildItemsFromApps(chooserApps);
+}
+
+function loadOrgAppsIntoChooser() {
     fetchApps({ forceRefresh: true })
         .then((apps) => {
             if (apps && apps.length) {
@@ -1147,6 +1286,31 @@ function buildAppChooser() {
         });
 }
 
+function restoreLastLightningApp() {
+    const ws = readLastWorkspace();
+    if (!ws || ws.screen !== 'app' || !ws.developerName) return false;
+    pendingRestore = {
+        developerName: ws.developerName,
+        id: ws.id || null,
+        tabKey: ws.tabKey || null
+    };
+    const cached = readCachedApps();
+    let match = findAppBySaved(cached, pendingRestore);
+    if (!match && isPharmaWorkspace(pendingRestore)) {
+        match = PHARMA_APP;
+    }
+    if (!match) return false;
+    openApp(match, { preferredTab: pendingRestore.tabKey });
+    return true;
+}
+
+function restorePendingAppFromChooser() {
+    if (!pendingRestore || currentScreen === 'app') return;
+    const match = findAppBySaved(chooserApps, pendingRestore);
+    if (!match) return;
+    openApp(match, { preferredTab: pendingRestore.tabKey });
+}
+
 function applyChooserUpdate() {
     chooserApps = overlayTabIcons(chooserApps, chooserItems);
     if (!chooserItems.length) {
@@ -1154,6 +1318,7 @@ function applyChooserUpdate() {
     }
     renderChooser();
     syncOpenAppFromOrg();
+    restorePendingAppFromChooser();
 }
 
 window.addEventListener('zeta-apps-refreshed', (event) => {
@@ -1314,9 +1479,10 @@ function openItem(item) {
 }
 
 // Open the chosen app: load its tabs, render the sidebar, show the app screen.
-function openApp(app) {
+function openApp(app, options = {}) {
     const resolved = ensureAppTabs(app);
     currentOpenApp = resolved;
+    pendingRestore = null;
     const tabs = resolved && Array.isArray(resolved.tabs) ? resolved.tabs.slice() : [];
     appTabs = tabs;
     const titleEl = document.getElementById('nav-title');
@@ -1327,9 +1493,12 @@ function openApp(app) {
 
     // Land on the first tab that actually renders (Home preferred), so the app
     // never opens on a blank "not available" panel. All tabs stay in the nav.
+    const preferredKey = options.preferredTab;
+    const preferredTab = preferredKey && tabs.find((t) => t.key === preferredKey);
     const homeTab = tabs.find((t) => t.key === HOME_TAB_KEY && isSupportedTab(t));
     const firstSupported = tabs.find(isSupportedTab);
-    currentTab = (homeTab || firstSupported || tabs[0] || {}).key || null;
+    currentTab = (preferredTab || homeTab || firstSupported || tabs[0] || {}).key || null;
+    persistOpenWorkspace();
 
     if (currentTab) {
         switchTab(currentTab);
@@ -1337,6 +1506,11 @@ function openApp(app) {
         // App returned no tabs (only the org's *selected* app exposes navItems).
         // Clear any stale panel and show a clean empty state.
         showEmptyApp(app);
+    }
+
+    const visitFromUrl = new URLSearchParams(window.location.search).get('visit');
+    if (visitFromUrl && resolved.fullOffline) {
+        openVisitCall(visitFromUrl);
     }
 }
 
@@ -1395,19 +1569,7 @@ function renderTabButtons(tabs) {
 
         const iconWrap = document.createElement('span');
         iconWrap.className = 'nav-icon-wrap';
-        if (tab.iconUrl) {
-            const img = document.createElement('img');
-            img.className = 'nav-icon';
-            img.src = tab.iconUrl;
-            img.alt = '';
-            img.loading = 'lazy';
-            img.addEventListener('error', () => {
-                img.replaceWith(svgIconEl(tab.key));
-            });
-            iconWrap.appendChild(img);
-        } else {
-            iconWrap.appendChild(svgIconEl(tab.key));
-        }
+        iconWrap.appendChild(svgIconEl(tab.key));
 
         const label = document.createElement('span');
         label.textContent = tab.label || tab.key;
@@ -1427,24 +1589,31 @@ function svgIconEl(tabKey) {
 }
 
 function defaultTabIcon(tabKey) {
-    const key = String(tabKey || '').toLowerCase();
-    if (key.includes('planner') || key.includes('plan')) {
+    const exact = String(tabKey || '');
+    const key = exact.toLowerCase();
+    if (exact === 'Field_Rep_Home_App' || key === 'home') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 2 10v11h7v-6h6v6h7V10L12 3z"/></svg>`;
+    }
+    if (exact === 'Field_Rep_Planner' || key.includes('planner')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2zm12 8H5v10h14V10zM8 12h3v3H8v-3z"/></svg>`;
     }
-    if (key.includes('account') || key.includes('customer')) {
+    if (exact === 'Accounts_Tab' || key.includes('account')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 21V9l8-6 8 6v12h-6v-6H10v6H4zm2-2h2v-4h8v4h2v-9.2L12 5.5 6 9.8V19z"/></svg>`;
     }
-    if (key.includes('learning') || key.includes('bell')) {
-        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm8-6V11a8 8 0 1 0-16 0v5L2 19v1h20v-1l-2-3z"/></svg>`;
+    if (exact === 'My_Learning' || key.includes('learning')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zm-7.84 9.15L12 16.5l7.84-4.35L12 21 4.16 12.15z"/></svg>`;
     }
-    if (key.includes('clm') || key.includes('present')) {
+    if (exact === 'CLM_Presentations' || key.includes('clm') || key.includes('present')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v12H4V4zm2 2v8h12V6H6zm6 12 4 4H8l4-4z"/></svg>`;
     }
-    if (key.includes('visit') || key.includes('map')) {
+    if (exact === 'Visit__c' || key.includes('visit')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7zm0 4.5A2.5 2.5 0 1 0 12 11a2.5 2.5 0 0 0 0-4.5z"/></svg>`;
     }
-    if (key.includes('time') || key.includes('off')) {
-        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm1 5h-2v6l5 3 1-1.7-4-2.3V7z"/></svg>`;
+    if (exact === 'Coaching_Event__c' || key.includes('coach')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+    }
+    if (exact === 'Request_Time_Off' || key.includes('time') || key.includes('off')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5L21 16z"/></svg>`;
     }
     return `<svg class="nav-icon" viewBox="0 0 520 520" fill="currentColor" aria-hidden="true">
         <path d="M490 270h-50v220c0 6-4 10-10 10H330c-6 0-10-4-10-10V320H200v170c0 6-4 10-10 10H90c-6 0-10-4-10-10V270H30c-4 0-8-2-9-6-2-4-1-8 2-11L253 23c4-4 11-4 14 0l230 230c3 3 3 7 2 11s-5 6-9 6z"/>
