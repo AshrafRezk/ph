@@ -696,8 +696,18 @@ function setupQueryParams() {
 
 function init() {
     const backBtn = el('btn-back');
+    const embed = new URLSearchParams(window.location.search).get('embed') === '1';
+    if (embed) {
+        document.body.classList.add('record-embed');
+    }
     if (backBtn) {
-        backBtn.addEventListener('click', () => { window.location.href = '/'; });
+        backBtn.addEventListener('click', () => {
+            if (embed && window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'close-record-modal' }, '*');
+                return;
+            }
+            window.location.href = '/';
+        });
     }
     setupForm();
     setupFilter();

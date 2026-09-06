@@ -4,9 +4,9 @@
 
 import { plannerApiFetch } from './restHelper.js';
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v2';
-const APPS_CACHE_KEY = 'zeta.pwa.apps.v2';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v2';
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v3';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v3';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v3';
 const DEFAULT_API_VERSION = 'v62.0';
 const FORM_FACTOR = 'Large';
 const HYDRATE_BATCH = 6;
@@ -81,13 +81,18 @@ function cacheRead(key) {
 }
 
 function normalizeTabs(app) {
-    const navItems = app && Array.isArray(app.navItems) ? app.navItems : [];
+        const navItems = (app && (
+        (Array.isArray(app.navItems) && app.navItems) ||
+        (Array.isArray(app.items) && app.items) ||
+        (app.navigation && Array.isArray(app.navigation.navItems) && app.navigation.navItems) ||
+        []
+    )) || [];
     return navItems
-        .filter((item) => item && item.label && item.developerName)
+        .filter((item) => item && item.label && (item.developerName || item.name || item.objectApiName))
         .map((item) => ({
-            key: item.developerName,
+            key: item.developerName || item.name || item.objectApiName,
             label: item.label,
-            type: item.itemType || item.type || 'TabFlexiPage',
+            type: item.itemType || item.type || (item.objectApiName ? 'Entity' : 'TabFlexiPage'),
             iconUrl: resolveIconUrl(item.iconUrl || (item.icon && item.icon.iconUrl) || null),
             objectApiName: item.objectApiName || null
         }));
@@ -98,7 +103,7 @@ function mapOrgApp(app) {
         app.iconUrl || (app.icon && (app.icon.iconUrl || app.icon.url)) || null
     );
     return {
-        id: app.id || app.durableId || null,
+        id: app.id || app.durableId || app.appId || null,
         developerName: app.developerName || app.label,
         label: app.label || app.developerName,
         iconUrl,
@@ -127,12 +132,23 @@ async function fetchAppListFromOrg() {
 async function hydrateAppNav(app) {
     const appId = app && (app.id || app.developerName);
     if (!appId) return app;
-    const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps/${encodeURIComponent(appId)}?formFactor=${FORM_FACTOR}`;
-    const detail = await sfGet(path);
-    const tabs = normalizeTabs(detail);
+    const factors = [FORM_FACTOR, 'Small', 'Medium'];
+    let detail = null;
+    let tabs = [];
+    for (const factor of factors) {
+        try {
+            const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps/${encodeURIComponent(appId)}?formFactor=${factor}`;
+            detail = await sfGet(path);
+            tabs = normalizeTabs(detail);
+            if (tabs.length) break;
+        } catch (err) {
+            console.warn('[AppTabs] hydrate', app.developerName, factor, err);
+        }
+    }
+    if (!detail) return app;
     return {
         ...app,
-        id: app.id || detail.id || detail.durableId || null,
+        id: app.id || detail.id || detail.durableId || detail.appId || null,
         label: detail.label || app.label,
         description: app.description || detail.description || '',
         iconUrl: app.iconUrl || resolveIconUrl(detail.iconUrl || (detail.icon && detail.icon.iconUrl)),
@@ -167,6 +183,35 @@ async function hydrateMissingNavItems(apps) {
     return list;
 }
 
+function mergeFallbackTabs(tabs) {
+    const existing = Array.isArray(tabs) ? tabs.slice() : [];
+    if (!existing.length) {
+        return FALLBACK_TABS.map((tab) => ({ ...tab }));
+    }
+    const keys = new Set(existing.map((tab) => tab.key));
+    FALLBACK_TABS.forEach((tab) => {
+        if (!keys.has(tab.key)) {
+            existing.push({ ...tab });
+        }
+    });
+    return existing;
+}
+
+export function ensureAppTabs(app) {
+    if (!app) {
+        return { ...PHARMA_APP, tabs: FALLBACK_TABS.map((tab) => ({ ...tab })) };
+    }
+    if (!isFieldApp(app)) {
+        return app;
+    }
+    return {
+        ...app,
+        fullOffline: true,
+        description: app.description || PHARMA_APP.description,
+        tabs: mergeFallbackTabs(app.tabs)
+    };
+}
+
 function overlayTabIcons(apps, allTabs) {
     const byKey = new Map();
     (allTabs || []).forEach((tab) => {
@@ -194,17 +239,10 @@ function isFieldApp(app) {
 }
 
 function markOfflineFirst(apps) {
-    const list = (apps || []).map((app) => {
-        if (!isFieldApp(app)) return app;
-        return {
-            ...app,
-            fullOffline: true,
-            description: app.description || PHARMA_APP.description
-        };
-    });
+    const list = (apps || []).map((app) => (isFieldApp(app) ? ensureAppTabs(app) : app));
     list.sort((a, b) => (b.fullOffline === true) - (a.fullOffline === true));
     if (!list.some((a) => a.fullOffline)) {
-        list.unshift(PHARMA_APP);
+        list.unshift(ensureAppTabs(PHARMA_APP));
     }
     return list;
 }

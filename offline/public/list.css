@@ -3,6 +3,8 @@ body {
     flex-direction: column;
     min-height: 100vh;
     min-height: 100dvh;
+    margin: 0;
+    background: #f3f3f3;
 }
 
 #list-result {
@@ -10,6 +12,39 @@ body {
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    padding: 0.75rem;
+    gap: 0.75rem;
+}
+
+.list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.list-view-btn {
+    appearance: none;
+    border: 1px solid #c9c9c9;
+    background: #fff;
+    color: #032d60;
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.list-view-btn.is-active {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #fff;
+}
+
+.list-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .list-table-wrap {
@@ -27,7 +62,7 @@ body {
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.8125rem;
-    min-width: 40rem;
+    min-width: 36rem;
 }
 
 .list-table thead th {
@@ -55,13 +90,6 @@ body {
     white-space: nowrap;
 }
 
-.col-row {
-    width: 2.5rem;
-    color: #706e6b !important;
-    font-variant-numeric: tabular-nums;
-    text-align: right !important;
-}
-
 .list-row {
     cursor: pointer;
 }
@@ -70,14 +98,10 @@ body {
     background: #f8fbff;
 }
 
-.list-row:last-child td {
-    border-bottom: none;
-}
-
 .list-link {
     color: #0176d3;
     text-decoration: none;
-    overflow-wrap: anywhere;
+    font-weight: 650;
 }
 
 .list-link:hover {
@@ -90,5 +114,129 @@ body {
     padding: 1.5rem 0.75rem;
 }
 
-.error-banner { padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(186, 5, 23, 0.2); background: rgba(186, 5, 23, 0.06); color: #8a0312; font-size: 0.8125rem; margin-bottom: 0.75rem; }
-.loading-msg { padding: 2rem; text-align: center; color: #706e6b; }
+.list-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.75rem;
+}
+
+.list-card,
+.list-kanban-card {
+    appearance: none;
+    text-align: left;
+    border: 1px solid #e5e5e5;
+    background: #fff;
+    border-radius: 0.6rem;
+    padding: 0.85rem 0.9rem;
+    cursor: pointer;
+}
+
+.list-card h3,
+.list-kanban-card {
+    margin: 0;
+    color: #0176d3;
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.list-card-meta {
+    margin: 0.35rem 0 0;
+    color: #706e6b;
+    font-size: 0.75rem;
+}
+
+.list-kanban {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    min-height: 18rem;
+    padding-bottom: 0.5rem;
+}
+
+.list-kanban-col {
+    flex: 0 0 16rem;
+    background: #eef1f6;
+    border-radius: 0.6rem;
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.list-kanban-col h3 {
+    margin: 0 0 0.2rem;
+    font-size: 0.75rem;
+    color: #444;
+}
+
+.list-calendar-title {
+    margin: 0 0 0.65rem;
+    color: #032d60;
+}
+
+.list-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.list-calendar-dow,
+.list-calendar-day {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.4rem;
+    min-height: 5.5rem;
+    padding: 0.35rem;
+}
+
+.list-calendar-dow {
+    min-height: 0;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #706e6b;
+}
+
+.list-calendar-day.is-pad {
+    background: transparent;
+    border-color: transparent;
+}
+
+.list-calendar-num {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #032d60;
+    margin-bottom: 0.25rem;
+}
+
+.list-calendar-item {
+    display: block;
+    width: 100%;
+    appearance: none;
+    border: 0;
+    background: #e8f4ff;
+    color: #0176d3;
+    border-radius: 0.3rem;
+    padding: 0.2rem 0.3rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.6875rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.error-banner {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(186, 5, 23, 0.2);
+    background: rgba(186, 5, 23, 0.06);
+    color: #8a0312;
+    font-size: 0.8125rem;
+    margin: 0.75rem;
+}
+
+.loading-msg {
+    padding: 2rem;
+    text-align: center;
+    color: #706e6b;
+}

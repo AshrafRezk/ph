@@ -12,8 +12,8 @@ import AccountsTab from 'c/accountsTab';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
-import { startSyncService, registerOfflineListener, setForceOfflineAndSync, getForceOffline } from 'c/clmOfflineSync';
-import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons } from './apex/fetchAppTabs';
+import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
+import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs } from './apex/fetchAppTabs';
 import { setupToastListener } from './toastManager';
 import './slds-shim.css';
 import './shell.css';
@@ -781,11 +781,21 @@ function openVisitCall(recordId) {
     switchTab(VISIT_CALL_TAB_KEY);
 }
 
-// The entity list runs in an iframe; it posts here to open Visit records.
+// The entity list runs in an iframe; it posts here to open Visit records
+// or a record modal on this same page.
 window.addEventListener('message', (event) => {
     const data = event && event.data;
-    if (data && data.type === 'open-visit-call' && data.recordId) {
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'open-visit-call' && data.recordId) {
         openVisitCall(data.recordId);
+        return;
+    }
+    if (data.type === 'open-record-modal' && data.recordId) {
+        openRecordModal(data.recordId, data.objectApiName || data.object);
+        return;
+    }
+    if (data.type === 'close-record-modal') {
+        closeRecordModal();
     }
 });
 
@@ -962,7 +972,7 @@ function buildAppChooser() {
     const grid = document.getElementById('app-chooser-grid');
     if (!grid) return;
 
-    chooserApps = [PHARMA_APP];
+    chooserApps = [ensureAppTabs(PHARMA_APP)];
     chooserItems = buildItemsFromApps(chooserApps);
     renderChooser();
     wireChooserSearch();
@@ -1118,11 +1128,33 @@ function renderItemCards(items) {
     });
 }
 
+const FIELD_ITEM_ALIASES = {
+    Account: 'Accounts_Tab',
+    'standard-Account': 'Accounts_Tab',
+    standard_Account: 'Accounts_Tab'
+};
+
 // Open a single object/tab directly (the "All Items" behaviour), so the shell
 // shows just that item. switchTab handles entity list views, known offline
 // views and the "not available" fallback.
 function openItem(item) {
     if (!item || !item.key) return;
+    const fieldApp = ensureAppTabs(
+        chooserApps.find((app) => app.fullOffline) || PHARMA_APP
+    );
+    const mappedKey = FIELD_ITEM_ALIASES[item.key] || FIELD_ITEM_ALIASES[item.objectApiName] || item.key;
+    const match = (fieldApp.tabs || []).find(
+        (tab) =>
+            tab.key === mappedKey ||
+            tab.key === item.key ||
+            (item.objectApiName && tab.objectApiName === item.objectApiName) ||
+            (item.label && tab.label === item.label)
+    );
+    if (match) {
+        openApp(fieldApp);
+        switchTab(match.key);
+        return;
+    }
     currentOpenApp = null;
     const tabs = [item];
     appTabs = tabs;
@@ -1136,11 +1168,12 @@ function openItem(item) {
 
 // Open the chosen app: load its tabs, render the sidebar, show the app screen.
 function openApp(app) {
-    currentOpenApp = app || null;
-    const tabs = app && Array.isArray(app.tabs) ? app.tabs.slice() : [];
+    const resolved = ensureAppTabs(app);
+    currentOpenApp = resolved;
+    const tabs = resolved && Array.isArray(resolved.tabs) ? resolved.tabs.slice() : [];
     appTabs = tabs;
     const titleEl = document.getElementById('nav-title');
-    if (titleEl) titleEl.textContent = (app && app.label) || 'App';
+    if (titleEl) titleEl.textContent = (resolved && resolved.label) || 'App';
 
     renderTabButtons(tabs);
     showScreen('app');
@@ -1272,102 +1305,55 @@ function defaultTabIcon(tabKey) {
 }
 
 function setupNavigation() {
-    // Sidebar nav tabs are rendered per-app by openApp() after the launcher.
-    // Mode toggle switch
-    setupModeToggle();
+    setupRecordModal();
 }
 
-function setupModeToggle() {
-    const navActions = document.querySelector('.nav-actions');
-    if (!navActions) return;
-
-    // Create mode toggle container
-    const modeToggle = document.createElement('div');
-    modeToggle.className = 'mode-toggle';
-
-    // Create label
-    const label = document.createElement('span');
-    label.className = 'mode-toggle-label';
-    label.textContent = 'Mode';
-
-    // Create switch container
-    const switchContainer = document.createElement('label');
-    switchContainer.className = 'mode-toggle-switch';
-
-    // Create checkbox input
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = 'mode-toggle-checkbox';
-
-    // Create slider
-    const slider = document.createElement('span');
-    slider.className = 'mode-toggle-slider';
-
-    // Create icons inside slider
-    const offlineIcon = document.createElement('span');
-    offlineIcon.className = 'mode-toggle-icon offline';
-    offlineIcon.textContent = '✕';
-
-    const onlineIcon = document.createElement('span');
-    onlineIcon.className = 'mode-toggle-icon online';
-    onlineIcon.textContent = '✓';
-
-    // Create status badge
-    const statusBadge = document.createElement('span');
-    statusBadge.className = 'mode-toggle-status';
-    statusBadge.id = 'mode-toggle-status';
-
-    // Assemble the switch
-    slider.appendChild(offlineIcon);
-    slider.appendChild(onlineIcon);
-    switchContainer.appendChild(checkbox);
-    switchContainer.appendChild(slider);
-
-    // Assemble the toggle
-    modeToggle.appendChild(label);
-    modeToggle.appendChild(switchContainer);
-    modeToggle.appendChild(statusBadge);
-
-    // Insert before logout button
-    const logoutBtn = navActions.querySelector('.nav-btn-logout');
-    navActions.insertBefore(modeToggle, logoutBtn);
-
-    // Update UI based on current state
-    function updateToggleUI() {
-        const isForcedOffline = getForceOffline();
-        checkbox.checked = !isForcedOffline;
-        if (isForcedOffline) {
-            statusBadge.textContent = 'Offline';
-            statusBadge.classList.remove('online');
-            statusBadge.classList.add('offline');
-        } else {
-            statusBadge.textContent = 'Online';
-            statusBadge.classList.remove('offline');
-            statusBadge.classList.add('online');
+function setupRecordModal() {
+    if (document.getElementById('record-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'record-modal';
+    modal.className = 'record-modal';
+    modal.hidden = true;
+    modal.innerHTML =
+        '<div class="record-modal-backdrop" data-close="1"></div>' +
+        '<div class="record-modal-panel" role="dialog" aria-modal="true" aria-label="Record">' +
+        '<button type="button" class="record-modal-close" data-close="1">Close</button>' +
+        '<iframe id="record-modal-frame" title="Record"></iframe>' +
+        '</div>';
+    modal.addEventListener('click', (event) => {
+        if (event.target && event.target.getAttribute('data-close')) {
+            closeRecordModal();
         }
-    }
-
-    // Initialize UI
-    updateToggleUI();
-
-    // Handle toggle change
-    checkbox.addEventListener('change', () => {
-        const goOffline = !checkbox.checked;
-        setForceOfflineAndSync(goOffline);
-        updateToggleUI();
-
-        // Show toast notification
-        const toastEvent = new CustomEvent('lightning__showtoast', {
-            detail: {
-                title: goOffline ? 'Offline Mode' : 'Online Mode',
-                message: goOffline
-                    ? 'Working offline. Changes will sync when you go back online.'
-                    : 'Back online. Syncing pending changes...',
-                variant: goOffline ? 'warning' : 'success'
-            }
-        });
-        window.dispatchEvent(toastEvent);
     });
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeRecordModal();
+    });
+}
+
+function openRecordModal(recordId, objectApiName) {
+    if (!recordId) return;
+    setupRecordModal();
+    const modal = document.getElementById('record-modal');
+    const frame = document.getElementById('record-modal-frame');
+    const src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(objectApiName || '')}`;
+    if (frame) frame.src = src;
+    if (modal) {
+        modal.hidden = false;
+        modal.removeAttribute('hidden');
+    }
+    document.body.classList.add('record-modal-open');
+}
+
+function closeRecordModal() {
+    const modal = document.getElementById('record-modal');
+    const frame = document.getElementById('record-modal-frame');
+    if (frame) frame.src = 'about:blank';
+    if (modal) {
+        modal.hidden = true;
+        modal.setAttribute('hidden', '');
+    }
+    document.body.classList.remove('record-modal-open');
 }
 
 // Debug function to test the endpoint

@@ -14,12 +14,13 @@
     <div id="list-loading" class="loading-msg" style="display:none">Loading records…</div>
 
     <div id="list-result" style="display:none">
-        <div class="list-table-wrap">
-            <table id="list-table" class="list-table">
-                <thead id="list-thead"></thead>
-                <tbody id="list-tbody"></tbody>
-            </table>
+        <div class="list-toolbar" role="toolbar" aria-label="List views">
+            <button type="button" class="list-view-btn is-active" data-view="table">Tabular</button>
+            <button type="button" class="list-view-btn" data-view="kanban">Kanban</button>
+            <button type="button" class="list-view-btn" data-view="calendar">Calendar</button>
+            <button type="button" class="list-view-btn" data-view="cards">Cards</button>
         </div>
+        <div id="list-stage" class="list-stage"></div>
     </div>
 
     <script type="module" src="list.js"></script>

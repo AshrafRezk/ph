@@ -380,3 +380,13 @@
         grid-template-columns: 1fr;
     }
 }
+
+body.record-embed .record-form,
+body.record-embed .record-hint,
+body.record-embed .record-version-badge {
+    display: none !important;
+}
+
+body.record-embed .record-header {
+    padding-right: 5rem;
+}
