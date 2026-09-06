@@ -87,6 +87,13 @@ export default class AccountRatingsPanel extends LightningElement {
     }
 
     applyContext(data, { bumpRenderKey = true } = {}) {
+        if (!data) {
+            this.layoutId = null;
+            this.layoutJson = null;
+            this.alignedProducts = [];
+            this.loadError = { message: 'Rating layout is not available for this account.' };
+            return;
+        }
         this.layoutId = data.layoutId;
         this.layoutJson = data.layoutJson;
         this.accountVariant = data.accountVariant || 'HCP';

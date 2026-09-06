@@ -317,6 +317,22 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
             return;
         }
 
+        // Offline / PWA shell: open Planner with placement modal for this account.
+        if (typeof window !== 'undefined' && (plannerRestBase() || isOfflineMode())) {
+            try {
+                sessionStorage.setItem('zeta.pwa.planAccountId', String(accountId));
+            } catch (_storageError) {
+                // ignore
+            }
+            window.dispatchEvent(
+                new CustomEvent('zeta-navigate-tab', {
+                    detail: { apiName: 'Field_Rep_Planner', accountId }
+                })
+            );
+            this.showToast('Plan visit', 'Choose a date and time on the planner.', 'success');
+            return;
+        }
+
         try {
             const start = clampToWorkingHours(ceilToNextSlot(new Date()));
             const end = new Date(start.getTime() + 60 * 60000);
@@ -330,14 +346,12 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
 
             if (isOfflineMode()) {
                 const clientVisitKey = newClientKey('visit');
-                console.log('[NextBestCustomer] [Offline Plan Call] Enqueueing draft visit for account:', accountId, clientVisitKey);
                 await queueOfflineAction({
                     actionType: 'UPSERT_VISIT',
                     clientVisitKey,
                     clientActionKey: clientVisitKey,
                     payloadJson: JSON.stringify(payload)
                 });
-                console.log('[NextBestCustomer] [Offline Plan Call] Enqueued successfully.');
                 this.showToast('Queued offline', 'Draft visit will be created when you are back online.', 'success');
                 return;
             }

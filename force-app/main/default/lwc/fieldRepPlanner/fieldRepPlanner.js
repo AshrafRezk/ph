@@ -513,6 +513,31 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.loadWeek(),
             this.loadAccountsPage(true)
         ]);
+        this.consumePendingPlanAccount();
+    }
+
+    consumePendingPlanAccount() {
+        if (this.isReadOnlyPlannerView) {
+            return;
+        }
+        let accountId = '';
+        try {
+            accountId = sessionStorage.getItem('zeta.pwa.planAccountId') || '';
+            if (accountId) {
+                sessionStorage.removeItem('zeta.pwa.planAccountId');
+            }
+        } catch (_storageError) {
+            accountId = '';
+        }
+        if (!accountId) {
+            return;
+        }
+        this.visitAccountId = accountId;
+        this.pendingSlotStart = new Date();
+        this.pendingSlotStart.setMinutes(0, 0, 0);
+        this.showVisitModal = true;
+        this.loadVisitAccountOptions('');
+        this.showToast('Plan visit', 'Pick a date and time for this account, then save the draft.', 'info');
     }
 
     async loadRecordTypes() {
@@ -3919,14 +3944,70 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                     stage
                 };
             } else {
-                created = await createTimeOff({
-                    typeValue: form.typeValue,
-                    spanType: form.spanType,
-                    durationHours: form.spanType === 'Hours' ? form.durationHours : null,
-                    startDateTime,
-                    comments: form.comments,
-                    stage
-                });
+                try {
+                    created = await createTimeOff({
+                        typeValue: form.typeValue,
+                        spanType: form.spanType,
+                        durationHours: form.spanType === 'Hours' ? form.durationHours : null,
+                        startDateTime,
+                        comments: form.comments,
+                        stage
+                    });
+                } catch (networkError) {
+                    const msg = String(networkError?.body?.message || networkError?.message || '');
+                    const shouldQueue =
+                        /LimitException|Aura context|failed to fetch|networkerror|load failed|offline|HTTP 5/i.test(
+                            msg
+                        );
+                    if (!shouldQueue) {
+                        throw networkError;
+                    }
+                    // PWA with no Aura context / flaky network: queue like visits.
+                    const startDateObj = new Date(startDateTime);
+                    let endDateObj;
+                    if (form.spanType === 'Full_Day') {
+                        startDateObj.setHours(9, 0, 0, 0);
+                        endDateObj = new Date(startDateObj);
+                        endDateObj.setHours(17, 0, 0, 0);
+                    } else {
+                        const hours = Number(form.durationHours || 2);
+                        endDateObj = new Date(startDateObj.getTime() + hours * 3600 * 1000);
+                    }
+                    const newKey = newClientKey('tot');
+                    await queueOfflineAction({
+                        actionType: 'CREATE_TIME_OFF',
+                        clientActionKey: newKey,
+                        payloadJson: JSON.stringify({
+                            typeValue: form.typeValue,
+                            spanType: form.spanType,
+                            durationHours: form.spanType === 'Hours' ? form.durationHours : null,
+                            startDateTime: startDateObj.toISOString(),
+                            comments: form.comments,
+                            stage
+                        })
+                    });
+                    created = {
+                        id: newKey,
+                        name: form.typeValue,
+                        typeLabel: form.typeValue,
+                        typeValue: form.typeValue,
+                        startDateTime: startDateObj.toISOString(),
+                        endDateTime: endDateObj.toISOString(),
+                        spanType: form.spanType,
+                        stage
+                    };
+                    this.showTotModal = false;
+                    this.pendingTotStart = null;
+                    this.resetTotForm();
+                    this.mergeCreatedTot(created);
+                    this.showToast(
+                        'Queued offline',
+                        `${created.typeLabel} will sync when you reconnect.`,
+                        'success'
+                    );
+                    void this.loadWeek();
+                    return;
+                }
             }
             if (created && !created.endDateTime) {
                 const s = parseSalesforceDateTime(created.startDateTime || startDateTime);

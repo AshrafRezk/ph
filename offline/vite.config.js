@@ -175,6 +175,9 @@ function compileSfdxLwc() {
             if (id === '@salesforce/resourceUrl/pdfjs') {
                 return path.resolve(root, 'src/stubs/resourcePdfjs.js');
             }
+            if (id === '@salesforce/resourceUrl/CloudastickLogo') {
+                return path.resolve(root, 'src/stubs/resourceCloudastickLogo.js');
+            }
             if (id.startsWith('@salesforce/resourceUrl/')) {
                 return path.resolve(root, 'src/stubs/leafletUrl.js');
             }

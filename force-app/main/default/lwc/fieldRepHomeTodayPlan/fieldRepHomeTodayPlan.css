@@ -369,11 +369,11 @@
 }
 
 .map-container .leaflet-control-attribution .cloudastick-map-logo {
-    height: 13px;
-    width: 13px;
+    height: 18px;
+    width: 18px;
     object-fit: contain;
     background: #000;
-    border-radius: 2px;
+    border-radius: 3px;
 }
 
 .map-pin-icon-shell {

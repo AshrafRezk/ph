@@ -230,13 +230,16 @@
 }
 
 .plan-btn-neutral {
-    border: 1px solid rgba(0, 0, 0, 0.14);
-    background: #fff;
-    color: #0176d3;
+    border: 1px solid #c9c9c9;
+    background: #f3f3f3;
+    color: #181818;
+    text-decoration: none;
 }
 
 .plan-btn-neutral:hover {
-    background: #f3f3f3;
+    background: #e5e5e5;
+    color: #0176d3;
+    border-color: #0176d3;
 }
 
 @media (max-width: 768px) {

@@ -1044,6 +1044,12 @@ body {
     border-bottom: 1px solid #e5e5e5;
 }
 
+.account-record-stage[hidden] {
+    display: none !important;
+    padding: 0;
+    border: 0;
+}
+
 .account-record-tabs {
     flex-wrap: wrap;
 }

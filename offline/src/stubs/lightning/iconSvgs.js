@@ -66,7 +66,26 @@ const ICONS = {
     tile: null,
     chart: svg('<path d="M12 12h4v28h-4V12zm10 10h4v18h-4V22zm10-6h4v24h-4V16zm10 12h4v12h-4V28z"/>'),
     dashboard: null,
-    map: svg('<path d="M8 12.5 20 8l12 6 12-4.5V39.5L32 44l-12-6-12 4.5V12.5zm4 3.2v22.6l8-3V12.7l-8 3zm12 20.4 8 4V18.7l-8-4v21.4zm12-17.2v22.8l8-3V15.9l-8 3z"/>')
+    map: svg('<path d="M8 12.5 20 8l12 6 12-4.5V39.5L32 44l-12-6-12 4.5V12.5zm4 3.2v22.6l8-3V12.7l-8 3zm12 20.4 8 4V18.7l-8-4v21.4zm12-17.2v22.8l8-3V15.9l-8 3z"/>'),
+    announcement: svg('<path d="M8 20h6l14-8v28L14 32H8a2 2 0 0 1-2-2V22a2 2 0 0 1 2-2zm30 2a8 8 0 0 1 0 8v-8zm-4-4a12 12 0 0 1 0 16v-4a8 8 0 0 0 0-8v-4z"/>'),
+    lightbulb: svg('<path d="M26 6a14 14 0 0 1 8 25.5V36a2 2 0 0 1-2 2h-12a2 2 0 0 1-2-2v-4.5A14 14 0 0 1 26 6zm-4 32h8v2a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2zm0-6h8v2h-8v-2z"/>'),
+    store: svg('<path d="M10 18 14 8h24l4 10v2a6 6 0 0 1-4 5.6V42H16V25.6A6 6 0 0 1 12 20v-2h-2zm4 8v14h8V26h-8zm12 0v14h8V26h-8zM14.8 12l-2.4 6h27.2l-2.4-6H14.8z"/>'),
+    company: svg('<path d="M12 44V12a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8h6a2 2 0 0 1 2 2v22h-8V28h-6v16H12zm4-4h6V28h-6v12zm0-16h6v-8h-6v8zm14 16h6V24h-6v16z"/>'),
+    help: svg('<path d="M26 8a18 18 0 1 1 0 36 18 18 0 0 1 0-36zm0 26a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm0-20c-4.4 0-8 3-8 7h4c0-1.9 1.7-3 4-3s4 1.1 4 3c0 1.4-.8 2.2-2.6 3.3l-1.2.7C24.4 26.2 23 28 23 31h4c0-1.5.7-2.4 2.4-3.4l1.2-.7C33.2 25.2 34 23.4 34 21c0-4-3.6-7-8-7z"/>'),
+    favorite: svg('<path d="M26 38.5 12.4 48l3.7-15.9L4 21.4l16.2-1.4L26 5l5.8 15 16.2 1.4-12.1 10.7L39.6 48 26 38.5z"/>'),
+    crosshairs: svg('<path d="M24 8h4v6.1A14 14 0 0 1 37.9 24H44v4h-6.1A14 14 0 0 1 28 37.9V44h-4v-6.1A14 14 0 0 1 14.1 28H8v-4h6.1A14 14 0 0 1 24 14.1V8zm2 10a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"/>'),
+    away: svg('<path d="M26 8a18 18 0 1 1 0 36 18 18 0 0 1 0-36zm-8 16h16a2 2 0 1 1 0 4H18a2 2 0 1 1 0-4z"/>'),
+    groups: svg('<path d="M18 10a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm16 2a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM18 30c8.3 0 15 4.5 15 10v2H3v-2c0-5.5 6.7-10 15-10zm18 2c6.6 0 12 3.6 12 8v2H36v-2c0-3.1-1.7-5.8-4.4-7.5 1.4-.3 2.9-.5 4.4-.5z"/>'),
+    einstein: svg('<path d="M26 6c7 0 12 4.5 12 11 0 3.2-1.4 5.8-3.6 7.7L36 42H16l1.6-17.3C15.4 22.8 14 20.2 14 17 14 10.5 19 6 26 6zm-6 32h12l-.8-8.5c-1.6.6-3.3.9-5.2.9s-3.6-.3-5.2-.9L20 38zm6-14c4.4 0 8-3.1 8-7s-3.6-7-8-7-8 3.1-8 7 3.6 7 8 7z"/>'),
+    image: svg('<path d="M10 12h32a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4zm6 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-4 16h28l-9-12-7 9-5-6-7 9z"/>'),
+    screen: svg('<path d="M8 12h36a2 2 0 0 1 2 2v22a2 2 0 0 1-2 2H30v2h6a2 2 0 1 1 0 4H16a2 2 0 1 1 0-4h6v-2H8a2 2 0 0 1-2-2V14a2 2 0 0 1 2-2zm2 4v18h32V16H10z"/>'),
+    product: svg('<path d="M14 10h24l6 10v22a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V20l6-10zm3.2 4L14.8 20h22.4L34.8 14H17.2zM12 24v18h28V24H12zm8 4h12v4H20v-4z"/>'),
+    contract: svg('<path d="M18 14h4v4h-8v-8h4v4zm20 0v4h-4v-4h4zm0 20h-4v-4h4v4zm-20 0v-4h4v4h-4zM10 22h32v8H10v-8z"/>'),
+    expand: svg('<path d="M14 10h8v4h-4v4h-4v-8zm24 0v8h-4v-4h-4v-4h8zM14 34h4v4h4v4h-8v-8zm24 8h-8v-4h4v-4h4v8z"/>'),
+    offline: svg('<path d="M8.6 10.6 41.4 43.4l-2.8 2.8-5.4-5.4A18 18 0 0 1 10.1 28H6v-4h4.1a17.8 17.8 0 0 1 3.2-7.9L5.8 13.4l2.8-2.8zM26 8c6.2 0 11.7 3.1 15 7.9l-2.9 2.3A14 14 0 0 0 16.6 14L13.4 11A17.9 17.9 0 0 1 26 8zm0 12c2.4 0 4.6.8 6.4 2.2l-3.1 3.1A6 6 0 0 0 20.9 28H16a10 10 0 0 1 10-8z"/>'),
+    pause: svg('<path d="M16 12h6v28h-6V12zm14 0h6v28h-6V12z"/>'),
+    play: svg('<path d="M16 10v32l26-16L16 10z"/>'),
+    comments: svg('<path d="M10 12h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-8 8v-8h-4a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4zm4 8v4h20v-4H14zm0 8v4h14v-4H14z"/>')
 };
 
 // Resolve aliases
@@ -90,6 +109,25 @@ ICONS.chat = ICONS.sms;
 ICONS.bid = ICONS.money;
 ICONS.tile = ICONS.table;
 ICONS.dashboard = ICONS.chart;
+ICONS.light_bulb = ICONS.lightbulb;
+ICONS.announcements = ICONS.announcement;
+ICONS.retail = ICONS.store;
+ICONS.account = ICONS.company;
+ICONS.building = ICONS.company;
+ICONS.people = ICONS.groups;
+ICONS.group = ICONS.groups;
+ICONS.holiday = ICONS.away;
+ICONS.absence = ICONS.away;
+ICONS.photo = ICONS.image;
+ICONS.desktop = ICONS.screen;
+ICONS.package = ICONS.product;
+ICONS.minimize = ICONS.contract;
+ICONS.maximize = ICONS.expand;
+ICONS.wifi_off = ICONS.offline;
+ICONS.comment = ICONS.comments;
+ICONS.topic = ICONS.comments;
+ICONS.new_window = ICONS.link;
+ICONS.newwindow = ICONS.link;
 
 const FALLBACK = svg(
     '<rect x="18" y="18" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="3"/>'

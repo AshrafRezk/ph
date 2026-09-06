@@ -46,8 +46,8 @@ const MAP_FOOTNOTE_CSS =
     'background:rgba(255,255,255,.82)!important;color:#333!important;border:0;border-radius:0;' +
     'box-shadow:none!important;font:11px/1.35 "Helvetica Neue",Arial,sans-serif!important;' +
     'white-space:nowrap;max-width:min(70vw,260px)}' +
-    '.leaflet-control-attribution .cloudastick-map-logo{height:13px;width:13px;object-fit:contain;' +
-    'display:inline-block;vertical-align:middle;flex:0 0 13px;background:#000;border-radius:2px}' +
+    '.leaflet-control-attribution .cloudastick-map-logo{height:18px;width:18px;object-fit:contain;' +
+    'display:inline-block;vertical-align:middle;flex:0 0 18px;background:#000;border-radius:3px}' +
     '.leaflet-control-attribution .cloudastick-map-label{font-weight:400}';
 
 const PHARMACY_PIN_RESET_CSS =

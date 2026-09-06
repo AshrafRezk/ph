@@ -6,7 +6,7 @@ export default async function rescheduleVisits(params = {}) {
         startDateTime: params.starts ? params.starts[idx] : null,
         endDateTime: params.ends ? params.ends[idx] : null
     }));
-    return plannerApiFetch('/services/apexrest/planner/v1/visits/reschedule', {
+    return plannerApiFetch('/services/apexrest/planner/v1/mutate/visits/reschedule', {
         method: 'POST',
         body: JSON.stringify({ moves })
     });

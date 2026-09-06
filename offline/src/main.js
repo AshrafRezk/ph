@@ -1959,15 +1959,49 @@ function mountAccountRecord(recordId) {
     host.innerHTML = '';
     if (title) title.textContent = 'Account';
 
+    void (async () => {
+        try {
+            const { plannerApiFetch } = await import('./apex/restHelper.js');
+            const soql = `SELECT Id, Name FROM Account WHERE Id = '${String(recordId).replace(/'/g, "\\'")}' LIMIT 1`;
+            const data = await plannerApiFetch(
+                `/services/data/v62.0/query?q=${encodeURIComponent(soql)}`
+            );
+            const name = data?.records?.[0]?.Name;
+            if (name && title) {
+                title.textContent = name;
+            }
+        } catch (_err) {
+            // keep generic title
+        }
+    })();
+
     const stageHost = document.createElement('div');
     stageHost.className = 'account-record-stage';
+    stageHost.hidden = true;
     host.appendChild(stageHost);
     try {
         const stage = createElement('c-account-stage-assistant', { is: AccountStageAssistant });
         stage.recordId = recordId;
         stageHost.appendChild(stage);
+        // Reveal once the stage assistant paints a view (avoids empty white band).
+        const reveal = () => {
+            const hasContent = Boolean(stageHost.querySelector('.slds-path, .stage-view, [data-stage-ready]'));
+            const text = (stageHost.textContent || '').trim();
+            if (hasContent || text.length > 8) {
+                stageHost.hidden = false;
+            }
+        };
+        window.setTimeout(reveal, 400);
+        window.setTimeout(reveal, 1200);
+        window.setTimeout(() => {
+            if (stageHost.hidden && !(stageHost.textContent || '').trim()) {
+                stageHost.remove();
+            } else {
+                reveal();
+            }
+        }, 2500);
     } catch (err) {
-        stageHost.hidden = true;
+        stageHost.remove();
         console.warn('[Account] stage assistant mount failed', err);
     }
 

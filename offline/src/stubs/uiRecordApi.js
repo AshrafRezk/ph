@@ -84,7 +84,7 @@ export async function createRecord(recordInput) {
             body: { message: `createRecord is only supported for Time_Off_Request__c (got ${apiName}).` }
         };
     }
-    const result = await plannerApiFetch('/services/apexrest/planner/v1/time-off', {
+    const result = await plannerApiFetch('/services/apexrest/planner/v1/mutate/time-off', {
         method: 'POST',
         body: JSON.stringify(mapTimeOffCreateBody(fields || {}))
     });
