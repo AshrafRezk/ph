@@ -72,6 +72,40 @@
                 </div>
                 <button id="login-btn" class="login-btn primary" type="button">Sign in</button>
                 <p id="login-status" class="login-status" hidden></p>
+
+                <div class="login-downloads" aria-label="Install the app">
+                    <a
+                        id="android-download"
+                        class="login-download-btn"
+                        href="/downloads/osr-offline-latest.apk"
+                        download
+                    >
+                        <svg class="login-download-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                                fill="currentColor"
+                                d="M17.523 15.341a1.12 1.12 0 1 1-2.24 0 1.12 1.12 0 0 1 2.24 0Zm-8.806 0a1.12 1.12 0 1 1-2.24 0 1.12 1.12 0 0 1 2.24 0Zm9.21-6.2 1.61-2.79a.43.43 0 0 0-.16-.59.43.43 0 0 0-.59.16l-1.63 2.83A10.4 10.4 0 0 0 12 8.2c-1.72 0-3.33.42-4.75 1.15L5.62 6.52a.43.43 0 0 0-.59-.16.43.43 0 0 0-.16.59l1.61 2.79C3.9 11.05 2.5 13.55 2.5 16.4v.6h19v-.6c0-2.85-1.4-5.35-3.57-7.26ZM4.7 15.4c0-4.02 3.27-7.28 7.3-7.28s7.3 3.26 7.3 7.28H4.7Z"
+                            />
+                        </svg>
+                        <span class="login-download-text">
+                            <span class="login-download-title">Download on Android</span>
+                            <span id="android-download-meta" class="login-download-meta">APK install</span>
+                        </span>
+                    </a>
+                    <button id="ios-install-btn" class="login-download-btn" type="button">
+                        <svg class="login-download-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                                fill="currentColor"
+                                d="M16.37 12.73c.02-2.1 1.72-3.12 1.8-3.17-0.98-1.43-2.5-1.63-3.04-1.65-1.29-.13-2.52.76-3.18.76-.66 0-1.67-.74-2.75-.72-1.41.02-2.72.82-3.45 2.08-1.48 2.56-.38 6.35 1.06 8.43.7 1.02 1.54 2.16 2.64 2.12 1.06-.04 1.46-.68 2.74-.68 1.27 0 1.64.68 2.75.66 1.14-.02 1.86-1.03 2.55-2.06.8-1.17 1.13-2.3 1.15-2.36-.03-.01-2.2-.84-2.27-3.41ZM14.3 6.5c.58-.7.97-1.68.86-2.65-.83.03-1.84.55-2.44 1.25-.54.62-.1 1.61-.86 2.55.9.07 1.83-.46 2.44-1.15Z"
+                            />
+                        </svg>
+                        <span class="login-download-text">
+                            <span class="login-download-title">Download on iOS</span>
+                            <span class="login-download-meta">Add to Home Screen</span>
+                        </span>
+                    </button>
+                    <p id="ios-install-hint" class="login-install-hint" hidden></p>
+                </div>
+
                 <p class="login-footer">Secure company sign-in</p>
             </div>
         </div>

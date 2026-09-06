@@ -1203,8 +1203,95 @@ function setupSessionBar(token) {
     if (loginBtn) {
         loginBtn.addEventListener('click', login);
     }
+
+    setupLoginDownloads();
     // Screen visibility is owned by showScreen(); this only wires buttons.
     void token;
+}
+
+let deferredPwaInstallPrompt = null;
+
+function isIosDevice() {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandalonePwa() {
+    return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true
+    );
+}
+
+async function setupLoginDownloads() {
+    const androidMeta = document.getElementById('android-download-meta');
+    const iosBtn = document.getElementById('ios-install-btn');
+    const iosHint = document.getElementById('ios-install-hint');
+
+    if (androidMeta) {
+        try {
+            const res = await fetch('/downloads/apk-latest.json', { cache: 'no-store' });
+            if (res.ok) {
+                const meta = await res.json();
+                if (meta?.version) {
+                    androidMeta.textContent = `v${meta.version}`;
+                }
+            }
+        } catch {
+            // Keep default "APK install" label if metadata is unavailable.
+        }
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredPwaInstallPrompt = event;
+        if (iosHint) iosHint.hidden = true;
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredPwaInstallPrompt = null;
+        if (iosHint) {
+            iosHint.hidden = false;
+            iosHint.textContent = 'Installed. Open Pharma Field from your home screen anytime.';
+        }
+    });
+
+    if (!iosBtn) return;
+
+    iosBtn.addEventListener('click', async () => {
+        if (isStandalonePwa()) {
+            if (iosHint) {
+                iosHint.hidden = false;
+                iosHint.textContent = 'You’re already running the installed app.';
+            }
+            return;
+        }
+
+        if (deferredPwaInstallPrompt) {
+            try {
+                await deferredPwaInstallPrompt.prompt();
+                const choice = await deferredPwaInstallPrompt.userChoice;
+                deferredPwaInstallPrompt = null;
+                if (iosHint) {
+                    iosHint.hidden = false;
+                    iosHint.textContent =
+                        choice?.outcome === 'accepted'
+                            ? 'Installing… Look for Pharma Field on your home screen.'
+                            : 'Install cancelled. You can try again anytime.';
+                }
+                return;
+            } catch {
+                // Fall through to manual guidance.
+            }
+        }
+
+        if (iosHint) {
+            iosHint.hidden = false;
+            iosHint.textContent = isIosDevice()
+                ? 'On iPhone/iPad: tap Share, then Add to Home Screen to install Pharma Field.'
+                : 'In your browser menu, choose Install app or Add to Home Screen to install Pharma Field.';
+        }
+    });
 }
 
 async function initializeApp() {

@@ -812,10 +812,17 @@ export async function restoreSoftDeletedRecord(
     [objectApi, id]
   );
   if (!rows[0]) return;
+  const rawVersion = rows[0].version;
+  const version: SqlValue =
+    rawVersion == null
+      ? null
+      : typeof rawVersion === 'string' || typeof rawVersion === 'number'
+        ? rawVersion
+        : String(rawVersion);
   await db.run(
     `INSERT OR REPLACE INTO records (object_api, id, payload_json, version, deleted, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [objectApi, id, String(rows[0].payload_json), rows[0].version ?? null, 0, nowIso()]
+    [objectApi, id, String(rows[0].payload_json), version, 0, nowIso()]
   );
 }
 
