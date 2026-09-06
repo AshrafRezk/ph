@@ -1596,3 +1596,53 @@
     color: #706e6b;
     text-transform: uppercase;
 }
+
+/* iOS-style equal action chips for Plan Visit modal */
+.visit-modal-footer {
+    justify-content: stretch;
+}
+
+.visit-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: flex-end;
+    align-items: stretch;
+}
+
+.visit-modal-btn {
+    --slds-c-button-radius-border: 12px;
+    --slds-c-button-line-height: 1.2;
+    --slds-c-button-spacing-block-start: 0;
+    --slds-c-button-spacing-block-end: 0;
+    --slds-c-button-spacing-inline-start: 0.9rem;
+    --slds-c-button-spacing-inline-end: 0.9rem;
+}
+
+.visit-modal-btn lightning-button,
+.visit-modal-btn button,
+.visit-modal-actions lightning-button,
+.visit-modal-actions .slds-button {
+    min-height: 44px;
+    height: 44px;
+    border-radius: 12px;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0 !important;
+    box-sizing: border-box;
+}
+
+.visit-modal-btn-danger .slds-button,
+.visit-modal-btn-danger button {
+    color: #c23934;
+    border-color: #f2c0bd;
+    background: #fff;
+}
+
+.visit-modal-btn-primary .slds-button,
+.visit-modal-btn-primary button {
+    min-width: 7.5rem;
+}

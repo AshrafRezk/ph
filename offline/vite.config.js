@@ -127,6 +127,12 @@ function compileSfdxLwc() {
             if (id === 'lightning/uiRecordApi') {
                 return path.resolve(root, 'src/stubs/uiRecordApi.js');
             }
+            if (id === 'lightning/messageService') {
+                return path.resolve(root, 'src/stubs/messageService.js');
+            }
+            if (id.startsWith('@salesforce/messageChannel/')) {
+                return path.resolve(root, 'src/stubs/messageChannel.js');
+            }
             if (id === 'lightning/navigation') {
                 return path.resolve(root, 'src/stubs/navigation.js');
             }

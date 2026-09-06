@@ -15,12 +15,23 @@
 
     <div id="list-result" style="display:none">
         <div class="list-toolbar" role="toolbar" aria-label="List views">
+            <div class="list-view-select-wrap">
+                <label class="list-sf-view" for="list-sf-view">
+                    <span class="visually-hidden">Salesforce list view</span>
+                    <select id="list-sf-view" title="List view"></select>
+                </label>
+                <button type="button" id="list-pin-view" class="list-pin-btn" title="Pin / favourite this list view" aria-pressed="false">☆</button>
+            </div>
             <div class="list-view-group">
                 <button type="button" class="list-view-btn is-active" data-view="table">Tabular</button>
                 <button type="button" class="list-view-btn" data-view="kanban">Kanban</button>
                 <button type="button" class="list-view-btn" data-view="calendar">Calendar</button>
                 <button type="button" class="list-view-btn" data-view="cards">Cards</button>
             </div>
+            <label class="list-kanban-field-wrap" id="list-kanban-field-wrap" hidden>
+                <span class="visually-hidden">Kanban column field</span>
+                <select id="list-kanban-field" title="Kanban column field"></select>
+            </label>
             <label class="list-search">
                 <span class="visually-hidden">Search records</span>
                 <input id="list-search" type="search" placeholder="Search records…" spellcheck="false" />
@@ -43,6 +54,18 @@
             <div class="list-picker-actions">
                 <button type="button" id="calendar-field-cancel">Cancel</button>
                 <button type="button" id="calendar-field-apply" class="list-picker-primary">Use field</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="kanban-field-picker" class="list-picker-backdrop" hidden>
+        <div class="list-picker" role="dialog" aria-modal="true" aria-labelledby="kanban-field-title">
+            <h3 id="kanban-field-title">Which field should Kanban columns use?</h3>
+            <p>Pick a picklist field to group records into columns.</p>
+            <select id="kanban-field-select"></select>
+            <div class="list-picker-actions">
+                <button type="button" id="kanban-field-cancel">Cancel</button>
+                <button type="button" id="kanban-field-apply" class="list-picker-primary">Use field</button>
             </div>
         </div>
     </div>

@@ -53,3 +53,23 @@ export const NavigationMixin = (Base) => {
 
 NavigationMixin.Navigate = Symbol('Navigate');
 NavigationMixin.GenerateUrl = Symbol('GenerateUrl');
+
+/** @wire(CurrentPageReference) — offline emits a minimal home page reference. */
+export function CurrentPageReference(dataCallback) {
+    if (!(this instanceof CurrentPageReference)) {
+        return { type: 'standard__namedPage', attributes: { pageName: 'home' } };
+    }
+    this._dataCallback = dataCallback;
+}
+CurrentPageReference.prototype.connect = function connect() {
+    if (this._dataCallback) {
+        this._dataCallback({
+            data: { type: 'standard__namedPage', attributes: { pageName: 'home' } },
+            error: undefined
+        });
+    }
+};
+CurrentPageReference.prototype.update = function update() {};
+CurrentPageReference.prototype.disconnect = function disconnect() {
+    this._dataCallback = null;
+};

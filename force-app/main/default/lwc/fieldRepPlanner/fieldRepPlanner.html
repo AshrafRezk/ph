@@ -727,45 +727,52 @@
                             Drag accounts onto the calendar to create draft visits. Open a visit here to schedule, complete, or cancel it.
                         </p>
                     </div>
-                    <footer class="slds-modal__footer">
-                        <template if:true={visitDetailCanMutate}>
-                            <lightning-button
-                                label="Remove visit"
-                                variant="destructive-text"
-                                onclick={handleVisitDetailRemove}
-                                disabled={isSaving}
-                            ></lightning-button>
-                            <lightning-button
-                                class="slds-m-left_x-small"
-                                label="Postpone to tomorrow"
-                                onclick={handleVisitDetailPostpone}
-                                disabled={isSaving}
-                            ></lightning-button>
-                        </template>
-                        <lightning-button label="Close" onclick={handleVisitDetailCancel}></lightning-button>
-                        <lightning-button
-                            class="slds-m-left_x-small"
-                            label="View Visit"
-                            variant="brand"
-                            onclick={handleViewVisit}
-                        ></lightning-button>
-                        <template if:false={visitDetailReadOnly}>
-                            <template if:true={visitDetailCanSubmit}>
+                    <footer class="slds-modal__footer visit-modal-footer">
+                        <div class="visit-modal-actions">
+                            <template if:true={visitDetailCanMutate}>
                                 <lightning-button
-                                    class="slds-m-left_x-small"
-                                    label="Submit for approval"
-                                    variant="brand"
-                                    onclick={handleSubmitVisitForApproval}
+                                    class="visit-modal-btn visit-modal-btn-danger"
+                                    label="Remove visit"
+                                    variant="destructive-text"
+                                    onclick={handleVisitDetailRemove}
+                                    disabled={isSaving}
+                                ></lightning-button>
+                                <lightning-button
+                                    class="visit-modal-btn"
+                                    label="Postpone to tomorrow"
+                                    onclick={handleVisitDetailPostpone}
                                     disabled={isSaving}
                                 ></lightning-button>
                             </template>
                             <lightning-button
-                                class="slds-m-left_x-small"
-                                label="Save"
-                                onclick={handleVisitDetailSave}
-                                disabled={isSaving}
+                                class="visit-modal-btn"
+                                label="Close"
+                                onclick={handleVisitDetailCancel}
                             ></lightning-button>
-                        </template>
+                            <lightning-button
+                                class="visit-modal-btn visit-modal-btn-primary"
+                                label="View Visit"
+                                variant="brand"
+                                onclick={handleViewVisit}
+                            ></lightning-button>
+                            <template if:false={visitDetailReadOnly}>
+                                <template if:true={visitDetailCanSubmit}>
+                                    <lightning-button
+                                        class="visit-modal-btn visit-modal-btn-primary"
+                                        label="Submit for approval"
+                                        variant="brand"
+                                        onclick={handleSubmitVisitForApproval}
+                                        disabled={isSaving}
+                                    ></lightning-button>
+                                </template>
+                                <lightning-button
+                                    class="visit-modal-btn"
+                                    label="Save"
+                                    onclick={handleVisitDetailSave}
+                                    disabled={isSaving}
+                                ></lightning-button>
+                            </template>
+                        </div>
                     </footer>
                 </div>
             </section>

@@ -1,227 +1,326 @@
 <template>
-    <div class="accounts-shell">
-        <header class="accounts-header">
-            <h2 class="accounts-title">Accounts</h2>
-            <div class="accounts-header-status">
-                <template if:true={showSyncChip}>
-                    <span class={syncChipClass} aria-live="polite">{syncChipLabel}</span>
+    <lightning-card title="Accounts" icon-name="standard:account">
+        <div class="accounts-shell">
+            <div class={toolbarClass}>
+                <lightning-input
+                    class="accounts-search"
+                    type="search"
+                    label="Search accounts"
+                    variant="label-hidden"
+                    placeholder="Search by name, number, specialty, city..."
+                    value={searchTerm}
+                    onchange={handleSearchChange}
+                    onkeyup={handleSearchKeyUp}
+                ></lightning-input>
+
+                <template if:false={isCompactView}>
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Plan cycle"
+                        variant="label-hidden"
+                        value={scope}
+                        options={scopeOptions}
+                        onchange={handleScopeChange}
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Record type"
+                        variant="label-hidden"
+                        value={recordType}
+                        options={recordTypeOptions}
+                        onchange={handleRecordTypeChange}
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Classification"
+                        variant="label-hidden"
+                        value={classification}
+                        options={classificationOptions}
+                        onchange={handleClassificationChange}
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Specialty"
+                        variant="label-hidden"
+                        value={specialtyFilter}
+                        options={specialtyOptions}
+                        onchange={handleSpecialtyChange}
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Brick"
+                        variant="label-hidden"
+                        value={brickId}
+                        options={brickOptions}
+                        onchange={handleBrickChange}
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        class="toolbar-filter"
+                        label="Sort by"
+                        variant="label-hidden"
+                        value={sortBy}
+                        options={sortOptions}
+                        onchange={handleSortChange}
+                    ></lightning-combobox>
                 </template>
-            </div>
-        </header>
 
-        <div class={toolbarClass}>
-            <input
-                class="accounts-search"
-                type="search"
-                aria-label="Search accounts"
-                placeholder="Search by name, specialty, city..."
-                value={searchTerm}
-                onchange={handleSearchChange}
-                onkeyup={handleSearchKeyUp}
-            />
-
-            <template if:false={isCompactView}>
-                <select class="toolbar-filter" aria-label="Plan cycle" onchange={handleScopeChange}>
-                    <template for:each={scopeOptionList} for:item="opt">
-                        <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
+                <div class="slds-col_bump-left toolbar-actions">
+                    <template if:true={isCompactView}>
+                        <lightning-button-icon
+                            icon-name="utility:add"
+                            variant="brand"
+                            alternative-text="New Account"
+                            title="New Account"
+                            onclick={handleNewAccount}
+                        ></lightning-button-icon>
                     </template>
-                </select>
-
-                <select class="toolbar-filter" aria-label="Record type" onchange={handleRecordTypeChange}>
-                    <template for:each={recordTypeOptionList} for:item="opt">
-                        <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
+                    <template if:false={isCompactView}>
+                        <lightning-button
+                            label="New Account"
+                            icon-name="utility:add"
+                            variant="brand"
+                            title="New Account"
+                            onclick={handleNewAccount}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Export CSV"
+                            icon-name="utility:download"
+                            onclick={handleExportCsv}
+                        ></lightning-button>
                     </template>
-                </select>
-
-                <select class="toolbar-filter" aria-label="Classification" onchange={handleClassificationChange}>
-                    <template for:each={classificationOptionList} for:item="opt">
-                        <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
+                    <template if:true={isCompactView}>
+                        <lightning-button-icon
+                            icon-name="utility:filterList"
+                            alternative-text="Show filters"
+                            onclick={handleToggleFilters}
+                        ></lightning-button-icon>
                     </template>
-                </select>
-
-                <select class="toolbar-filter" aria-label="Sort by" onchange={handleSortChange}>
-                    <template for:each={sortOptionList} for:item="opt">
-                        <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
-                    </template>
-                </select>
-            </template>
-
-            <div class="toolbar-actions">
-                <template if:true={isCompactView}>
-                    <button type="button" class="toolbar-btn" title="Show filters" onclick={handleToggleFilters}>Filters</button>
-                </template>
-                <button type="button" class="toolbar-btn" title="Refresh" onclick={handleRefresh}>Refresh</button>
-                <div class="view-toggle-group" role="group" aria-label="View">
-                    <button type="button" class={listViewToggleClass} onclick={handleShowList}>List View</button>
-                    <button type="button" class={mapViewToggleClass} onclick={handleShowMap}>Map View</button>
+                    <lightning-button-icon
+                        icon-name="utility:refresh"
+                        alternative-text="Refresh"
+                        onclick={handleRefresh}
+                    ></lightning-button-icon>
+                    <lightning-button-group>
+                        <lightning-button
+                            label="List View"
+                            variant={listVariant}
+                            onclick={handleShowList}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Map View"
+                            variant={mapVariant}
+                            onclick={handleShowMap}
+                        ></lightning-button>
+                    </lightning-button-group>
                 </div>
             </div>
-        </div>
 
-        <div class="account-collections">
-            <div class="collections-section-title">My lists</div>
-            <div class="collection-chips-row">
-                <button type="button" class={allAccountsChipClass} onclick={handleShowAllAccounts}>
-                    All accounts
-                </button>
-                <template for:each={collectionChips} for:item="col">
-                    <button
-                        key={col.id}
-                        type="button"
-                        class={col.chipClass}
-                        data-collection-id={col.id}
-                        onclick={handleSelectCollection}
-                        title={col.title}
-                    >
-                        {col.label}
+            <div class="account-collections">
+                <div class="collections-section-title">My lists</div>
+                <div class="collection-chips-row">
+                    <button type="button" class={allAccountsChipClass} onclick={handleShowAllAccounts}>
+                        All accounts
                     </button>
-                </template>
-                <template if:false={hasPlannerCollections}>
-                    <span class="collections-empty-hint">Create lists in Field Rep Planner</span>
-                </template>
+                    <template for:each={collectionChips} for:item="col">
+                        <button
+                            key={col.id}
+                            type="button"
+                            class={col.chipClass}
+                            data-collection-id={col.id}
+                            onclick={handleSelectCollection}
+                            title={col.title}
+                        >
+                            {col.label}
+                        </button>
+                    </template>
+                    <template if:false={hasPlannerCollections}>
+                        <span class="collections-empty-hint">Create lists in Field Rep Planner</span>
+                    </template>
+                </div>
             </div>
-        </div>
 
-        <div class={summaryCardsClass}>
-            <article class="summary-card">
-                <span class="summary-value">{summary.totalCount}</span>
-                <span class="summary-label">Total Accounts</span>
-            </article>
-            <article class="summary-card">
-                <span class="summary-value">{summary.inPlanCount}</span>
-                <span class="summary-label">In Plan Cycle</span>
-            </article>
-            <article class="summary-card">
-                <span class="summary-value">{summary.outPlanCount}</span>
-                <span class="summary-label">Out of Plan Cycle</span>
-            </article>
-            <article class="summary-card summary-card-warn">
-                <span class="summary-value">{summary.behindPaceCount}</span>
-                <span class="summary-label">Behind / Critical Pace</span>
-            </article>
-        </div>
+            <div class={summaryCardsClass}>
+                <article class="summary-card">
+                    <span class="summary-value">{summary.totalCount}</span>
+                    <span class="summary-label">Total Accounts</span>
+                </article>
+                <article class="summary-card">
+                    <span class="summary-value">{summary.inPlanCount}</span>
+                    <span class="summary-label">In Plan Cycle</span>
+                </article>
+                <article class="summary-card">
+                    <span class="summary-value">{summary.outPlanCount}</span>
+                    <span class="summary-label">Out of Plan Cycle</span>
+                </article>
+                <article class="summary-card summary-card-warn">
+                    <span class="summary-value">{summary.behindPaceCount}</span>
+                    <span class="summary-label">Behind / Critical Pace</span>
+                </article>
+            </div>
 
-        <p class="list-meta">{countLabel} · {summary.monthLabel}</p>
+            <p class="list-meta">{countLabel} · {summary.monthLabel}</p>
 
-        <template if:true={showErrorBanner}>
-            <div class="error-banner" role="alert">{errorMessage}</div>
-        </template>
+            <template if:true={errorMessage}>
+                <div class="slds-p-around_medium slds-text-color_error">{errorMessage}</div>
+            </template>
 
-        <template if:true={isListView}>
-            <template if:true={isCompactView}>
-                <div class="oce-shell">
-                    <aside class={sidebarClass}>
-                        <div class="oce-sidebar-inner">
-                            <div class="oce-segment" role="tablist">
-                                <button
-                                    class={listsSegmentClass}
-                                    role="tab"
-                                    aria-selected={isListsPanel}
-                                    onclick={handleShowListsPanel}
-                                >Lists</button>
-                                <button
-                                    class={filtersSegmentClass}
-                                    role="tab"
-                                    aria-selected={isFiltersPanel}
-                                    onclick={handleShowFiltersPanel}
-                                >Filters</button>
-                            </div>
+            <template if:true={isListView}>
+                <template if:true={isCompactView}>
+                    <div class="oce-shell">
+                        <aside class={sidebarClass}>
+                            <div class="oce-sidebar-inner">
+                                <div class="oce-segment" role="tablist">
+                                    <button
+                                        class={listsSegmentClass}
+                                        role="tab"
+                                        aria-selected={isListsPanel}
+                                        onclick={handleShowListsPanel}
+                                    >Lists</button>
+                                    <button
+                                        class={filtersSegmentClass}
+                                        role="tab"
+                                        aria-selected={isFiltersPanel}
+                                        onclick={handleShowFiltersPanel}
+                                    >Filters</button>
+                                </div>
 
-                            <template if:true={isListsPanel}>
-                                <p class="oce-sidebar-heading">Lists</p>
-                                <div class="oce-sidebar-collections">
-                                    <p class="oce-sidebar-subheading">My lists</p>
-                                    <div class="collection-chips-row">
-                                        <button type="button" class={allAccountsChipClass} onclick={handleShowAllAccounts}>
-                                            All accounts
-                                        </button>
-                                        <template for:each={collectionChips} for:item="col">
-                                            <button
-                                                key={col.id}
-                                                type="button"
-                                                class={col.chipClass}
-                                                data-collection-id={col.id}
-                                                onclick={handleSelectCollection}
-                                                title={col.title}
-                                            >
-                                                {col.label}
+                                <template if:true={isListsPanel}>
+                                    <p class="oce-sidebar-heading">Lists</p>
+                                    <div class="oce-sidebar-collections">
+                                        <p class="oce-sidebar-subheading">My lists</p>
+                                        <div class="collection-chips-row">
+                                            <button type="button" class={allAccountsChipClass} onclick={handleShowAllAccounts}>
+                                                All accounts
                                             </button>
+                                            <template for:each={collectionChips} for:item="col">
+                                                <button
+                                                    key={col.id}
+                                                    type="button"
+                                                    class={col.chipClass}
+                                                    data-collection-id={col.id}
+                                                    onclick={handleSelectCollection}
+                                                    title={col.title}
+                                                >
+                                                    {col.label}
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <p class="oce-sidebar-heading oce-sidebar-heading-spaced">Plan cycle</p>
+                                    <ul class="oce-nav-list" role="list">
+                                        <template for:each={listNavItems} for:item="item">
+                                            <li key={item.value} class="oce-nav-item">
+                                                <button
+                                                    class={item.buttonClass}
+                                                    data-value={item.value}
+                                                    onclick={handleListNavSelect}
+                                                >{item.label}</button>
+                                            </li>
                                         </template>
+                                    </ul>
+                                </template>
+
+                                <template if:true={isFiltersPanel}>
+                                    <p class="oce-sidebar-heading">Filters</p>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
+                                            label="Plan cycle"
+                                            value={scope}
+                                            options={scopeOptions}
+                                            onchange={handleScopeChange}
+                                        ></lightning-combobox>
+                                    </div>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
+                                            label="Record Type"
+                                            value={recordType}
+                                            options={recordTypeOptions}
+                                            onchange={handleRecordTypeChange}
+                                        ></lightning-combobox>
+                                    </div>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
+                                            label="Classification"
+                                            value={classification}
+                                            options={classificationOptions}
+                                            onchange={handleClassificationChange}
+                                        ></lightning-combobox>
+                                    </div>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
+                                            label="Sort by"
+                                            value={sortBy}
+                                            options={sortOptions}
+                                            onchange={handleSortChange}
+                                        ></lightning-combobox>
+                                    </div>
+
+                                    <p class="oce-sidebar-heading oce-sidebar-heading-spaced">Type</p>
+                                    <ul class="oce-nav-list" role="list">
+                                        <template for:each={typeNavItems} for:item="item">
+                                            <li key={item.value} class="oce-nav-item">
+                                                <button
+                                                    class={item.buttonClass}
+                                                    data-value={item.value}
+                                                    onclick={handleTypeNavSelect}
+                                                >{item.label}</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </div>
+                        </aside>
+
+                        <section class="oce-main">
+                            <c-accounts-tab-oce-list
+                                rows={rows}
+                                is-loading={isLoading}
+                                sort-by={sortBy}
+                                sort-direction={sortDirection}
+                                onrowaction={handleOceRowAction}
+                                oncolumnsort={handleColumnSort}
+                            ></c-accounts-tab-oce-list>
+                            <template if:true={showEmptyState}>
+                                <p class="accounts-empty-state">No accounts match the current filters.</p>
+                            </template>
+                            <template if:true={showPagination}>
+                                <div class="pagination-bar">
+                                    <span class="pagination-range">{rangeLabel}</span>
+                                    <div class="pagination-controls">
+                                        <button
+                                            type="button"
+                                            class="page-btn"
+                                            onclick={handlePreviousPage}
+                                            disabled={isPrevDisabled}
+                                        >Previous</button>
+                                        <span class="page-label">{pageLabel}</span>
+                                        <button
+                                            type="button"
+                                            class="page-btn"
+                                            onclick={handleNextPage}
+                                            disabled={isNextDisabled}
+                                        >Next</button>
                                     </div>
                                 </div>
-                                <p class="oce-sidebar-heading oce-sidebar-heading-spaced">Plan cycle</p>
-                                <ul class="oce-nav-list" role="list">
-                                    <template for:each={listNavItems} for:item="item">
-                                        <li key={item.value} class="oce-nav-item">
-                                            <button
-                                                class={item.buttonClass}
-                                                data-value={item.value}
-                                                onclick={handleListNavSelect}
-                                            >{item.label}</button>
-                                        </li>
-                                    </template>
-                                </ul>
                             </template>
+                        </section>
+                    </div>
+                </template>
 
-                            <template if:true={isFiltersPanel}>
-                                <p class="oce-sidebar-heading">Filters</p>
-                                <div class="oce-filter-field">
-                                    <label class="oce-filter-label">Plan cycle</label>
-                                    <select class="oce-filter-select" aria-label="Plan cycle" onchange={handleScopeChange}>
-                                        <template for:each={scopeOptionList} for:item="opt">
-                                            <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <div class="oce-filter-field">
-                                    <label class="oce-filter-label">Record Type</label>
-                                    <select class="oce-filter-select" aria-label="Record Type" onchange={handleRecordTypeChange}>
-                                        <template for:each={recordTypeOptionList} for:item="opt">
-                                            <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <div class="oce-filter-field">
-                                    <label class="oce-filter-label">Classification</label>
-                                    <select class="oce-filter-select" aria-label="Classification" onchange={handleClassificationChange}>
-                                        <template for:each={classificationOptionList} for:item="opt">
-                                            <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
-                                        </template>
-                                    </select>
-                                </div>
-                                <div class="oce-filter-field">
-                                    <label class="oce-filter-label">Sort by</label>
-                                    <select class="oce-filter-select" aria-label="Sort by" onchange={handleSortChange}>
-                                        <template for:each={sortOptionList} for:item="opt">
-                                            <option key={opt.value} value={opt.value} selected={opt.isSelected}>{opt.label}</option>
-                                        </template>
-                                    </select>
-                                </div>
-
-                                <p class="oce-sidebar-heading oce-sidebar-heading-spaced">Type</p>
-                                <ul class="oce-nav-list" role="list">
-                                    <template for:each={typeNavItems} for:item="item">
-                                        <li key={item.value} class="oce-nav-item">
-                                            <button
-                                                class={item.buttonClass}
-                                                data-value={item.value}
-                                                onclick={handleTypeNavSelect}
-                                            >{item.label}</button>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </template>
-                        </div>
-                    </aside>
-
-                    <section class="oce-main">
+                <template if:false={isCompactView}>
+                    <div class="accounts-list-wrap">
                         <c-accounts-tab-oce-list
                             rows={rows}
                             is-loading={isLoading}
                             sort-by={sortBy}
                             sort-direction={sortDirection}
                             onrowaction={handleOceRowAction}
-                            onsorttoggle={handleOceSortToggle}
+                            oncolumnsort={handleColumnSort}
                         ></c-accounts-tab-oce-list>
                         <template if:true={showEmptyState}>
                             <p class="accounts-empty-state">No accounts match the current filters.</p>
@@ -246,125 +345,666 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+                </template>
+            </template>
+
+            <template if:true={isMapView}>
+                <div class="map-view-layout">
+                    <aside class="map-account-list">
+                        <div class="map-list-header">
+                            <span class="map-list-title">Accounts</span>
+                            <span class="map-list-count">{mapListCountLabel}</span>
+                        </div>
+                        <template if:true={isLoading}>
+                            <div class="map-list-loading">
+                                <lightning-spinner alternative-text="Loading accounts" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:false={isLoading}>
+                            <template if:true={hasMapListItems}>
+                                <ul class="map-account-items" role="list">
+                                    <template for:each={mapListItems} for:item="item">
+                                        <li
+                                            key={item.accountId}
+                                            class={item.itemClass}
+                                            data-account-id={item.accountId}
+                                            onclick={handleMapListSelect}
+                                        >
+                                            <div class="map-account-item-body">
+                                                <div class="map-account-item-top">
+                                                    <span class={item.riskDotClass} title={item.agentforceRisk}></span>
+                                                    <span class="map-account-type">{item.typeLabel}</span>
+                                                    <lightning-badge
+                                                        label={item.classification}
+                                                        class="map-account-badge"
+                                                    ></lightning-badge>
+                                                </div>
+                                                <p class="map-account-name">{item.accountName}</p>
+                                                <p class="map-account-subtitle">{item.subtitle}</p>
+                                            </div>
+                                            <lightning-button-icon
+                                                icon-name="utility:new_window"
+                                                alternative-text="View account"
+                                                variant="bare"
+                                                size="small"
+                                                data-account-id={item.accountId}
+                                                onclick={handleMapListViewAccount}
+                                            ></lightning-button-icon>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template if:false={hasMapListItems}>
+                                <p class="map-list-empty">No accounts match the current filters.</p>
+                            </template>
+                            <template if:true={showMapPagination}>
+                                <div class="map-pagination-bar">
+                                    <span class="pagination-range">{mapRangeLabel}</span>
+                                    <div class="pagination-controls">
+                                        <button
+                                            type="button"
+                                            class="page-btn"
+                                            onclick={handleMapPreviousPage}
+                                            disabled={isMapPrevDisabled}
+                                        >Previous</button>
+                                        <span class="page-label">{mapPageLabel}</span>
+                                        <button
+                                            type="button"
+                                            class="page-btn"
+                                            onclick={handleMapNextPage}
+                                            disabled={isMapNextDisabled}
+                                        >Next</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </template>
+                    </aside>
+                    <section class="map-panel">
+                        <div class="map-legend">
+                            <span class="legend-item"><span class="legend-pin legend-pin-high"></span> High risk</span>
+                            <span class="legend-item"><span class="legend-pin legend-pin-med"></span> Med risk</span>
+                            <span class="legend-item"><span class="legend-pin legend-pin-low"></span> Low risk</span>
+                        </div>
+                        <div class="accounts-map" lwc:dom="manual"></div>
                     </section>
                 </div>
             </template>
+        </div>
+    </lightning-card>
 
-            <template if:false={isCompactView}>
-                <div class="accounts-list-wrap">
-                    <c-accounts-tab-oce-list
-                        rows={rows}
-                        is-loading={isLoading}
-                        sort-by={sortBy}
-                        sort-direction={sortDirection}
-                        onrowaction={handleOceRowAction}
-                        onsorttoggle={handleOceSortToggle}
-                    ></c-accounts-tab-oce-list>
-                    <template if:true={showEmptyState}>
-                        <p class="accounts-empty-state">No accounts match the current filters.</p>
+    <template if:true={showNewAccountModal}>
+        <section
+            role="dialog"
+            tabindex="-1"
+            aria-modal="true"
+            aria-labelledby="new-account-title"
+            class={newAccountModalClass}
+        >
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button
+                        class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                        title="Close"
+                        onclick={handleCloseNewAccountModal}
+                    >
+                        <lightning-icon
+                            icon-name="utility:close"
+                            variant="inverse"
+                            size="small"
+                            alternative-text="Close"
+                        ></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="new-account-title" class="slds-modal__title slds-hyphenate">New Account</h2>
+                    <p class="slds-m-top_xx-small slds-text-body_small">{newAccountStepLabel}</p>
+                    <p class="slds-m-top_xx-small slds-text-body_small">{newAccountSubtitle}</p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={isRecordTypeStep}>
+                        <template if:true={hasCreateRecordTypes}>
+                            <div class="record-type-grid" role="listbox" aria-label="Account record types">
+                                <template for:each={createRecordTypeCards} for:item="rt">
+                                    <button
+                                        key={rt.recordTypeId}
+                                        type="button"
+                                        role="option"
+                                        class={rt.cardClass}
+                                        data-record-type-id={rt.recordTypeId}
+                                        aria-selected={rt.selected}
+                                        onclick={handleSelectCreateRecordType}
+                                    >
+                                        <lightning-icon
+                                            icon-name={rt.iconName}
+                                            size="small"
+                                            alternative-text=""
+                                        ></lightning-icon>
+                                        <span class="record-type-copy">
+                                            <span class="record-type-label">{rt.label}</span>
+                                            <span class="record-type-description">{rt.description}</span>
+                                        </span>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                        <template if:false={hasCreateRecordTypes}>
+                            <p>No account record types are available for your profile.</p>
+                        </template>
                     </template>
-                    <template if:true={showPagination}>
-                        <div class="pagination-bar">
-                            <span class="pagination-range">{rangeLabel}</span>
-                            <div class="pagination-controls">
-                                <button
-                                    type="button"
-                                    class="page-btn"
-                                    onclick={handlePreviousPage}
-                                    disabled={isPrevDisabled}
-                                >Previous</button>
-                                <span class="page-label">{pageLabel}</span>
-                                <button
-                                    type="button"
-                                    class="page-btn"
-                                    onclick={handleNextPage}
-                                    disabled={isNextDisabled}
-                                >Next</button>
+
+                    <template if:true={isMasterSearchStep}>
+                        <lightning-input
+                            type="search"
+                            label="Search master list"
+                            placeholder="Search by name, number, phone, specialty, city, brick…"
+                            value={masterSearchTerm}
+                            onchange={handleMasterSearchChange}
+                            onkeyup={handleMasterSearchKeyUp}
+                        ></lightning-input>
+                        <div class="wizard-master-filters">
+                            <lightning-combobox
+                                class="wizard-master-filter"
+                                label="148 brick"
+                                placeholder="Any 148 brick"
+                                value={masterBrick148Id}
+                                options={masterBrick148FilterOptions}
+                                onchange={handleMasterBrick148FilterChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="wizard-master-filter"
+                                label="702 brick"
+                                placeholder="Any 702 brick"
+                                value={masterBrick702Id}
+                                options={masterBrick702FilterOptions}
+                                onchange={handleMasterBrick702FilterChange}
+                            ></lightning-combobox>
+                            <div class="wizard-typeahead">
+                                <lightning-input
+                                    type="search"
+                                    label="Specialty"
+                                    placeholder="Any specialty"
+                                    value={masterSpecialtyQuery}
+                                    onchange={handleMasterSpecialtyQueryInput}
+                                    onkeyup={handleMasterSpecialtyQueryInput}
+                                    onfocus={handleMasterSpecialtyFocus}
+                                ></lightning-input>
+                                <template if:true={showMasterSpecialtyMenu}>
+                                    <ul class="wizard-typeahead-menu" role="listbox">
+                                        <template for:each={filteredMasterSpecialtyOptions} for:item="opt">
+                                            <li key={opt.optionKey} role="presentation">
+                                                <button
+                                                    type="button"
+                                                    class="wizard-typeahead-option"
+                                                    data-value={opt.value}
+                                                    data-label={opt.label}
+                                                    onclick={handleMasterSpecialtyPick}
+                                                >{opt.label}</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </div>
+                        </div>
+                        <template if:true={isMasterSearching}>
+                            <div class="slds-m-top_small slds-align_absolute-center">
+                                <lightning-spinner alternative-text="Searching master list" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:true={masterResultCards}>
+                            <div class="wizard-result-list slds-m-top_small">
+                                <template for:each={masterResultCards} for:item="row">
+                                    <button
+                                        key={row.rowId}
+                                        type="button"
+                                        class={row.cardClass}
+                                        data-account-id={row.accountId}
+                                        onclick={handleSelectMasterAccount}
+                                    >
+                                        <span class="wizard-result-name">{row.name}</span>
+                                        <span class="wizard-result-meta">
+                                            <template if:true={row.accountNumber}>{row.accountNumber} · </template>
+                                            <template if:true={row.specialty}>{row.specialty} · </template>
+                                            <template if:true={row.brickName}>{row.brickName}</template>
+                                            <template if:false={row.brickName}>No brick</template>
+                                        </span>
+                                        <span class="wizard-result-location">{row.location}</span>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                        <template if:true={showCognitiveSection}>
+                            <p class="wizard-did-you-mean">Did you mean…</p>
+                            <div class="wizard-result-list">
+                                <template for:each={cognitiveResultCards} for:item="row">
+                                    <button
+                                        key={row.rowId}
+                                        type="button"
+                                        class={row.cardClass}
+                                        data-account-id={row.accountId}
+                                        onclick={handleSelectMasterAccount}
+                                    >
+                                        <span class="wizard-result-name">{row.name}</span>
+                                        <span class="wizard-result-meta">
+                                            <template if:true={row.specialty}>{row.specialty} · </template>
+                                            <template if:true={row.brickName}>{row.brickName}</template>
+                                            <template if:false={row.brickName}>No brick</template>
+                                        </span>
+                                        <span class="wizard-result-location">{row.location}</span>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                        <template if:true={showMasterEmptyPrompt}>
+                            <p class="wizard-empty">No master-list match. Try a different spelling, or search maps to add a new account.</p>
+                        </template>
+                        <div class="wizard-alt-actions">
+                            <lightning-button
+                                label="Not found — search maps"
+                                onclick={handleGoToMapSearch}
+                            ></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:true={isMapSearchStep}>
+                        <lightning-input
+                            type="search"
+                            label="Map search (name or phone)"
+                            placeholder="Search a name or phone number (010… / +20)"
+                            value={mapSearchTerm}
+                            onchange={handleMapSearchChange}
+                        ></lightning-input>
+                        <div class="wizard-map-geo-filters">
+                            <lightning-combobox
+                                class="wizard-map-geo-filter"
+                                label="Zone"
+                                placeholder="All zones"
+                                value={mapZoneId}
+                                options={mapZoneOptions}
+                                onchange={handleMapZoneChange}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="wizard-map-geo-filter"
+                                label="Brick (148)"
+                                placeholder="All 148 bricks"
+                                value={mapBrick148Id}
+                                options={mapFilterBrick148Options}
+                                onchange={handleMapBrick148Change}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="wizard-map-geo-filter"
+                                label="Brick (702)"
+                                placeholder="All 702 bricks"
+                                value={mapBrick702Id}
+                                options={mapFilterBrick702Options}
+                                onchange={handleMapBrick702Change}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="wizard-map-geo-filter"
+                                label="Area"
+                                placeholder="All areas"
+                                value={mapArea}
+                                options={mapAreaOptions}
+                                onchange={handleMapAreaChange}
+                            ></lightning-combobox>
+                        </div>
+                        <p class="wizard-geo-hint">Optional. Narrow Cloudastick Map Intelligence to a zone, brick, or area. Leave blank for all Egypt.</p>
+                        <div class="wizard-map-split">
+                            <div class="wizard-search-map-panel">
+                                <div class="wizard-search-map" lwc:dom="manual"></div>
+                                <template if:true={isMapSearching}>
+                                    <div class="wizard-map-loading">
+                                        <lightning-spinner alternative-text="Searching maps" size="small"></lightning-spinner>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="wizard-map-list-panel">
+                                <template if:true={isMapSearching}>
+                                    <div class="slds-align_absolute-center slds-p-around_small">
+                                        <lightning-spinner alternative-text="Searching maps" size="small"></lightning-spinner>
+                                    </div>
+                                </template>
+                                <template if:true={hasMapResults}>
+                                    <div class="wizard-result-list wizard-map-result-list">
+                                        <template for:each={mapResultCards} for:item="row">
+                                            <button
+                                                key={row.rowId}
+                                                type="button"
+                                                class={row.cardClass}
+                                                data-place-id={row.placeId}
+                                                onclick={handleSelectMapPlace}
+                                            >
+                                                <span class="wizard-result-head">
+                                                    <span class={row.kindClass} title={row.placeKindLabel}>
+                                                        <lightning-icon
+                                                            icon-name={row.kindIcon}
+                                                            size="x-small"
+                                                            alternative-text={row.placeKindLabel}
+                                                        ></lightning-icon>
+                                                    </span>
+                                                    <span class="wizard-result-name">{row.name}</span>
+                                                    <template if:true={row.isKol}>
+                                                        <span class="wizard-kol-pill">KOL</span>
+                                                    </template>
+                                                </span>
+                                                <span class="wizard-kind-label">{row.placeKindLabel}</span>
+                                                <span class="wizard-map-stars" title={row.starTitle} aria-label={row.starTitle}>
+                                                    <template for:each={row.stars} for:item="star">
+                                                        <lightning-icon
+                                                            key={star.key}
+                                                            icon-name={star.iconName}
+                                                            size="xx-small"
+                                                            class={star.cssClass}
+                                                            alternative-text=""
+                                                        ></lightning-icon>
+                                                    </template>
+                                                </span>
+                                                <span class="wizard-result-location">{row.address}</span>
+                                                <span class="wizard-result-meta">
+                                                    <template if:true={row.phone}>{row.phone} · </template>
+                                                    <template if:true={row.brickName}>{row.brickName} · </template>
+                                                    {row.provider}
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template if:true={showMapEmpty}>
+                                    <p class="wizard-empty">No map match. You can still enter details manually.</p>
+                                </template>
+                                <template if:true={showMapSearchHint}>
+                                    <p class="wizard-empty">Type a name to search Cloudastick Map Intelligence.</p>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="wizard-alt-actions">
+                            <lightning-button
+                                label="Enter details manually"
+                                onclick={handleCreateBlankAccount}
+                            ></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:true={isCreateFormStep}>
+                        <div class="wizard-create-layout">
+                            <div class="wizard-create-form">
+                                <div class="quality-score-card">
+                                    <lightning-progress-ring
+                                        value={dataQualityScore}
+                                        size="large"
+                                        variant={dataQualityRingVariant}
+                                    ></lightning-progress-ring>
+                                    <div class="quality-score-copy">
+                                        <p class="quality-score-value">{dataQualityScore} · {dataQualityLabel}</p>
+                                        <p class="quality-score-hint">Account Data Quality. Save unlocks at {qualityBaseline} when required fields are complete.</p>
+                                        <template if:true={hasQualityMissing}>
+                                            <ul class="quality-missing">
+                                                <template for:each={dataQualityMissing} for:item="item">
+                                                    <li key={item}>Missing: {item}</li>
+                                                </template>
+                                            </ul>
+                                        </template>
+                                        <template if:true={hasQualityExtras}>
+                                            <ul class="quality-extras">
+                                                <template for:each={dataQualityExtras} for:item="item">
+                                                    <li key={item}>{item}</li>
+                                                </template>
+                                            </ul>
+                                        </template>
+                                        <template if:true={duplicatePhoneWarning}>
+                                            <p class="quality-warning">{duplicatePhoneWarning}</p>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <template if:true={isPersonCreateType}>
+                                    <lightning-input
+                                        label="First name"
+                                        data-field="firstName"
+                                        value={createForm.firstName}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        class="slds-m-top_x-small"
+                                        label="Last name"
+                                        required
+                                        data-field="lastName"
+                                        value={createForm.lastName}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-input>
+                                </template>
+                                <template if:false={isPersonCreateType}>
+                                    <lightning-input
+                                        label="Account name"
+                                        required
+                                        data-field="name"
+                                        value={createForm.name}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-input>
+                                </template>
+
+                                <template if:true={showSpecialtyFields}>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Specialty 1"
+                                        required
+                                        data-field="specialty1"
+                                        value={createForm.specialty1}
+                                        options={specialtyCreateOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Specialty 2"
+                                        data-field="specialty2"
+                                        value={createForm.specialty2}
+                                        options={specialtyCreateOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Specialty 3"
+                                        data-field="specialty3"
+                                        value={createForm.specialty3}
+                                        options={specialtyCreateOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                </template>
+                                <template if:true={showPharmacyTypeField}>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Pharmacy type"
+                                        required
+                                        data-field="pharmacyType"
+                                        value={createForm.pharmacyType}
+                                        options={pharmacyTypeOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                </template>
+                                <template if:true={showInstitutionTypeField}>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Institution type"
+                                        required
+                                        data-field="institutionType"
+                                        value={createForm.institutionType}
+                                        options={institutionTypeOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                </template>
+
+                                <lightning-combobox
+                                    class="slds-m-top_x-small"
+                                    label="148 brick"
+                                    required
+                                    data-field="brick148Id"
+                                    value={createForm.brick148Id}
+                                    options={brick148Options}
+                                    onchange={handleBrick148Change}
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    class="slds-m-top_x-small"
+                                    label="702 brick"
+                                    required
+                                    data-field="brick702Id"
+                                    value={createForm.brick702Id}
+                                    options={brick702Options}
+                                    onchange={handleBrick702Change}
+                                ></lightning-combobox>
+
+                                <lightning-input
+                                    class="slds-m-top_x-small"
+                                    label="WhatsApp number"
+                                    type="tel"
+                                    data-field="whatsappNumber"
+                                    value={createForm.whatsappNumber}
+                                    onchange={handleCreatePhoneChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    class="slds-m-top_x-small"
+                                    label="Phone number"
+                                    type="tel"
+                                    data-field="phone"
+                                    value={createForm.phone}
+                                    onchange={handleCreatePhoneChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    class="slds-m-top_x-small"
+                                    label="Clinic number"
+                                    type="tel"
+                                    data-field="clinicPhone"
+                                    value={createForm.clinicPhone}
+                                    onchange={handleCreatePhoneChange}
+                                ></lightning-input>
+                                <p class="wizard-geo-hint">At least one unique number is required. Extra unique numbers raise the score.</p>
+                                <template if:true={isPhoneMapLookingUp}>
+                                    <p class="wizard-geo-hint">Searching maps for this number…</p>
+                                </template>
+                                <template if:true={phoneMapSuggestion}>
+                                    <div class="phone-map-suggestion">
+                                        <p class="phone-map-suggestion-title">Map match</p>
+                                        <p class="wizard-result-name">{phoneMapSuggestion.name}</p>
+                                        <p class="wizard-result-location">{phoneMapSuggestion.address}</p>
+                                        <lightning-button
+                                            class="slds-m-top_xx-small"
+                                            label="Use map match"
+                                            variant="brand"
+                                            onclick={handleUsePhoneMapMatch}
+                                        ></lightning-button>
+                                    </div>
+                                </template>
+
+                                <lightning-input
+                                    class="slds-m-top_x-small"
+                                    label="Email"
+                                    type="email"
+                                    data-field="email"
+                                    value={createForm.email}
+                                    onchange={handleCreateFieldChange}
+                                ></lightning-input>
+                            </div>
+                            <div class="wizard-create-map-panel">
+                                <template if:true={currentLocationError}>
+                                    <p class="wizard-empty slds-text-color_error">{currentLocationError}</p>
+                                </template>
+                                <div class="wizard-search-map-panel">
+                                    <div class="wizard-create-map" lwc:dom="manual"></div>
+                                    <lightning-button-icon
+                                        class="wizard-gps-button"
+                                        icon-name="utility:crosshairs"
+                                        variant="brand"
+                                        alternative-text="Use my current location"
+                                        title="Use my current location"
+                                        onclick={handleUseMyLocation}
+                                        disabled={useMyLocationDisabled}
+                                    ></lightning-button-icon>
+                                    <template if:true={isGettingCurrentLocation}>
+                                        <div class="wizard-gps-spinner">
+                                            <lightning-spinner
+                                                alternative-text="Getting your location"
+                                                size="small"
+                                            ></lightning-spinner>
+                                        </div>
+                                    </template>
+                                </div>
+                                <p class="wizard-geo-hint">
+                                    Drag the pin or click the map to set the location.
+                                    As you type the address, the map will zoom in to help you drill down.
+                                    <template if:true={createForm.latitude}> {createForm.latitude}, {createForm.longitude}</template>
+                                    <template if:false={createForm.latitude}> No pin yet.</template>
+                                </p>
+                                <template if:true={isCreateAddressLookingUp}>
+                                    <p class="wizard-geo-hint">
+                                        Searching map for this address…
+                                    </p>
+                                </template>
+                                <div class="wizard-create-address-panel">
+                                    <lightning-textarea
+                                        label="Detailed address"
+                                        required
+                                        data-field="street"
+                                        value={createForm.street}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-textarea>
+                                    <lightning-input
+                                        class="slds-m-top_x-small"
+                                        label="Building"
+                                        required
+                                        data-field="building"
+                                        value={createForm.building}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-input>
+                                    <lightning-combobox
+                                        class="slds-m-top_x-small"
+                                        label="Governorate"
+                                        required
+                                        data-field="governorate"
+                                        value={createForm.governorate}
+                                        options={governateOptions}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-combobox>
+                                    <lightning-input
+                                        class="slds-m-top_x-small"
+                                        label="علامة مميزة"
+                                        required
+                                        data-field="landmark"
+                                        value={createForm.landmark}
+                                        onchange={handleCreateFieldChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        class="slds-m-top_x-small"
+                                        type="checkbox"
+                                        label="I confirm the detailed address and map pin"
+                                        checked={createForm.pinConfirmed}
+                                        data-field="pinConfirmed"
+                                        onchange={handlePinConfirmedChange}
+                                    ></lightning-input>
+                                    <template if:true={createError}>
+                                        <p class="wizard-empty">{createError}</p>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </template>
                 </div>
-            </template>
-        </template>
-
-        <template if:true={isMapView}>
-            <div class="map-view-layout">
-                <aside class="map-account-list">
-                    <div class="map-list-header">
-                        <span class="map-list-title">Accounts</span>
-                        <span class="map-list-count">{mapListCountLabel}</span>
-                    </div>
-                    <template if:true={isLoading}>
-                        <p class="map-list-loading">Loading accounts…</p>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={handleCloseNewAccountModal}></lightning-button>
+                    <template if:false={isRecordTypeStep}>
+                        <lightning-button
+                            class="slds-m-left_x-small"
+                            label="Back"
+                            onclick={handleWizardBack}
+                        ></lightning-button>
                     </template>
-                    <template if:false={isLoading}>
-                        <template if:true={hasMapListItems}>
-                            <ul class="map-account-items" role="list">
-                                <template for:each={mapListItems} for:item="item">
-                                    <li
-                                        key={item.accountId}
-                                        class={item.itemClass}
-                                        data-account-id={item.accountId}
-                                        onclick={handleMapListSelect}
-                                    >
-                                        <div class="map-account-item-body">
-                                            <div class="map-account-item-top">
-                                                <span class={item.riskDotClass} title={item.agentforceRisk}></span>
-                                                <span class="map-account-type">{item.typeLabel}</span>
-                                                <span class="map-account-badge">{item.classification}</span>
-                                            </div>
-                                            <p class="map-account-name">{item.accountName}</p>
-                                            <p class="map-account-subtitle">{item.subtitle}</p>
-                                            <template if:true={item.hasBusinessUnits}>
-                                                <p class="map-account-bu">{item.businessUnitLabel}</p>
-                                            </template>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            class="map-new-window-btn"
-                                            aria-label="View account"
-                                            title="View account"
-                                            data-account-id={item.accountId}
-                                            onclick={handleMapListViewAccount}
-                                        >↗</button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </template>
-                        <template if:false={hasMapListItems}>
-                            <p class="map-list-empty">No accounts match the current filters.</p>
-                        </template>
-                        <template if:true={showMapPagination}>
-                            <div class="map-pagination-bar">
-                                <span class="pagination-range">{mapRangeLabel}</span>
-                                <div class="pagination-controls">
-                                    <button
-                                        type="button"
-                                        class="page-btn"
-                                        onclick={handleMapPreviousPage}
-                                        disabled={isMapPrevDisabled}
-                                    >Previous</button>
-                                    <span class="page-label">{mapPageLabel}</span>
-                                    <button
-                                        type="button"
-                                        class="page-btn"
-                                        onclick={handleMapNextPage}
-                                        disabled={isMapNextDisabled}
-                                    >Next</button>
-                                </div>
-                            </div>
-                        </template>
-                    </template>
-                </aside>
-                <section class="map-panel">
-                    <div class="map-legend">
-                        <span class="legend-item"><span class="legend-pin legend-pin-high"></span> High risk</span>
-                        <span class="legend-item"><span class="legend-pin legend-pin-med"></span> Med risk</span>
-                        <span class="legend-item"><span class="legend-pin legend-pin-low"></span> Low risk</span>
-                    </div>
-                    <div class="accounts-map" lwc:dom="manual"></div>
-                </section>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label={primaryWizardLabel}
+                        disabled={isCreateContinueDisabled}
+                        onclick={handleConfirmNewAccount}
+                    ></lightning-button>
+                </footer>
             </div>
-        </template>
-    </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
 </template>

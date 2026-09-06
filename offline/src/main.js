@@ -13,6 +13,9 @@ import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
 import MyLearning from 'c/myLearning';
+import CoachingEventEvaluation from 'c/coachingEventEvaluation';
+import AccountAffiliationNetwork from 'c/accountAffiliationNetwork';
+import PendingPaymentAlert from 'c/pendingPaymentAlert';
 import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
 import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
 import { plannerApiFetch } from './apex/restHelper';
@@ -863,6 +866,9 @@ function mountHomeView() {
     if (!homeRoot) {
         return;
     }
+    if (!homeRoot.querySelector('c-pending-payment-alert')) {
+        homeRoot.appendChild(createElement('c-pending-payment-alert', { is: PendingPaymentAlert }));
+    }
     if (!homeRoot.querySelector('c-field-rep-home-clm-prefetch')) {
         homeRoot.appendChild(createElement('c-field-rep-home-clm-prefetch', { is: FieldRepHomeClmPrefetch }));
     }
@@ -1638,6 +1644,7 @@ function setupRecordModal() {
         '<button type="button" class="record-modal-expand" data-expand="1" aria-pressed="false">Full screen</button>' +
         '<button type="button" class="record-modal-close" data-close="1">Close</button>' +
         '</div>' +
+        '<div id="record-modal-host" class="record-modal-host" hidden></div>' +
         '<iframe id="record-modal-frame" title="Record"></iframe>' +
         '</div>';
     modal.addEventListener('click', (event) => {
@@ -1679,13 +1686,224 @@ function toggleRecordModalFullscreen() {
     syncRecordModalExpandButton(modal);
 }
 
+const COACHING_PATH_STEPS = [
+    'Draft',
+    'Planned',
+    'In Progress',
+    'Self Evaluation',
+    'Available for Scoring',
+    'Review',
+    'Closed'
+];
+
+function clearRecordModalHost() {
+    const host = document.getElementById('record-modal-host');
+    if (host) {
+        host.innerHTML = '';
+        host.hidden = true;
+        host.setAttribute('hidden', '');
+    }
+    const frame = document.getElementById('record-modal-frame');
+    if (frame) {
+        frame.hidden = false;
+        frame.removeAttribute('hidden');
+        frame.style.display = '';
+    }
+}
+
+function mountCoachingRecord(recordId) {
+    const host = document.getElementById('record-modal-host');
+    const frame = document.getElementById('record-modal-frame');
+    const title = document.querySelector('.record-modal-chrome-title');
+    if (!host) return;
+    if (frame) {
+        frame.src = 'about:blank';
+        frame.hidden = true;
+        frame.setAttribute('hidden', '');
+        frame.style.display = 'none';
+    }
+    host.hidden = false;
+    host.removeAttribute('hidden');
+    host.style.display = 'block';
+    host.innerHTML = '';
+    if (title) title.textContent = 'Coaching Event';
+
+    const path = document.createElement('div');
+    path.className = 'coaching-path';
+    path.setAttribute('aria-label', 'Coaching status path');
+    COACHING_PATH_STEPS.forEach((step, index) => {
+        const chip = document.createElement('span');
+        chip.className = 'coaching-path-step';
+        chip.dataset.step = step;
+        chip.textContent = step;
+        if (index < COACHING_PATH_STEPS.length - 1) {
+            path.appendChild(chip);
+            const sep = document.createElement('span');
+            sep.className = 'coaching-path-sep';
+            sep.textContent = '›';
+            path.appendChild(sep);
+        } else {
+            path.appendChild(chip);
+        }
+    });
+    host.appendChild(path);
+
+    const tabs = document.createElement('div');
+    tabs.className = 'coaching-record-tabs';
+    const evalBtn = document.createElement('button');
+    evalBtn.type = 'button';
+    evalBtn.className = 'coaching-record-tab is-active';
+    evalBtn.textContent = 'Evaluation';
+    const detailBtn = document.createElement('button');
+    detailBtn.type = 'button';
+    detailBtn.className = 'coaching-record-tab';
+    detailBtn.textContent = 'Details';
+    tabs.appendChild(evalBtn);
+    tabs.appendChild(detailBtn);
+    host.appendChild(tabs);
+
+    const evalPane = document.createElement('div');
+    evalPane.className = 'coaching-record-pane';
+    const detailPane = document.createElement('div');
+    detailPane.className = 'coaching-record-pane';
+    detailPane.hidden = true;
+    host.appendChild(evalPane);
+    host.appendChild(detailPane);
+
+    const evaluation = createElement('c-coaching-event-evaluation', { is: CoachingEventEvaluation });
+    evaluation.recordId = recordId;
+    evalPane.appendChild(evaluation);
+
+    const detailFrame = document.createElement('iframe');
+    detailFrame.className = 'coaching-detail-frame';
+    detailFrame.title = 'Coaching details';
+    detailFrame.src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent('Coaching_Event__c')}`;
+    detailPane.appendChild(detailFrame);
+
+    evalBtn.addEventListener('click', () => {
+        evalBtn.classList.add('is-active');
+        detailBtn.classList.remove('is-active');
+        evalPane.hidden = false;
+        detailPane.hidden = true;
+    });
+    detailBtn.addEventListener('click', () => {
+        detailBtn.classList.add('is-active');
+        evalBtn.classList.remove('is-active');
+        detailPane.hidden = false;
+        evalPane.hidden = true;
+    });
+
+    // Highlight current status on the path when possible.
+    void plannerApiFetch(
+        `/services/data/v62.0/query?q=${encodeURIComponent(
+            `SELECT Status__c FROM Coaching_Event__c WHERE Id = '${String(recordId).replace(/'/g, "\\'")}' LIMIT 1`
+        )}`
+    )
+        .then((data) => {
+            const status = data?.records?.[0]?.Status__c;
+            if (!status) return;
+            path.querySelectorAll('.coaching-path-step').forEach((chip) => {
+                chip.classList.toggle('is-current', chip.dataset.step === status);
+                const idx = COACHING_PATH_STEPS.indexOf(chip.dataset.step);
+                const cur = COACHING_PATH_STEPS.indexOf(status);
+                chip.classList.toggle('is-complete', idx >= 0 && cur >= 0 && idx < cur);
+            });
+        })
+        .catch(() => {});
+}
+
+function mountAccountRecord(recordId) {
+    const host = document.getElementById('record-modal-host');
+    const frame = document.getElementById('record-modal-frame');
+    const title = document.querySelector('.record-modal-chrome-title');
+    if (!host) return;
+    if (frame) {
+        frame.src = 'about:blank';
+        frame.hidden = true;
+        frame.setAttribute('hidden', '');
+        frame.style.display = 'none';
+    }
+    host.hidden = false;
+    host.removeAttribute('hidden');
+    host.style.display = 'flex';
+    host.innerHTML = '';
+    if (title) title.textContent = 'Account';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'coaching-record-tabs account-record-tabs';
+    const detailBtn = document.createElement('button');
+    detailBtn.type = 'button';
+    detailBtn.className = 'coaching-record-tab is-active';
+    detailBtn.textContent = 'Details';
+    const affBtn = document.createElement('button');
+    affBtn.type = 'button';
+    affBtn.className = 'coaching-record-tab';
+    affBtn.textContent = 'Affiliations';
+    tabs.appendChild(detailBtn);
+    tabs.appendChild(affBtn);
+    host.appendChild(tabs);
+
+    const detailPane = document.createElement('div');
+    detailPane.className = 'coaching-record-pane';
+    const affPane = document.createElement('div');
+    affPane.className = 'coaching-record-pane';
+    affPane.hidden = true;
+    host.appendChild(detailPane);
+    host.appendChild(affPane);
+
+    const detailFrame = document.createElement('iframe');
+    detailFrame.className = 'coaching-detail-frame';
+    detailFrame.title = 'Account details';
+    detailFrame.src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent('Account')}`;
+    detailPane.appendChild(detailFrame);
+
+    try {
+        const network = createElement('c-account-affiliation-network', {
+            is: AccountAffiliationNetwork
+        });
+        network.recordId = recordId;
+        affPane.appendChild(network);
+    } catch (err) {
+        affPane.innerHTML =
+            '<div class="unsupported-message"><h2>Affiliations</h2><p>Could not load the affiliation network offline.</p></div>';
+        console.warn('[Account] affiliation network mount failed', err);
+    }
+
+    detailBtn.addEventListener('click', () => {
+        detailBtn.classList.add('is-active');
+        affBtn.classList.remove('is-active');
+        detailPane.hidden = false;
+        affPane.hidden = true;
+    });
+    affBtn.addEventListener('click', () => {
+        affBtn.classList.add('is-active');
+        detailBtn.classList.remove('is-active');
+        affPane.hidden = false;
+        detailPane.hidden = true;
+    });
+}
+
 function openRecordModal(recordId, objectApiName) {
     if (!recordId) return;
     setupRecordModal();
     const modal = document.getElementById('record-modal');
     const frame = document.getElementById('record-modal-frame');
-    const src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(objectApiName || '')}`;
-    if (frame) frame.src = src;
+    const title = document.querySelector('.record-modal-chrome-title');
+    const objectName = String(objectApiName || '');
+    const isCoaching =
+        objectName === 'Coaching_Event__c' || objectName.toLowerCase().includes('coaching_event');
+    const isAccount = objectName === 'Account' || /^001/.test(String(recordId));
+
+    if (isCoaching) {
+        mountCoachingRecord(recordId);
+    } else if (isAccount && (objectName === 'Account' || !objectName)) {
+        mountAccountRecord(recordId);
+    } else {
+        clearRecordModalHost();
+        if (title) title.textContent = 'Record';
+        const src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(objectApiName || '')}`;
+        if (frame) frame.src = src;
+    }
     if (modal) {
         modal.classList.remove('is-fullscreen');
         syncRecordModalExpandButton(modal);
@@ -1698,6 +1916,7 @@ function openRecordModal(recordId, objectApiName) {
 function closeRecordModal() {
     const modal = document.getElementById('record-modal');
     const frame = document.getElementById('record-modal-frame');
+    clearRecordModalHost();
     if (frame) frame.src = 'about:blank';
     if (modal) {
         modal.classList.remove('is-fullscreen');

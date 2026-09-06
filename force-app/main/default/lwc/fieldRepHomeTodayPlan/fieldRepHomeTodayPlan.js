@@ -1,5 +1,18 @@
-import { LightningElement, track } from 'lwc';
-import getTodayPlanPayload from '@salesforce/apex/PlannerMobileRestService.getTodayPlanPayload';
+import { LightningElement, track, wire } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
+import { loadScript, loadStyle } from 'lightning/platformResourceLoader';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import LightningConfirm from 'lightning/confirm';
+import Id from '@salesforce/user/Id';
+import { MessageContext } from 'lightning/messageService';
+import {
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
+
+import LEAFLET from '@salesforce/resourceUrl/leaflet';
+import fetchPlannerData from '@salesforce/apex/FieldPlannerController.fetchPlannerData';
+import getPlannerViewerContext from '@salesforce/apex/FieldPlannerController.getPlannerViewerContext';
 import deleteVisit from '@salesforce/apex/FieldPlannerController.deleteVisit';
 import rescheduleVisits from '@salesforce/apex/FieldPlannerController.rescheduleVisits';
 import getCallReportPayload from '@salesforce/apex/VisitCallReportController.getCallReportPayload';
@@ -10,19 +23,13 @@ import {
     getTodayPlan,
     getUserTodayPlanKey,
     newClientKey,
-    putCachedAccounts,
     putCoachingContext,
     putRatingContext,
     putTodayPlan,
     putVisitPayload
 } from 'c/clmOfflineStore';
 import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
-
-const TODAY_PLAN_PATH = '/services/apexrest/planner/v1/home/today-plan';
-const VISITS_RESCHEDULE_PATH = '/services/apexrest/planner/v1/visits/reschedule';
-const VISITS_DELETE_PATH = '/services/apexrest/planner/v1/visits/delete';
-const CACHE_USER_FALLBACK = 'me';
-const LEAFLET_CDN = 'https://unpkg.com/leaflet@1.9.4/dist';
+import { addOsmTileLayer } from 'c/plannerMapPins';
 
 const OSRM_BASE = 'https://router.project-osrm.org';
 const DEFAULT_MAP_CENTER = [30.0444, 31.2357];
@@ -68,6 +75,19 @@ function toApexDateTime(value) {
         return null;
     }
     return date.toISOString();
+}
+
+function startOfWeek(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
 }
 
 function sameSalesforceId(left, right) {
@@ -203,50 +223,6 @@ function waitForDom() {
     });
 }
 
-function plannerRestBase() {
-    return typeof globalThis !== 'undefined' ? globalThis.PLANNER_REST_BASE || '' : '';
-}
-
-function isPwaRuntime() {
-    return Boolean(plannerRestBase());
-}
-
-function loadStylesheet(href) {
-    return new Promise((resolve, reject) => {
-        if (typeof document === 'undefined') {
-            reject(new Error('Document is not available.'));
-            return;
-        }
-        const existing = document.querySelector(`link[data-leaflet-href="${href}"]`);
-        if (existing) {
-            resolve();
-            return;
-        }
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = href;
-        link.setAttribute('data-leaflet-href', href);
-        link.onload = () => resolve();
-        link.onerror = () => reject(new Error(`Unable to load stylesheet ${href}`));
-        document.head.appendChild(link);
-    });
-}
-
-function loadScriptTag(src) {
-    return new Promise((resolve, reject) => {
-        if (typeof window !== 'undefined' && window.L) {
-            resolve();
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = src;
-        script.async = false;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`Unable to load script ${src}`));
-        document.head.appendChild(script);
-    });
-}
-
 function formatMapCoord(point) {
     return `${point.latitude},${point.longitude}`;
 }
@@ -295,7 +271,8 @@ function buildGoogleMapsDirectionsUrl(stops, originLocation) {
     return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
-export default class FieldRepHomeTodayPlan extends LightningElement {
+export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElement) {
+    @track isLoading = true;
     @track upNextVisits = [];
     @track routeSummary;
     @track optimizationIdeas = [];
@@ -305,11 +282,6 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
     @track plannerViewerContext;
     @track selectedContextUserId;
     @track isMutatingVisit = false;
-    @track syncStatus = 'idle';
-    @track errorMessage = '';
-    @track noticeMessage = '';
-    @track noticeVariant = 'success';
-    @track hasCachedData = false;
 
     leafletReady = false;
     mapInstance;
@@ -318,29 +290,34 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
     routeLayer;
     selectedVisitId;
     currentLocation;
-    cacheUserKey = CACHE_USER_FALLBACK;
-    refreshAbort;
-    _connectivityBound = false;
+    _messageContext;
+    territoryContextSubscription;
+
+    @wire(MessageContext)
+    wiredMessageContext(value) {
+        this._messageContext = value;
+        this.subscribeTerritoryContext();
+    }
 
     connectedCallback() {
-        this.init();
+        this.subscribeTerritoryContext();
+        this.bootstrap();
     }
 
     disconnectedCallback() {
         this.destroyMap();
-        if (this.refreshAbort) {
-            this.refreshAbort.abort();
-            this.refreshAbort = null;
+        unsubscribeTerritoryContext(this.territoryContextSubscription);
+        this.territoryContextSubscription = undefined;
+    }
+
+    subscribeTerritoryContext() {
+        if (this.territoryContextSubscription || !this._messageContext) {
+            return;
         }
-        if (this._onOnline) {
-            window.removeEventListener('online', this._onOnline);
-        }
-        if (this._onOffline) {
-            window.removeEventListener('offline', this._onOffline);
-        }
-        if (this._noticeTimer) {
-            clearTimeout(this._noticeTimer);
-        }
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+            this.destroyMap();
+            void this.bootstrap();
+        });
     }
 
     get hasNoVisits() {
@@ -356,28 +333,11 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
     }
 
     get viewerOptions() {
-        const defaultUserId = this.plannerViewerContext?.defaultUserId;
-        const options = [{ key: `my-plan-${defaultUserId || 'me'}`, label: 'My plan', value: defaultUserId }];
-        const seen = new Set();
-        if (defaultUserId) {
-            seen.add(String(defaultUserId).substring(0, 15));
-        }
-        (this.plannerViewerContext?.options || []).forEach((option, idx) => {
-            const val = option.userId || option.value;
-            const norm = val ? String(val).substring(0, 15) : '';
-            if (val && !seen.has(norm)) {
-                seen.add(norm);
-                options.push({
-                    key: `rep-${val}-${idx}`,
-                    label: option.label,
-                    value: val
-                });
-            }
+        const options = [{ label: 'My plan', value: this.plannerViewerContext?.defaultUserId }];
+        (this.plannerViewerContext?.options || []).forEach((option) => {
+            options.push({ label: option.label, value: option.userId });
         });
-        return options.map((option) => ({
-            ...option,
-            isSelected: option.value && this.selectedContextUserId ? sameSalesforceId(option.value, this.selectedContextUserId) : false
-        }));
+        return options;
     }
 
     get isViewingSelf() {
@@ -495,48 +455,8 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         return `Open route with ${count} stops in Google Maps`;
     }
 
-    get showSyncChip() {
-        return this.syncStatus === 'cached' || this.syncStatus === 'updating' || this.syncStatus === 'offline';
-    }
-
-    get syncChipLabel() {
-        if (this.syncStatus === 'updating') {
-            return 'Updating…';
-        }
-        if (this.syncStatus === 'offline') {
-            return 'Offline';
-        }
-        if (this.syncStatus === 'cached') {
-            return 'Cached';
-        }
-        return '';
-    }
-
-    get syncChipClass() {
-        return `sync-chip sync-chip-${this.syncStatus}`;
-    }
-
-    get showErrorBanner() {
-        return Boolean(this.errorMessage);
-    }
-
-    get noticeClass() {
-        return `notice-banner notice-${this.noticeVariant || 'success'}`;
-    }
-
-    get showOpenPlanner() {
-        return !isPwaRuntime();
-    }
-
     showToast(title, message, variant) {
-        this.noticeVariant = variant === 'error' || variant === 'warning' ? variant : 'success';
-        this.noticeMessage = [title, message].filter(Boolean).join(' — ');
-        if (this._noticeTimer) {
-            clearTimeout(this._noticeTimer);
-        }
-        this._noticeTimer = setTimeout(() => {
-            this.noticeMessage = '';
-        }, 4000);
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
 
     setOptimizationIdeas(ideas) {
@@ -549,7 +469,7 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
                     isInfo: true,
                     isOutlier: false,
                     itemClass: 'ideas-item',
-                    iconGlyph: '💡',
+                    iconName: 'utility:light_bulb',
                     iconClass: 'ideas-icon'
                 };
             }
@@ -561,7 +481,7 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
                 isInfo: (idea.type || 'info') === 'info',
                 isOutlier,
                 itemClass: isOutlier ? 'ideas-item ideas-item-outlier' : 'ideas-item',
-                iconGlyph: isOutlier ? '⚠️' : '💡',
+                iconName: isOutlier ? 'utility:warning' : 'utility:light_bulb',
                 iconClass: isOutlier ? 'ideas-icon ideas-icon-warning' : 'ideas-icon'
             };
         });
@@ -572,235 +492,89 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         this.outlierVisitIds = this.routeOutliers.map((item) => item.visitId);
     }
 
-    bindConnectivityListeners() {
-        if (this._connectivityBound || typeof window === 'undefined') {
-            return;
-        }
-        this._connectivityBound = true;
-        this._onOnline = () => {
-            this.init();
-        };
-        this._onOffline = () => {
-            // Abort in-flight requests but don't immediately show offline
-            // The API call failure in catch block will handle real network failures
-            if (this.refreshAbort) {
-                this.refreshAbort.abort();
-            }
-        };
-        window.addEventListener('online', this._onOnline);
-        window.addEventListener('offline', this._onOffline);
-    }
-
-    async init() {
-        this.bindConnectivityListeners();
-        this.errorMessage = '';
-        const cached = await this.readCache();
-        if (cached) {
-            this.applyCachedBundle(cached);
-            this.hasCachedData = true;
-            this.syncStatus = 'cached';
+    async bootstrap() {
+        if (isOfflineMode()) {
+            await this.loadCachedTodayPlan();
             await waitForDom();
             await this.initializeMapView();
-        } else {
-            this.hasCachedData = false;
+            return;
         }
+        await this.loadViewerContext();
+        await this.loadTodayPlan();
+    }
 
-        // Note: navigator.onLine is unreliable in Capacitor WebView
-        // Always try the API call - catch block handles real network failures
-        this.syncStatus = 'updating';
+    async loadViewerContext() {
         try {
-            await this.loadTodayPlan({ skipMap: this.hasCachedData });
-            this.errorMessage = '';
-            this.syncStatus = 'idle';
-        } catch (error) {
-            if (error?.name === 'AbortError') {
-                return;
-            }
-            this.syncStatus = 'offline';
-            if (!this.hasCachedData) {
-                this.errorMessage = this.isConnectivityError(error)
-                    ? 'You are offline. Connect to load today’s plan.'
-                    : this.reduceError(error) || 'Unable to load today’s plan.';
-            }
+            this.plannerViewerContext = await getPlannerViewerContext();
+            this.selectedContextUserId = this.plannerViewerContext?.defaultUserId;
+        } catch (e) {
+            this.plannerViewerContext = null;
+            this.selectedContextUserId = null;
+            this.showToast('Error', this.reduceError(e) || 'Unable to load viewer context.', 'error');
         }
     }
 
     async handleContextUserChange(event) {
-        this.selectedContextUserId = event.target?.value || event.detail?.value;
+        this.selectedContextUserId = event.detail.value;
         this.destroyMap();
-        try {
-            this.syncStatus = 'updating';
-            await this.loadTodayPlan();
-            this.syncStatus = 'idle';
-        } catch (error) {
-            this.syncStatus = 'offline';
-            this.showToast('Error', this.reduceError(error) || 'Unable to load today’s plan.', 'error');
-        }
+        await this.loadTodayPlan();
     }
 
-    async loadTodayPlan(options = {}) {
-        const payload = await this.fetchTodayPlan();
-        this.applyTodayPlanPayload(payload);
-        this.cacheUserKey = payload?.userId || this.contextUserId || CACHE_USER_FALLBACK;
-        await this.writeCache();
-        this.hasCachedData = true;
-        if (!isPwaRuntime()) {
-            this.prefetchVisitPayloads((this.upNextVisits || []).map((visit) => visit.id));
+    async loadTodayPlan() {
+        this.isLoading = true;
+        try {
+            const today = new Date();
+            const todayKey = toDateKey(today);
+            const weekStart = startOfWeek(today);
+            const weekEnd = addDays(weekStart, 6);
+            const payload = await fetchPlannerData({
+                weekStart: toApexDate(weekStart),
+                weekEnd: toApexDate(weekEnd),
+                contextUserId: this.contextUserId
+            });
+            const sortedVisits = (payload?.visits || [])
+                .filter((v) => {
+                    const start = parseSalesforceDateTime(v.startDateTime);
+                    return start && toDateKey(start) === todayKey;
+                })
+                .map((v) => this.normalizeVisit(v))
+                .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+
+            const accountVisits = sortedVisits.filter((v) => v.accountId);
+            this.unlinkedVisitCount = sortedVisits.length - accountVisits.length;
+            this.selectedVisitId = accountVisits[0]?.id || null;
+            this.upNextVisits = accountVisits.map((v, index) => this.decorateVisit(v, index));
+            await putTodayPlan(getUserTodayPlanKey(Id), this.upNextVisits);
+            this.prefetchVisitPayloads(accountVisits.map((visit) => visit.id));
+        } catch (e) {
+            const restored = await this.loadCachedTodayPlan();
+            if (!restored) {
+                this.setOptimizationIdeas(['Unable to load today’s plan.']);
+                this.showToast('Error loading today plan', this.reduceError(e), 'error');
+            }
+        } finally {
+            this.isLoading = false;
         }
+
         await waitForDom();
         await this.initializeMapView();
     }
 
-    applyTodayPlanPayload(payload) {
-        const todayKey = toDateKey(new Date());
-        if (payload?.viewerContext) {
-            this.plannerViewerContext = payload.viewerContext;
-            if (!this.selectedContextUserId) {
-                this.selectedContextUserId = payload.viewerContext.defaultUserId;
-            }
-        }
-        const sortedVisits = (payload?.visits || [])
-            .filter((v) => {
-                const start = parseSalesforceDateTime(v.startDateTime);
-                return !start || toDateKey(start) === todayKey;
-            })
-            .map((v) => this.normalizeVisit(v))
-            .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
-        const accountVisits = sortedVisits.filter((v) => v.accountId);
-        const accountsToCache = accountVisits.map((v) => ({
-            id: v.accountId,
-            name: v.accountName,
-            street: v.accountAddress,
-            city: v.accountCity,
-            specialty: v.accountSpecialty,
-            classification: v.accountClassification,
-            latitude: v.accountLatitude,
-            longitude: v.accountLongitude
-        }));
-        if (accountsToCache.length) {
-            void putCachedAccounts(accountsToCache);
-        }
-        this.unlinkedVisitCount = sortedVisits.length - accountVisits.length;
-        this.selectedVisitId = accountVisits[0]?.id || this.selectedVisitId || null;
-        this.upNextVisits = accountVisits.map((v, index) => this.decorateVisit(v, index));
-    }
-
-    applyCachedBundle(cached) {
-        const visits = Array.isArray(cached) ? cached : cached?.visits || [];
-        this.unlinkedVisitCount = Array.isArray(cached) ? 0 : cached?.unlinkedVisitCount || 0;
-        if (cached?.viewerContext) {
-            this.plannerViewerContext = cached.viewerContext;
-            this.selectedContextUserId = cached.selectedContextUserId || cached.viewerContext.defaultUserId;
-        }
-        this.upNextVisits = visits;
-        this.selectedVisitId = visits[0]?.id || null;
-        this.refreshVisitSelection();
-    }
-
-    async readCache() {
-        const primary = await getTodayPlan(getUserTodayPlanKey(this.cacheUserKey));
-        if (primary) {
-            return primary;
-        }
-        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
-            return getTodayPlan(getUserTodayPlanKey(CACHE_USER_FALLBACK));
-        }
-        return null;
-    }
-
-    async writeCache() {
-        const bundle = {
-            visits: this.upNextVisits,
-            unlinkedVisitCount: this.unlinkedVisitCount,
-            viewerContext: this.plannerViewerContext,
-            selectedContextUserId: this.selectedContextUserId
-        };
-        await putTodayPlan(getUserTodayPlanKey(this.cacheUserKey), bundle);
-        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
-            await putTodayPlan(getUserTodayPlanKey(CACHE_USER_FALLBACK), bundle);
-        }
-    }
-
-    async fetchTodayPlan() {
-        const restBase = plannerRestBase();
-        if (restBase) {
-            return this.fetchTodayPlanRest(restBase);
-        }
-        return getTodayPlanPayload({
-            contextUserId: this.contextUserId,
-            planDate: toApexDate(new Date())
-        });
-    }
-
-    async fetchTodayPlanRest(restBase) {
-        const params = new URLSearchParams();
-        params.set('planDate', toApexDate(new Date()));
-        if (this.contextUserId) {
-            params.set('contextUserId', this.contextUserId);
-        }
-        return this.plannerFetch(`${TODAY_PLAN_PATH}?${params.toString()}`, { method: 'GET' }, restBase);
-    }
-
-    async plannerFetch(path, options, restBase = plannerRestBase()) {
-        const token = typeof globalThis !== 'undefined' ? globalThis.PLANNER_ACCESS_TOKEN : '';
-        const headers = { Accept: 'application/json', ...(options.headers || {}) };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        if (options.body && !headers['Content-Type']) {
-            headers['Content-Type'] = 'application/json';
-        }
-        if (this.refreshAbort && options.method === 'GET') {
-            this.refreshAbort.abort();
-        }
-        if (options.method === 'GET') {
-            this.refreshAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        }
-        let response;
+    async loadCachedTodayPlan() {
         try {
-            response = await fetch(`${String(restBase).replace(/\/$/, '')}${path}`, {
-                method: options.method || 'GET',
-                credentials: token ? 'omit' : 'same-origin',
-                headers,
-                body: options.body,
-                signal: options.method === 'GET' && this.refreshAbort ? this.refreshAbort.signal : undefined
-            });
-        } catch (fetchError) {
-            // Network error (TypeError, etc.) - manual mode, no auto-detection
-            console.warn('[TodayPlan] Network error detected:', fetchError.message);
-            const offlineError = new Error('Offline');
-            offlineError.name = 'OfflineError';
-            throw offlineError;
-        }
-        // Manual mode - no auto-detection of online status
-        if (!response.ok) {
-            if (response.status >= 500) {
-                const offlineError = new Error('Offline');
-                offlineError.name = 'OfflineError';
-                throw offlineError;
+            const cached = await getTodayPlan(getUserTodayPlanKey(Id));
+            if (!cached?.length) {
+                this.upNextVisits = [];
+                return false;
             }
-            let detail = `HTTP ${response.status}`;
-            try {
-                const failed = await response.json();
-                detail = failed?.message || detail;
-            } catch (_parseError) {
-                // Keep the HTTP status message when the body is not JSON.
-            }
-            throw new Error(detail);
-        }
-        if (response.status === 204) {
-            return null;
-        }
-        return response.json();
-    }
-
-    isConnectivityError(error) {
-        const name = error?.name || '';
-        if (name === 'AbortError' || name === 'TypeError' || name === 'OfflineError') {
+            this.upNextVisits = cached;
+            this.selectedVisitId = cached[0]?.id || null;
+            this.setOptimizationIdeas(['Showing cached today plan from device.']);
             return true;
+        } catch (error) {
+            this.upNextVisits = [];
+            return false;
         }
-        const message = error?.message || '';
-        return /offline|failed to fetch|networkerror|load failed/i.test(message);
     }
 
     prefetchVisitPayloads(visitIds) {
@@ -903,20 +677,13 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         if (this.leafletReady && window.L) {
             return;
         }
-        const useCdn = isPwaRuntime();
-        const cssHref = useCdn ? `${LEAFLET_CDN}/leaflet.css` : '/resource/leaflet/leaflet.css';
-        const jsSrc = useCdn ? `${LEAFLET_CDN}/leaflet.js` : '/resource/leaflet/leaflet.js';
-        const iconBase = useCdn ? `${LEAFLET_CDN}/images` : '/resource/leaflet';
-        await loadStylesheet(cssHref);
-        await loadScriptTag(jsSrc);
-        if (!window.L) {
-            throw new Error('Leaflet failed to load.');
-        }
+        await loadStyle(this, LEAFLET + '/leaflet.css');
+        await loadScript(this, LEAFLET + '/leaflet.js');
         delete window.L.Icon.Default.prototype._getIconUrl;
         window.L.Icon.Default.mergeOptions({
-            iconRetinaUrl: `${iconBase}/marker-icon-2x.png`,
-            iconUrl: `${iconBase}/marker-icon.png`,
-            shadowUrl: `${iconBase}/marker-shadow.png`
+            iconRetinaUrl: LEAFLET + '/marker-icon-2x.png',
+            iconUrl: LEAFLET + '/marker-icon.png',
+            shadowUrl: LEAFLET + '/marker-shadow.png'
         });
         this.leafletReady = true;
     }
@@ -982,13 +749,30 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         const defaultCenter = points.length ? [points[0].latitude, points[0].longitude] : DEFAULT_MAP_CENTER;
         const defaultZoom = points.length === 1 ? 15 : DEFAULT_MAP_ZOOM;
 
-        this.mapInstance = window.L.map(mapDiv).setView(defaultCenter, defaultZoom);
-        window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(this.mapInstance);
+        this.mapInstance = window.L.map(mapDiv, { attributionControl: true }).setView(
+            defaultCenter,
+            defaultZoom
+        );
+        addOsmTileLayer(this.mapInstance, window.L);
 
-        this.currentLocation = null;
+        try {
+            if (this.isViewingSelf) {
+                this.currentLocation = await getCurrentPosition();
+                window.L.circleMarker([this.currentLocation.latitude, this.currentLocation.longitude], {
+                    radius: 10,
+                    color: '#0176d3',
+                    fillColor: '#0176d3',
+                    fillOpacity: 0.95,
+                    weight: 2
+                })
+                    .addTo(this.mapInstance)
+                    .bindPopup('<strong>Current location</strong><br/>Route starting point');
+            } else {
+                this.currentLocation = null;
+            }
+        } catch (e) {
+            this.currentLocation = null;
+        }
 
         points.forEach((v) => {
             const marker = window.L.marker([v.latitude, v.longitude], {
@@ -1118,7 +902,11 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
             return;
         }
         const label = visit.accountName || 'this visit';
-        const confirmed = window.confirm(`Postpone ${label} to tomorrow at the same time?`);
+        const confirmed = await LightningConfirm.open({
+            message: `Postpone ${label} to tomorrow at the same time?`,
+            variant: 'headerless',
+            label: 'Postpone visit?'
+        });
         if (!confirmed) {
             return;
         }
@@ -1131,7 +919,6 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         this.isMutatingVisit = true;
         try {
             if (isOfflineMode()) {
-                console.log('[TodayPlan] [Offline Postpone] Queueing reschedule for visit:', visit.id);
                 await queueOfflineAction({
                     actionType: 'RESCHEDULE_VISITS',
                     clientActionKey: newClientKey('reschedule'),
@@ -1141,9 +928,8 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
                         endDateTimes: [tomorrowEnd.toISOString()]
                     })
                 });
-                console.log('[TodayPlan] [Offline Postpone] Optimistically removed from today view & cached.');
                 this.upNextVisits = (this.upNextVisits || []).filter((row) => row.id !== visit.id);
-                await this.writeCache();
+                await putTodayPlan(getUserTodayPlanKey(Id), this.upNextVisits);
                 this.showToast(
                     'Queued offline',
                     `${label} will move to tomorrow when you sync.`,
@@ -1151,7 +937,11 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
                 );
                 return;
             }
-            await this.rescheduleVisitRemote(visit.id, tomorrowStart, tomorrowEnd);
+            await rescheduleVisits({
+                visitIds: [visit.id],
+                startDateTimes: [toApexDateTime(tomorrowStart)],
+                endDateTimes: [toApexDateTime(tomorrowEnd)]
+            });
             this.showToast('Visit postponed', `${label} moved to tomorrow.`, 'success');
             await this.loadTodayPlan();
         } catch (error) {
@@ -1177,47 +967,22 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
             return;
         }
         const label = visit.accountName || 'this visit';
-        const confirmed = window.confirm(`Remove ${label} from today’s plan? This cannot be undone.`);
+        const confirmed = await LightningConfirm.open({
+            message: `Remove ${label} from today’s plan? This cannot be undone.`,
+            variant: 'headerless',
+            label: 'Remove visit?'
+        });
         if (!confirmed) {
-            return;
-        }
-
-        // If offline, queue the action and update UI optimistically
-        if (isOfflineMode()) {
-            await queueOfflineAction({
-                type: 'DELETE_VISIT',
-                path: VISITS_DELETE_PATH,
-                payload: { visitId: visit.id }
-            });
-            // Optimistically remove from UI
-            this.upNextVisits = this.upNextVisits.filter(
-                (v) => !sameSalesforceId(v.id, visit.id)
-            );
-            this.showToast('Visit queued for removal', `${label} will be removed when online`, 'info');
             return;
         }
 
         this.isMutatingVisit = true;
         try {
-            await this.deleteVisitRemote(visit.id);
+            await deleteVisit({ visitId: visit.id });
             this.showToast('Visit removed', label, 'success');
             await this.loadTodayPlan();
         } catch (error) {
-            // If network error, queue for later
-            if (error?.name === 'OfflineError' || error?.message?.includes('fetch')) {
-                await queueOfflineAction({
-                    type: 'DELETE_VISIT',
-                    path: VISITS_DELETE_PATH,
-                    payload: { visitId: visit.id }
-                });
-                // Optimistically remove from UI
-                this.upNextVisits = this.upNextVisits.filter(
-                    (v) => !sameSalesforceId(v.id, visit.id)
-                );
-                this.showToast('Visit queued for removal', `${label} will be removed when online`, 'info');
-            } else {
-                this.showToast('Remove failed', this.reduceError(error), 'error');
-            }
+            this.showToast('Remove failed', this.reduceError(error), 'error');
         } finally {
             this.isMutatingVisit = false;
         }
@@ -1239,7 +1004,10 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         if (!visitId) {
             return;
         }
-        this.openSalesforceRecord('Visit__c', visitId);
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: { recordId: visitId, objectApiName: 'Visit__c', actionName: 'view' }
+        });
     }
 
     handleOpenAccount(event) {
@@ -1248,28 +1016,17 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
         if (!accountId) {
             return;
         }
-        this.openSalesforceRecord('Account', accountId);
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: { recordId: accountId, objectApiName: 'Account', actionName: 'view' }
+        });
     }
 
     handleOpenPlanner() {
-        if (isPwaRuntime()) {
-            return;
-        }
-        window.open(`/lightning/n/${PLANNER_TAB_API}`, '_self');
-    }
-
-    openSalesforceRecord(objectApiName, recordId) {
-        if (isPwaRuntime() && objectApiName !== 'Account') {
-            window.open(`/record.html?recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(objectApiName)}`, '_blank');
-            return;
-        }
-        const instanceUrl = typeof globalThis !== 'undefined' ? globalThis.PLANNER_SF_INSTANCE || '' : '';
-        const path = `/lightning/r/${objectApiName}/${recordId}/view`;
-        if (instanceUrl) {
-            window.open(`${String(instanceUrl).replace(/\/$/, '')}${path}`, '_blank');
-            return;
-        }
-        window.open(path, '_self');
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: PLANNER_TAB_API }
+        });
     }
 
     handleNavigateGoogle() {
@@ -1296,7 +1053,10 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
             return;
         }
 
-        window.open(mapsUrl, '_blank', 'noopener');
+        this[NavigationMixin.Navigate]({
+            type: 'standard__webPage',
+            attributes: { url: mapsUrl }
+        });
 
         const stopCount = stops.length;
         const message =
@@ -1307,40 +1067,6 @@ export default class FieldRepHomeTodayPlan extends LightningElement {
                   : `Opened Google Maps with ${stopCount} stops in today’s visit order.`;
 
         this.showToast('Google Maps', message, 'success');
-    }
-
-    async rescheduleVisitRemote(visitId, startDateTime, endDateTime) {
-        const restBase = plannerRestBase();
-        if (restBase) {
-            return this.plannerFetch(VISITS_RESCHEDULE_PATH, {
-                method: 'POST',
-                body: JSON.stringify({
-                    moves: [
-                        {
-                            visitId,
-                            startDateTime: startDateTime.toISOString(),
-                            endDateTime: endDateTime.toISOString()
-                        }
-                    ]
-                })
-            });
-        }
-        return rescheduleVisits({
-            visitIds: [visitId],
-            startDateTimes: [toApexDateTime(startDateTime)],
-            endDateTimes: [toApexDateTime(endDateTime)]
-        });
-    }
-
-    async deleteVisitRemote(visitId) {
-        const restBase = plannerRestBase();
-        if (restBase) {
-            return this.plannerFetch(VISITS_DELETE_PATH, {
-                method: 'POST',
-                body: JSON.stringify({ visitId })
-            });
-        }
-        return deleteVisit({ visitId });
     }
 
     reduceError(error) {

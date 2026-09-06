@@ -1,0 +1,181 @@
+<template>
+    <div class="stage-shell">
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading account stage" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <div class="slds-text-color_error slds-m-bottom_x-small">{errorMessage}</div>
+        </template>
+
+        <template if:true={view}>
+            <div class="slds-path">
+                <div class="slds-grid slds-path__track">
+                    <div class="slds-grid slds-path__scroller-container">
+                        <div class="slds-path__scroller">
+                            <div class="slds-path__scroller_inner">
+                                <ul class="slds-path__nav" role="listbox" aria-label="Account validation stages">
+                                    <template for:each={steps} for:item="step">
+                                        <li key={step.apiName} class={step.itemClass} role="presentation">
+                                            <a
+                                                aria-selected={step.current}
+                                                class="slds-path__link"
+                                                href="javascript:void(0);"
+                                                role="option"
+                                                tabindex="-1"
+                                            >
+                                                <span class="slds-path__stage">
+                                                    <lightning-icon
+                                                        icon-name="utility:check"
+                                                        size="xx-small"
+                                                        alternative-text=""
+                                                    ></lightning-icon>
+                                                </span>
+                                                <span class="slds-path__title">{step.label}</span>
+                                            </a>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stage-actions">
+                <lightning-button
+                    variant="brand"
+                    label={advanceLabel}
+                    disabled={advanceDisabled}
+                    onclick={handleAdvance}
+                    class="slds-m-right_x-small"
+                ></lightning-button>
+                <lightning-button
+                    label={sendBackLabel}
+                    disabled={sendBackActionDisabled}
+                    onclick={openSendBack}
+                    class="slds-m-right_x-small"
+                ></lightning-button>
+                <lightning-button
+                    label="Mark inactive"
+                    disabled={markInactiveDisabled}
+                    onclick={openInactive}
+                    class="slds-m-right_x-small"
+                ></lightning-button>
+                <lightning-button
+                    label="Mark duplicate"
+                    disabled={markDuplicateDisabled}
+                    onclick={openDuplicate}
+                ></lightning-button>
+            </div>
+
+            <template if:true={lastMessage}>
+                <p class="stage-note">Last send-back: {lastMessage}</p>
+            </template>
+            <template if:true={hasHistory}>
+                <ul class="stage-history">
+                    <template for:each={historyLines} for:item="entry">
+                        <li key={entry.key}>{entry.line}</li>
+                    </template>
+                </ul>
+            </template>
+        </template>
+    </div>
+
+    <template if:true={showSendBack}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_small">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">Send back one stage</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <p class="slds-m-bottom_small">
+                        This throws the account back to <strong>{view.previousLabel}</strong>. Add a message for the previous reviewer.
+                    </p>
+                    <lightning-textarea
+                        label="Message"
+                        value={sendBackMessage}
+                        required
+                        max-length="1000"
+                        onchange={handleSendBackChange}
+                    ></lightning-textarea>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Send back"
+                        disabled={sendBackDisabled}
+                        onclick={handleConfirmSendBack}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showInactive}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_small">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">Mark inactive</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-combobox
+                        label="Inactive reason"
+                        value={inactiveReason}
+                        options={inactiveOptions}
+                        required
+                        onchange={handleInactiveChange}
+                    ></lightning-combobox>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="destructive"
+                        label="Mark inactive"
+                        disabled={inactiveDisabled}
+                        onclick={handleConfirmInactive}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showDuplicate}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_small">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">Mark as duplicate</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <p class="slds-m-bottom_small">
+                        Select the original account this record duplicates. {duplicateHint}
+                    </p>
+                    <lightning-record-picker
+                        label="Original account"
+                        placeholder="Search accounts"
+                        object-api-name="Account"
+                        value={duplicateOfId}
+                        filter={duplicateFilter}
+                        onchange={handleDuplicatePick}
+                    ></lightning-record-picker>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        variant="brand"
+                        label="Mark duplicate"
+                        disabled={duplicateDisabled}
+                        onclick={handleConfirmDuplicate}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

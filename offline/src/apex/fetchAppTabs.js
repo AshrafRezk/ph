@@ -4,9 +4,9 @@
 
 import { plannerApiFetch } from './restHelper.js';
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v4';
-const APPS_CACHE_KEY = 'zeta.pwa.apps.v4';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v4';
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v5';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v5';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v5';
 const DEFAULT_API_VERSION = 'v62.0';
 const FORM_FACTOR = 'Large';
 const HYDRATE_BATCH = 6;
@@ -183,25 +183,34 @@ async function hydrateMissingNavItems(apps) {
     return list;
 }
 
-function mergeFallbackTabs(tabs) {
-    const orgTabs = Array.isArray(tabs) ? tabs : [];
-    const byKey = new Map();
-    orgTabs.forEach((tab) => {
-        if (tab && tab.key) byKey.set(tab.key, tab);
+function fallbackByKey() {
+    const map = new Map();
+    FALLBACK_TABS.forEach((tab) => {
+        if (tab && tab.key) map.set(tab.key, tab);
     });
-    // Always use LightningSales / Pharma Field tab order. Org personalization
-    // used to prepend a subset and append the rest, so My Learning jumped ahead
-    // of Visits/CLM and icons mixed Salesforce 3D sprites with line-art SVGs.
-    return FALLBACK_TABS.map((tab) => {
-        const org = byKey.get(tab.key);
-        if (!org) return { ...tab };
+    return map;
+}
+
+/**
+ * Prefer the org Lightning app nav (order + membership). Only seed the full
+ * FALLBACK_TABS set when the org returned no navItems (true offline).
+ */
+function mergeFallbackTabs(tabs) {
+    const orgTabs = Array.isArray(tabs) ? tabs.filter((t) => t && t.key) : [];
+    if (!orgTabs.length) {
+        return FALLBACK_TABS.map((tab) => ({ ...tab }));
+    }
+    const local = fallbackByKey();
+    return orgTabs.map((org) => {
+        const seed = local.get(org.key);
         return {
-            ...tab,
+            ...(seed || {}),
             ...org,
-            key: tab.key,
-            label: org.label || tab.label,
-            type: org.type || tab.type,
-            objectApiName: org.objectApiName || tab.objectApiName || null,
+            key: org.key,
+            label: org.label || (seed && seed.label) || org.key,
+            type: org.type || (seed && seed.type) || 'TabFlexiPage',
+            objectApiName: org.objectApiName || (seed && seed.objectApiName) || null,
+            // Prefer local SVG icons over Salesforce sprite URLs in the offline shell.
             iconUrl: null
         };
     });

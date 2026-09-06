@@ -31,6 +31,12 @@
                 <identifier>force_highlightsPanel</identifier>
             </componentInstance>
         </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>accountStageAssistant</componentName>
+                <identifier>account_stageAssistant</identifier>
+            </componentInstance>
+        </itemInstances>
         <name>header</name>
         <type>Region</type>
     </flexiPageRegions>
@@ -51,7 +57,23 @@
                 <identifier>accountAffiliationNetwork</identifier>
             </componentInstance>
         </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>accountNeighbouringPharmacies</componentName>
+                <identifier>accountNeighbouringPharmacies</identifier>
+            </componentInstance>
+        </itemInstances>
         <name>affiliationsTabContent</name>
+        <type>Facet</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>accountHcpProductRoi</componentName>
+                <identifier>accountHcpProductRoi</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>productRoiTabContent</name>
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
@@ -95,6 +117,20 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>affiliationsTab</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>body</name>
+                    <value>productRoiTabContent</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>APM</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>productRoiTab</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>

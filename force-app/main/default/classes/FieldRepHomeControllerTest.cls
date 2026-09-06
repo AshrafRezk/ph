@@ -127,24 +127,43 @@ private class FieldRepHomeControllerTest {
         System.assert(metrics.visitCoveragePercent > 28 && metrics.visitCoveragePercent < 29, 'Unexpected total visit coverage.');
         System.assert(metrics.customerCoveragePercent > 66 && metrics.customerCoveragePercent < 67, 'Unexpected total customer coverage.');
 
-        FieldRepHomeController.ClassificationMetrics aRow = findByClass(metrics.byClassification, 'A');
-        System.assertEquals(50, Integer.valueOf(aRow.visitCoveragePercent), 'Expected A class visit coverage 50%.');
-        System.assertEquals(0, Integer.valueOf(aRow.rfPercent), 'Expected A class RF% 0%.');
+        FieldRepHomeController.ClassificationMetrics aRow = findByClass(metrics.byClassification, 'A1');
+        System.assertEquals(50, Integer.valueOf(aRow.visitCoveragePercent), 'Expected A1 visit coverage 50%.');
+        System.assertEquals(0, Integer.valueOf(aRow.rfPercent), 'Expected A1 RF% 0%.');
 
-        FieldRepHomeController.ClassificationMetrics cRow = findByClass(metrics.byClassification, 'C');
-        System.assertEquals(100, Integer.valueOf(cRow.rfPercent), 'Expected C class RF% 100%.');
+        FieldRepHomeController.ClassificationMetrics cRow = findByClass(metrics.byClassification, 'C3');
+        System.assertEquals(100, Integer.valueOf(cRow.rfPercent), 'Expected C3 RF% 100%.');
     }
 
     @IsTest
     static void getAccountCoverageRows_includesATFDrillDown() {
-        List<FieldRepHomeController.AccountCoverageRow> rows = FieldRepHomeController.getAccountCoverageRows(null, 'A');
+        List<FieldRepHomeController.AccountCoverageRow> rows = FieldRepHomeController.getAccountCoverageRows(
+            null,
+            'A',
+            null,
+            null,
+            null,
+            null
+        );
         System.assertEquals(1, rows.size());
 
         FieldRepHomeController.AccountCoverageRow row = rows[0];
         System.assertEquals('Account A', row.accountName);
         System.assertEquals('A', row.potential);
         System.assertEquals('1', row.penetration);
-        System.assertEquals('A', row.calculatedClassification);
+        System.assertEquals('A1', row.calculatedClassification);
+    }
+
+    @IsTest
+    static void getAccountCoverageRows_filtersByMatrixClass() {
+        List<FieldRepHomeController.AccountCoverageRow> a1Rows =
+            FieldRepHomeController.getAccountCoverageRows(null, 'A1', null, null, null, null);
+        System.assertEquals(1, a1Rows.size(), 'A1 should return the A-class account.');
+        System.assertEquals('Account A', a1Rows[0].accountName);
+
+        List<FieldRepHomeController.AccountCoverageRow> a2Rows =
+            FieldRepHomeController.getAccountCoverageRows(null, 'A2', null, null, null, null);
+        System.assertEquals(0, a2Rows.size(), 'A2 should have no accounts in test data.');
     }
 
     @IsTest
@@ -267,6 +286,43 @@ private class FieldRepHomeControllerTest {
             }
         }
         return null;
+    }
+
+    @IsTest
+    static void getHomeMetrics_includesRemainingCallsAndRfMetOrExceeded() {
+        Test.startTest();
+        FieldRepHomeController.HomeMetrics metrics = FieldRepHomeController.getHomeMetrics(null);
+        Test.stopTest();
+
+        System.assertNotEquals(null, metrics.remainingCalls, 'Expected remaining calls total.');
+        System.assert(metrics.remainingCalls >= 0, 'Remaining calls should be non-negative.');
+        System.assertNotEquals(null, metrics.actualVisitsTotal, 'Expected actual visit total.');
+        System.assertNotEquals(null, metrics.targetVisitsTotal, 'Expected target visit total.');
+        System.assertNotEquals(null, metrics.plannedVisitsTotal, 'Expected planned visits total.');
+        System.assertEquals(1, Integer.valueOf(metrics.plannedVisitsTotal), 'Expected one draft visit in plan this month.');
+    }
+
+    @IsTest
+    static void getHomeFilterOptions_returnsDashboardFilters() {
+        Test.startTest();
+        FieldRepHomeController.HomeFilterOptions options = FieldRepHomeController.getHomeFilterOptions(null);
+        Test.stopTest();
+
+        System.assertNotEquals(null, options, 'Expected filter options payload.');
+        System.assertNotEquals(null, options.recordTypes, 'Expected record type options.');
+        System.assertNotEquals(null, options.classifications, 'Expected classification options.');
+    }
+
+    @IsTest
+    static void getMonthlyTimecardSummary_returnsCurrentMonthTiles() {
+        Test.startTest();
+        FieldRepHomeController.MonthlyTimecardSummary summary =
+            FieldRepHomeController.getMonthlyTimecardSummary(null);
+        Test.stopTest();
+
+        System.assertNotEquals(null, summary, 'Expected monthly timecard summary.');
+        System.assertNotEquals(null, summary.fieldDays, 'Expected field days tile.');
+        System.assertNotEquals(null, summary.activityDays, 'Expected activities tile.');
     }
 
     private static String getOrCreateTestTerritory(String externalId) {

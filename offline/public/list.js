@@ -26,6 +26,10 @@ let searchTerm = '';
 let sortField = null;
 let sortDir = 'asc';
 let currentPage = 1;
+let listViews = [];
+let currentListViewId = null;
+let pinnedListViewIds = [];
+let skipKanbanPickerOnce = false;
 
 function el(id) {
     return document.getElementById(id);
@@ -65,8 +69,55 @@ function calendarFieldKey(object) {
     return `zeta.pwa.calendarField.${object || ''}`;
 }
 
+function kanbanFieldKey(object) {
+    return `zeta.pwa.kanbanField.${object || ''}`;
+}
+
+function pinnedListViewsKey(object) {
+    return `zeta.pwa.pinnedListViews.${object || ''}`;
+}
+
+function lastListViewKey(object) {
+    return `zeta.pwa.lastListView.${object || ''}`;
+}
+
 function sortKey(object) {
     return `zeta.pwa.listSort.${object || ''}`;
+}
+
+function readPinnedListViews(object) {
+    try {
+        const raw = localStorage.getItem(pinnedListViewsKey(object));
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch (_err) {
+        return [];
+    }
+}
+
+function writePinnedListViews(object, ids) {
+    try {
+        localStorage.setItem(pinnedListViewsKey(object), JSON.stringify(ids || []));
+    } catch (_err) {
+        /* ignore */
+    }
+}
+
+function picklistFieldsFromDescribe(describe) {
+    return (describe.fields || []).filter(
+        (field) => field.type === 'picklist' && field.queryable !== false
+    );
+}
+
+function restoreKanbanField(describe, object) {
+    try {
+        const saved = localStorage.getItem(kanbanFieldKey(object));
+        const savedField = saved && fieldByName(describe, saved);
+        if (savedField && savedField.type === 'picklist') return saved;
+    } catch (_err) {
+        /* ignore */
+    }
+    return pickKanbanField(describe);
 }
 
 function restoreSort(object) {
@@ -395,31 +446,173 @@ function bindRecordOpener(node, record) {
     });
 }
 
-async function runQuery(object) {
+async function fetchListViews(object) {
+    try {
+        const data = await sfFetch(`/sobjects/${encodeURIComponent(object)}/listviews`);
+        const rows = Array.isArray(data?.listviews) ? data.listviews : [];
+        return rows
+            .filter((row) => row && row.id && row.label)
+            .map((row) => ({
+                id: String(row.id),
+                label: row.label,
+                developerName: row.developerName || row.label,
+                soqlCompatible: row.soqlCompatible !== false
+            }));
+    } catch (err) {
+        console.warn('[List] listviews failed', err);
+        return [];
+    }
+}
+
+function sortListViewsForUi(views, pinnedIds) {
+    const pinned = new Set(pinnedIds || []);
+    return [...(views || [])].sort((a, b) => {
+        const ap = pinned.has(a.id) ? 0 : 1;
+        const bp = pinned.has(b.id) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return String(a.label || '').localeCompare(String(b.label || ''));
+    });
+}
+
+function renderListViewSelect() {
+    const select = el('list-sf-view');
+    const pinBtn = el('list-pin-view');
+    if (!select) return;
+    const ordered = sortListViewsForUi(listViews, pinnedListViewIds);
+    select.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All records (recent)';
+    select.appendChild(allOpt);
+    ordered.forEach((view) => {
+        const option = document.createElement('option');
+        option.value = view.id;
+        const pinned = pinnedListViewIds.includes(view.id);
+        option.textContent = pinned ? `★ ${view.label}` : view.label;
+        select.appendChild(option);
+    });
+    select.value = currentListViewId || '';
+    if (pinBtn) {
+        const isPinned = currentListViewId && pinnedListViewIds.includes(currentListViewId);
+        pinBtn.textContent = isPinned ? '★' : '☆';
+        pinBtn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+        pinBtn.disabled = !currentListViewId;
+        pinBtn.classList.toggle('is-pinned', !!isPinned);
+        pinBtn.title = isPinned ? 'Unpin this list view' : 'Pin / favourite this list view';
+    }
+}
+
+function renderKanbanFieldSelect() {
+    const wrap = el('list-kanban-field-wrap');
+    const select = el('list-kanban-field');
+    if (!wrap || !select || !currentDescribe) return;
+    const fields = picklistFieldsFromDescribe(currentDescribe);
+    select.innerHTML = '';
+    fields.forEach((field) => {
+        const option = document.createElement('option');
+        option.value = field.name;
+        option.textContent = field.label || field.name;
+        select.appendChild(option);
+    });
+    if (kanbanField && fields.some((f) => f.name === kanbanField)) {
+        select.value = kanbanField;
+    } else if (fields[0]) {
+        select.value = fields[0].name;
+        kanbanField = fields[0].name;
+    }
+    wrap.hidden = currentView !== 'kanban' || !fields.length;
+}
+
+async function loadListViewResults(object, listViewId) {
     const describe = await getDescribe(object);
     titleField = pickTitleField(describe);
-    kanbanField = pickKanbanField(describe);
+    kanbanField = restoreKanbanField(describe, object);
     dateField = pickDateField(describe, object);
-    const displayFields = pickDisplayFields(describe);
-    const selectFields = ['Id', ...displayFields];
-    if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
-    dateFieldsFromDescribe(describe).forEach((field) => {
-        if (!selectFields.includes(field.name)) selectFields.push(field.name);
-    });
 
-    const soql = `SELECT ${selectFields.join(', ')} FROM ${object} LIMIT 200`;
-    const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`);
-    const records = [...(data.records || [])];
-    let next = data.nextRecordsUrl;
-    const seen = new Set(records.map((row) => row.Id));
-    while (next && records.length < 1000) {
-        const nxt = await sfFetch(next);
-        for (const row of nxt.records || []) {
-            if (row.Id && seen.has(row.Id)) continue;
-            if (row.Id) seen.add(row.Id);
-            records.push(row);
+    let records = [];
+    let displayFields = pickDisplayFields(describe);
+
+    if (listViewId) {
+        try {
+            const desc = await sfFetch(
+                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/describe`
+            );
+            const cols = Array.isArray(desc?.columns)
+                ? desc.columns
+                      .map((c) => c.fieldNameOrPath || c.fieldApiName || c.name)
+                      .filter((name) => name && !String(name).includes('.'))
+                : [];
+            if (cols.length) displayFields = cols.slice(0, 8);
+            const results = await sfFetch(
+                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/results?limit=200`
+            );
+            const rows = Array.isArray(results?.records) ? results.records : [];
+            records = rows.map((row) => {
+                if (row && row.columns) {
+                    // Some orgs return columnar shape; flatten if needed.
+                    const flat = { Id: row.id || row.Id };
+                    (row.columns || []).forEach((col) => {
+                        const key = col.fieldNameOrPath || col.fieldApiName;
+                        if (key) flat[key] = col.value;
+                    });
+                    return flat.Id ? flat : row;
+                }
+                return row;
+            });
+        } catch (err) {
+            console.warn('[List] list view results failed; falling back to SOQL', err);
+            listViewId = null;
+            currentListViewId = null;
         }
-        next = nxt.nextRecordsUrl;
+    }
+
+    if (!listViewId) {
+        const selectFields = ['Id', ...displayFields];
+        if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
+        dateFieldsFromDescribe(describe).forEach((field) => {
+            if (!selectFields.includes(field.name)) selectFields.push(field.name);
+        });
+        const soql = `SELECT ${selectFields.join(', ')} FROM ${object} LIMIT 200`;
+        const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`);
+        records = [...(data.records || [])];
+        let next = data.nextRecordsUrl;
+        const seen = new Set(records.map((row) => row.Id));
+        while (next && records.length < 1000) {
+            const nxt = await sfFetch(next);
+            for (const row of nxt.records || []) {
+                if (row.Id && seen.has(row.Id)) continue;
+                if (row.Id) seen.add(row.Id);
+                records.push(row);
+            }
+            next = nxt.nextRecordsUrl;
+        }
+    } else if (kanbanField) {
+        // Ensure kanban field exists on rows for grouping when list-view payload omitted it.
+        const missing = records.some((r) => r && r[kanbanField] === undefined);
+        if (missing && records.length && records[0].Id) {
+            try {
+                const ids = records
+                    .map((r) => r.Id)
+                    .filter(Boolean)
+                    .slice(0, 200)
+                    .map((id) => `'${String(id).replace(/'/g, "\\'")}'`)
+                    .join(',');
+                if (ids) {
+                    const enrich = await sfFetch(
+                        `/query?q=${encodeURIComponent(
+                            `SELECT Id, ${kanbanField} FROM ${object} WHERE Id IN (${ids})`
+                        )}`
+                    );
+                    const byId = new Map((enrich.records || []).map((r) => [r.Id, r]));
+                    records = records.map((r) => {
+                        const extra = byId.get(r.Id);
+                        return extra ? { ...r, [kanbanField]: extra[kanbanField] } : r;
+                    });
+                }
+            } catch (_err) {
+                /* ignore enrich failures */
+            }
+        }
     }
 
     currentObject = object;
@@ -428,10 +621,32 @@ async function runQuery(object) {
     currentDescribe = describe;
     currentPage = 1;
     restoreSort(object);
+    renderListViewSelect();
+    renderKanbanFieldSelect();
     renderCurrentView();
     setVisible('list-result', true);
     showError('');
     return records.length;
+}
+
+async function runQuery(object) {
+    pinnedListViewIds = readPinnedListViews(object);
+    listViews = await fetchListViews(object);
+    let preferred = null;
+    try {
+        preferred = localStorage.getItem(lastListViewKey(object));
+    } catch (_err) {
+        preferred = null;
+    }
+    if (preferred && listViews.some((v) => v.id === preferred)) {
+        currentListViewId = preferred;
+    } else if (pinnedListViewIds.length) {
+        const pinnedHit = listViews.find((v) => pinnedListViewIds.includes(v.id));
+        currentListViewId = pinnedHit ? pinnedHit.id : null;
+    } else {
+        currentListViewId = null;
+    }
+    return loadListViewResults(object, currentListViewId);
 }
 
 function recordsForView() {
@@ -681,6 +896,11 @@ function closeCalendarFieldPicker() {
     if (picker) picker.hidden = true;
 }
 
+function closeKanbanFieldPicker() {
+    const picker = el('kanban-field-picker');
+    if (picker) picker.hidden = true;
+}
+
 function openCalendarFieldPicker() {
     const fields = dateFieldsFromDescribe(currentDescribe);
     if (!fields.length) {
@@ -692,6 +912,7 @@ function openCalendarFieldPicker() {
             /* ignore */
         }
         closeCalendarFieldPicker();
+        renderKanbanFieldSelect();
         renderCurrentView();
         return;
     }
@@ -711,6 +932,53 @@ function openCalendarFieldPicker() {
     select.focus();
 }
 
+function openKanbanFieldPicker() {
+    const fields = picklistFieldsFromDescribe(currentDescribe);
+    if (!fields.length) {
+        kanbanField = null;
+        currentView = 'kanban';
+        try {
+            localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, currentView);
+        } catch (_err) {
+            /* ignore */
+        }
+        closeKanbanFieldPicker();
+        renderKanbanFieldSelect();
+        renderCurrentView();
+        return;
+    }
+    if (skipKanbanPickerOnce || (kanbanField && fields.some((f) => f.name === kanbanField))) {
+        skipKanbanPickerOnce = false;
+        currentView = 'kanban';
+        try {
+            localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, currentView);
+        } catch (_err) {
+            /* ignore */
+        }
+        closeKanbanFieldPicker();
+        renderKanbanFieldSelect();
+        renderCurrentView();
+        return;
+    }
+    const select = el('kanban-field-select');
+    const picker = el('kanban-field-picker');
+    if (!select || !picker) return;
+    select.innerHTML = '';
+    fields.forEach((field) => {
+        const option = document.createElement('option');
+        option.value = field.name;
+        option.textContent = `${field.label} (${field.name})`;
+        select.appendChild(option);
+    });
+    const preferred =
+        kanbanField && fields.some((field) => field.name === kanbanField)
+            ? kanbanField
+            : fields[0].name;
+    select.value = preferred;
+    picker.hidden = false;
+    select.focus();
+}
+
 function applyCalendarField() {
     const select = el('calendar-field-select');
     const chosen = select && select.value;
@@ -724,12 +992,34 @@ function applyCalendarField() {
     }
     currentView = 'calendar';
     closeCalendarFieldPicker();
+    renderKanbanFieldSelect();
+    renderCurrentView();
+}
+
+function applyKanbanField() {
+    const select = el('kanban-field-select');
+    const chosen = select && select.value;
+    if (!chosen) return;
+    kanbanField = chosen;
+    try {
+        localStorage.setItem(kanbanFieldKey(currentObject), chosen);
+        localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, 'kanban');
+    } catch (_err) {
+        /* ignore */
+    }
+    currentView = 'kanban';
+    closeKanbanFieldPicker();
+    renderKanbanFieldSelect();
     renderCurrentView();
 }
 
 function setView(nextView) {
     if (nextView === 'calendar') {
         openCalendarFieldPicker();
+        return;
+    }
+    if (nextView === 'kanban') {
+        openKanbanFieldPicker();
         return;
     }
     currentView = nextView || 'table';
@@ -739,6 +1029,7 @@ function setView(nextView) {
     } catch (_err) {
         /* ignore */
     }
+    renderKanbanFieldSelect();
     renderCurrentView();
 }
 
@@ -791,11 +1082,72 @@ function setupCalendarPicker() {
             if (event.target === picker) closeCalendarFieldPicker();
         });
     }
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && picker && !picker.hidden) {
-            closeCalendarFieldPicker();
-        }
-    });
+}
+
+function setupKanbanPicker() {
+    const picker = el('kanban-field-picker');
+    const cancel = el('kanban-field-cancel');
+    const apply = el('kanban-field-apply');
+    const toolbarSelect = el('list-kanban-field');
+    if (cancel) cancel.addEventListener('click', closeKanbanFieldPicker);
+    if (apply) apply.addEventListener('click', applyKanbanField);
+    if (picker) {
+        picker.addEventListener('click', (event) => {
+            if (event.target === picker) closeKanbanFieldPicker();
+        });
+    }
+    if (toolbarSelect) {
+        toolbarSelect.addEventListener('change', () => {
+            const chosen = toolbarSelect.value;
+            if (!chosen) return;
+            kanbanField = chosen;
+            try {
+                localStorage.setItem(kanbanFieldKey(currentObject), chosen);
+            } catch (_err) {
+                /* ignore */
+            }
+            renderCurrentView();
+        });
+    }
+}
+
+function setupListViewControls() {
+    const select = el('list-sf-view');
+    const pinBtn = el('list-pin-view');
+    if (select) {
+        select.addEventListener('change', async () => {
+            currentListViewId = select.value || null;
+            try {
+                if (currentListViewId) {
+                    localStorage.setItem(lastListViewKey(currentObject), currentListViewId);
+                } else {
+                    localStorage.removeItem(lastListViewKey(currentObject));
+                }
+            } catch (_err) {
+                /* ignore */
+            }
+            showLoading(true);
+            try {
+                await loadListViewResults(currentObject, currentListViewId);
+            } catch (err) {
+                showError(err?.message || 'Could not load list view.');
+            } finally {
+                showLoading(false);
+            }
+        });
+    }
+    if (pinBtn) {
+        pinBtn.addEventListener('click', () => {
+            if (!currentListViewId) return;
+            if (pinnedListViewIds.includes(currentListViewId)) {
+                pinnedListViewIds = pinnedListViewIds.filter((id) => id !== currentListViewId);
+            } else {
+                pinnedListViewIds = [currentListViewId, ...pinnedListViewIds.filter((id) => id !== currentListViewId)];
+            }
+            writePinnedListViews(currentObject, pinnedListViewIds);
+            renderListViewSelect();
+        });
+    }
 }
 
 function setupQueryParams() {
@@ -811,6 +1163,13 @@ async function init() {
     setupViewButtons();
     setupSearchAndPager();
     setupCalendarPicker();
+    setupKanbanPicker();
+    setupListViewControls();
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        closeCalendarFieldPicker();
+        closeKanbanFieldPicker();
+    });
     const params = new URLSearchParams(window.location.search);
     const object = params.get('object');
     if (!object) {
@@ -818,11 +1177,14 @@ async function init() {
         return;
     }
     currentView = localStorage.getItem(`zeta.pwa.listView.${object}`) || 'table';
+    if (currentView === 'kanban') skipKanbanPickerOnce = true;
     showLoading(true);
     try {
         await runQuery(object);
         if (currentView === 'calendar' && !dateField) {
             openCalendarFieldPicker();
+        } else if (currentView === 'kanban' && !kanbanField) {
+            openKanbanFieldPicker();
         }
     } catch (err) {
         showError(err?.message || 'Query failed.');

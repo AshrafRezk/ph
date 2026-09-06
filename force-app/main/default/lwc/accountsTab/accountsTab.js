@@ -1,9 +1,22 @@
-import { LightningElement, track } from 'lwc';
+import { LightningElement, track, wire } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { MessageContext } from 'lightning/messageService';
+import FORM_FACTOR from '@salesforce/client/formFactor';
 import USER_ID from '@salesforce/user/Id';
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
-import getAccountsTabPage from '@salesforce/apex/PlannerMobileRestService.getAccountsTabPage';
-import getAccountsTabMapPoints from '@salesforce/apex/PlannerMobileRestService.getAccountsTabMapPoints';
-import getAccountsTabRecordTypeOptions from '@salesforce/apex/PlannerMobileRestService.getAccountsTabRecordTypeOptions';
+import getAccountsTabPage from '@salesforce/apex/AccountsTabController.getAccountsTabPage';
+import getAccountsTabMapPoints from '@salesforce/apex/AccountsTabController.getAccountsTabMapPoints';
+import getAccountsTabRecordTypeOptions from '@salesforce/apex/AccountsTabController.getAccountsTabRecordTypeOptions';
+import getCreateableAccountRecordTypes from '@salesforce/apex/AccountsTabController.getCreateableAccountRecordTypes';
+import searchMasterListWithFilters from '@salesforce/apex/AccountsTabController.searchMasterListWithFilters';
+import searchMapPlaces from '@salesforce/apex/AccountsTabController.searchMapPlaces';
+import createAccountFromWizard from '@salesforce/apex/AccountsTabController.createAccountFromWizard';
+import getWizardCreateOptions from '@salesforce/apex/AccountsTabController.getWizardCreateOptions';
+import setAccountKol from '@salesforce/apex/AccountsTabController.setAccountKol';
+import exportAccountsCsv from '@salesforce/apex/AccountsTabController.exportAccountsCsv';
+import getPlannerAccountFilterOptions from '@salesforce/apex/FieldPlannerController.getPlannerAccountFilterOptions';
+import { getCurrentPosition } from 'c/plannerMapUtils';
 import {
     addOsmTileLayer,
     ensureLeaflet,
@@ -16,14 +29,9 @@ import {
     getCollectionAccountIds
 } from 'c/plannerAccountCollections';
 import {
-    getAccountsTabBusinessUnits,
-    putAccountsTabBusinessUnits,
-    getAccountsTabCache,
-    putAccountsTabCache,
-    getUserAccountsTabKey,
-    getAccountsTabRecordTypeOptionsCache,
-    putAccountsTabRecordTypeOptionsCache
-} from 'c/clmOfflineStore';
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
 
 const FILTER_ALL = 'All';
 const SCOPE_BOTH = 'both';
@@ -34,6 +42,10 @@ const LIST_MODE_COLLECTION = 'collection';
 const SORT_AGENTFORCE = 'agentforceScore';
 const SORT_CLASSIFICATION = 'classification';
 const SORT_NAME = 'name';
+const SORT_HEALTH = 'health';
+const SORT_GAP = 'gap';
+const SORT_VISITS = 'visits';
+const SORT_LAST_VISIT = 'lastVisit';
 const PAGE_SIZE = 10;
 const MAP_PAGE_SIZE = 5;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -48,7 +60,10 @@ const SCOPE_OPTIONS = [
 const SORT_OPTIONS = [
     { label: 'Agentforce Score', value: SORT_AGENTFORCE },
     { label: 'Classification', value: SORT_CLASSIFICATION },
-    { label: 'Name', value: SORT_NAME }
+    { label: 'Name', value: SORT_NAME },
+    { label: 'Connection Health', value: SORT_HEALTH },
+    { label: 'Visit Gap', value: SORT_GAP },
+    { label: 'Actual Visits', value: SORT_VISITS }
 ];
 
 const RISK_PIN_COLORS = {
@@ -63,7 +78,191 @@ const RISK_DOT_CLASS = {
     Low: 'map-list-risk-low'
 };
 
-export default class AccountsTab extends LightningElement {
+const MAP_INTELLIGENCE_LABEL = 'Cloudastick Map Intelligence';
+const PLACE_KIND_META = {
+  doctor: { label: 'Doctor', iconName: 'utility:user', color: '#0176d3' },
+  pharmacy: { label: 'Pharmacy', iconName: 'utility:store', color: '#2e844a' },
+  hco: { label: 'HCO', iconName: 'utility:home', color: '#6a1b9a' },
+  company: { label: 'Company', iconName: 'utility:company', color: '#032d60' },
+  unknown: { label: 'Unknown', iconName: 'utility:help', color: '#706e6b' }
+};
+const COMPANY_PIN_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M4 20V8h6V4h10v16H4zm2-2h4v-4H6v4zm0-6h4V10H6v2zm6 6h6v-2h-6v2zm0-4h6v-2h-6v2zm0-4h6V8h-6v2zM12 6v2h6V6h-6z"/></svg>';
+const PHARMACY_PIN_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M10.5 4h3v6.5H20v3h-6.5V20h-3v-6.5H4v-3h6.5V4z"/></svg>';
+const UNKNOWN_PIN_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M11 18h2v2h-2v-2zm1-16C9.2 2 7 4.2 7 7h2c0-1.7 1.3-3 3-3s3 1.3 3 3c0 1.5-.8 2.2-2.1 3.5L12 11.3c-1.2 1.2-1.9 2.2-1.9 3.7h2c0-.9.4-1.6 1.3-2.5l.9-.9C15.9 10.1 17 8.9 17 7c0-2.8-2.2-5-5-5z"/></svg>';
+const EGYPT_MAP_CENTER = [26.8, 30.8];
+const PHONE_LOOKUP_DEBOUNCE_MS = 650;
+const ADDRESS_LOOKUP_DEBOUNCE_MS = 550;
+const ADDRESS_LOOKUP_MIN_STREET_LEN = 4;
+const QUALITY_BASELINE = 45;
+const HCP_CREATE_TYPES = new Set([
+  'PersonAccount',
+  'SDO_PersonAccounts',
+  'Medical_Professional_HCP',
+  'Business_Contact'
+]);
+
+function phoneDigits(raw) {
+  if (!raw) {
+    return '';
+  }
+  let digits = String(raw).replace(/[^0-9]/g, '');
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith('20') && digits.length >= 11) {
+    digits = digits.slice(2);
+  }
+  if (digits.startsWith('0') && digits.length >= 9) {
+    digits = digits.slice(1);
+  }
+  return digits;
+}
+
+function looksLikePhone(raw) {
+  return phoneDigits(raw).length >= 8 && /^[\s().+\-0-9]+$/.test(String(raw || '').trim());
+}
+
+function unwrapMapPlaces(result) {
+  if (Array.isArray(result)) {
+    return result;
+  }
+  if (Array.isArray(result?.places)) {
+    return result.places;
+  }
+  return [];
+}
+
+function unwrapMapBias(result) {
+  if (!result || Array.isArray(result)) {
+    return null;
+  }
+  if (result.centerLat == null || result.centerLng == null) {
+    return null;
+  }
+  return {
+    centerLat: Number(result.centerLat),
+    centerLng: Number(result.centerLng),
+    radiusMeters: result.radiusMeters == null ? null : Number(result.radiusMeters)
+  };
+}
+
+function uniquePhoneCount(form) {
+  const seen = new Set();
+  [form?.whatsappNumber, form?.phone, form?.clinicPhone].forEach((value) => {
+    const digits = phoneDigits(value);
+    if (digits) {
+      seen.add(digits);
+    }
+  });
+  return seen.size;
+}
+
+function filledPhoneCount(form) {
+  return [form?.whatsappNumber, form?.phone, form?.clinicPhone].filter((value) => phoneDigits(value)).length;
+}
+
+function evaluateCreateQuality(form, recordType) {
+  const missing = [];
+  const extras = [];
+  const isPerson = recordType?.isPersonAccount === true;
+  const developerName = recordType?.developerName || '';
+  const isHcp = HCP_CREATE_TYPES.has(developerName);
+  const isPharmacy = developerName === 'Pharmacy';
+  const isHco = developerName === 'Institution_HCO';
+  if (isPerson) {
+    if (!form?.lastName) {
+      missing.push('Last name');
+    }
+  } else if (!form?.name) {
+    missing.push('Name');
+  }
+  if (isHcp && !form?.specialty1) {
+    missing.push('Specialty 1');
+  } else if (isPharmacy && !form?.pharmacyType) {
+    missing.push('Pharmacy type');
+  } else if (isHco && !form?.institutionType) {
+    missing.push('Institution type');
+  } else if (!isHcp && !isPharmacy && !isHco && !form?.specialty1 && !form?.pharmacyType && !form?.institutionType) {
+    missing.push('Specialty or type');
+  }
+  if (!form?.brick148Id) {
+    missing.push('148 brick');
+  }
+  if (!form?.brick702Id) {
+    missing.push('702 brick');
+  }
+  if (!form?.street) {
+    missing.push('Detailed address');
+  }
+  if (form?.latitude == null || form?.longitude == null) {
+    missing.push('Map pin');
+  }
+  if (!form?.building) {
+    missing.push('Building');
+  }
+  if (!form?.governorate) {
+    missing.push('Governorate');
+  }
+  if (!form?.landmark) {
+    missing.push('علامة مميزة');
+  }
+  if (!form?.pinConfirmed) {
+    missing.push('Confirm address and pin');
+  }
+  const uniquePhones = uniquePhoneCount(form);
+  const filledPhones = filledPhoneCount(form);
+  if (uniquePhones < 1) {
+    missing.push('At least one contact number');
+  }
+  const duplicatePhones = filledPhones > uniquePhones;
+  const canSave = missing.length === 0;
+  let score = 0;
+  if (canSave) {
+    score = QUALITY_BASELINE;
+    if (uniquePhones >= 2) {
+      score += 12;
+    } else {
+      extras.push('Add a second unique phone channel (+12)');
+    }
+    if (uniquePhones >= 3) {
+      score += 10;
+    } else if (uniquePhones >= 2) {
+      extras.push('Add a third unique phone channel (+10)');
+    }
+    if (isHcp) {
+      if (form?.specialty2) {
+        score += 12;
+      } else {
+        extras.push('Add a second specialty (+12)');
+      }
+      if (form?.specialty3) {
+        score += 10;
+      } else {
+        extras.push('Add a third specialty (+10)');
+      }
+    }
+    if (form?.email) {
+      score += 11;
+    } else {
+      extras.push('Add an email (+11)');
+    }
+    score = Math.min(100, score);
+  } else {
+    score = Math.max(0, Math.round(((10 - missing.length) * QUALITY_BASELINE) / 10));
+  }
+  let label = 'Fair';
+  if (score >= 75) {
+    label = 'Excellent';
+  } else if (score >= 50) {
+    label = 'Good';
+  }
+  return { score, label, canSave, missing, extras, duplicatePhones, uniquePhones };
+}
+
+export default class AccountsTab extends NavigationMixin(LightningElement) {
   @track rows = [];
   @track mapRows = [];
   @track summary = {
@@ -82,6 +281,8 @@ export default class AccountsTab extends LightningElement {
   searchTerm = '';
   recordType = FILTER_ALL;
   classification = FILTER_ALL;
+  brickId = FILTER_ALL;
+  specialtyFilter = FILTER_ALL;
   sortBy = SORT_AGENTFORCE;
   sortDirection = 'desc';
   currentPage = 1;
@@ -93,9 +294,57 @@ export default class AccountsTab extends LightningElement {
   listViewMode = LIST_MODE_ALL;
   selectedCollectionId = null;
   accountCollections = [];
+  showNewAccountModal = false;
+  selectedCreateRecordTypeId;
+  createRecordTypeOptions = [];
+  newAccountStep = 'recordType';
+  masterSearchTerm = '';
+  masterBrick148Id = FILTER_ALL;
+  masterBrick702Id = FILTER_ALL;
+  masterSpecialtyFilter = '';
+  masterSpecialtyQuery = '';
+  showMasterSpecialtyMenu = false;
+  @track masterSearchResults = [];
+  @track cognitiveResults = [];
+  isMasterSearching = false;
+  masterSearchRan = false;
+  selectedMasterAccountId;
+  mapSearchTerm = '';
+  mapZoneId = '';
+  mapBrick148Id = '';
+  mapBrick702Id = '';
+  mapArea = '';
+  @track mapSearchResults = [];
+  mapSearchBias = null;
+  isMapSearching = false;
+  mapSearchRan = false;
+  selectedMapPlaceId;
+  @track createForm = {};
+  isGettingCurrentLocation = false;
+  currentLocationError = null;
+  isSavingAccount = false;
+  createError;
+  masterSearchDebounce;
+  mapSearchDebounce;
+  phoneLookupDebounce;
+  wizardCreateOptions = {};
+  @track phoneMapSuggestion;
+  isPhoneMapLookingUp = false;
+  mapPrefillPhoneDigits = '';
+  lastPhoneLookupDigits = '';
+  createPinMarker;
+  wizardCreateMapMode = false;
+  isCreateAddressLookingUp = false;
+  createAddressLookupDebounce;
+  createAddressLookupToken = 0;
+  lastCreateAddressLookupKey = '';
+  createPinRippleLayer;
+  createPinRippleRaf;
+  _wizardPinLatLngKey = '';
 
   recordTypeOptions = [{ label: 'All Record Types', value: FILTER_ALL }];
-  specialtyOptions = [];
+  specialtyOptions = [{ label: 'All Specialties', value: FILTER_ALL }];
+  brickOptions = [{ label: 'All Bricks', value: FILTER_ALL }];
   classificationOptions = [{ label: 'All Classifications', value: FILTER_ALL }];
   scopeOptions = SCOPE_OPTIONS;
   sortOptions = SORT_OPTIONS;
@@ -106,38 +355,75 @@ export default class AccountsTab extends LightningElement {
   mapRenderToken = 0;
   loadRequestToken = 0;
   selectedAccountId;
+  wizardMapInstance;
+  wizardMapMarkers = [];
+  wizardMapMarkersByPlaceId = {};
+  wizardMapShouldFit = false;
+  wizardMapSyncing = false;
+  wizardMapPending = false;
+  wizardMapDrawnKey;
 
   searchDebounce;
-  syncStatus = 'idle';
-  hasCachedData = false;
-  _connectivityBound = false;
-  _onOnline;
-  _onOffline;
+  _messageContext;
+  territoryContextSubscription;
+
+  @wire(MessageContext)
+  wiredMessageContext(value) {
+    this._messageContext = value;
+    this.subscribeTerritoryContext();
+  }
 
   connectedCallback() {
-    this.bindConnectivityListeners();
     this.updateViewportMode();
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.handleResize);
     }
+    this.subscribeTerritoryContext();
     this.loadPlannerCollections();
     this.loadFilterOptions();
     this.reloadData(true);
   }
 
+  subscribeTerritoryContext() {
+    if (this.territoryContextSubscription || !this._messageContext) {
+      return;
+    }
+    this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+      this.reloadData(true);
+    });
+  }
+
+  renderedCallback() {
+    if (!this.showNewAccountModal) {
+      if (this.wizardMapInstance) {
+        this.destroyWizardMap();
+      }
+      this._wizardMapStep = null;
+      return;
+    }
+    if (this._wizardMapStep && this._wizardMapStep !== this.newAccountStep && this.wizardMapInstance) {
+      this.destroyWizardMap();
+    }
+    this._wizardMapStep = this.newAccountStep;
+    if (this.isMapSearchStep) {
+      this.ensureWizardSearchMap();
+    } else if (this.isCreateFormStep) {
+      this.ensureWizardCreateMap();
+    }
+  }
+
   disconnectedCallback() {
     this.destroyMap();
+    this.destroyWizardMap();
     if (this.searchDebounce) {
       clearTimeout(this.searchDebounce);
     }
-    if (this._onOnline) {
-      window.removeEventListener('online', this._onOnline);
-    }
-    if (this._onOffline) {
-      window.removeEventListener('offline', this._onOffline);
-    }
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.handleResize);
+    }
+    if (this.territoryContextSubscription) {
+      unsubscribeTerritoryContext(this.territoryContextSubscription);
+      this.territoryContextSubscription = undefined;
     }
   }
 
@@ -153,30 +439,17 @@ export default class AccountsTab extends LightningElement {
       return;
     }
     this.isNarrowViewport = window.innerWidth <= COMPACT_BREAKPOINT_PX;
-    if (this.isCompactView && window.innerWidth <= 640) {
+    if (this.isCompactView && FORM_FACTOR === 'Small') {
       this.sidebarOpen = false;
     }
   }
 
-  bindConnectivityListeners() {
-    if (this._connectivityBound || typeof window === 'undefined') {
-      return;
-    }
-    this._connectivityBound = true;
-    this._onOnline = () => {
-      this.loadPlannerCollections();
-      this.reloadData(true);
-    };
-    this._onOffline = () => {
-      // Don't immediately show offline - let the API call failure handle it
-      // This prevents false offline status in Capacitor WebView
-    };
-    window.addEventListener('online', this._onOnline);
-    window.addEventListener('offline', this._onOffline);
-  }
-
   get isCompactView() {
-    return this.isNarrowViewport;
+    return (
+      FORM_FACTOR === 'Small' ||
+      FORM_FACTOR === 'Medium' ||
+      this.isNarrowViewport
+    );
   }
 
   get isListView() {
@@ -187,35 +460,12 @@ export default class AccountsTab extends LightningElement {
     return this.viewMode === 'map';
   }
 
-  get listViewToggleClass() {
-    return `view-toggle-btn${this.isListView ? ' view-toggle-btn-active' : ''}`;
+  get listVariant() {
+    return this.isListView ? 'brand' : 'neutral';
   }
 
-  get mapViewToggleClass() {
-    return `view-toggle-btn${this.isMapView ? ' view-toggle-btn-active' : ''}`;
-  }
-
-  get scopeOptionList() {
-    return this.withSelection(this.scopeOptions, this.scope);
-  }
-
-  get recordTypeOptionList() {
-    return this.withSelection(this.recordTypeOptions, this.recordType);
-  }
-
-  get classificationOptionList() {
-    return this.withSelection(this.classificationOptions, this.classification);
-  }
-
-  get sortOptionList() {
-    return this.withSelection(this.sortOptions, this.sortBy);
-  }
-
-  withSelection(options, current) {
-    return (options || []).map((option) => ({
-      ...option,
-      isSelected: option?.value === current
-    }));
+  get mapVariant() {
+    return this.isMapView ? 'brand' : 'neutral';
   }
 
   get toolbarClass() {
@@ -350,9 +600,7 @@ export default class AccountsTab extends LightningElement {
         typeLabel: pinKind === 'hco' ? 'HCO' : 'HCP',
         riskDotClass: RISK_DOT_CLASS[row.agentforceRisk] || RISK_DOT_CLASS.Low,
         itemClass: `map-account-item${isSelected ? ' map-account-item-selected' : ''}`,
-        subtitle: [row.accountSubtype || row.recordTypeName, row.city].filter(Boolean).join(' · ') || '—',
-        hasBusinessUnits: Array.isArray(row.businessUnits) && row.businessUnits.length > 0,
-        businessUnitLabel: row.businessUnitLabel || ''
+        subtitle: [row.accountSubtype || row.recordTypeName, row.city].filter(Boolean).join(' · ') || '—'
       };
     });
   }
@@ -460,79 +708,491 @@ export default class AccountsTab extends LightningElement {
     return !this.isLoading && !this.errorMessage && (this.rows || []).length === 0;
   }
 
-  get showSyncChip() {
-    return this.syncStatus === 'cached' || this.syncStatus === 'updating' || this.syncStatus === 'offline';
+  get createRecordTypeCards() {
+    const selectedId = this.selectedCreateRecordTypeId ? String(this.selectedCreateRecordTypeId) : '';
+    return (this.createRecordTypeOptions || []).map((option) => {
+      const recordTypeId = option.recordTypeId ? String(option.recordTypeId) : '';
+      const selected = recordTypeId !== '' && recordTypeId === selectedId;
+      return {
+        ...option,
+        recordTypeId,
+        selected,
+        cardClass: selected ? 'record-type-card record-type-card-selected' : 'record-type-card'
+      };
+    });
   }
 
-  get syncChipLabel() {
-    if (this.syncStatus === 'updating') {
-      return 'Updating…';
+  get isCreateContinueDisabled() {
+    if (this.newAccountStep === 'recordType') {
+      return !this.selectedCreateRecordTypeId;
     }
-    if (this.syncStatus === 'offline') {
-      return 'Offline';
+    if (this.newAccountStep === 'masterSearch') {
+      return !this.selectedMasterAccountId;
     }
-    if (this.syncStatus === 'cached') {
-      return 'Cached';
+    if (this.newAccountStep === 'mapSearch') {
+      return !this.selectedMapPlaceId;
     }
-    return '';
+    return this.isSavingAccount || this.isCreateFormInvalid;
   }
 
-  get syncChipClass() {
-    return `sync-chip sync-chip-${this.syncStatus}`;
+  get isCreateFormInvalid() {
+    return !this.createQuality.canSave;
   }
 
-  get showErrorBanner() {
-    return Boolean(this.errorMessage);
+  get createQuality() {
+    return evaluateCreateQuality(this.createForm, this.selectedCreateRecordType);
   }
 
-  get cacheBaseKey() {
-    return getUserAccountsTabKey(USER_ID);
+  get dataQualityScore() {
+    return this.createQuality.score;
   }
 
-  filterSignature() {
+  get dataQualityLabel() {
+    return this.createQuality.label;
+  }
+
+  get dataQualityRingVariant() {
+    if (this.dataQualityScore >= 75) {
+      return 'base-autocomplete';
+    }
+    if (this.dataQualityScore >= 50) {
+      return 'warning';
+    }
+    return 'expired';
+  }
+
+  get dataQualityMissing() {
+    return this.createQuality.missing || [];
+  }
+
+  get dataQualityExtras() {
+    return this.createQuality.canSave ? this.createQuality.extras || [] : [];
+  }
+
+  get hasQualityMissing() {
+    return (this.createQuality.missing || []).length > 0;
+  }
+
+  get hasQualityExtras() {
+    return (this.dataQualityExtras || []).length > 0;
+  }
+
+  get duplicatePhoneWarning() {
+    return this.createQuality.duplicatePhones
+      ? 'The same number is in more than one field. Duplicates do not raise the data quality score.'
+      : '';
+  }
+
+  get qualityBaseline() {
+    return QUALITY_BASELINE;
+  }
+
+  get showSpecialtyFields() {
+    return HCP_CREATE_TYPES.has(this.selectedCreateRecordType?.developerName);
+  }
+
+  get showPharmacyTypeField() {
+    return this.selectedCreateRecordType?.developerName === 'Pharmacy';
+  }
+
+  get showInstitutionTypeField() {
+    return this.selectedCreateRecordType?.developerName === 'Institution_HCO';
+  }
+
+  get specialtyCreateOptions() {
+    return this.wizardCreateOptions?.specialtyOptions || [];
+  }
+
+  get pharmacyTypeOptions() {
+    return this.wizardCreateOptions?.pharmacyTypeOptions || [];
+  }
+
+  get institutionTypeOptions() {
+    return this.wizardCreateOptions?.institutionTypeOptions || [];
+  }
+
+  get governorateOptions() {
+    return this.wizardCreateOptions?.governorateOptions || [];
+  }
+
+  get brick148Options() {
+    return (this.wizardCreateOptions?.bricks148 || []).map((brick) => ({
+      label: brick.label,
+      value: brick.brickId
+    }));
+  }
+
+  get brick702Options() {
+    const selected148 = this.createForm?.brick148Id;
+    const rows = this.wizardCreateOptions?.bricks702 || [];
+    const filtered = selected148
+      ? rows.filter((brick) => String(brick.parentBrickId || '') === String(selected148))
+      : rows;
+    const source = filtered.length ? filtered : rows;
+    return source.map((brick) => ({
+      label: brick.label,
+      value: brick.brickId
+    }));
+  }
+
+  get mapZoneOptions() {
     return [
-      this.scope,
-      (this.searchTerm || '').trim().toLowerCase(),
-      this.recordType,
-      this.classification,
-      this.sortBy,
-      this.sortDirection
-    ].join('~');
+      { label: 'All zones', value: '' },
+      ...(this.wizardCreateOptions?.bricks70 || []).map((brick) => ({
+        label: brick.label,
+        value: brick.brickId
+      }))
+    ];
   }
 
-  summaryCacheKey() {
-    return `${this.cacheBaseKey}.summary.${this.filterSignature()}`;
+  get mapFilterBrick148Options() {
+    const zoneId = this.mapZoneId;
+    const rows = this.wizardCreateOptions?.bricks148 || [];
+    const source = zoneId
+      ? rows.filter((brick) => String(brick.zoneBrickId || brick.parentBrickId || '') === String(zoneId))
+      : rows;
+    return [
+      { label: 'All 148 bricks', value: '' },
+      ...source.map((brick) => ({
+        label: brick.label,
+        value: brick.brickId
+      }))
+    ];
   }
 
-  listPageCacheKey() {
-    return `${this.cacheBaseKey}.list.${this.filterSignature()}.${this.currentPage}`;
+  get mapFilterBrick702Options() {
+    const brick148Id = this.mapBrick148Id;
+    const zoneId = this.mapZoneId;
+    const rows = this.wizardCreateOptions?.bricks702 || [];
+    let source = rows;
+    if (brick148Id) {
+      source = rows.filter((brick) => String(brick.parentBrickId || '') === String(brick148Id));
+    } else if (zoneId) {
+      source = rows.filter((brick) => String(brick.zoneBrickId || '') === String(zoneId));
+    }
+    return [
+      { label: 'All 702 bricks', value: '' },
+      ...source.map((brick) => ({
+        label: brick.label,
+        value: brick.brickId
+      }))
+    ];
   }
 
-  mapPageCacheKey() {
-    return `${this.cacheBaseKey}.map.${this.filterSignature()}.${this.mapCurrentPage}`;
+  get mapAreaOptions() {
+    const empty = { label: 'All areas', value: '' };
+    const govs = (this.wizardCreateOptions?.areaOptions || this.wizardCreateOptions?.governorateOptions || []).map(
+      (opt) => ({
+        label: opt.label,
+        value: opt.value
+      })
+    );
+    const brick148Id = this.mapBrick148Id;
+    const zoneId = this.mapZoneId;
+    let neighborhoods = this.wizardCreateOptions?.bricks702 || [];
+    if (brick148Id) {
+      neighborhoods = neighborhoods.filter((brick) => String(brick.parentBrickId || '') === String(brick148Id));
+    } else if (zoneId) {
+      neighborhoods = neighborhoods.filter((brick) => String(brick.zoneBrickId || '') === String(zoneId));
+    } else {
+      neighborhoods = [];
+    }
+    const seen = new Set(govs.map((opt) => String(opt.value || '').toLowerCase()));
+    const extras = [];
+    neighborhoods.forEach((brick) => {
+      const name = (brick.city || brick.label || '').replace(/^\d+\s*[—-]\s*/, '').trim();
+      const value = brick.city || brick.label?.split(' — ').pop() || brick.label;
+      const key = String(value || '').toLowerCase();
+      if (!value || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      extras.push({ label: name || value, value });
+    });
+    return [empty, ...govs, ...extras];
+  }
+
+  get masterBrick148FilterOptions() {
+    return [{ label: 'Any 148 brick', value: FILTER_ALL }, ...this.brick148Options];
+  }
+
+  get masterBrick702FilterOptions() {
+    const selected148 =
+      this.masterBrick148Id && this.masterBrick148Id !== FILTER_ALL ? this.masterBrick148Id : null;
+    const rows = this.wizardCreateOptions?.bricks702 || [];
+    const source = selected148
+      ? rows.filter((brick) => String(brick.parentBrickId || '') === String(selected148))
+      : rows;
+    return [
+      { label: 'Any 702 brick', value: FILTER_ALL },
+      ...source.map((brick) => ({
+        label: brick.label,
+        value: brick.brickId
+      }))
+    ];
+  }
+
+  get filteredMasterSpecialtyOptions() {
+    const any = { label: 'Any specialty', value: '', optionKey: 'any-specialty' };
+    const rows = (this.specialtyCreateOptions || []).map((opt) => ({
+      ...opt,
+      optionKey: opt.value || opt.label
+    }));
+    const query = (this.masterSpecialtyQuery || '').trim().toLowerCase();
+    const selected = rows.find((opt) => opt.value === this.masterSpecialtyFilter);
+    const selectedLabel = (selected?.label || '').toLowerCase();
+    let filtered = rows;
+    if (query && query !== selectedLabel) {
+      filtered = rows.filter(
+        (opt) =>
+          (opt.label || '').toLowerCase().includes(query) ||
+          (opt.value || '').toLowerCase().replace(/_/g, ' ').includes(query)
+      );
+    }
+    return [any, ...filtered].slice(0, 50);
+  }
+
+  get hasCreateRecordTypes() {
+    return (this.createRecordTypeOptions || []).length > 0;
+  }
+
+  get selectedCreateRecordType() {
+    const selectedId = this.selectedCreateRecordTypeId ? String(this.selectedCreateRecordTypeId) : '';
+    return (this.createRecordTypeOptions || []).find(
+      (option) => String(option.recordTypeId) === selectedId
+    );
+  }
+
+  get isPersonCreateType() {
+    return this.selectedCreateRecordType?.isPersonAccount === true;
+  }
+
+  get newAccountModalClass() {
+    if (this.newAccountStep === 'recordType') {
+      return 'slds-modal slds-fade-in-open slds-modal_small';
+    }
+    if (this.newAccountStep === 'mapSearch' || this.newAccountStep === 'createForm') {
+      return 'slds-modal slds-fade-in-open slds-modal_large';
+    }
+    return 'slds-modal slds-fade-in-open slds-modal_medium';
+  }
+
+  get isRecordTypeStep() {
+    return this.newAccountStep === 'recordType';
+  }
+
+  get isMasterSearchStep() {
+    return this.newAccountStep === 'masterSearch';
+  }
+
+  get isMapSearchStep() {
+    return this.newAccountStep === 'mapSearch';
+  }
+
+  get isCreateFormStep() {
+    return this.newAccountStep === 'createForm';
+  }
+
+  get newAccountSubtitle() {
+    if (this.isRecordTypeStep) {
+      return 'Select a record type to continue.';
+    }
+    if (this.isMasterSearchStep) {
+      return 'Search by name, number, phone, specialty, city, or brick. Filter by 148/702 brick and specialty. Results show brick and location.';
+    }
+    if (this.isMapSearchStep) {
+      return 'Search companies, doctors, or HCOs by name or phone. Icons show the place type; stars show KOLness and map rating.';
+    }
+    return 'Complete required fields, confirm the pin, and watch the data quality score.';
+  }
+
+  get newAccountStepLabel() {
+    if (this.isRecordTypeStep) {
+      return 'Step 1 of 4';
+    }
+    if (this.isMasterSearchStep) {
+      return 'Step 2 of 4 — Search Master List';
+    }
+    if (this.isMapSearchStep) {
+      return 'Step 3 of 4 — Search maps';
+    }
+    return 'Step 4 of 4 — Review and save';
+  }
+
+  get primaryWizardLabel() {
+    if (this.isRecordTypeStep) {
+      return 'Continue';
+    }
+    if (this.isMasterSearchStep) {
+      return 'Use selected account';
+    }
+    if (this.isMapSearchStep) {
+      return 'Use map place';
+    }
+    return this.isSavingAccount ? 'Saving…' : 'Save account';
+  }
+
+  get showMapEmpty() {
+    return this.mapSearchRan && !this.isMapSearching && (this.mapSearchResults || []).length === 0;
+  }
+
+  get hasMapResults() {
+    return (this.mapSearchResults || []).length > 0;
+  }
+
+  get showMapSearchHint() {
+    return !this.mapSearchRan && !this.isMapSearching && !this.hasMapResults;
+  }
+
+  get showMasterEmptyPrompt() {
+    return (
+      this.masterSearchRan &&
+      !this.isMasterSearching &&
+      (this.masterSearchResults || []).length === 0 &&
+      (this.cognitiveResults || []).length === 0
+    );
+  }
+
+  get showCognitiveSection() {
+    return !this.isMasterSearching && (this.cognitiveResults || []).length > 0;
+  }
+
+  get showWizardBack() {
+    return this.newAccountStep !== 'recordType';
+  }
+
+  get showMapEmptyPrompt() {
+    return (
+      this.mapSearchRan &&
+      !this.isMapSearching &&
+      (this.mapSearchResults || []).length === 0
+    );
+  }
+
+  get hasMasterResults() {
+    return (this.masterSearchResults || []).length > 0;
+  }
+
+  get createBrickOptions() {
+    return [
+      { label: 'No brick', value: '' },
+      ...(this.brickOptions || []).filter((option) => option.value && option.value !== FILTER_ALL)
+    ];
+  }
+
+  get masterResultCards() {
+    return this.decorateWizardResults(this.masterSearchResults, this.selectedMasterAccountId, 'accountId');
+  }
+
+  get cognitiveResultCards() {
+    return this.decorateWizardResults(this.cognitiveResults, this.selectedMasterAccountId, 'accountId');
+  }
+
+  get mapResultCards() {
+    return this.decorateWizardResults(this.mapSearchResults, this.selectedMapPlaceId, 'placeId').map(
+      (row) => {
+        const placeKind = this.normalizePlaceKind(row.placeKind);
+        const isKol = row.isKol === true;
+        const starCount = isKol ? 5 : this.normalizeStarCount(row.starCount);
+        const kindMeta = PLACE_KIND_META[placeKind] || PLACE_KIND_META.unknown;
+        return {
+          ...row,
+          placeKind,
+          placeKindLabel: row.placeKindLabel || kindMeta.label,
+          kindIcon: kindMeta.iconName,
+          kindClass: `wizard-kind-chip wizard-kind-${placeKind}`,
+          isKol,
+          starCount,
+          stars: this.buildMapStars(starCount, isKol),
+          starTitle: isKol
+            ? 'KOL — 5 map stars'
+            : starCount
+              ? `${starCount} of 5 map stars`
+              : 'No map rating yet',
+          provider: MAP_INTELLIGENCE_LABEL,
+          cardClass: [row.cardClass || 'wizard-result-card', isKol ? 'wizard-result-card-kol' : '']
+            .filter(Boolean)
+            .join(' ')
+        };
+      }
+    );
+  }
+
+  normalizePlaceKind(kind) {
+    const value = String(kind || '').toLowerCase();
+    return PLACE_KIND_META[value] ? value : 'unknown';
+  }
+
+  normalizeStarCount(value) {
+    const stars = Number(value);
+    if (!Number.isFinite(stars) || stars <= 0) {
+      return 0;
+    }
+    return Math.min(5, Math.round(stars));
+  }
+
+  buildMapStars(starCount, isKol) {
+    const filled = this.normalizeStarCount(starCount);
+    const stars = [];
+    for (let i = 1; i <= 5; i += 1) {
+      const on = i <= filled;
+      stars.push({
+        key: String(i),
+        iconName: 'utility:favorite',
+        cssClass: on
+          ? isKol
+            ? 'wizard-star wizard-star-on wizard-star-kol'
+            : 'wizard-star wizard-star-on'
+          : 'wizard-star wizard-star-off'
+      });
+    }
+    return stars;
+  }
+
+  decorateWizardResults(rows, selectedId, idField) {
+    const selected = selectedId ? String(selectedId) : '';
+    return (rows || []).map((row, index) => {
+      const id = row[idField] ? String(row[idField]) : `row-${index}`;
+      const selectedRow = selected !== '' && id === selected;
+      return {
+        ...row,
+        rowId: id,
+        selected: selectedRow,
+        cardClass: selectedRow ? 'wizard-result-card wizard-result-card-selected' : 'wizard-result-card'
+      };
+    });
   }
 
   async loadFilterOptions() {
     try {
-      const cached = await getAccountsTabRecordTypeOptionsCache(USER_ID);
-      if (cached?.length) {
-        this.recordTypeOptions = this.normalizeComboboxOptions(cached, this.recordTypeOptions);
-      }
-      // Note: navigator.onLine is unreliable in Capacitor WebView
-      // Always try to fetch - let network failures be handled gracefully
-      if (!cached?.length) {
-        const recordTypes = await getAccountsTabRecordTypeOptions();
-        await putAccountsTabRecordTypeOptionsCache(USER_ID, recordTypes);
-        this.recordTypeOptions = this.normalizeComboboxOptions(recordTypes, this.recordTypeOptions);
-      }
+      const [recordTypes, plannerOpts, createTypes, wizardOpts] = await Promise.all([
+        getAccountsTabRecordTypeOptions(),
+        getPlannerAccountFilterOptions({ contextUserId: null }),
+        getCreateableAccountRecordTypes(),
+        getWizardCreateOptions()
+      ]);
+      this.recordTypeOptions = this.normalizeComboboxOptions(recordTypes, this.recordTypeOptions);
+      this.createRecordTypeOptions = Array.isArray(createTypes) ? createTypes : [];
       this.classificationOptions = [
         { label: 'All Classifications', value: FILTER_ALL },
         { label: 'A', value: 'A' },
         { label: 'B', value: 'B' },
         { label: 'C', value: 'C' }
       ];
+      this.specialtyOptions = [
+        { label: 'All Specialties', value: FILTER_ALL },
+        ...(plannerOpts?.specialtyOptions || [])
+      ];
+      this.brickOptions = [
+        { label: 'All Bricks', value: FILTER_ALL },
+        ...(plannerOpts?.brickOptions || [])
+      ];
+      this.wizardCreateOptions = wizardOpts || {};
     } catch (error) {
-      // Filters are optional; list still works with defaults.
+      this.specialtyOptions = [{ label: 'All Specialties', value: FILTER_ALL }];
+      this.brickOptions = [{ label: 'All Bricks', value: FILTER_ALL }];
+      this.createRecordTypeOptions = [];
+      this.wizardCreateOptions = {};
     }
   }
 
@@ -584,8 +1244,68 @@ export default class AccountsTab extends LightningElement {
       pageSize,
       monthStart: null,
       contextUserId: null,
-      accountIds: accountIds.length ? accountIds : null
+      accountIds: accountIds.length ? accountIds : null,
+      brickId: this.brickId === FILTER_ALL ? null : this.brickId,
+      specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
     };
+  }
+
+  async handleExportCsv() {
+    try {
+      const csv = await exportAccountsCsv({
+        scope: this.scope,
+        searchTerm: (this.searchTerm || '').trim() || null,
+        recordTypeDeveloperName: this.recordType,
+        classification: this.classification === FILTER_ALL ? null : this.classification,
+        sortBy: this.sortBy,
+        sortDirection: this.sortDirection,
+        monthStart: null,
+        contextUserId: null,
+        brickId: this.brickId === FILTER_ALL ? null : this.brickId,
+        specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
+      });
+      // Lightning Web Security (LWS) only allows a limited set of Blob MIME types,
+      // and it does not support MIME parameters like "charset=utf-8".
+      // Using a permitted text MIME type so the download works.
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'accounts_export.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      this.errorMessage = this.reduceError(error);
+    }
+  }
+
+  handleColumnSort(event) {
+    const sortField = event.detail?.sortField;
+    if (!sortField) {
+      return;
+    }
+    const requestedDirection = event.detail?.sortDirection;
+    if (requestedDirection === 'asc' || requestedDirection === 'desc') {
+      this.sortBy = sortField;
+      this.sortDirection = requestedDirection;
+    } else if (this.sortBy === sortField) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortBy = sortField;
+      this.sortDirection =
+        sortField === SORT_NAME || sortField === SORT_CLASSIFICATION ? 'asc' : 'desc';
+    }
+    this.reloadData(true);
+  }
+
+  handleBrickChange(event) {
+    this.brickId = this.readInputValue(event);
+    this.reloadData(true);
+  }
+
+  handleSpecialtyChange(event) {
+    this.specialtyFilter = this.readInputValue(event);
+    this.reloadData(true);
   }
 
   applyPageSummary(result) {
@@ -629,66 +1349,16 @@ export default class AccountsTab extends LightningElement {
     const token = ++this.loadRequestToken;
     this.isLoading = true;
     this.errorMessage = null;
-    this.rows = [];
-
-    try {
-      const cached = await this.readPageCache();
-      if (token !== this.loadRequestToken) {
-        return;
-      }
-      if (cached.summary?.summary || cached.page?.rows?.length) {
-        if (cached.summary?.summary) {
-          this.applyPageSummary(cached.summary.summary);
-          this.recordTypeCounts = cached.summary.recordTypeCounts || [];
-        }
-        if (cached.page?.rows?.length) {
-          this.rows = cached.page.rows.map((row) => this.mapRow(row));
-        }
-        this.hasCachedData = true;
-        this.syncStatus = 'cached';
-      }
-    } catch (_cacheError) {
-      // Cache read is best-effort; continue to the network call.
-    }
-
-    // Note: navigator.onLine is unreliable in Capacitor WebView
-    // Always try the API call - catch block handles real network failures
-    this.syncStatus = 'updating';
     try {
       const result = await getAccountsTabPage(this.buildApexParams(false));
       if (token !== this.loadRequestToken) {
         return;
       }
-      const mappedRows = (result?.rows || []).map((row) => this.mapRow(row));
-      this.rows = mappedRows;
-      await this.cacheBusinessUnits(mappedRows);
+      this.rows = (result?.rows || []).map((row) => this.mapRow(row));
       this.applyPageSummary(result);
-      await this.writePageCaches(result?.rows || []);
-      this.hasCachedData = true;
-      this.errorMessage = null;
-      this.syncStatus = 'idle';
     } catch (error) {
-      if (token !== this.loadRequestToken) {
-        return;
-      }
-      if (error?.name === 'AbortError') {
-        return;
-      }
-      if (this.rows.length === 0) {
-        const cachedRows = await this.loadCachedPageRows();
-        if (cachedRows.length) {
-          this.rows = cachedRows;
-          this.hasCachedData = true;
-          this.syncStatus = 'cached';
-          this.errorMessage = null;
-          return;
-        }
-      }
-      this.syncStatus = 'offline';
-      if (!this.hasCachedData) {
-        this.errorMessage = this.isConnectivityError(error)
-          ? 'You are offline. Connect to load accounts.'
-          : this.reduceError(error);
+      if (token === this.loadRequestToken) {
+        this.errorMessage = this.reduceError(error);
       }
     } finally {
       if (token === this.loadRequestToken) {
@@ -697,55 +1367,11 @@ export default class AccountsTab extends LightningElement {
     }
   }
 
-  async readPageCache() {
-    const [summary, page] = await Promise.all([
-      getAccountsTabCache(this.summaryCacheKey()),
-      getAccountsTabCache(this.listPageCacheKey())
-    ]);
-    return { summary, page };
-  }
-
-  async writePageCaches(rawRows) {
-    await putAccountsTabCache(this.summaryCacheKey(), {
-      summary: this.summary,
-      recordTypeCounts: this.recordTypeCounts,
-      mapEligibleCount: this.mapEligibleCount
-    });
-    await putAccountsTabCache(this.listPageCacheKey(), { rows: rawRows || [] });
-  }
-
   async refreshMapView() {
     const token = ++this.mapRenderToken;
     this.isLoading = true;
     this.errorMessage = null;
     this.selectedAccountId = null;
-
-    try {
-      const cached = await this.readMapCache();
-      if (token !== this.mapRenderToken) {
-        return;
-      }
-      if (cached.summary?.summary || cached.mapPage?.mapRows?.length) {
-        if (cached.summary?.summary) {
-          this.applyPageSummary(cached.summary.summary);
-          this.recordTypeCounts = cached.summary.recordTypeCounts || [];
-        }
-        if (cached.mapPage?.mapRows?.length) {
-          this.mapRows = cached.mapPage.mapRows.map((row) => this.mapRow(row));
-          this.mapEligibleCount =
-            cached.mapPage.mapEligibleCount ?? this.mapEligibleCount;
-          this.hasCachedData = true;
-          this.syncStatus = 'cached';
-          this.safelyDrawMapMarkers(token);
-        }
-      }
-    } catch (_cacheError) {
-      // Cache read is best-effort; continue to the network call.
-    }
-
-    // Note: navigator.onLine is unreliable in Capacitor WebView
-    // Always try the API call - catch block handles real network failures
-    this.syncStatus = 'updating';
     try {
       const summaryParams = {
         ...this.buildApexParams(false),
@@ -764,22 +1390,9 @@ export default class AccountsTab extends LightningElement {
       this.mapEligibleCount = mapPage?.mapEligibleCount || 0;
       this.mapRows = (mapPage?.rows || []).map((row) => this.mapRow(row));
       await this.drawMapMarkers(this.mapRows, token);
-      await this.writeMapCaches(pageResult, mapPage);
-      this.hasCachedData = true;
-      this.errorMessage = null;
-      this.syncStatus = 'idle';
     } catch (error) {
-      if (token !== this.mapRenderToken) {
-        return;
-      }
-      if (error?.name === 'AbortError') {
-        return;
-      }
-      this.syncStatus = 'offline';
-      if (!this.hasCachedData) {
-        this.errorMessage = this.isConnectivityError(error)
-          ? 'You are offline. Connect to load accounts.'
-          : this.reduceError(error);
+      if (token === this.mapRenderToken) {
+        this.errorMessage = this.reduceError(error);
       }
     } finally {
       if (token === this.mapRenderToken) {
@@ -788,53 +1401,13 @@ export default class AccountsTab extends LightningElement {
     }
   }
 
-  async readMapCache() {
-    const [summary, mapPage] = await Promise.all([
-      getAccountsTabCache(this.summaryCacheKey()),
-      getAccountsTabCache(this.mapPageCacheKey())
-    ]);
-    return { summary, mapPage };
-  }
-
-  async writeMapCaches(pageResult, mapPage) {
-    await putAccountsTabCache(this.summaryCacheKey(), {
-      summary: this.summary,
-      recordTypeCounts: this.recordTypeCounts,
-      mapEligibleCount: this.mapEligibleCount
-    });
-    await putAccountsTabCache(this.mapPageCacheKey(), {
-      mapRows: mapPage?.rows || [],
-      mapEligibleCount: this.mapEligibleCount
-    });
-  }
-
-  async safelyDrawMapMarkers(token) {
-    try {
-      await this.drawMapMarkers(this.mapRows, token);
-    } catch (_mapError) {
-      // Map tiles may be unavailable offline; the list still works.
-    }
-  }
-
-  mapRow(row, businessUnitOverride) {
+  mapRow(row) {
     const target = row.targetVisits;
     const actual = row.actualVisits || 0;
     const planned = row.plannedVisits || 0;
     const hasTarget = target != null;
-    const businessUnits =
-      businessUnitOverride ||
-      (Array.isArray(row.businessUnits) ? row.businessUnits : []);
-    const businessUnitLabel =
-      row.businessUnitLabel ||
-      businessUnits
-        .map((link) => link.chipLabel || link.businessUnitName)
-        .filter(Boolean)
-        .join(', ');
     return {
       ...row,
-      businessUnits,
-      hasBusinessUnits: businessUnits.length > 0,
-      businessUnitLabel,
       reachPercentDisplay:
         row.reachPercent != null ? `${Math.round(Number(row.reachPercent))}%` : '—',
       projectedPercentDisplay:
@@ -850,38 +1423,6 @@ export default class AccountsTab extends LightningElement {
       targetVisits: hasTarget ? target : null,
       visitGap: hasTarget ? row.visitGap : null
     };
-  }
-
-  async cacheBusinessUnits(rows) {
-    if (!rows?.length) {
-      return;
-    }
-    const byAccount = {};
-    rows.forEach((row) => {
-      if (row.accountId && row.businessUnits?.length) {
-        byAccount[row.accountId] = row.businessUnits;
-      }
-    });
-    if (Object.keys(byAccount).length) {
-      await putAccountsTabBusinessUnits(USER_ID, byAccount);
-    }
-  }
-
-  async loadCachedPageRows() {
-    const byAccount = await getAccountsTabBusinessUnits(USER_ID);
-    if (!Object.keys(byAccount).length) {
-      return [];
-    }
-    return Object.entries(byAccount).map(([accountId, businessUnits]) =>
-      this.mapRow(
-        {
-          accountId,
-          accountName: businessUnits[0]?.accountName || 'Account',
-          businessUnits
-        },
-        businessUnits
-      )
-    );
   }
 
   handleShowList() {
@@ -916,7 +1457,8 @@ export default class AccountsTab extends LightningElement {
 
   handleSortChange(event) {
     this.sortBy = this.readInputValue(event);
-    this.sortDirection = this.sortBy === SORT_NAME ? 'asc' : 'desc';
+    this.sortDirection =
+      this.sortBy === SORT_NAME || this.sortBy === SORT_CLASSIFICATION ? 'asc' : 'desc';
     this.reloadData(true);
   }
 
@@ -961,6 +1503,936 @@ export default class AccountsTab extends LightningElement {
   handleRefresh() {
     this.loadPlannerCollections();
     this.reloadData(true);
+  }
+
+  handleNewAccount() {
+    const options = this.createRecordTypeOptions || [];
+    if (options.length === 0) {
+      this.navigateToNewAccount(null);
+      return;
+    }
+    this.resetNewAccountWizard();
+    this.selectedCreateRecordTypeId = options[0].recordTypeId;
+    this.showNewAccountModal = true;
+  }
+
+  handleSelectCreateRecordType(event) {
+    this.selectedCreateRecordTypeId = event.currentTarget.dataset.recordTypeId;
+  }
+
+  handleCloseNewAccountModal() {
+    this.showNewAccountModal = false;
+    this.resetNewAccountWizard();
+  }
+
+  handleWizardBack() {
+    if (this.newAccountStep === 'masterSearch') {
+      this.newAccountStep = 'recordType';
+      return;
+    }
+    if (this.newAccountStep === 'mapSearch') {
+      this.newAccountStep = 'masterSearch';
+      return;
+    }
+    if (this.newAccountStep === 'createForm') {
+      this.newAccountStep = 'mapSearch';
+      this.wizardMapShouldFit = true;
+    }
+  }
+
+  handleConfirmNewAccount() {
+    if (this.newAccountStep === 'recordType') {
+      this.newAccountStep = 'masterSearch';
+      return;
+    }
+    if (this.newAccountStep === 'masterSearch') {
+      this.openSelectedMasterAccount();
+      return;
+    }
+    if (this.newAccountStep === 'mapSearch') {
+      this.applySelectedMapPlace();
+      return;
+    }
+    this.saveWizardAccount();
+  }
+
+  handleMasterSearchChange(event) {
+    this.masterSearchTerm = this.readInputValue(event);
+    this.scheduleMasterSearch();
+  }
+
+  handleMasterSearchKeyUp(event) {
+    this.masterSearchTerm = this.readInputValue(event);
+    this.scheduleMasterSearch();
+  }
+
+  handleMasterBrick148FilterChange(event) {
+    this.masterBrick148Id = this.readInputValue(event);
+    const allowed = new Set(
+      (this.masterBrick702FilterOptions || []).map((option) => String(option.value || ''))
+    );
+    if (
+      this.masterBrick702Id &&
+      this.masterBrick702Id !== FILTER_ALL &&
+      !allowed.has(String(this.masterBrick702Id))
+    ) {
+      this.masterBrick702Id = FILTER_ALL;
+    }
+    this.scheduleMasterSearch();
+  }
+
+  handleMasterBrick702FilterChange(event) {
+    this.masterBrick702Id = this.readInputValue(event);
+    this.scheduleMasterSearch();
+  }
+
+  handleMasterSpecialtyFocus() {
+    this.showMasterSpecialtyMenu = true;
+  }
+
+  handleMasterSpecialtyQueryInput(event) {
+    this.masterSpecialtyQuery = this.readInputValue(event);
+    this.showMasterSpecialtyMenu = true;
+    const query = (this.masterSpecialtyQuery || '').trim();
+    if (!query) {
+      this.masterSpecialtyFilter = '';
+    }
+    this.scheduleMasterSearch();
+  }
+
+  handleMasterSpecialtyPick(event) {
+    const value = event.currentTarget.dataset.value || '';
+    const label = event.currentTarget.dataset.label || '';
+    this.masterSpecialtyFilter = value;
+    this.masterSpecialtyQuery = value ? label : '';
+    this.showMasterSpecialtyMenu = false;
+    this.scheduleMasterSearch();
+  }
+
+  scheduleMasterSearch() {
+    if (this.masterSearchDebounce) {
+      clearTimeout(this.masterSearchDebounce);
+    }
+    this.masterSearchDebounce = setTimeout(() => {
+      this.masterSearchDebounce = null;
+      this.runMasterSearch();
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  hasMasterSearchCriteria() {
+    const term = (this.masterSearchTerm || '').trim();
+    return (
+      term.length >= 2 ||
+      this.hasMasterBrick148Filter() ||
+      this.hasMasterBrick702Filter() ||
+      Boolean(this.masterSpecialtyFilter)
+    );
+  }
+
+  hasMasterBrick148Filter() {
+    return Boolean(this.masterBrick148Id) && this.masterBrick148Id !== FILTER_ALL;
+  }
+
+  hasMasterBrick702Filter() {
+    return Boolean(this.masterBrick702Id) && this.masterBrick702Id !== FILTER_ALL;
+  }
+
+  async runMasterSearch() {
+    this.selectedMasterAccountId = null;
+    if (!this.hasMasterSearchCriteria() || !this.selectedCreateRecordTypeId) {
+      this.masterSearchResults = [];
+      this.cognitiveResults = [];
+      this.masterSearchRan = false;
+      return;
+    }
+    const term = (this.masterSearchTerm || '').trim();
+    this.isMasterSearching = true;
+    this.masterSearchRan = true;
+    const filters = {
+      searchTerm: term,
+      recordTypeId: this.selectedCreateRecordTypeId,
+      brick148Id: this.hasMasterBrick148Filter() ? this.masterBrick148Id : null,
+      brick702Id: this.hasMasterBrick702Filter() ? this.masterBrick702Id : null,
+      specialtyFilter: this.masterSpecialtyFilter || null
+    };
+    try {
+      const rows = await searchMasterListWithFilters({
+        ...filters,
+        cognitive: false
+      });
+      this.masterSearchResults = Array.isArray(rows) ? rows : [];
+      if (this.masterSearchResults.length === 0 && term.length >= 2) {
+        const cognitive = await searchMasterListWithFilters({
+          ...filters,
+          cognitive: true
+        });
+        this.cognitiveResults = Array.isArray(cognitive) ? cognitive : [];
+      } else {
+        this.cognitiveResults = [];
+      }
+    } catch (error) {
+      this.masterSearchResults = [];
+      this.cognitiveResults = [];
+      this.toast('Master search failed', this.errorMessageFrom(error), 'error');
+    } finally {
+      this.isMasterSearching = false;
+    }
+  }
+
+  handleSelectMasterAccount(event) {
+    this.selectedMasterAccountId = event.currentTarget.dataset.accountId;
+  }
+
+  openSelectedMasterAccount() {
+    if (!this.selectedMasterAccountId) {
+      return;
+    }
+    const accountId = this.selectedMasterAccountId;
+    this.handleCloseNewAccountModal();
+    this.toast('Master account found', 'Opened the existing account instead of creating a duplicate.', 'success');
+    this.navigateToAccount(accountId);
+  }
+
+  handleGoToMapSearch() {
+    this.newAccountStep = 'mapSearch';
+    if ((this.mapSearchTerm || '').trim().length < 2 && (this.masterSearchTerm || '').trim().length >= 2) {
+      this.mapSearchTerm = this.masterSearchTerm;
+    }
+    if ((this.mapSearchTerm || '').trim().length >= 2) {
+      this.runMapSearch();
+    }
+  }
+
+  handleMapSearchChange(event) {
+    this.mapSearchTerm = this.readInputValue(event);
+    this.scheduleMapSearch();
+  }
+
+  handleMapZoneChange(event) {
+    this.mapZoneId = this.readInputValue(event);
+    const allowed148 = new Set(
+      (this.mapFilterBrick148Options || []).map((option) => String(option.value || ''))
+    );
+    if (this.mapBrick148Id && !allowed148.has(String(this.mapBrick148Id))) {
+      this.mapBrick148Id = '';
+    }
+    const allowed702 = new Set(
+      (this.mapFilterBrick702Options || []).map((option) => String(option.value || ''))
+    );
+    if (this.mapBrick702Id && !allowed702.has(String(this.mapBrick702Id))) {
+      this.mapBrick702Id = '';
+    }
+    this.scheduleMapSearch();
+  }
+
+  handleMapBrick148Change(event) {
+    this.mapBrick148Id = this.readInputValue(event);
+    const allowed702 = new Set(
+      (this.mapFilterBrick702Options || []).map((option) => String(option.value || ''))
+    );
+    if (this.mapBrick702Id && !allowed702.has(String(this.mapBrick702Id))) {
+      this.mapBrick702Id = '';
+    }
+    if (this.mapBrick148Id && !this.mapZoneId) {
+      const brick148 = (this.wizardCreateOptions?.bricks148 || []).find(
+        (brick) => String(brick.brickId) === String(this.mapBrick148Id)
+      );
+      if (brick148?.zoneBrickId) {
+        this.mapZoneId = brick148.zoneBrickId;
+      }
+    }
+    this.scheduleMapSearch();
+  }
+
+  handleMapBrick702Change(event) {
+    this.mapBrick702Id = this.readInputValue(event);
+    if (this.mapBrick702Id) {
+      const brick702 = (this.wizardCreateOptions?.bricks702 || []).find(
+        (brick) => String(brick.brickId) === String(this.mapBrick702Id)
+      );
+      if (brick702?.parentBrickId && !this.mapBrick148Id) {
+        this.mapBrick148Id = brick702.parentBrickId;
+      }
+      if (brick702?.zoneBrickId && !this.mapZoneId) {
+        this.mapZoneId = brick702.zoneBrickId;
+      }
+    }
+    this.scheduleMapSearch();
+  }
+
+  handleMapAreaChange(event) {
+    this.mapArea = this.readInputValue(event);
+    this.scheduleMapSearch();
+  }
+
+  buildMapGeoFilter() {
+    const zoneBrickId = this.mapZoneId || null;
+    const brick148Id = this.mapBrick148Id || null;
+    const brick702Id = this.mapBrick702Id || null;
+    const area = this.mapArea || null;
+    if (!zoneBrickId && !brick148Id && !brick702Id && !area) {
+      return null;
+    }
+    return { zoneBrickId, brick148Id, brick702Id, area };
+  }
+
+  scheduleMapSearch() {
+    if (this.mapSearchDebounce) {
+      clearTimeout(this.mapSearchDebounce);
+    }
+    this.mapSearchDebounce = setTimeout(() => {
+      this.mapSearchDebounce = null;
+      this.runMapSearch();
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  async runMapSearch() {
+    const term = (this.mapSearchTerm || '').trim();
+    const geoFilter = this.buildMapGeoFilter();
+    this.selectedMapPlaceId = null;
+    if (term.length < 2) {
+      this.mapSearchResults = [];
+      this.mapSearchRan = false;
+      this.wizardMapShouldFit = true;
+      if (geoFilter) {
+        try {
+          const result = await searchMapPlaces({
+            searchTerm: term,
+            recordTypeDeveloperName: this.selectedCreateRecordType?.developerName,
+            geoFilter
+          });
+          this.mapSearchBias = unwrapMapBias(result);
+        } catch (error) {
+          this.mapSearchBias = null;
+        }
+      } else {
+        this.mapSearchBias = null;
+      }
+      return;
+    }
+    this.isMapSearching = true;
+    this.mapSearchRan = true;
+    try {
+      const result = await searchMapPlaces({
+        searchTerm: term,
+        recordTypeDeveloperName: this.selectedCreateRecordType?.developerName,
+        geoFilter
+      });
+      this.mapSearchResults = unwrapMapPlaces(result);
+      this.mapSearchBias = unwrapMapBias(result);
+      this.wizardMapShouldFit = true;
+    } catch (error) {
+      this.mapSearchResults = [];
+      this.mapSearchBias = null;
+      this.toast('Map search failed', this.errorMessageFrom(error), 'error');
+    } finally {
+      this.isMapSearching = false;
+    }
+  }
+
+  handleSelectMapPlace(event) {
+    this.selectWizardMapPlace(event.currentTarget.dataset.placeId, true);
+  }
+
+  applySelectedMapPlace() {
+    const place = (this.mapSearchResults || []).find(
+      (row) => String(row.placeId) === String(this.selectedMapPlaceId)
+    );
+    this.prefillCreateForm(place || null);
+    this.newAccountStep = 'createForm';
+  }
+
+  handleCreateBlankAccount() {
+    this.prefillCreateForm({
+      name: this.masterSearchTerm || this.mapSearchTerm || '',
+      address: '',
+      phone: '',
+      latitude: null,
+      longitude: null,
+      brickId: null,
+      brickName: '',
+      placeId: null
+    });
+    this.newAccountStep = 'createForm';
+  }
+
+  prefillCreateForm(place) {
+    const name = place?.name || this.masterSearchTerm || '';
+    const address = place?.address || '';
+    const city = this.cityFromAddress(address);
+    const phone = place?.phone || '';
+    const form = {
+      name,
+      firstName: '',
+      lastName: '',
+      phone,
+      whatsappNumber: '',
+      clinicPhone: '',
+      email: '',
+      specialty1: '',
+      specialty2: '',
+      specialty3: '',
+      pharmacyType: '',
+      institutionType: '',
+      street: address,
+      city,
+      country: 'Egypt',
+      building: '',
+      governorate: this.governorateFromAddress(address),
+      landmark: '',
+      latitude: place?.latitude ?? null,
+      longitude: place?.longitude ?? null,
+      brickId: place?.brickId || '',
+      brick148Id: place?.brick148Id || '',
+      brick702Id: place?.brick702Id || place?.brickId || '',
+      brickName: place?.brickName || '',
+      placeId: place?.placeId || '',
+      placeKind: place?.placeKind || '',
+      isKol: place?.isKol === true,
+      pinConfirmed: !!(place?.latitude && place?.longitude && address)
+    };
+    if (form.brick702Id && !form.brick148Id) {
+      const brick702 = (this.wizardCreateOptions?.bricks702 || []).find(
+        (brick) => String(brick.brickId) === String(form.brick702Id)
+      );
+      if (brick702?.parentBrickId) {
+        form.brick148Id = brick702.parentBrickId;
+      }
+    }
+    if (this.isPersonCreateType && name) {
+      const parts = name.trim().split(/\s+/);
+      form.firstName = parts[0] || '';
+      form.lastName = parts.slice(1).join(' ') || parts[0] || '';
+    }
+    this.createForm = form;
+    this.createError = null;
+    this.phoneMapSuggestion = null;
+    this.mapPrefillPhoneDigits = phoneDigits(phone);
+    this.lastPhoneLookupDigits = this.mapPrefillPhoneDigits;
+  }
+
+  governorateFromAddress(address) {
+    if (!address) {
+      return '';
+    }
+    const haystack = String(address).toLowerCase();
+    const match = (this.wizardCreateOptions?.governorateOptions || []).find((option) =>
+      haystack.includes(String(option.value || '').toLowerCase())
+    );
+    return match?.value || '';
+  }
+
+  cityFromAddress(address) {
+    if (!address) {
+      return '';
+    }
+    const parts = String(address)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    }
+    return parts[0] || '';
+  }
+
+  handleCreateFieldChange(event) {
+    const field = event.target.dataset.field;
+    if (!field) {
+      return;
+    }
+
+    const value = this.readInputValue(event);
+    const next = {
+      ...this.createForm,
+      [field]: value
+    };
+
+    // If the user edits the address details, the existing pin confirmation is no longer reliable.
+    if (['street', 'building', 'governorate', 'landmark'].includes(field)) {
+      next.pinConfirmed = false;
+      if (field === 'street') {
+        next.city = this.cityFromAddress(value) || next.city;
+      }
+      this.scheduleCreateAddressMapLookup();
+    }
+
+    this.createForm = next;
+  }
+
+  handlePinConfirmedChange(event) {
+    this.createForm = {
+      ...this.createForm,
+      pinConfirmed: event.target.checked === true || event.detail?.checked === true
+    };
+  }
+
+  scheduleCreateAddressMapLookup() {
+    if (this.createAddressLookupDebounce) {
+      clearTimeout(this.createAddressLookupDebounce);
+    }
+    this.createAddressLookupDebounce = setTimeout(() => {
+      this.createAddressLookupDebounce = null;
+      this.runCreateAddressMapLookup();
+    }, ADDRESS_LOOKUP_DEBOUNCE_MS);
+  }
+
+  buildCreateFormGeoFilter() {
+    const brick148Id = this.createForm?.brick148Id || null;
+    const brick702Id = this.createForm?.brick702Id || null;
+    if (!brick148Id && !brick702Id) {
+      return null;
+    }
+    return { brick148Id, brick702Id };
+  }
+
+  buildCreateFormAddressSearchTerm() {
+    const street = (this.createForm?.street || '').trim();
+    const building = (this.createForm?.building || '').trim();
+    const landmark = (this.createForm?.landmark || '').trim();
+    const city = (this.createForm?.city || '').trim();
+    const governorate = (this.createForm?.governorate || '').trim();
+    return [street, building, landmark, city, governorate].filter(Boolean).join(', ');
+  }
+
+  pickBestPlaceCandidate(places) {
+    if (!Array.isArray(places) || places.length === 0) {
+      return null;
+    }
+    return places
+      .filter((p) => p?.latitude != null && p?.longitude != null)
+      .sort((a, b) => {
+        const ra = Number(a?.rating || a?.starCount || 0);
+        const rb = Number(b?.rating || b?.starCount || 0);
+        // Higher confidence is preferred; tie-breaker by provider ratingCount.
+        const d = rb - ra;
+        if (d !== 0) return d;
+        return Number(b?.ratingCount || 0) - Number(a?.ratingCount || 0);
+      })[0];
+  }
+
+  animateCreatePinRipple(leaflet, map, latLng) {
+    if (!leaflet || !map || !latLng) {
+      return;
+    }
+    if (this.createPinRippleRaf) {
+      cancelAnimationFrame(this.createPinRippleRaf);
+      this.createPinRippleRaf = null;
+    }
+    if (this.createPinRippleLayer) {
+      try {
+        map.removeLayer(this.createPinRippleLayer);
+      } catch (e) {
+        // ignore
+      }
+      this.createPinRippleLayer = null;
+    }
+
+    const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const durationMs = 900;
+    const circle = leaflet.circleMarker(latLng, {
+      radius: 10,
+      color: '#0176d3',
+      weight: 2,
+      opacity: 0.6,
+      fillOpacity: 0
+    });
+    this.createPinRippleLayer = circle.addTo(map);
+
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const radius = 10 + t * 45;
+      const opacity = 0.65 * (1 - t);
+      circle.setRadius(radius);
+      circle.setStyle({ opacity });
+      if (t >= 1) {
+        try {
+          map.removeLayer(circle);
+        } catch (e) {
+          // ignore
+        }
+        if (this.createPinRippleLayer === circle) {
+          this.createPinRippleLayer = null;
+        }
+        return;
+      }
+      this.createPinRippleRaf = requestAnimationFrame(tick);
+    };
+
+    this.createPinRippleRaf = requestAnimationFrame(tick);
+  }
+
+  async runCreateAddressMapLookup() {
+    if (!this.isCreateFormStep || this.isSavingAccount || this.isGettingCurrentLocation) {
+      return;
+    }
+    const street = (this.createForm?.street || '').trim();
+    if (street.length < ADDRESS_LOOKUP_MIN_STREET_LEN) {
+      return;
+    }
+
+    const requestToken = (this.createAddressLookupToken || 0) + 1;
+    this.createAddressLookupToken = requestToken;
+    const term = this.buildCreateFormAddressSearchTerm();
+    const geoFilter = this.buildCreateFormGeoFilter();
+    const recordTypeDeveloperName = this.selectedCreateRecordType?.developerName;
+    if (!term || term.trim().length < 2) {
+      return;
+    }
+    if (term === this.lastCreateAddressLookupKey) {
+      return;
+    }
+    this.lastCreateAddressLookupKey = term;
+
+    this.isCreateAddressLookingUp = true;
+    try {
+      await this.ensureWizardCreateMap();
+      const result = await searchMapPlaces({
+        searchTerm: term,
+        recordTypeDeveloperName,
+        geoFilter
+      });
+      // Ignore stale lookups (user kept typing).
+      if (this.createAddressLookupToken !== requestToken) {
+        return;
+      }
+      const places = unwrapMapPlaces(result);
+      const best = this.pickBestPlaceCandidate(places);
+      if (!best) {
+        return;
+      }
+
+      const next = {
+        ...this.createForm,
+        street: this.createForm.street,
+        pinConfirmed: false,
+        latitude:
+          best.latitude == null ? this.createForm.latitude : Number(Number(best.latitude).toFixed(6)),
+        longitude:
+          best.longitude == null ? this.createForm.longitude : Number(Number(best.longitude).toFixed(6)),
+        placeId: best.placeId || this.createForm.placeId,
+        placeKind: best.placeKind || this.createForm.placeKind,
+        isKol: best.isKol === true,
+        governorate: this.createForm.governorate
+      };
+      // Brick context can be inferred from the place match; keep user-chosen brick if missing.
+      if (best.brick148Id) next.brick148Id = best.brick148Id;
+      if (best.brick702Id) next.brick702Id = best.brick702Id;
+      if (best.brickId && !next.brick148Id) next.brick148Id = best.brickId;
+      if (best.brickId && !next.brick702Id) next.brick702Id = best.brickId;
+      if (best.brickId && !next.brickId) next.brickId = best.brickId;
+
+      // If we found a canonical address, keep the user-typed street as-is,
+      // but try to update city (helps map biasing + dropdown consistency).
+      if (best.address) {
+        next.city = this.cityFromAddress(best.address) || next.city;
+      }
+
+      this.createForm = next;
+    } catch (e) {
+      // Silent failure: address typing should not block the wizard.
+    } finally {
+      if (this.createAddressLookupToken === requestToken) {
+        this.isCreateAddressLookingUp = false;
+      }
+    }
+  }
+
+  get useMyLocationDisabled() {
+    if (this.isSavingAccount || this.isGettingCurrentLocation) {
+      return true;
+    }
+    return !(typeof navigator !== 'undefined' && navigator.geolocation);
+  }
+
+  async handleUseMyLocation() {
+    if (this.useMyLocationDisabled) {
+      return;
+    }
+    this.currentLocationError = null;
+    this.isGettingCurrentLocation = true;
+    try {
+      const pos = await getCurrentPosition();
+      const latitude = Number(pos.latitude.toFixed(6));
+      const longitude = Number(pos.longitude.toFixed(6));
+
+      // Moving the pin invalidates the user's confirmation.
+      // User must confirm the detailed address + pin after they review/edit fields.
+      this.createForm = {
+        ...this.createForm,
+        latitude,
+        longitude,
+        pinConfirmed: false,
+        pinSource: 'gps'
+      };
+
+      // Ensure the map is mounted so the marker can be moved immediately.
+      await this.ensureWizardCreateMap();
+    } catch (error) {
+      this.currentLocationError = this.errorMessageFrom(error);
+      this.toast('Unable to get your location', this.currentLocationError, 'error');
+    } finally {
+      this.isGettingCurrentLocation = false;
+    }
+  }
+
+  handleCreatePhoneChange(event) {
+    this.handleCreateFieldChange(event);
+    this.schedulePhoneMapLookup();
+  }
+
+  handleBrick148Change(event) {
+    const brick148Id = this.readInputValue(event);
+    const brick148 = (this.wizardCreateOptions?.bricks148 || []).find(
+      (brick) => String(brick.brickId) === String(brick148Id)
+    );
+    const next = {
+      ...this.createForm,
+      brick148Id
+    };
+    if (brick148?.governorate && !this.createForm.governorate) {
+      next.governorate = brick148.governorate;
+    }
+    const current702 = (this.wizardCreateOptions?.bricks702 || []).find(
+      (brick) => String(brick.brickId) === String(this.createForm.brick702Id)
+    );
+    if (current702 && String(current702.parentBrickId || '') !== String(brick148Id)) {
+      next.brick702Id = '';
+      next.brickId = '';
+    }
+    this.createForm = next;
+  }
+
+  handleBrick702Change(event) {
+    const brick702Id = this.readInputValue(event);
+    const brick702 = (this.wizardCreateOptions?.bricks702 || []).find(
+      (brick) => String(brick.brickId) === String(brick702Id)
+    );
+    const next = {
+      ...this.createForm,
+      brick702Id,
+      brickId: brick702Id
+    };
+    if (brick702?.parentBrickId && !this.createForm.brick148Id) {
+      next.brick148Id = brick702.parentBrickId;
+    }
+    if (brick702?.governorate && !this.createForm.governorate) {
+      next.governorate = brick702.governorate;
+    }
+    this.createForm = next;
+  }
+
+  schedulePhoneMapLookup() {
+    if (this.phoneLookupDebounce) {
+      clearTimeout(this.phoneLookupDebounce);
+    }
+    this.phoneLookupDebounce = setTimeout(() => {
+      this.phoneLookupDebounce = null;
+      this.runPhoneMapLookup();
+    }, PHONE_LOOKUP_DEBOUNCE_MS);
+  }
+
+  async runPhoneMapLookup() {
+    const candidates = [
+      this.createForm?.whatsappNumber,
+      this.createForm?.phone,
+      this.createForm?.clinicPhone
+    ].filter((value) => looksLikePhone(value));
+    const raw = candidates[candidates.length - 1];
+    const digits = phoneDigits(raw);
+    if (!digits || digits === this.lastPhoneLookupDigits || digits === this.mapPrefillPhoneDigits) {
+      return;
+    }
+    this.lastPhoneLookupDigits = digits;
+    this.isPhoneMapLookingUp = true;
+    try {
+      const result = await searchMapPlaces({
+        searchTerm: raw,
+        recordTypeDeveloperName: this.selectedCreateRecordType?.developerName,
+        geoFilter: null
+      });
+      const match = unwrapMapPlaces(result).find((row) => row?.name);
+      this.phoneMapSuggestion = match || null;
+    } catch (error) {
+      this.phoneMapSuggestion = null;
+    } finally {
+      this.isPhoneMapLookingUp = false;
+    }
+  }
+
+  handleUsePhoneMapMatch() {
+    const place = this.phoneMapSuggestion;
+    if (!place) {
+      return;
+    }
+    const next = { ...this.createForm };
+    const mapName = (place.name || '').trim();
+    if (mapName) {
+      if (this.isPersonCreateType) {
+        const parts = mapName.split(/\s+/);
+        next.firstName = parts[0] || next.firstName;
+        next.lastName = parts.slice(1).join(' ') || next.lastName || parts[0];
+      } else {
+        next.name = mapName;
+      }
+    }
+    if (place.address) {
+      next.street = place.address;
+      next.city = this.cityFromAddress(place.address) || next.city;
+      next.governorate = this.governorateFromAddress(place.address) || next.governorate;
+    }
+    if (place.latitude != null && place.longitude != null) {
+      next.latitude = place.latitude;
+      next.longitude = place.longitude;
+    }
+    if (place.brick148Id) {
+      next.brick148Id = place.brick148Id;
+    }
+    if (place.brick702Id || place.brickId) {
+      next.brick702Id = place.brick702Id || place.brickId;
+      next.brickId = next.brick702Id;
+    }
+    if (place.placeId) {
+      next.placeId = place.placeId;
+    }
+    if (place.phone && !next.phone) {
+      next.phone = place.phone;
+    }
+    next.pinConfirmed = !!(next.street && next.latitude != null);
+    next.pinSource = null;
+    this.createForm = next;
+    this.phoneMapSuggestion = null;
+    this.mapPrefillPhoneDigits = phoneDigits(next.phone || next.whatsappNumber || next.clinicPhone);
+    this.syncCreatePinMarker();
+  }
+
+  async saveWizardAccount() {
+    if (this.isCreateFormInvalid || this.isSavingAccount) {
+      return;
+    }
+    this.isSavingAccount = true;
+    this.createError = null;
+    try {
+      const result = await createAccountFromWizard({
+        input: {
+          recordTypeId: this.selectedCreateRecordTypeId,
+          name: this.createForm.name,
+          firstName: this.createForm.firstName,
+          lastName: this.createForm.lastName,
+          phone: this.createForm.phone,
+          whatsappNumber: this.createForm.whatsappNumber,
+          clinicPhone: this.createForm.clinicPhone,
+          email: this.createForm.email,
+          specialty1: this.createForm.specialty1,
+          specialty2: this.createForm.specialty2,
+          specialty3: this.createForm.specialty3,
+          pharmacyType: this.createForm.pharmacyType,
+          institutionType: this.createForm.institutionType,
+          street: this.createForm.street,
+          city: this.createForm.city,
+          country: this.createForm.country,
+          building: this.createForm.building,
+          governorate: this.createForm.governorate,
+          landmark: this.createForm.landmark,
+          latitude: this.createForm.latitude,
+          longitude: this.createForm.longitude,
+          brickId: this.createForm.brick702Id || this.createForm.brickId || null,
+          brick148Id: this.createForm.brick148Id || null,
+          brick702Id: this.createForm.brick702Id || null,
+          placeId: this.createForm.placeId
+        }
+      });
+      const accountId = result?.accountId;
+      this.handleCloseNewAccountModal();
+      this.toast('Account created', 'Saved the new account from the wizard.', 'success');
+      if (accountId) {
+        this.navigateToAccount(accountId);
+      }
+      this.reloadData(true);
+    } catch (error) {
+      this.createError = this.errorMessageFrom(error);
+    } finally {
+      this.isSavingAccount = false;
+    }
+  }
+
+  resetNewAccountWizard() {
+    this.newAccountStep = 'recordType';
+    this.selectedCreateRecordTypeId = null;
+    this.masterSearchTerm = '';
+    this.masterBrick148Id = FILTER_ALL;
+    this.masterBrick702Id = FILTER_ALL;
+    this.masterSpecialtyFilter = '';
+    this.masterSpecialtyQuery = '';
+    this.showMasterSpecialtyMenu = false;
+    this.masterSearchResults = [];
+    this.cognitiveResults = [];
+    this.isMasterSearching = false;
+    this.masterSearchRan = false;
+    this.selectedMasterAccountId = null;
+    this.mapSearchTerm = '';
+    this.mapZoneId = '';
+    this.mapBrick148Id = '';
+    this.mapBrick702Id = '';
+    this.mapArea = '';
+    this.mapSearchResults = [];
+    this.mapSearchBias = null;
+    this.isMapSearching = false;
+    this.mapSearchRan = false;
+    this.selectedMapPlaceId = null;
+    this.destroyWizardMap();
+
+    if (this.createAddressLookupDebounce) {
+      clearTimeout(this.createAddressLookupDebounce);
+      this.createAddressLookupDebounce = null;
+    }
+    this.createAddressLookupToken = 0;
+    this.lastCreateAddressLookupKey = '';
+    this.isCreateAddressLookingUp = false;
+    this.createPinRippleLayer = null;
+    this._wizardPinLatLngKey = '';
+    this.createForm = {};
+    this.isSavingAccount = false;
+    this.createError = null;
+    this.phoneMapSuggestion = null;
+    this.isPhoneMapLookingUp = false;
+    this.mapPrefillPhoneDigits = '';
+    this.lastPhoneLookupDigits = '';
+    if (this.phoneLookupDebounce) {
+      clearTimeout(this.phoneLookupDebounce);
+      this.phoneLookupDebounce = null;
+    }
+  }
+
+  errorMessageFrom(error) {
+    return (
+      error?.body?.message ||
+      error?.message ||
+      (Array.isArray(error?.body) ? error.body[0]?.message : null) ||
+      'Something went wrong.'
+    );
+  }
+
+  toast(title, message, variant) {
+    this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+  }
+
+  navigateToNewAccount(recordTypeId) {
+    const pageRef = {
+      type: 'standard__objectPage',
+      attributes: {
+        objectApiName: 'Account',
+        actionName: 'new'
+      },
+      state: {
+        nooverride: '1',
+        useRecordTypeCheck: '1'
+      }
+    };
+    if (recordTypeId) {
+      pageRef.state.recordTypeId = recordTypeId;
+    }
+    this[NavigationMixin.Navigate](pageRef);
   }
 
   handleShowAllAccounts() {
@@ -1072,12 +2544,77 @@ export default class AccountsTab extends LightningElement {
 
   handleOceRowAction(event) {
     const { accountId, action } = event.detail;
-    if (action === 'plan') {
+    if (action === 'plan' || action === 'rtd') {
       this.navigateToPlanner();
+      if (action === 'rtd') {
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: 'Schedule RTD meeting',
+            message: 'Use + in the planner to add an RTD or speaker meeting for this account.',
+            variant: 'info'
+          })
+        );
+      }
+      return;
+    }
+    if (action === 'kol') {
+      this.toggleKol(accountId);
       return;
     }
     if (accountId) {
       this.navigateToAccount(accountId);
+    }
+  }
+
+  async toggleKol(accountId) {
+    if (!accountId) {
+      return;
+    }
+    const row = (this.rows || []).find((item) => item.accountId === accountId);
+    if (row?.kolBusy) {
+      return;
+    }
+    const previousIsKol = row?.isKol === true;
+    const nextIsKol = !previousIsKol;
+    this.rows = (this.rows || []).map((item) =>
+      item.accountId === accountId
+        ? {
+            ...item,
+            isKol: nextIsKol,
+            isKolLabel: nextIsKol ? 'Yes' : 'No',
+            kolBusy: true
+          }
+        : item
+    );
+    try {
+      const result = await setAccountKol({
+        accountId,
+        isKol: nextIsKol
+      });
+      const isKol = result?.isKol === true;
+      this.rows = (this.rows || []).map((item) =>
+        item.accountId === accountId
+          ? { ...item, isKol, isKolLabel: isKol ? 'Yes' : 'No', kolBusy: false }
+          : item
+      );
+    } catch (error) {
+      this.rows = (this.rows || []).map((item) =>
+        item.accountId === accountId
+          ? {
+              ...item,
+              isKol: previousIsKol,
+              isKolLabel: previousIsKol ? 'Yes' : 'No',
+              kolBusy: false
+            }
+          : item
+      );
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: 'Unable to update KOL',
+          message: this.reduceError(error) || 'Could not update KOL for this territory.',
+          variant: 'error'
+        })
+      );
     }
   }
 
@@ -1205,43 +2742,24 @@ export default class AccountsTab extends LightningElement {
       Pace: ${row.paceStatusLabel || 'N/A'} · Score: ${Number(row.agentforceScore || 0).toFixed(1)}`;
   }
 
-  get isPwaContext() {
-    const p = window?.location?.pathname || '';
-    return p === '/' || p.endsWith('/index.html') || p.endsWith('/accounts.html') || p.endsWith('/account.html') || p.endsWith('/visits.html');
-  }
-
   navigateToAccount(accountId) {
-    if (this.isPwaContext) {
-      window.location.href = `/account.html?accountId=${accountId}`;
-      return;
-    }
-    const sfInstance =
-      (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || '';
-    if (sfInstance) {
-      window.open(
-        `${String(sfInstance).replace(/\/$/, '')}/lightning/r/Account/${accountId}/view`,
-        '_blank'
-      );
-    } else {
-      window.open(`/lightning/r/Account/${accountId}/view`, '_self');
-    }
+    this[NavigationMixin.Navigate]({
+      type: 'standard__recordPage',
+      attributes: {
+        recordId: accountId,
+        objectApiName: 'Account',
+        actionName: 'view'
+      }
+    });
   }
 
   navigateToPlanner() {
-    if (this.isPwaContext) {
-      window.location.href = '/index.html';
-      return;
-    }
-    const sfInstance =
-      (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || '';
-    if (sfInstance) {
-      window.open(
-        `${String(sfInstance).replace(/\/$/, '')}/lightning/n/Field_Rep_Planner`,
-        '_blank'
-      );
-    } else {
-      window.open('/lightning/n/Field_Rep_Planner', '_self');
-    }
+    this[NavigationMixin.Navigate]({
+      type: 'standard__navItemPage',
+      attributes: {
+        apiName: 'Field_Rep_Planner'
+      }
+    });
   }
 
   clearMarkers() {
@@ -1263,19 +2781,362 @@ export default class AccountsTab extends LightningElement {
     }
   }
 
+  selectWizardMapPlace(placeId, flyTo) {
+    if (!placeId) {
+      return;
+    }
+    this.selectedMapPlaceId = String(placeId);
+    if (flyTo) {
+      this.flyWizardMapToSelection();
+    }
+    this.scrollWizardPlaceIntoView(this.selectedMapPlaceId);
+  }
+
+  flyWizardMapToSelection() {
+    const marker = this.wizardMapMarkersByPlaceId[String(this.selectedMapPlaceId || '')];
+    if (!marker || !this.wizardMapInstance) {
+      return;
+    }
+    this.wizardMapInstance.flyTo(marker.getLatLng(), 15, { duration: 0.45 });
+  }
+
+  scrollWizardPlaceIntoView(placeId) {
+    const card = this.template.querySelector(`[data-place-id="${placeId}"]`);
+    if (card) {
+      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  async ensureWizardSearchMap() {
+    if (this.wizardMapSyncing) {
+      this.wizardMapPending = true;
+      return;
+    }
+    this.wizardMapSyncing = true;
+    try {
+      const leaflet = await ensureLeaflet(this, LEAFLET);
+      if (!this.showNewAccountModal || !this.isMapSearchStep) {
+        return;
+      }
+      const map = await this.ensureWizardMapReady(leaflet, '.wizard-search-map');
+      if (!map) {
+        return;
+      }
+      this.drawWizardSearchMarkers(leaflet, map);
+    } finally {
+      this.wizardMapSyncing = false;
+      if (this.wizardMapPending) {
+        this.wizardMapPending = false;
+        this.ensureWizardSearchMap();
+      }
+    }
+  }
+
+  async ensureWizardCreateMap() {
+    if (this.wizardMapSyncing) {
+      this.wizardMapPending = true;
+      return;
+    }
+    this.wizardMapSyncing = true;
+    try {
+      const leaflet = await ensureLeaflet(this, LEAFLET);
+      if (!this.showNewAccountModal || !this.isCreateFormStep) {
+        return;
+      }
+      const map = await this.ensureWizardMapReady(leaflet, '.wizard-create-map');
+      if (!map) {
+        return;
+      }
+      this.syncCreatePinMarker(leaflet, map);
+    } finally {
+      this.wizardMapSyncing = false;
+      if (this.wizardMapPending && this.isCreateFormStep) {
+        this.wizardMapPending = false;
+        this.ensureWizardCreateMap();
+      } else {
+        this.wizardMapPending = false;
+      }
+    }
+  }
+
+  async ensureWizardMapReady(leaflet, selector) {
+    const container = this.template.querySelector(selector);
+    if (!container) {
+      return null;
+    }
+    if (this.wizardMapInstance) {
+      setTimeout(() => this.wizardMapInstance?.invalidateSize(), 80);
+      return this.wizardMapInstance;
+    }
+    container.innerHTML = '';
+    const mapDiv = document.createElement('div');
+    mapDiv.style.height = '100%';
+    mapDiv.style.width = '100%';
+    container.appendChild(mapDiv);
+    const map = leaflet.map(mapDiv, { zoomControl: true, scrollWheelZoom: true });
+    addOsmTileLayer(map, leaflet);
+    map.setView(EGYPT_MAP_CENTER, 6);
+    this.wizardMapInstance = map;
+    this.wizardMapDrawnKey = null;
+    map.on('click', (event) => {
+      if (!this.isCreateFormStep || !event?.latlng) {
+        return;
+      }
+      this.setCreatePin(event.latlng.lat, event.latlng.lng, true);
+    });
+    setTimeout(() => map.invalidateSize(), 120);
+    return map;
+  }
+
+  syncCreatePinMarker(leaflet, map) {
+    const target = map || this.wizardMapInstance;
+    if (!target) {
+      return;
+    }
+    const lat = this.createForm?.latitude;
+    const lng = this.createForm?.longitude;
+    if (lat == null || lng == null) {
+      if (this.createPinMarker) {
+        target.removeLayer(this.createPinMarker);
+        this.createPinMarker = null;
+      }
+      if (this.createPinRippleLayer) {
+        try {
+          target.removeLayer(this.createPinRippleLayer);
+        } catch (e) {
+          // ignore
+        }
+        this.createPinRippleLayer = null;
+      }
+      if (this.createPinRippleRaf) {
+        cancelAnimationFrame(this.createPinRippleRaf);
+        this.createPinRippleRaf = null;
+      }
+      this._wizardPinLatLngKey = '';
+      return;
+    }
+
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    const latLng = [latNum, lngNum];
+    const pinKey = `${latNum.toFixed(6)},${lngNum.toFixed(6)}`;
+    const zoom = Math.max(target.getZoom() || 6, 14);
+    const pinChanged = pinKey !== this._wizardPinLatLngKey;
+    this._wizardPinLatLngKey = pinKey;
+
+    const isGpsPin = this.createForm?.pinSource === 'gps';
+    const icon = leaflet
+      ? isGpsPin
+        ? this.buildGpsPinIcon(leaflet)
+        : this.buildWizardPlaceIcon(
+            leaflet,
+            true,
+            this.createForm?.placeKind,
+            this.createForm?.isKol === true
+          )
+      : null;
+
+    if (this.createPinMarker) {
+      this.createPinMarker.setLatLng(latLng);
+      if (icon) {
+        this.createPinMarker.setIcon(icon);
+      }
+    } else if (leaflet) {
+      this.createPinMarker = leaflet
+        .marker(latLng, {
+          draggable: true,
+          icon
+        })
+        .addTo(target);
+      this.createPinMarker.on('dragend', (event) => {
+        const pos = event.target.getLatLng();
+        this.setCreatePin(pos.lat, pos.lng, false);
+      });
+    } else {
+      this.ensureWizardCreateMap();
+      return;
+    }
+
+    // Only animate when the pin actually changes.
+    if (pinChanged) {
+      if (typeof target.flyTo === 'function') {
+        target.flyTo(latLng, zoom, { duration: 0.7 });
+      } else {
+        target.setView(latLng, zoom);
+      }
+      this.animateCreatePinRipple(leaflet, target, latLng);
+    }
+    setTimeout(() => target.invalidateSize(), 80);
+  }
+
+  setCreatePin(lat, lng, confirm) {
+    this.createForm = {
+      ...this.createForm,
+      latitude: Number(lat.toFixed(6)),
+      longitude: Number(lng.toFixed(6)),
+      pinSource: null,
+      // Pin moved => confirmation should be re-checked by the user.
+      pinConfirmed: confirm ? true : false
+    };
+  }
+
+  drawWizardSearchMarkers(leaflet, map) {
+    const results = this.mapSearchResults || [];
+    const selected = this.selectedMapPlaceId ? String(this.selectedMapPlaceId) : '';
+    const biasKey = this.mapSearchBias
+      ? `${this.mapSearchBias.centerLat},${this.mapSearchBias.centerLng},${this.mapSearchBias.radiusMeters}`
+      : 'nobias';
+    const markerKey = `${selected}|${results
+      .map((row) => `${row.placeId}:${row.placeKind || ''}:${row.isKol ? 'kol' : ''}`)
+      .join(',')}|${this.wizardMapShouldFit ? 'fit' : 'keep'}|${biasKey}`;
+    if (markerKey === this.wizardMapDrawnKey) {
+      return;
+    }
+    this.clearWizardMapMarkers();
+    const bounds = [];
+    results.forEach((row) => {
+      if (row.latitude == null || row.longitude == null || !row.placeId) {
+        return;
+      }
+      const id = String(row.placeId);
+      const latLng = [Number(row.latitude), Number(row.longitude)];
+      bounds.push(latLng);
+      const isSelected = id === selected;
+      const marker = leaflet
+        .marker(latLng, {
+          icon: this.buildWizardPlaceIcon(leaflet, isSelected, row.placeKind, row.isKol === true),
+          zIndexOffset: isSelected ? 1000 : 0
+        })
+        .addTo(map);
+      marker.on('click', () => {
+        this.selectWizardMapPlace(id, false);
+      });
+      this.wizardMapMarkers.push(marker);
+      this.wizardMapMarkersByPlaceId[id] = marker;
+    });
+    if (this.wizardMapShouldFit && bounds.length) {
+      map.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 });
+      this.wizardMapShouldFit = false;
+    } else if (this.wizardMapShouldFit && this.mapSearchBias?.centerLat != null) {
+      const radius = this.mapSearchBias.radiusMeters || 40000;
+      const lat = this.mapSearchBias.centerLat;
+      const lng = this.mapSearchBias.centerLng;
+      const dLat = radius / 111320;
+      const cosLat = Math.cos((lat * Math.PI) / 180);
+      const dLng = cosLat === 0 ? dLat : radius / (111320 * Math.abs(cosLat));
+      map.fitBounds(
+        [
+          [lat - dLat, lng - dLng],
+          [lat + dLat, lng + dLng]
+        ],
+        { padding: [28, 28], maxZoom: 12 }
+      );
+      this.wizardMapShouldFit = false;
+    } else if (!bounds.length) {
+      map.setView(EGYPT_MAP_CENTER, 6);
+    }
+    this.wizardMapDrawnKey = `${selected}|${results.map((row) => row.placeId).join(',')}|keep`;
+    setTimeout(() => map.invalidateSize(), 80);
+  }
+
+  buildGpsPinIcon(leaflet) {
+    // Crosshair-style icon to visually indicate “GPS current location”.
+    return leaflet.divIcon({
+      className: 'map-pin-icon-shell map-gps-icon-shell',
+      html:
+        '<div style="' +
+        'width:34px;height:34px;border-radius:50%;' +
+        'background:#0176d3;border:2px solid #fff;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.35);' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'position:relative;' +
+        '">' +
+        '<span style="font-size:18px;line-height:1;color:#fff;font-weight:800;">+</span>' +
+        '</div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -16]
+    });
+  }
+
+  buildWizardPlaceIcon(leaflet, selected, placeKind, isKol) {
+    const kind = this.normalizePlaceKind(placeKind);
+    const meta = PLACE_KIND_META[kind] || PLACE_KIND_META.unknown;
+    const size = selected ? 36 : 28;
+    const color = isKol ? '#c39818' : selected ? '#032d60' : meta.color;
+    const ring = selected
+      ? `0 0 0 3px ${isKol ? 'rgba(195,152,24,0.4)' : 'rgba(1,118,211,0.35)'}, 0 2px 6px rgba(0,0,0,0.35)`
+      : '0 2px 6px rgba(0,0,0,0.35)';
+    const glyph =
+      kind === 'hco'
+        ? HCO_PIN_SVG
+        : kind === 'doctor'
+          ? HCP_PIN_SVG
+          : kind === 'pharmacy'
+            ? PHARMACY_PIN_SVG
+            : kind === 'company'
+              ? COMPANY_PIN_SVG
+              : UNKNOWN_PIN_SVG;
+    const sizedGlyph = String(glyph).replace('<svg ', '<svg width="100%" height="100%" ');
+    const star = isKol
+      ? '<span style="position:absolute;right:-2px;top:-4px;font-size:11px;line-height:1;color:#ffd76e;text-shadow:0 0 2px #5c4300">★</span>'
+      : '';
+    return leaflet.divIcon({
+      className: 'map-pin-icon-shell',
+      html:
+        `<div title="${meta.label}${isKol ? ' · KOL' : ''}" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${ring};display:flex;align-items:center;justify-content:center;padding:5px;box-sizing:border-box;">` +
+        `<span style="display:block;width:70%;height:70%;line-height:0;">${sizedGlyph}</span>` +
+        star +
+        '</div>',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    });
+  }
+
+  clearWizardMapMarkers() {
+    if (this.wizardMapInstance && this.wizardMapMarkers?.length) {
+      this.wizardMapMarkers.forEach((marker) => this.wizardMapInstance.removeLayer(marker));
+    }
+    this.wizardMapMarkers = [];
+    this.wizardMapMarkersByPlaceId = {};
+  }
+
+  destroyWizardMap() {
+    if (this.createAddressLookupDebounce) {
+      clearTimeout(this.createAddressLookupDebounce);
+      this.createAddressLookupDebounce = null;
+    }
+    this.isCreateAddressLookingUp = false;
+    this.clearWizardMapMarkers();
+    if (this.createPinMarker && this.wizardMapInstance) {
+      this.wizardMapInstance.removeLayer(this.createPinMarker);
+    }
+    this.createPinMarker = null;
+    if (this.createPinRippleLayer && this.wizardMapInstance) {
+      try {
+        this.wizardMapInstance.removeLayer(this.createPinRippleLayer);
+      } catch (e) {
+        // ignore
+      }
+    }
+    this.createPinRippleLayer = null;
+    if (this.createPinRippleRaf) {
+      cancelAnimationFrame(this.createPinRippleRaf);
+      this.createPinRippleRaf = null;
+    }
+    this._wizardPinLatLngKey = '';
+    if (this.wizardMapInstance) {
+      this.wizardMapInstance.remove();
+      this.wizardMapInstance = null;
+    }
+    this.wizardMapDrawnKey = null;
+    this.wizardMapPending = false;
+  }
+
   reduceError(error) {
     if (Array.isArray(error?.body)) {
       return error.body.map((e) => e.message).join(', ');
     }
     return error?.body?.message || error?.message || 'Unable to load accounts.';
-  }
-
-  isConnectivityError(error) {
-    const name = error?.name || '';
-    if (name === 'AbortError' || name === 'TypeError') {
-      return true;
-    }
-    const message = error?.message || '';
-    return /offline|failed to fetch|networkerror|load failed/i.test(message);
   }
 }

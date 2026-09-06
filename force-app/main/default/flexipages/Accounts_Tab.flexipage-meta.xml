@@ -4,6 +4,12 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
+                <componentName>pendingPaymentAlert</componentName>
+                <identifier>pendingPaymentAlert</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
                 <componentName>accountsTab</componentName>
                 <identifier>accountsTab</identifier>
             </componentInstance>

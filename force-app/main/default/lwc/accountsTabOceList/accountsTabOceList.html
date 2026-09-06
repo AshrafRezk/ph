@@ -1,36 +1,50 @@
 <template>
     <div class="oce-list">
         <div class="oce-list-toolbar">
-            <div class="oce-list-toolbar-row">
-                <span class="oce-list-title">Accounts</span>
-                <button
-                    type="button"
-                    class="oce-sort-btn"
-                    onclick={handleSortToggle}
-                    title={sortDirectionLabel}
-                >Sort by: Name {sortDirectionIcon}</button>
-            </div>
+            <span class="oce-list-title">Accounts</span>
         </div>
 
-        <template if:true={isLoading}>
-            <p class="oce-list-loading">Loading accounts…</p>
+        <template if:true={showInitialSpinner}>
+            <div class="oce-list-loading">
+                <lightning-spinner alternative-text="Loading accounts" size="medium"></lightning-spinner>
+            </div>
         </template>
 
-        <template if:false={isLoading}>
+        <template if:true={showTable}>
             <div class="oce-table-scroll" role="region" aria-label="Accounts list">
+                <template if:true={isRefreshing}>
+                    <div class="oce-list-loading-overlay">
+                        <lightning-spinner alternative-text="Updating accounts" size="small"></lightning-spinner>
+                    </div>
+                </template>
                 <table class="oce-table">
                     <thead>
                         <tr>
-                            <th scope="col" class="col-account">Account</th>
-                            <th scope="col" class="col-class">Class</th>
-                            <th scope="col" class="col-plan">Plan</th>
-                            <th scope="col" class="col-visits">Visits</th>
-                            <th scope="col" class="col-gap">Gap</th>
-                            <th scope="col" class="col-pace">Pace</th>
-                            <th scope="col" class="col-score">Score</th>
-                            <th scope="col" class="col-risk">Risk</th>
-                            <th scope="col" class="col-specialty">Specialty</th>
-                            <th scope="col" class="col-actions"><span class="slds-assistive-text">Actions</span></th>
+                            <template for:each={tableHeaders} for:item="header">
+                                <th key={header.id} scope="col" class={header.headerClass} aria-sort={header.ariaSort}>
+                                    <template if:true={header.sortable}>
+                                        <button
+                                            type="button"
+                                            class={header.buttonClass}
+                                            data-id={header.id}
+                                            data-sort-field={header.sortField}
+                                            title={header.sortTitle}
+                                            aria-label={header.sortTitle}
+                                            onclick={handleHeaderSort}
+                                        >
+                                            <span class="oce-th-label">{header.label}</span>
+                                            <span class={header.sortIconClass} aria-hidden="true">
+                                                <span class="oce-sort-caret oce-sort-up"></span>
+                                                <span class="oce-sort-caret oce-sort-down"></span>
+                                            </span>
+                                        </button>
+                                    </template>
+                                    <template if:false={header.sortable}>
+                                        <span class="oce-th-label">{header.label}</span>
+                                    </template>
+                                </th>
+                            </template>
+                            <th scope="col" class="col-actions"><span class="oce-th-label">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -39,7 +53,12 @@
                                 <td class="col-account">
                                     <div class="account-cell">
                                         <span class={row.riskDotClass} title={row.agentforceRisk}></span>
-                                        <span class={row.typeIconClass} title={row.pinLabel} aria-hidden="true"></span>
+                                        <lightning-icon
+                                            class={row.typeIconClass}
+                                            icon-name={row.typeIconName}
+                                            size="x-small"
+                                            alternative-text={row.pinLabel}
+                                        ></lightning-icon>
                                         <div class="account-text">
                                             <a
                                                 href="#"
@@ -49,17 +68,6 @@
                                                 title={row.accountName}
                                             >{row.accountName}</a>
                                             <p class="oce-meta-line" title={row.metaLine}>{row.metaLine}</p>
-                                            <template if:true={row.hasBusinessUnits}>
-                                                <div class="oce-bu-chips">
-                                                    <template for:each={row.businessUnits} for:item="bu">
-                                                        <span
-                                                            key={bu.id}
-                                                            class="oce-bu-chip"
-                                                            title={bu.businessUnitExternalId}
-                                                        >{bu.chipLabel}</span>
-                                                    </template>
-                                                </div>
-                                            </template>
                                         </div>
                                     </div>
                                 </td>
@@ -78,40 +86,227 @@
                                 <td class="col-gap">
                                     <span class="oce-field-value">{row.gapDisplay}</span>
                                 </td>
-                                <td class="col-pace">
-                                    <span class={row.paceClass}>{row.paceDisplay}</span>
+                                <td class="col-health">
+                                    <template if:true={row.showHealth}>
+                                        <button
+                                            type="button"
+                                            class="health-cell-button"
+                                            data-id={row.accountId}
+                                            onclick={handleHealthClick}
+                                            title="View health details"
+                                        >
+                                            <span class="health-status-line">
+                                                <span class={row.healthClass} aria-hidden="true"></span>
+                                                <span class="health-label">{row.healthLabel}</span>
+                                            </span>
+                                            <template if:true={row.showLastVisit}>
+                                                <span class="health-last-visit">{row.lastVisitCell}</span>
+                                            </template>
+                                        </button>
+                                    </template>
+                                    <template if:false={row.showHealth}>
+                                        <span class="oce-field-value">—</span>
+                                    </template>
                                 </td>
                                 <td class="col-score">
                                     <span class="oce-field-strong">{row.scoreDisplay}</span>
-                                </td>
-                                <td class="col-risk">
-                                    <span class={row.riskBadgeClass}>{row.riskDisplay}</span>
                                 </td>
                                 <td class="col-specialty">
                                     <span class="oce-field-value specialty-text" title={row.specialtyDisplay}>{row.specialtyDisplay}</span>
                                 </td>
                                 <td class="col-actions">
-                                    <div class="oce-row-actions">
-                                        <button
-                                            type="button"
-                                            class="oce-action-btn"
+                                    <div class="row-actions">
+                                        <lightning-button-icon
+                                            icon-name="utility:preview"
+                                            alternative-text="View account"
+                                            title="View account"
+                                            variant="border-filled"
+                                            size="small"
                                             data-id={row.accountId}
                                             data-action="view"
-                                            onclick={handleRowAction}
-                                        >View</button>
-                                        <button
-                                            type="button"
-                                            class="oce-action-btn"
+                                            onclick={handleQuickAction}
+                                        ></lightning-button-icon>
+                                        <lightning-button-icon
+                                            icon-name="utility:event"
+                                            alternative-text="Plan visit"
+                                            title="Plan visit"
+                                            variant="border-filled"
+                                            size="small"
                                             data-id={row.accountId}
                                             data-action="plan"
-                                            onclick={handleRowAction}
-                                        >Plan</button>
+                                            onclick={handleQuickAction}
+                                        ></lightning-button-icon>
+                                        <button
+                                            type="button"
+                                            class={row.kolSwitchClass}
+                                            role="switch"
+                                            aria-checked={row.kolAriaChecked}
+                                            aria-label={row.kolButtonTitle}
+                                            data-id={row.accountId}
+                                            data-action="kol"
+                                            title={row.kolButtonTitle}
+                                            disabled={row.kolBusy}
+                                            onclick={handleQuickAction}
+                                        >
+                                            <span class="kol-switch-text">KOL</span>
+                                            <span class="kol-switch-track" aria-hidden="true">
+                                                <span class="kol-switch-thumb"></span>
+                                            </span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
+            </div>
+        </template>
+
+        <template if:true={showHealthModal}>
+            <div class="health-overlay" role="presentation" onclick={handleHealthOverlayClick}>
+                <section
+                    role="dialog"
+                    tabindex="-1"
+                    aria-modal="true"
+                    aria-label="Connection Health"
+                    class="health-sheet"
+                    onclick={stopHealthSheetClick}
+                >
+                    <header class={healthModalRow.bannerClass}>
+                        <button
+                            type="button"
+                            class="health-modal-close"
+                            title="Close"
+                            onclick={handleCloseHealthModal}
+                        >
+                            ×
+                        </button>
+                        <p class="health-kicker">Connection Health</p>
+                        <h2 class="health-modal-title">{healthModalRow.accountName}</h2>
+                        <p class="health-meta">{healthModalRow.metaLine}</p>
+                        <div class="health-score-row">
+                            <span class="health-status-pill">{healthModalRow.healthLabel}</span>
+                            <div class="score-block">
+                                <span class="score-label">Health score</span>
+                                <strong class="score-value">{healthModalRow.scoreDisplay}</strong>
+                            </div>
+                        </div>
+                        <div class="score-bar" aria-hidden="true">
+                            <span class={healthModalRow.scoreBarClass} style={healthModalRow.scoreBarStyle}></span>
+                        </div>
+                    </header>
+                    <div class="health-modal-body">
+                        <div class="stat-grid">
+                            <div class="stat-tile">
+                                <span class="stat-label">Last visit</span>
+                                <span class="stat-value">{healthModalRow.lastVisitDisplay}</span>
+                                <span class="stat-hint">{healthModalRow.recencyLabel}</span>
+                            </div>
+                            <div class="stat-tile">
+                                <span class="stat-label">Next visit</span>
+                                <span class="stat-value">{healthModalRow.nextVisitDisplay}</span>
+                                <span class="stat-hint">Planned call</span>
+                            </div>
+                            <div class="stat-tile">
+                                <span class="stat-label">Coverage</span>
+                                <span class="stat-value">{healthModalRow.coverageLabel}</span>
+                                <span class="stat-hint">Cycle visits</span>
+                            </div>
+                            <div class="stat-tile">
+                                <span class="stat-label">Pace</span>
+                                <span class="stat-value">{healthModalRow.paceLabel}</span>
+                                <span class="stat-hint">This month</span>
+                            </div>
+                        </div>
+
+                        <h3 class="section-title">Insights</h3>
+                        <div class="insight-grid">
+                            <template for:each={healthModalRow.insights} for:item="insight">
+                                <article key={insight.id} class={insight.toneClass}>
+                                    <span class="insight-label">{insight.label}</span>
+                                    <p class="insight-text">{insight.text}</p>
+                                </article>
+                            </template>
+                        </div>
+
+                        <h3 class="section-title">History</h3>
+                        <template if:true={healthModalRow.historyLoading}>
+                            <div class="section-loading">
+                                <lightning-spinner alternative-text="Loading history" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:false={healthModalRow.historyLoading}>
+                            <template if:true={healthModalRow.hasHistory}>
+                                <ul class="history-list">
+                                    <template for:each={healthModalRow.history} for:item="item">
+                                        <li key={item.id} class="history-item">
+                                            <span class="history-date">{item.dateDisplay}</span>
+                                            <span class="history-type">{item.visitType}</span>
+                                            <span class={item.statusClass}>{item.status}</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template if:false={healthModalRow.hasHistory}>
+                                <p class="empty-hint">No visit history yet for this account.</p>
+                            </template>
+                        </template>
+
+                        <h3 class="section-title">Affiliations</h3>
+                        <template if:true={healthModalRow.historyLoading}>
+                            <div class="section-loading">
+                                <lightning-spinner alternative-text="Loading affiliations" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:false={healthModalRow.historyLoading}>
+                            <template if:true={healthModalRow.hasAffiliations}>
+                                <div class="affiliation-chips">
+                                    <template for:each={healthModalRow.affiliations} for:item="aff">
+                                        <button
+                                            key={aff.id}
+                                            type="button"
+                                            class="affiliation-chip"
+                                            data-id={aff.relatedAccountId}
+                                            title={aff.meta}
+                                            onclick={handleAffiliationClick}
+                                        >
+                                            <span class="affiliation-name">{aff.name}</span>
+                                            <span class="affiliation-meta">{aff.meta}</span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                            <template if:false={healthModalRow.hasAffiliations}>
+                                <p class="empty-hint">No active affiliations on file.</p>
+                            </template>
+                        </template>
+
+                        <h3 class="section-title">Next best action</h3>
+                        <div class={healthModalRow.nba.cardClass}>
+                            <p class="nba-kicker">{healthModalRow.nba.title}</p>
+                            <p class="nba-reason">{healthModalRow.nba.reason}</p>
+                            <button
+                                type="button"
+                                class="nba-primary"
+                                data-action={healthModalRow.nba.action}
+                                onclick={handleHealthNbaClick}
+                            >{healthModalRow.nba.buttonLabel}</button>
+                            <template if:true={healthModalRow.secondaryNba}>
+                                <button
+                                    type="button"
+                                    class="nba-secondary"
+                                    data-action={healthModalRow.secondaryNba.action}
+                                    onclick={handleHealthNbaClick}
+                                >
+                                    {healthModalRow.secondaryNba.buttonLabel}
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <footer class="health-sheet-footer">
+                        <lightning-button label="Close" onclick={handleCloseHealthModal}></lightning-button>
+                    </footer>
+                </section>
             </div>
         </template>
     </div>

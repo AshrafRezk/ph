@@ -22,27 +22,32 @@
                     <p class="visit-account-meta">{accountMetaLine}</p>
                 </template>
                 <div class="visit-hero-actions">
-                    <lightning-button label="View Account" icon-name="utility:account" onclick={handleOpenAccount}></lightning-button>
                     <lightning-button
-                        class="slds-m-left_x-small coaching-btn"
+                        class="visit-hero-btn"
+                        label="View Account"
+                        icon-name="utility:account"
+                        onclick={handleOpenAccount}
+                    ></lightning-button>
+                    <lightning-button
+                        class="visit-hero-btn coaching-btn"
                         label={coachingButtonLabel}
                         icon-name="utility:education"
                         onclick={handleCoachingAction}
                     ></lightning-button>
                     <lightning-button
-                        class="slds-m-left_x-small medical-inquiry-btn"
+                        class="visit-hero-btn medical-inquiry-btn"
                         label={medicalInquiryButtonLabel}
                         icon-name="utility:question"
                         onclick={handleMedicalInquiryAction}
                     ></lightning-button>
                     <lightning-button
-                        class="slds-m-left_x-small whatsapp-btn"
+                        class="visit-hero-btn whatsapp-btn"
                         label="Send products survey on WhatsApp"
                         icon-name="utility:chat"
                         onclick={handleOpenWhatsAppModal}
                     ></lightning-button>
                     <lightning-button
-                        class="slds-m-left_x-small whatsapp-btn"
+                        class="visit-hero-btn whatsapp-btn"
                         label="Message meeting reminder"
                         icon-name="utility:chat"
                         onclick={handleOpenReminderModal}

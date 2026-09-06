@@ -1,9 +1,21 @@
-import { LightningElement, track } from 'lwc';
-import getHomeDashboard from '@salesforce/apex/PlannerMobileRestService.getHomeDashboard';
-import { getHomeMetricsCache, getUserHomeMetricsKey, putHomeMetrics } from 'c/clmOfflineStore';
+import { LightningElement, track, wire } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import Id from '@salesforce/user/Id';
+import { MessageContext } from 'lightning/messageService';
+import {
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
 
-const HOME_DASHBOARD_PATH = '/services/apexrest/planner/v1/home/dashboard';
-const CACHE_USER_FALLBACK = 'me';
+import getHomeMetrics from '@salesforce/apex/FieldRepHomeController.getHomeMetrics';
+import getAccountCoverageRows from '@salesforce/apex/FieldRepHomeController.getAccountCoverageRows';
+import getHomeFilterOptions from '@salesforce/apex/FieldRepHomeController.getHomeFilterOptions';
+import getPerformanceGamification from '@salesforce/apex/FieldRepHomeController.getPerformanceGamification';
+import getPerformanceRankings from '@salesforce/apex/FieldRepHomeController.getPerformanceRankings';
+import upsertVisit from '@salesforce/apex/FieldPlannerController.upsertVisit';
+import { getHomeMetricsCache, getUserHomeMetricsKey, newClientKey, putHomeMetrics } from 'c/clmOfflineStore';
+import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
 
 const BADGE_DEFINITIONS = [
     {
@@ -51,12 +63,43 @@ const BADGE_DEFINITIONS = [
 ];
 
 const CLASS_COLORS = {
-    A: { accent: '#0176d3', bg: 'rgba(1, 118, 211, 0.07)' },
-    B: { accent: '#2e844a', bg: 'rgba(46, 132, 74, 0.08)' },
-    C: { accent: '#fe9339', bg: 'rgba(254, 147, 57, 0.1)' }
+    A1: { accent: '#014486', bg: 'rgba(1, 118, 211, 0.14)' },
+    A2: { accent: '#0176d3', bg: 'rgba(1, 118, 211, 0.09)' },
+    A3: { accent: '#4a9eed', bg: 'rgba(1, 118, 211, 0.05)' },
+    B1: { accent: '#1b5e20', bg: 'rgba(46, 132, 74, 0.14)' },
+    B2: { accent: '#2e844a', bg: 'rgba(46, 132, 74, 0.09)' },
+    B3: { accent: '#5cb176', bg: 'rgba(46, 132, 74, 0.05)' },
+    C1: { accent: '#8c4b00', bg: 'rgba(254, 147, 57, 0.16)' },
+    C2: { accent: '#dd7a01', bg: 'rgba(254, 147, 57, 0.1)' },
+    C3: { accent: '#fe9339', bg: 'rgba(254, 147, 57, 0.06)' },
+    Other: { accent: '#706e6b', bg: 'rgba(112, 110, 107, 0.08)' }
 };
 
-const FILTER_VALUES = ['All', 'A', 'B', 'C'];
+const MATRIX_CLASSES = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+const FILTER_VALUES = ['All', ...MATRIX_CLASSES];
+const DRILL_MODES = {
+    ALL: 'all',
+    ACHIEVEMENT: 'achievement',
+    CUSTOMER: 'customer',
+    RF: 'rf',
+    REMAINING: 'remaining'
+};
+const DRILL_SORT = {
+    [DRILL_MODES.ACHIEVEMENT]: { field: 'reach', direction: 'asc' },
+    [DRILL_MODES.REMAINING]: { field: 'gap', direction: 'desc' },
+    [DRILL_MODES.CUSTOMER]: { field: 'class', direction: 'asc' },
+    [DRILL_MODES.RF]: { field: 'gap', direction: 'desc' }
+};
+const KPI_HELP = {
+    visit: 'Completed vs target visits this month. Click to see who is behind plan — lowest reach first.',
+    customer: 'Share of in-plan accounts visited at least once. Click to see who has not been visited yet.',
+    rf: 'Share of in-plan accounts at or above target frequency. Click to see LCF accounts that still need calls.',
+    remaining: 'Total visits still needed to hit plan. Click to see the biggest remaining gaps — then plan those calls.'
+};
+const PLANNER_TAB_API = 'Field_Rep_Planner';
+const DAY_START_HOUR = 6;
+const DAY_END_HOUR = 20;
+const SLOT_MINUTES = 30;
 const RING_RADIUS = 28;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
@@ -119,19 +162,30 @@ const TIER_TAGLINES = {
 };
 
 const KPI_MILESTONES = [25, 50, 80, 100];
-const ACCOUNT_PAGE_SIZE = 5;
+const ACCOUNT_PAGE_SIZE = 8;
 const SEARCH_DEBOUNCE_MS = 200;
-const CLASS_SORT_ORDER = { A: 0, B: 1, C: 2, Other: 3 };
+const CLASS_SORT_ORDER = {
+    A1: 0,
+    A2: 1,
+    A3: 2,
+    B1: 3,
+    B2: 4,
+    B3: 5,
+    C1: 6,
+    C2: 7,
+    C3: 8,
+    Other: 9
+};
 const STATUS_SORT_ORDER = { LCF: 0, RCF: 1, MCF: 2 };
-const SORTABLE_ACCOUNT_FIELDS = ['name', 'class', 'reach', 'status'];
+const SORTABLE_ACCOUNT_FIELDS = ['name', 'class', 'reach', 'status', 'gap'];
 
 function normalizeClass(value) {
     if (!value) {
         return 'Other';
     }
-    const v = String(value).trim().toUpperCase();
-    if (v === 'A' || v === 'B' || v === 'C') {
-        return v;
+    const compact = String(value).trim().toUpperCase().replace(/[^A-C0-9]/g, '');
+    if (/^[ABC][123]$/.test(compact)) {
+        return compact;
     }
     return 'Other';
 }
@@ -144,6 +198,27 @@ function ringOffset(percent) {
 function ringStroke(percent) {
     const offset = ringOffset(percent);
     return `stroke-dasharray: ${RING_CIRCUMFERENCE}; stroke-dashoffset: ${offset};`;
+}
+
+function ceilToNextSlot(date) {
+    const d = new Date(date);
+    const minutes = d.getMinutes();
+    const add = minutes % SLOT_MINUTES === 0 ? SLOT_MINUTES : SLOT_MINUTES - (minutes % SLOT_MINUTES);
+    d.setMinutes(minutes + add);
+    d.setSeconds(0, 0);
+    return d;
+}
+
+function clampToWorkingHours(date) {
+    const d = new Date(date);
+    if (d.getHours() < DAY_START_HOUR) {
+        d.setHours(DAY_START_HOUR, 0, 0, 0);
+    }
+    if (d.getHours() >= DAY_END_HOUR) {
+        d.setDate(d.getDate() + 1);
+        d.setHours(DAY_START_HOUR, 0, 0, 0);
+    }
+    return d;
 }
 
 function resolveTierId(percent) {
@@ -173,33 +248,48 @@ function isMilestonePercent(percent) {
     return KPI_MILESTONES.some((milestone) => p === milestone || (milestone === 100 && p > 100));
 }
 
-function buildKpiCard(id, label, hint, percent) {
+function buildKpiCard(id, label, hint, percent, options = {}) {
     const percentDisplay = Math.round(percent || 0);
     const tierId = resolveTierId(percentDisplay);
     const tier = TIER_CONFIG[tierId];
     const offset = ringOffset(percentDisplay);
     const next = NEXT_TIER[tierId];
     const gap = next ? Math.max(0, next.threshold - percentDisplay) : 0;
+    const countLabel = options.countLabel || null;
+    const subLabel = options.subLabel || null;
+    const helpContent = KPI_HELP[id] || hint;
+    const isCounter = options.isCounter === true;
 
     return {
         id,
         label,
         hint,
+        helpContent,
         percentDisplay,
+        countLabel,
+        subLabel,
+        isCounter,
         tierId,
         tierLabel: tier.label,
         tierIcon: tier.icon,
         tierAriaLabel: `Tier: ${tier.label}`,
         tagline: taglineForTier(tierId, percentDisplay),
-        ringStyle: `stroke-dasharray: ${RING_CIRCUMFERENCE}; stroke-dashoffset: ${offset};`,
-        cardClass: `kpi-card kpi-card-tier-${tierId}${tierId === 'legend' ? ' kpi-card-legend' : ''}`,
+        ringStyle: isCounter ? '' : `stroke-dasharray: ${RING_CIRCUMFERENCE}; stroke-dashoffset: ${offset};`,
+        cardClass: `kpi-card kpi-card-tier-${tierId}${tierId === 'legend' ? ' kpi-card-legend' : ''}${options.isActive ? ' kpi-card-active' : ''}${isCounter ? ' kpi-card-counter' : ''}`,
         cardStyle: `border-left-color: ${tier.accent}; background: linear-gradient(135deg, ${tier.bg} 0%, #fff 100%);`,
         ringFillClass: `kpi-ring-fill kpi-ring-fill-tier-${tierId}${tierId === 'legend' ? ' kpi-ring-legend-pulse' : ''}`,
         tierPillClass: `kpi-tier-pill kpi-tier-pill-${tierId}`,
-        showNextTier: Boolean(next && gap > 0),
+        showNextTier: !isCounter && Boolean(next && gap > 0),
         nextTierLabel: next ? `${gap}% to ${next.label}` : '',
-        showMilestoneSparkle: isMilestonePercent(percentDisplay),
-        ariaLabel: `${label}: ${percentDisplay} percent, ${tier.label} tier. ${taglineForTier(tierId, percentDisplay)}`
+        showMilestoneSparkle: !isCounter && isMilestonePercent(percentDisplay),
+        showRing: !isCounter,
+        showCounter: isCounter,
+        isActive: Boolean(options.isActive),
+        ariaPressed: options.isActive ? 'true' : 'false',
+        clickHint: options.isActive ? 'Click to clear' : 'Click for accounts',
+        ariaLabel: isCounter
+            ? `${label}: ${countLabel}`
+            : `${label}: ${countLabel || percentDisplay + ' percent'}, ${tier.label} tier. ${taglineForTier(tierId, percentDisplay)}`
     };
 }
 
@@ -207,6 +297,14 @@ const EMPTY_METRICS = {
     visitCoveragePercentDisplay: 0,
     customerCoveragePercentDisplay: 0,
     rfPercentTotalDisplay: 0,
+    actualVisitsTotalDisplay: 0,
+    targetVisitsTotalDisplay: 0,
+    remainingCallsDisplay: 0,
+    plannedVisitsTotalDisplay: 0,
+    visitCountLabel: '0/0',
+    visitPlannedLabel: '0 planned',
+    customerCountLabel: '0/0',
+    rfCountLabel: '0/0',
     visitRingStroke: ringStroke(0),
     customerRingStroke: ringStroke(0),
     rfRingStroke: ringStroke(0),
@@ -231,6 +329,13 @@ const EMPTY_RANKINGS = {
     personAbove: null,
     isFirstInBu: false
 };
+
+function currentMonthStartIso() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+}
 
 function tokenizeSearch(raw) {
     return (raw || '')
@@ -268,6 +373,9 @@ function compareAccountRows(a, b, field, direction) {
             break;
         case 'status':
             cmp = statusSortValue(a) - statusSortValue(b);
+            break;
+        case 'gap':
+            cmp = (a.visitGap ?? 0) - (b.visitGap ?? 0);
             break;
         default:
             cmp = 0;
@@ -319,20 +427,32 @@ function matchesAccountSearch(row, rawTerm) {
     });
 }
 
-export default class FieldRepHomeMetrics extends LightningElement {
+export default class FieldRepHomeMetrics extends NavigationMixin(LightningElement) {
+    @track isLoading = true;
     @track metrics = { ...EMPTY_METRICS };
     @track gamification = { ...EMPTY_GAMIFICATION };
     @track rankings = { ...EMPTY_RANKINGS };
     @track leaderboardScope = 'bu';
     @track displayAccountRows = [];
     @track selectedFilter = 'All';
+    @track selectedRecordType = 'All';
+    @track selectedSubtype = 'All';
+    @track selectedHcpClassification = 'All';
+    @track selectedBrick = 'All';
+    @track drillMode = DRILL_MODES.ALL;
+    @track filterOptions = {
+        recordTypes: [],
+        subtypes: [],
+        classifications: [],
+        bricks: []
+    };
     @track searchTerm = '';
     @track currentPage = 1;
     @track sortField = 'name';
     @track sortDirection = 'asc';
     @track isSearching = false;
-    @track syncStatus = 'idle';
-    @track errorMessage = '';
+    @track showMoreFilters = false;
+    @track planningAccountId = null;
 
     allAccountRows = [];
     classFilteredRows = [];
@@ -342,11 +462,36 @@ export default class FieldRepHomeMetrics extends LightningElement {
     @track badgeModalTitle = '';
     @track badgeModalMessage = '';
     searchDebounceTimer;
-    cacheUserKey = CACHE_USER_FALLBACK;
-    hasCachedData = false;
+    _messageContext;
+    territoryContextSubscription;
+
+    @wire(MessageContext)
+    wiredMessageContext(value) {
+        this._messageContext = value;
+        this.subscribeTerritoryContext();
+    }
 
     get byClassification() {
-        return this.metrics?.byClassification || [];
+        return (this.metrics?.byClassification || []).map((row) => {
+            const visitPct = Math.round(row.visitCoveragePercentDisplay ?? row.visitCoveragePercent ?? 0);
+            const colors = CLASS_COLORS[row.classification] || CLASS_COLORS.Other;
+            const isClassActive = this.selectedFilter === row.classification;
+            const accountCount = row.accountCount || 0;
+            return {
+                ...row,
+                visitCoveragePercentDisplay: visitPct,
+                customerCoveragePercentDisplay: Math.round(
+                    row.customerCoveragePercentDisplay ?? row.customerCoveragePercent ?? 0
+                ),
+                rfPercentDisplay: Math.round(row.rfPercentDisplay ?? row.rfPercent ?? 0),
+                lfPercentDisplay: Math.round(row.lfPercentDisplay ?? row.lfPercent ?? 0),
+                progressStyle: row.progressStyle || `width: ${visitPct}%`,
+                tileStyle: `border-left: 4px solid ${colors.accent}; background: ${colors.bg}`,
+                tileClass: `class-card${isClassActive ? ' class-card-active' : ''}${accountCount === 0 ? ' class-card-empty' : ''}`,
+                classificationKey: row.classification,
+                accountCountLabel: accountCount === 1 ? '1 account' : `${accountCount} accounts`
+            };
+        });
     }
 
     get filterChips() {
@@ -376,14 +521,22 @@ export default class FieldRepHomeMetrics extends LightningElement {
         return `${total} accounts`;
     }
 
+    get isDrillActive() {
+        return this.drillMode !== DRILL_MODES.ALL || this.selectedFilter !== 'All';
+    }
+
+    get accountsSectionClass() {
+        return this.isDrillActive ? 'accounts-section accounts-section-open' : 'accounts-section';
+    }
+
     get accountTableHeaders() {
         const columns = [
             { id: 'name', label: 'Account', sortable: true, sortField: 'name' },
             { id: 'class', label: 'Class', sortable: true, sortField: 'class' },
             { id: 'call-plan', label: 'Call plan', sortable: false },
-            { id: 'reach', label: 'Reach', sortable: true, sortField: 'reach' },
-            { id: 'status', label: 'Status', sortable: true, sortField: 'status' },
-            { id: 'visited', label: 'Visited', sortable: false }
+            { id: 'gap', label: 'Remaining', sortable: true, sortField: 'gap' },
+            { id: 'why', label: 'Why', sortable: false },
+            { id: 'action', label: 'Action', sortable: false }
         ];
 
         return columns.map((column) => {
@@ -520,52 +673,162 @@ export default class FieldRepHomeMetrics extends LightningElement {
         return this.metrics?.visitCoveragePercentDisplay != null;
     }
 
-    get showSyncChip() {
-        return this.syncStatus === 'cached' || this.syncStatus === 'updating' || this.syncStatus === 'offline';
-    }
-
-    get syncChipLabel() {
-        if (this.syncStatus === 'updating') {
-            return 'Updating…';
-        }
-        if (this.syncStatus === 'offline') {
-            return 'Offline';
-        }
-        if (this.syncStatus === 'cached') {
-            return 'Cached';
-        }
-        return '';
-    }
-
-    get syncChipClass() {
-        return `sync-chip sync-chip-${this.syncStatus}`;
-    }
-
-    get showErrorBanner() {
-        return Boolean(this.errorMessage);
-    }
-
     get kpiCards() {
+        const visitPct = this.metrics?.visitCoveragePercentDisplay || 0;
+        const customerPct = this.metrics?.customerCoveragePercentDisplay || 0;
+        const rfPct = this.metrics?.rfPercentTotalDisplay || 0;
+        const activeDrill = this.drillMode;
         return [
             buildKpiCard(
                 'visit',
-                'Visit Coverage',
+                'Visits Achievement',
                 'Actual vs target visits',
-                this.metrics?.visitCoveragePercentDisplay
+                visitPct,
+                {
+                    countLabel: this.metrics?.visitCountLabel,
+                    subLabel: this.metrics?.visitPlannedLabel,
+                    isActive: activeDrill === DRILL_MODES.ACHIEVEMENT
+                }
             ),
             buildKpiCard(
                 'customer',
                 'Customer Coverage',
                 'Accounts visited this cycle',
-                this.metrics?.customerCoveragePercentDisplay
+                customerPct,
+                {
+                    countLabel: this.metrics?.customerCountLabel,
+                    isActive: activeDrill === DRILL_MODES.CUSTOMER
+                }
             ),
             buildKpiCard(
                 'rf',
                 'Right Frequency',
-                'RCF across all accounts',
-                this.metrics?.rfPercentTotalDisplay
+                'Customers at or above target frequency',
+                rfPct,
+                {
+                    countLabel: this.metrics?.rfCountLabel,
+                    isActive: activeDrill === DRILL_MODES.RF
+                }
+            ),
+            buildKpiCard(
+                'remaining',
+                'Remaining Calls',
+                'Calls still needed to hit plan',
+                0,
+                {
+                    countLabel: String(this.metrics?.remainingCallsDisplay || 0),
+                    isCounter: true,
+                    isActive: activeDrill === DRILL_MODES.REMAINING
+                }
             )
         ];
+    }
+
+    get recordTypeOptions() {
+        return this.filterOptions?.recordTypes || [];
+    }
+
+    get subtypeOptions() {
+        return this.filterOptions?.subtypes || [];
+    }
+
+    get classificationOptions() {
+        return this.filterOptions?.classifications || [];
+    }
+
+    get brickOptions() {
+        return this.filterOptions?.bricks || [];
+    }
+
+    get drillPanelTitle() {
+        switch (this.drillMode) {
+            case DRILL_MODES.ACHIEVEMENT:
+                return 'Behind on visits';
+            case DRILL_MODES.CUSTOMER:
+                return 'Not visited this cycle';
+            case DRILL_MODES.RF:
+                return 'Below target frequency';
+            case DRILL_MODES.REMAINING:
+                return 'Remaining call gap';
+            default:
+                return this.selectedFilter !== 'All' ? `Class ${this.selectedFilter} accounts` : 'Priority accounts';
+        }
+    }
+
+    get drillModeLabel() {
+        switch (this.drillMode) {
+            case DRILL_MODES.ACHIEVEMENT:
+                return 'Lowest reach first';
+            case DRILL_MODES.CUSTOMER:
+                return 'Unvisited in-plan';
+            case DRILL_MODES.RF:
+                return 'LCF accounts';
+            case DRILL_MODES.REMAINING:
+                return 'Biggest gaps first';
+            default:
+                return this.selectedFilter !== 'All' ? `Class ${this.selectedFilter}` : '';
+        }
+    }
+
+    get showDrillModeLabel() {
+        return this.isDrillActive;
+    }
+
+    get drillInsight() {
+        const rows = this.filteredAccountRows || [];
+        const count = rows.length;
+        if (count === 0) {
+            return this.emptyStateMessage;
+        }
+        const remaining = rows.reduce((sum, row) => sum + Math.max(0, Math.round(row.visitGap || 0)), 0);
+        const accountWord = count === 1 ? 'account' : 'accounts';
+        const callWord = remaining === 1 ? 'call' : 'calls';
+        switch (this.drillMode) {
+            case DRILL_MODES.ACHIEVEMENT:
+                return `${count} ${accountWord} behind plan · ${remaining} ${callWord} to catch up`;
+            case DRILL_MODES.CUSTOMER:
+                return `${count} unvisited ${accountWord} — plan a first call this cycle`;
+            case DRILL_MODES.RF:
+                return `${count} ${accountWord} below frequency · ${remaining} ${callWord} still needed`;
+            case DRILL_MODES.REMAINING:
+                return `${remaining} remaining ${callWord} across ${count} ${accountWord}`;
+            default:
+                return remaining > 0
+                    ? `${count} ${accountWord} · ${remaining} remaining ${callWord}`
+                    : `${count} ${accountWord}`;
+        }
+    }
+
+    get emptyStateMessage() {
+        if (this.hasSearchTerm) {
+            return 'No accounts match your search.';
+        }
+        const hasTargets = (this.allAccountRows || []).some((row) => (row.targetVisits || 0) > 0);
+        const hasRows = (this.allAccountRows || []).length > 0;
+        if (!hasRows) {
+            return 'No in-plan accounts on this month’s time card yet.';
+        }
+        if (
+            !hasTargets &&
+            (this.drillMode === DRILL_MODES.ACHIEVEMENT || this.drillMode === DRILL_MODES.REMAINING)
+        ) {
+            return 'No call-plan targets this month yet. Once targets are loaded, this list shows who is behind so you can plan the gap.';
+        }
+        switch (this.drillMode) {
+            case DRILL_MODES.ACHIEVEMENT:
+            case DRILL_MODES.REMAINING:
+                return 'You are on target — no remaining visits on the filtered accounts.';
+            case DRILL_MODES.CUSTOMER:
+                return 'Every in-plan account has been visited this cycle.';
+            case DRILL_MODES.RF:
+                return 'No accounts are below target frequency (LCF).';
+            default:
+                return 'No accounts match this filter.';
+        }
+    }
+
+    get moreFiltersLabel() {
+        return this.showMoreFilters ? 'Hide filters' : 'More filters';
     }
 
     get showRankings() {
@@ -653,6 +916,7 @@ export default class FieldRepHomeMetrics extends LightningElement {
     }
 
     connectedCallback() {
+        this.subscribeTerritoryContext();
         this.init();
     }
 
@@ -660,198 +924,119 @@ export default class FieldRepHomeMetrics extends LightningElement {
         if (this.searchDebounceTimer) {
             clearTimeout(this.searchDebounceTimer);
         }
-        if (this.refreshAbort) {
-            this.refreshAbort.abort();
-            this.refreshAbort = null;
-        }
-        if (this._onOnline) {
-            window.removeEventListener('online', this._onOnline);
-        }
-        if (this._onOffline) {
-            window.removeEventListener('offline', this._onOffline);
-        }
+        unsubscribeTerritoryContext(this.territoryContextSubscription);
+        this.territoryContextSubscription = undefined;
     }
 
-    bindConnectivityListeners() {
-        if (this._connectivityBound || typeof window === 'undefined') {
+    subscribeTerritoryContext() {
+        if (this.territoryContextSubscription || !this._messageContext) {
             return;
         }
-        this._connectivityBound = true;
-        this._onOnline = () => {
-            this.init();
-        };
-        this._onOffline = () => {
-            // Abort in-flight requests but don't immediately show offline
-            // The API call failure in catch block will handle real network failures
-            if (this.refreshAbort) {
-                this.refreshAbort.abort();
-            }
-        };
-        window.addEventListener('online', this._onOnline);
-        window.addEventListener('offline', this._onOffline);
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+            void this.init();
+        });
     }
 
     async init() {
-        this.bindConnectivityListeners();
-        this.errorMessage = '';
-        const cached = await this.readCache();
-        if (cached) {
-            this.applyCachedBundle(cached);
-            this.hasCachedData = true;
-            this.syncStatus = 'cached';
-        } else {
-            this.hasCachedData = false;
-        }
-
-        // Note: navigator.onLine is unreliable in Capacitor WebView
-        // Always try the API call - catch block handles real network failures
-        this.syncStatus = 'updating';
+        this.isLoading = true;
         try {
-            const payload = await this.fetchHomeDashboard();
-            this.applyDashboardPayload(payload);
-            this.cacheUserKey = payload?.userId || CACHE_USER_FALLBACK;
-            await this.writeCache();
-            this.hasCachedData = true;
-            this.errorMessage = '';
-            this.syncStatus = 'idle';
-        } catch (error) {
-            if (error?.name === 'AbortError') {
-                return;
-            }
-            this.syncStatus = 'offline';
-            if (!this.hasCachedData) {
-                this.errorMessage = this.isConnectivityError(error)
-                    ? 'You are offline. Connect to load metrics.'
-                    : this.reduceError(error) || 'Unable to load rep metrics.';
-            }
-        }
-    }
+            if (isOfflineMode()) {
+                const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
+                if (cached) {
+                    this.applyCachedBundle(cached);
+                } else {
+                    throw new Error('Home metrics are not cached for offline use.');
+                }
+            } else {
+            const [metrics, rows, gamification, rankings, filterOpts] = await Promise.all([
+                getHomeMetrics({ contextUserId: null }),
+                getAccountCoverageRows({
+                    contextUserId: null,
+                    classificationFilter: 'All',
+                    recordTypeFilter: 'All',
+                    subtypeFilter: 'All',
+                    hcpClassificationFilter: 'All',
+                    brickFilter: null
+                }),
+                getPerformanceGamification({ contextUserId: null, monthStart: currentMonthStartIso() }),
+                getPerformanceRankings({ contextUserId: null }),
+                getHomeFilterOptions({ contextUserId: null })
+            ]);
 
-    async readCache() {
-        const primary = await getHomeMetricsCache(getUserHomeMetricsKey(this.cacheUserKey));
-        if (primary) {
-            return primary;
-        }
-        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
-            return getHomeMetricsCache(getUserHomeMetricsKey(CACHE_USER_FALLBACK));
-        }
-        return null;
-    }
+            this.filterOptions = filterOpts || this.filterOptions;
 
-    async writeCache() {
-        const bundle = {
-            metrics: this.metrics,
-            gamification: this.gamification,
-            rankings: this.rankings,
-            allAccountRows: this.allAccountRows
-        };
-        await putHomeMetrics(getUserHomeMetricsKey(this.cacheUserKey), bundle);
-        if (this.cacheUserKey !== CACHE_USER_FALLBACK) {
-            await putHomeMetrics(getUserHomeMetricsKey(CACHE_USER_FALLBACK), bundle);
-        }
-    }
+            const actualTotal = Math.round(metrics.actualVisitsTotal || 0);
+            const targetTotal = Math.round(metrics.targetVisitsTotal || 0);
+            const rfMet = Math.round(((metrics.rfPercentTotal || 0) / 100) * (metrics.targetVisitsTotal > 0 ? rows.length : 0));
+            // RF count from rows for accurate display
+            const rfCount = (rows || []).filter(
+                (r) => r.frequencyStatus === 'RCF' || r.frequencyStatus === 'MCF'
+            ).length;
+            const totalAccounts = (rows || []).length;
+            const visitedCount = (rows || []).filter((r) => r.isVisited).length;
 
-    async fetchHomeDashboard() {
-        const restBase = typeof globalThis !== 'undefined' ? globalThis.PLANNER_REST_BASE : '';
-        if (restBase) {
-            return this.fetchHomeDashboardRest(restBase);
-        }
-        // Lightning UI sessions cannot call Apex REST (401). Same payload via AuraEnabled.
-        return getHomeDashboard({ contextUserId: null });
-    }
-
-    async fetchHomeDashboardRest(restBase) {
-        const token = typeof globalThis !== 'undefined' ? globalThis.PLANNER_ACCESS_TOKEN : '';
-        const headers = { Accept: 'application/json' };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        const path = `${String(restBase).replace(/\/$/, '')}${HOME_DASHBOARD_PATH}`;
-        if (this.refreshAbort) {
-            this.refreshAbort.abort();
-        }
-        this.refreshAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        let response;
-        try {
-            response = await fetch(path, {
-                method: 'GET',
-                credentials: token ? 'omit' : 'same-origin',
-                headers,
-                signal: this.refreshAbort ? this.refreshAbort.signal : undefined
+            metrics.byClassification = (metrics.byClassification || []).map((row) => {
+                const visitPct = Math.round(row.visitCoveragePercent || 0);
+                return {
+                    ...row,
+                    visitCoveragePercentDisplay: visitPct,
+                    customerCoveragePercentDisplay: Math.round(row.customerCoveragePercent || 0),
+                    rfPercentDisplay: Math.round(row.rfPercent || 0),
+                    lfPercentDisplay: Math.round(row.lfPercent || 0),
+                    progressStyle: `width: ${visitPct}%`
+                };
             });
-        } catch (fetchError) {
-            // Network error (TypeError, etc.) - manual mode, no auto-detection
-            console.warn('[HomeMetrics] Network error detected:', fetchError.message);
-            const offlineError = new Error('Offline');
-            offlineError.name = 'OfflineError';
-            throw offlineError;
-        }
-        // Manual mode - no auto-detection of online status
-        if (!response.ok) {
-            if (response.status >= 500) {
-                const offlineError = new Error('Offline');
-                offlineError.name = 'OfflineError';
-                throw offlineError;
-            }
-            let detail = `HTTP ${response.status}`;
-            try {
-                const failed = await response.json();
-                detail = failed?.message || detail;
-            } catch (_parseError) {
-                // Keep the HTTP status message when the body is not JSON.
-            }
-            throw new Error(detail);
-        }
-        return response.json();
-    }
 
-    isConnectivityError(error) {
-        const name = error?.name || '';
-        if (name === 'AbortError' || name === 'TypeError' || name === 'OfflineError') {
-            return true;
-        }
-        const message = error?.message || '';
-        return /offline|failed to fetch|networkerror|load failed/i.test(message);
-    }
+            const plannedTotal = Math.round(metrics.plannedVisitsTotal || 0);
 
-    applyDashboardPayload(payload) {
-        const metrics = payload?.metrics || {};
-        this.metrics = this.mapMetrics(metrics);
-        this.gamification = payload?.gamification || { ...EMPTY_GAMIFICATION };
-        this.rankings = payload?.rankings || { ...EMPTY_RANKINGS };
-        this.allAccountRows = (payload?.accountCoverageRows || []).map((row) => this.enrichAccountRow(row));
-        this.applyClassFilter();
-    }
-
-    mapMetrics(metrics) {
-        const byClassification = (metrics.byClassification || []).map((row) => {
-            const visitPct = Math.round(row.visitCoveragePercent || 0);
-            const customerPct = Math.round(row.customerCoveragePercent || 0);
-            const colors = CLASS_COLORS[row.classification] || {
-                accent: '#706e6b',
-                bg: 'rgba(112, 110, 107, 0.08)'
+            this.metrics = {
+                ...metrics,
+                visitCoveragePercentDisplay: Math.round(metrics.visitCoveragePercent || 0),
+                customerCoveragePercentDisplay: Math.round(metrics.customerCoveragePercent || 0),
+                rfPercentTotalDisplay: Math.round(metrics.rfPercentTotal || 0),
+                actualVisitsTotalDisplay: actualTotal,
+                targetVisitsTotalDisplay: targetTotal,
+                plannedVisitsTotalDisplay: plannedTotal,
+                remainingCallsDisplay: Math.round(metrics.remainingCalls || 0),
+                visitCountLabel: `${actualTotal}/${targetTotal}`,
+                visitPlannedLabel: `${plannedTotal} planned`,
+                customerCountLabel: `${visitedCount}/${totalAccounts}`,
+                rfCountLabel: `${rfCount}/${totalAccounts}`,
+                visitRingStroke: ringStroke(metrics.visitCoveragePercent),
+                customerRingStroke: ringStroke(metrics.customerCoveragePercent),
+                rfRingStroke: ringStroke(metrics.rfPercentTotal)
             };
-            return {
-                ...row,
-                visitCoveragePercentDisplay: visitPct,
-                customerCoveragePercentDisplay: customerPct,
-                rfPercentDisplay: Math.round(row.rfPercent || 0),
-                lfPercentDisplay: Math.round(row.lfPercent || 0),
-                progressStyle: `width: ${visitPct}%`,
-                tileStyle: `border-left: 4px solid ${colors.accent}; background: ${colors.bg}`
-            };
-        });
+            this.gamification = gamification;
+            this.rankings = rankings || { ...EMPTY_RANKINGS };
 
-        return {
-            ...metrics,
-            byClassification,
-            visitCoveragePercentDisplay: Math.round(metrics.visitCoveragePercent || 0),
-            customerCoveragePercentDisplay: Math.round(metrics.customerCoveragePercent || 0),
-            rfPercentTotalDisplay: Math.round(metrics.rfPercentTotal || 0),
-            visitRingStroke: ringStroke(metrics.visitCoveragePercent),
-            customerRingStroke: ringStroke(metrics.customerCoveragePercent),
-            rfRingStroke: ringStroke(metrics.rfPercentTotal)
-        };
+            this.allAccountRows = (rows || []).map((row) => this.enrichAccountRow(row));
+            this.applyClassFilter();
+
+            await putHomeMetrics(getUserHomeMetricsKey(Id), {
+                metrics: this.metrics,
+                gamification: this.gamification,
+                rankings: this.rankings,
+                allAccountRows: this.allAccountRows
+            });
+            }
+        } catch (e) {
+            const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
+            if (cached) {
+                this.applyCachedBundle(cached);
+            } else {
+            this.metrics = { ...EMPTY_METRICS };
+            this.gamification = { ...EMPTY_GAMIFICATION };
+            this.rankings = { ...EMPTY_RANKINGS };
+            this.allAccountRows = [];
+            this.classFilteredRows = [];
+            this.filteredAccountRows = [];
+            this.displayAccountRows = [];
+            this.searchDraft = '';
+            this.showErrorToast(e, 'Unable to load rep metrics.');
+            }
+        } finally {
+            this.isLoading = false;
+        }
     }
 
     applyCachedBundle(cached) {
@@ -863,7 +1048,9 @@ export default class FieldRepHomeMetrics extends LightningElement {
     }
 
     enrichAccountRow(row) {
-        const filterClass = normalizeClass(row.potentialityOnTarget || row.calculatedClassification);
+        const filterClass = normalizeClass(
+            row.hcpClassification || row.matrixRating || row.calculatedClassification
+        );
         const actual = Math.round(row.actualVisits || 0);
         const target = Math.round(row.targetVisits || 0);
         const visitPct = target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
@@ -891,12 +1078,17 @@ export default class FieldRepHomeMetrics extends LightningElement {
             statusClass,
             progressStyle: `width: ${visitPct}%`,
             gapDisplay: Math.round(row.visitGap || 0),
+            cityLine: [row.brickName, row.city].filter(Boolean).join(' · '),
             searchText: [
                 row.accountName,
                 row.specialty,
                 row.city,
                 row.frequencyStatus,
                 row.calculatedClassification,
+                row.hcpClassification,
+                row.recordTypeLabel,
+                row.accountSubtype,
+                row.brickName,
                 row.potential,
                 row.penetration,
                 row.isVisited ? 'visited' : 'not visited'
@@ -907,14 +1099,87 @@ export default class FieldRepHomeMetrics extends LightningElement {
         };
     }
 
+    whyForRow(row) {
+        const gap = Math.round(row.visitGap || 0);
+        const plan = row.callPlanLabel || '0 / 0';
+        switch (this.drillMode) {
+            case DRILL_MODES.REMAINING:
+                return gap > 0 ? `${gap} ${gap === 1 ? 'call' : 'calls'} still needed` : 'On target';
+            case DRILL_MODES.ACHIEVEMENT:
+                return gap > 0 ? `${plan} — behind plan` : 'On target';
+            case DRILL_MODES.CUSTOMER:
+                return row.isVisited ? 'Visited this cycle' : 'Not visited this cycle';
+            case DRILL_MODES.RF:
+                if (row.frequencyStatus === 'LCF') {
+                    return `Below frequency (${plan})`;
+                }
+                return row.frequencyStatus ? `${row.frequencyStatus} · ${plan}` : plan;
+            default:
+                if (gap > 0) {
+                    return `${gap} remaining`;
+                }
+                return row.isVisited ? 'Visited' : 'Not visited';
+        }
+    }
+
+    decorateDisplayRow(row) {
+        const gap = Math.round(row.visitGap || 0);
+        const isPlanning = this.planningAccountId === row.accountId;
+        return {
+            ...row,
+            whyLabel: this.whyForRow(row),
+            remainingLabel: String(Math.max(0, gap)),
+            remainingClass: gap > 0 ? 'remaining-yes' : 'remaining-zero',
+            planLabel: isPlanning ? 'Planning…' : 'Plan visit',
+            planDisabled: isPlanning
+        };
+    }
+
     applyClassFilter() {
         const filter = this.selectedFilter || 'All';
-        this.classFilteredRows =
+        let rows =
             filter === 'All'
                 ? this.allAccountRows
                 : this.allAccountRows.filter((row) => row.filterClass === filter);
+
+        rows = this.applyRecordFilters(rows);
+        rows = this.applyDrillFilter(rows);
+        this.classFilteredRows = rows;
         this.currentPage = 1;
         this.applySearch();
+    }
+
+    applyRecordFilters(rows) {
+        let result = [...(rows || [])];
+        if (this.selectedRecordType && this.selectedRecordType !== 'All') {
+            result = result.filter((row) => row.recordTypeDeveloperName === this.selectedRecordType);
+        }
+        if (this.selectedSubtype && this.selectedSubtype !== 'All') {
+            result = result.filter((row) => row.accountSubtype === this.selectedSubtype);
+        }
+        if (this.selectedHcpClassification && this.selectedHcpClassification !== 'All') {
+            result = result.filter(
+                (row) => (row.hcpClassification || '').toUpperCase() === this.selectedHcpClassification.toUpperCase()
+            );
+        }
+        if (this.selectedBrick && this.selectedBrick !== 'All') {
+            result = result.filter((row) => row.brickId === this.selectedBrick);
+        }
+        return result;
+    }
+
+    applyDrillFilter(rows) {
+        switch (this.drillMode) {
+            case DRILL_MODES.ACHIEVEMENT:
+            case DRILL_MODES.REMAINING:
+                return rows.filter((row) => (row.visitGap || 0) > 0);
+            case DRILL_MODES.CUSTOMER:
+                return rows.filter((row) => !row.isVisited);
+            case DRILL_MODES.RF:
+                return rows.filter((row) => row.frequencyStatus === 'LCF' || (row.visitGap || 0) > 0);
+            default:
+                return rows;
+        }
     }
 
     applySearch() {
@@ -968,7 +1233,9 @@ export default class FieldRepHomeMetrics extends LightningElement {
             this.sortDirection
         );
         const start = (this.currentPage - 1) * ACCOUNT_PAGE_SIZE;
-        this.displayAccountRows = sortedRows.slice(start, start + ACCOUNT_PAGE_SIZE);
+        this.displayAccountRows = sortedRows
+            .slice(start, start + ACCOUNT_PAGE_SIZE)
+            .map((row) => this.decorateDisplayRow(row));
     }
 
     handleSort(event) {
@@ -1013,6 +1280,169 @@ export default class FieldRepHomeMetrics extends LightningElement {
         this.applyClassFilter();
     }
 
+    applyDrillSort(mode) {
+        const next = DRILL_SORT[mode];
+        if (!next) {
+            this.sortField = 'gap';
+            this.sortDirection = 'desc';
+            return;
+        }
+        this.sortField = next.field;
+        this.sortDirection = next.direction;
+    }
+
+    scrollToDrill() {
+        window.setTimeout(() => {
+            const panel = this.template.querySelector('.accounts-section');
+            panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 0);
+    }
+
+    handleKpiDrill(event) {
+        const kpiId = event?.currentTarget?.dataset?.kpiId;
+        if (!kpiId) {
+            return;
+        }
+        const modeMap = {
+            visit: DRILL_MODES.ACHIEVEMENT,
+            customer: DRILL_MODES.CUSTOMER,
+            rf: DRILL_MODES.RF,
+            remaining: DRILL_MODES.REMAINING
+        };
+        const nextMode = modeMap[kpiId];
+        if (!nextMode) {
+            return;
+        }
+        const turningOff = this.drillMode === nextMode;
+        this.drillMode = turningOff ? DRILL_MODES.ALL : nextMode;
+        if (!turningOff) {
+            this.applyDrillSort(nextMode);
+        }
+        this.applyClassFilter();
+        if (!turningOff) {
+            this.scrollToDrill();
+        }
+    }
+
+    handleClassDrill(event) {
+        const classKey = event?.currentTarget?.dataset?.classKey;
+        if (!classKey) {
+            return;
+        }
+        const turningOff = this.selectedFilter === classKey;
+        this.selectedFilter = turningOff ? 'All' : classKey;
+        if (!turningOff && this.drillMode === DRILL_MODES.ALL) {
+            this.applyDrillSort(DRILL_MODES.REMAINING);
+        }
+        this.applyClassFilter();
+        if (!turningOff) {
+            this.scrollToDrill();
+        }
+    }
+
+    handleRecordTypeChange(event) {
+        this.selectedRecordType = event.detail.value;
+        this.applyClassFilter();
+    }
+
+    handleSubtypeChange(event) {
+        this.selectedSubtype = event.detail.value;
+        this.applyClassFilter();
+    }
+
+    handleHcpClassificationChange(event) {
+        this.selectedHcpClassification = event.detail.value;
+        this.applyClassFilter();
+    }
+
+    handleBrickChange(event) {
+        this.selectedBrick = event.detail.value;
+        this.applyClassFilter();
+    }
+
+    handleClearDrill() {
+        this.drillMode = DRILL_MODES.ALL;
+        this.selectedFilter = 'All';
+        this.sortField = 'name';
+        this.sortDirection = 'asc';
+        this.applyClassFilter();
+    }
+
+    handleToggleMoreFilters() {
+        this.showMoreFilters = !this.showMoreFilters;
+    }
+
+    handleOpenPlanner() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: PLANNER_TAB_API }
+        });
+    }
+
+    async handlePlanVisit(event) {
+        event?.stopPropagation?.();
+        const accountId = event?.currentTarget?.dataset?.accountId;
+        if (!accountId || this.planningAccountId) {
+            return;
+        }
+
+        this.planningAccountId = accountId;
+        this.updatePage();
+        try {
+            const start = clampToWorkingHours(ceilToNextSlot(new Date()));
+            const end = new Date(start.getTime() + 60 * 60000);
+
+            if (isOfflineMode()) {
+                const clientVisitKey = newClientKey('visit');
+                await queueOfflineAction({
+                    actionType: 'UPSERT_VISIT',
+                    clientVisitKey,
+                    clientActionKey: clientVisitKey,
+                    payloadJson: JSON.stringify({
+                        accountId,
+                        startDateTime: start.toISOString(),
+                        endDateTime: end.toISOString(),
+                        status: 'Draft',
+                        visitType: 'Planned (Automatically)'
+                    })
+                });
+                this.showToast(
+                    'Queued offline',
+                    'Draft visit will be created when you are back online.',
+                    'success'
+                );
+                return;
+            }
+
+            const created = await upsertVisit({
+                visitId: null,
+                accountId,
+                startDateTime: start.toISOString(),
+                endDateTime: end.toISOString(),
+                status: 'Draft',
+                visitType: 'Planned (Automatically)',
+                cancellationReason: null,
+                zetaProjectId: null,
+                visitObjective: null
+            });
+
+            this.showToast('Draft created', 'Opening the visit so you can finish planning.', 'success');
+            this[NavigationMixin.Navigate]({
+                type: 'standard__recordPage',
+                attributes: { recordId: created.id, objectApiName: 'Visit__c', actionName: 'view' }
+            });
+        } catch (e) {
+            this.showErrorToast(e, 'Unable to create a draft visit.');
+        } finally {
+            this.planningAccountId = null;
+            this.updatePage();
+        }
+    }
+
+    handleStopHelpClick(event) {
+        event.stopPropagation();
+    }
+
     handleLeaderboardScope(event) {
         const scope = event?.currentTarget?.dataset?.scope;
         if (!scope || scope === this.leaderboardScope) {
@@ -1052,7 +1482,19 @@ export default class FieldRepHomeMetrics extends LightningElement {
         if (!accountId) {
             return;
         }
-        window.open(`/lightning/r/Account/${accountId}/view`, '_self');
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: { recordId: accountId, objectApiName: 'Account', actionName: 'view' }
+        });
+    }
+
+    showToast(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+    }
+
+    showErrorToast(error, fallbackMessage) {
+        const message = this.reduceError(error) || fallbackMessage;
+        this.dispatchEvent(new ShowToastEvent({ title: 'Error', message, variant: 'error' }));
     }
 
     reduceError(error) {
@@ -1062,6 +1504,10 @@ export default class FieldRepHomeMetrics extends LightningElement {
         if (typeof error === 'string') {
             return error;
         }
-        return error?.message || null;
+        return (
+            error?.body?.message ||
+            error?.message ||
+            (Array.isArray(error?.body) ? error.body.map((e) => e.message).join(', ') : null)
+        );
     }
 }

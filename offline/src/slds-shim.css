@@ -96,9 +96,26 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
     border-top: 1px solid rgba(0, 0, 0, 0.08);
     background: #f8fafc;
+}
+
+.visit-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: flex-end;
+    align-items: stretch;
+}
+
+.visit-modal-actions .slds-button,
+.visit-modal-btn .slds-button {
+    min-height: 44px;
+    height: 44px;
+    margin: 0 !important;
 }
 
 .slds-p-around_medium {
@@ -289,22 +306,26 @@
     min-width: 0;
 }
 
-/* Buttons */
+/* Buttons — iOS-like equal height chips */
 .slds-button {
     appearance: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    border-radius: 0.25rem;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.8125rem;
+    border-radius: 12px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 0.9rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.2;
     cursor: pointer;
     text-decoration: none;
+    box-sizing: border-box;
     transition: background-color 0.15s, border-color 0.15s;
     user-select: none;
+    margin: 0;
 }
 
 .slds-button_icon-text {
@@ -343,8 +364,19 @@
     background: #8a0312;
 }
 
+.slds-button_destructive-text {
+    border: 1px solid #f2c0bd;
+    background: #fff;
+    color: #c23934;
+}
+
+.slds-button_destructive-text:hover {
+    background: #fef1ee;
+    border-color: #eaaba7;
+}
+
 .slds-button_icon {
-    padding: 0.25rem 0.45rem;
+    padding: 0 0.65rem;
     font-size: 0.75rem;
 }
 

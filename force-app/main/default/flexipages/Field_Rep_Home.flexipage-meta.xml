@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Pharmaceuticals field rep home — single-column widget stack (CLM, performance, messages, today plan, NBC, reports).</description>
+    <description>Pharmaceuticals field rep home — messages first, then performance, today plan, NBC, reports.</description>
     <flexiPageRegions>
         <mode>Replace</mode>
         <name>sidebar</name>
@@ -9,20 +9,26 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
+                <componentName>pendingPaymentAlert</componentName>
+                <identifier>pendingPaymentAlert</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
                 <componentName>fieldRepHomeClmPrefetch</componentName>
                 <identifier>fieldRepHomeClmPrefetch</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>fieldRepHomeMetrics</componentName>
-                <identifier>fieldRepHomeMetrics</identifier>
+                <componentName>homeOfficeMessages</componentName>
+                <identifier>homeOfficeMessages</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>homeOfficeMessages</componentName>
-                <identifier>homeOfficeMessages</identifier>
+                <componentName>fieldRepHomeMetrics</componentName>
+                <identifier>fieldRepHomeMetrics</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>

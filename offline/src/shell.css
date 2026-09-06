@@ -1082,6 +1082,91 @@ body {
     background: #f3f3f3;
 }
 
+.record-modal-host {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: #f3f3f3;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.coaching-path {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+}
+
+.coaching-path-step {
+    font-size: 0.75rem;
+    font-weight: 650;
+    color: #706e6b;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: #f3f3f3;
+}
+
+.coaching-path-step.is-complete {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.coaching-path-step.is-current {
+    background: #0176d3;
+    color: #fff;
+}
+
+.coaching-path-sep {
+    color: #c9c9c9;
+    font-weight: 700;
+}
+
+.coaching-record-tabs {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.coaching-record-tab {
+    appearance: none;
+    border: 1px solid #c9c9c9;
+    background: #fff;
+    color: #032d60;
+    border-radius: 999px;
+    padding: 0.45rem 0.95rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.coaching-record-tab.is-active {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #fff;
+}
+
+.coaching-record-pane {
+    flex: 1;
+    min-height: 0;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    overflow: auto;
+    padding: 0.75rem;
+}
+
+.coaching-detail-frame {
+    width: 100%;
+    min-height: 70vh;
+    border: 0;
+}
+
 body.record-modal-open {
     overflow: hidden;
 }
