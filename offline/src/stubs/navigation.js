@@ -23,15 +23,41 @@ function navigateInApp(recordId, objectApiName, actionName) {
     }
 }
 
+function navigateTab(apiName, state = {}) {
+    if (typeof window === 'undefined' || !apiName) return;
+    const detail = { apiName, ...(state || {}) };
+    window.dispatchEvent(new CustomEvent('zeta-navigate-tab', { detail }));
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'zeta-navigate-tab', ...detail }, '*');
+    }
+}
+
 export const NavigationMixin = (Base) => {
     class Mixed extends Base {
         [NavigationMixin.Navigate](pageRef) {
             console.log('[NavigationMixin.Navigate]', pageRef);
+            const type = pageRef?.type || '';
             const recordId = pageRef?.attributes?.recordId;
+            const actionName = pageRef?.attributes?.actionName || 'view';
+            const objectApiName = objectFromPageRef(pageRef);
+
+            if (type === 'standard__navItemPage' || type === 'standard__app') {
+                navigateTab(pageRef?.attributes?.apiName || pageRef?.attributes?.appTarget, {
+                    accountId: pageRef?.state?.c__accountId || pageRef?.state?.accountId || null
+                });
+                return;
+            }
+
+            if (type === 'standard__objectPage' && actionName === 'new') {
+                // Offline: open a lightweight create flow via tab navigation event.
+                navigateTab('Accounts_Tab', { action: 'newAccount', objectApiName });
+                return;
+            }
+
             if (!recordId) {
                 return;
             }
-            navigateInApp(recordId, objectFromPageRef(pageRef), pageRef?.attributes?.actionName);
+            navigateInApp(recordId, objectApiName, actionName);
         }
         [NavigationMixin.GenerateUrl](pageRef) {
             const recordId = pageRef?.attributes?.recordId;

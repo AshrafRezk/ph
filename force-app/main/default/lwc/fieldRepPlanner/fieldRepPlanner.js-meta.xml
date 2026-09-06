@@ -2,7 +2,7 @@
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>67.0</apiVersion>
     <isExposed>true</isExposed>
-    <masterLabel>Field Rep Planner</masterLabel>
+    <masterLabel>Planner</masterLabel>
     <description>Weekly calendar planner with account drag-and-drop visits, TOT blocks, and OpenStreetMap route view.</description>
     <targets>
         <target>lightning__AppPage</target>

@@ -365,7 +365,7 @@ export function renderAccountsTab(opts: {
             )}
             ${!collections.length
               ? html`<span class="collections-empty-hint"
-                  >Create lists in Field Rep Planner</span
+                  >Create lists in Planner</span
                 >`
               : nothing}
           </div>

@@ -717,7 +717,9 @@ export default class AccountsTabOceList extends LightningElement {
         }
     }
 
-    handleCloseHealthModal() {
+    handleCloseHealthModal(event) {
+        event?.stopPropagation?.();
+        event?.preventDefault?.();
         this.healthInsightToken += 1;
         this.showHealthModal = false;
         this.healthModalRow = null;

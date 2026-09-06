@@ -7,99 +7,32 @@
                     type="search"
                     label="Search accounts"
                     variant="label-hidden"
-                    placeholder="Search by name, number, specialty, city..."
+                    placeholder="Search by name, specialty, brick, city…"
                     value={searchTerm}
                     onchange={handleSearchChange}
                     onkeyup={handleSearchKeyUp}
                 ></lightning-input>
 
-                <template if:false={isCompactView}>
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Plan cycle"
-                        variant="label-hidden"
-                        value={scope}
-                        options={scopeOptions}
-                        onchange={handleScopeChange}
-                    ></lightning-combobox>
-
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Record type"
-                        variant="label-hidden"
-                        value={recordType}
-                        options={recordTypeOptions}
-                        onchange={handleRecordTypeChange}
-                    ></lightning-combobox>
-
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Classification"
-                        variant="label-hidden"
-                        value={classification}
-                        options={classificationOptions}
-                        onchange={handleClassificationChange}
-                    ></lightning-combobox>
-
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Specialty"
-                        variant="label-hidden"
-                        value={specialtyFilter}
-                        options={specialtyOptions}
-                        onchange={handleSpecialtyChange}
-                    ></lightning-combobox>
-
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Brick"
-                        variant="label-hidden"
-                        value={brickId}
-                        options={brickOptions}
-                        onchange={handleBrickChange}
-                    ></lightning-combobox>
-
-                    <lightning-combobox
-                        class="toolbar-filter"
-                        label="Sort by"
-                        variant="label-hidden"
-                        value={sortBy}
-                        options={sortOptions}
-                        onchange={handleSortChange}
-                    ></lightning-combobox>
-                </template>
-
                 <div class="slds-col_bump-left toolbar-actions">
-                    <template if:true={isCompactView}>
-                        <lightning-button-icon
-                            icon-name="utility:add"
-                            variant="brand"
-                            alternative-text="New Account"
-                            title="New Account"
-                            onclick={handleNewAccount}
-                        ></lightning-button-icon>
-                    </template>
-                    <template if:false={isCompactView}>
-                        <lightning-button
-                            label="New Account"
-                            icon-name="utility:add"
-                            variant="brand"
-                            title="New Account"
-                            onclick={handleNewAccount}
-                        ></lightning-button>
-                        <lightning-button
-                            label="Export CSV"
-                            icon-name="utility:download"
-                            onclick={handleExportCsv}
-                        ></lightning-button>
-                    </template>
-                    <template if:true={isCompactView}>
-                        <lightning-button-icon
-                            icon-name="utility:filterList"
-                            alternative-text="Show filters"
-                            onclick={handleToggleFilters}
-                        ></lightning-button-icon>
-                    </template>
+                    <lightning-button
+                        label="New Account"
+                        icon-name="utility:add"
+                        variant="brand"
+                        title="New Account"
+                        onclick={handleNewAccount}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Export CSV"
+                        icon-name="utility:download"
+                        onclick={handleExportCsv}
+                    ></lightning-button>
+                    <lightning-button-icon
+                        class="toolbar-funnel"
+                        icon-name="utility:filterList"
+                        alternative-text="Filters"
+                        title="Filters"
+                        onclick={handleToggleFilters}
+                    ></lightning-button-icon>
                     <lightning-button-icon
                         icon-name="utility:refresh"
                         alternative-text="Refresh"
@@ -139,7 +72,7 @@
                         </button>
                     </template>
                     <template if:false={hasPlannerCollections}>
-                        <span class="collections-empty-hint">Create lists in Field Rep Planner</span>
+                        <span class="collections-empty-hint">Create lists in Planner</span>
                     </template>
                 </div>
             </div>
@@ -170,7 +103,6 @@
             </template>
 
             <template if:true={isListView}>
-                <template if:true={isCompactView}>
                     <div class="oce-shell">
                         <aside class={sidebarClass}>
                             <div class="oce-sidebar-inner">
@@ -253,6 +185,22 @@
                                     </div>
                                     <div class="oce-filter-field">
                                         <lightning-combobox
+                                            label="Specialty"
+                                            value={specialtyFilter}
+                                            options={specialtyOptions}
+                                            onchange={handleSpecialtyChange}
+                                        ></lightning-combobox>
+                                    </div>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
+                                            label="Brick"
+                                            value={brickId}
+                                            options={brickOptions}
+                                            onchange={handleBrickChange}
+                                        ></lightning-combobox>
+                                    </div>
+                                    <div class="oce-filter-field">
+                                        <lightning-combobox
                                             label="Sort by"
                                             value={sortBy}
                                             options={sortOptions}
@@ -278,10 +226,11 @@
 
                         <section class="oce-main">
                             <c-accounts-tab-oce-list
-                                rows={rows}
+                                rows={displayRowsWithMatch}
                                 is-loading={isLoading}
                                 sort-by={sortBy}
                                 sort-direction={sortDirection}
+                                search-term={searchTerm}
                                 onrowaction={handleOceRowAction}
                                 oncolumnsort={handleColumnSort}
                             ></c-accounts-tab-oce-list>
@@ -310,43 +259,6 @@
                             </template>
                         </section>
                     </div>
-                </template>
-
-                <template if:false={isCompactView}>
-                    <div class="accounts-list-wrap">
-                        <c-accounts-tab-oce-list
-                            rows={rows}
-                            is-loading={isLoading}
-                            sort-by={sortBy}
-                            sort-direction={sortDirection}
-                            onrowaction={handleOceRowAction}
-                            oncolumnsort={handleColumnSort}
-                        ></c-accounts-tab-oce-list>
-                        <template if:true={showEmptyState}>
-                            <p class="accounts-empty-state">No accounts match the current filters.</p>
-                        </template>
-                        <template if:true={showPagination}>
-                            <div class="pagination-bar">
-                                <span class="pagination-range">{rangeLabel}</span>
-                                <div class="pagination-controls">
-                                    <button
-                                        type="button"
-                                        class="page-btn"
-                                        onclick={handlePreviousPage}
-                                        disabled={isPrevDisabled}
-                                    >Previous</button>
-                                    <span class="page-label">{pageLabel}</span>
-                                    <button
-                                        type="button"
-                                        class="page-btn"
-                                        onclick={handleNextPage}
-                                        disabled={isNextDisabled}
-                                    >Next</button>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </template>
             </template>
 
             <template if:true={isMapView}>

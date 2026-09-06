@@ -68,6 +68,9 @@
                                                 title={row.accountName}
                                             >{row.accountName}</a>
                                             <p class="oce-meta-line" title={row.metaLine}>{row.metaLine}</p>
+                                            <template if:true={row.matchReason}>
+                                                <p class="oce-match-reason">{row.matchReason}</p>
+                                            </template>
                                         </div>
                                     </div>
                                 </td>
@@ -177,6 +180,7 @@
                             type="button"
                             class="health-modal-close"
                             title="Close"
+                            aria-label="Close"
                             onclick={handleCloseHealthModal}
                         >
                             ×

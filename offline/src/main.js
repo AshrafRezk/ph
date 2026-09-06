@@ -15,12 +15,19 @@ import VisitCallShell from 'c/visitCallShell';
 import MyLearning from 'c/myLearning';
 import CoachingEventEvaluation from 'c/coachingEventEvaluation';
 import AccountAffiliationNetwork from 'c/accountAffiliationNetwork';
+import AccountStageAssistant from 'c/accountStageAssistant';
+import AccountHcpProductRoi from 'c/accountHcpProductRoi';
+import AccountRatingsPanel from 'c/accountRatingsPanel';
+import AccountVisitInsightsPanel from 'c/accountVisitInsightsPanel';
 import PendingPaymentAlert from 'c/pendingPaymentAlert';
 import OfflineAppBanner from 'c/offlineAppBanner';
 import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
 import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
 import { plannerApiFetch } from './apex/restHelper';
 import { setupToastListener } from './toastManager';
+import { mountChatterView as renderChatterView } from './views/chatterView';
+import { mountReportsView as renderReportsView } from './views/reportsView';
+import { mountDashboardsView as renderDashboardsView } from './views/dashboardsView';
 import './slds-shim.css';
 import './shell.css';
 
@@ -947,6 +954,24 @@ function mountMyLearningView() {
     }
 }
 
+function mountChatterPanel() {
+    const root = document.getElementById('view-chatter');
+    if (!root) return;
+    renderChatterView(root);
+}
+
+function mountReportsPanel() {
+    const root = document.getElementById('view-reports');
+    if (!root) return;
+    renderReportsView(root);
+}
+
+function mountDashboardsPanel() {
+    const root = document.getElementById('view-dashboards');
+    if (!root) return;
+    renderDashboardsView(root);
+}
+
 // Map app tab keys (UI API developerName) to their PWA view panel + renderer.
 // Entity tabs (object list views) use the generic list page via mountListView.
 // Tabs not handled render the "not available" in-panel message.
@@ -1044,12 +1069,59 @@ function handleRecordNavigation(recordId, objectApiName) {
         openVisitCall(recordId);
         return;
     }
+    if (/^report$/i.test(obj) || /^dashboard$/i.test(obj)) {
+        openAnalyticsRecord(recordId, obj);
+        return;
+    }
     openRecordModal(recordId, obj);
+}
+
+function openAnalyticsRecord(recordId, objectApiName) {
+    const isReport = /^report$/i.test(String(objectApiName || ''));
+    const keys = isReport ? ['standard-report', 'standard-Report'] : ['standard-Dashboard'];
+    const matched = appTabs.find((tab) => keys.includes(tab.key));
+    currentTab = (matched && matched.key) || keys[0];
+    if (currentOpenApp) persistOpenWorkspace();
+    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
+        const active = keys.includes(btn.dataset.tab);
+        btn.classList.toggle('nav-tab-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
+    const panelId = isReport ? 'view-reports' : 'view-dashboards';
+    const root = document.getElementById(panelId);
+    if (root) root.classList.add('active');
+    if (isReport) {
+        renderReportsView(root, { recordId });
+    } else {
+        renderDashboardsView(root, { recordId });
+    }
 }
 
 window.addEventListener('zeta-navigate-record', (event) => {
     const detail = (event && event.detail) || {};
     handleRecordNavigation(detail.recordId, detail.objectApiName);
+});
+
+window.addEventListener('zeta-navigate-tab', (event) => {
+    const detail = (event && event.detail) || {};
+    const apiName = detail.apiName || detail.tab || '';
+    if (!apiName) return;
+    if (detail.accountId) {
+        try {
+            sessionStorage.setItem('zeta.pwa.planAccountId', String(detail.accountId));
+        } catch (_e) {
+            // ignore
+        }
+    }
+    if (detail.action === 'newAccount') {
+        try {
+            sessionStorage.setItem('zeta.pwa.openNewAccount', '1');
+        } catch (_e) {
+            // ignore
+        }
+    }
+    switchTab(apiName);
 });
 
 // The entity list runs in an iframe; it posts here to open Visit records
@@ -1063,6 +1135,10 @@ window.addEventListener('message', (event) => {
     }
     if (data.type === 'zeta-navigate-record' && data.recordId) {
         handleRecordNavigation(data.recordId, data.objectApiName || data.object);
+        return;
+    }
+    if (data.type === 'zeta-navigate-tab' && data.apiName) {
+        window.dispatchEvent(new CustomEvent('zeta-navigate-tab', { detail: data }));
         return;
     }
     if (data.type === 'open-record-modal' && data.recordId) {
@@ -1081,7 +1157,14 @@ const APP_TAB_VIEWS = {
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
     Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView },
-    My_Learning: { panel: 'view-learning', mount: mountMyLearningView }
+    My_Learning: { panel: 'view-learning', mount: mountMyLearningView },
+    'standard-Chatter': { panel: 'view-chatter', mount: mountChatterPanel },
+    Chatter: { panel: 'view-chatter', mount: mountChatterPanel },
+    'standard-Dashboard': { panel: 'view-dashboards', mount: mountDashboardsPanel },
+    Dashboard: { panel: 'view-dashboards', mount: mountDashboardsPanel },
+    'standard-report': { panel: 'view-reports', mount: mountReportsPanel },
+    'standard-Report': { panel: 'view-reports', mount: mountReportsPanel },
+    Report: { panel: 'view-reports', mount: mountReportsPanel }
 };
 
 function isEntityTab(tab) {
@@ -1112,16 +1195,16 @@ function switchTab(tab) {
         panel.classList.remove('active');
     });
 
-    if (isEntityTab(tab)) {
-        mountListView();
-        return;
-    }
-
     const view = APP_TAB_VIEWS[tab];
     if (view) {
         const panel = document.getElementById(view.panel);
         panel?.classList.add('active');
         view.mount();
+        return;
+    }
+
+    if (isEntityTab(tab)) {
+        mountListView();
         return;
     }
 
@@ -1174,6 +1257,9 @@ function unmountApp() {
     const clmRoot = document.getElementById('view-clm');
     const learningRoot = document.getElementById('view-learning');
     const visitRoot = document.getElementById('view-visitcall');
+    const chatterRoot = document.getElementById('view-chatter');
+    const reportsRoot = document.getElementById('view-reports');
+    const dashboardsRoot = document.getElementById('view-dashboards');
     if (homeRoot) homeRoot.innerHTML = '';
     if (accountsRoot) accountsRoot.innerHTML = '';
     if (plannerRoot) plannerRoot.innerHTML = '';
@@ -1182,6 +1268,9 @@ function unmountApp() {
     if (clmRoot) clmRoot.innerHTML = '';
     if (learningRoot) learningRoot.innerHTML = '';
     if (visitRoot) visitRoot.innerHTML = '';
+    if (chatterRoot) chatterRoot.innerHTML = '';
+    if (reportsRoot) reportsRoot.innerHTML = '';
+    if (dashboardsRoot) dashboardsRoot.innerHTML = '';
     currentTab = HOME_TAB_KEY;
     currentOpenApp = null;
 }
@@ -1623,6 +1712,15 @@ function defaultTabIcon(tabKey) {
     if (exact === 'Coaching_Event__c' || key.includes('coach')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
     }
+    if (exact === 'standard-Chatter' || key.includes('chatter')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 4v2h12V8H6zm0 4v2h8v-2H6z"/></svg>`;
+    }
+    if (exact === 'standard-Dashboard' || key.includes('dashboard')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>`;
+    }
+    if (exact === 'standard-report' || exact === 'standard-Report' || key.includes('report')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 3h10l4 4v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm9 1.5V8h3.5L14 4.5zM7 12h10v2H7v-2zm0 4h10v2H7v-2zM7 8h5v2H7V8z"/></svg>`;
+    }
     if (exact === 'Request_Time_Off' || key.includes('time') || key.includes('off')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5L21 16z"/></svg>`;
     }
@@ -1834,57 +1932,74 @@ function mountAccountRecord(recordId) {
     host.innerHTML = '';
     if (title) title.textContent = 'Account';
 
+    const stageHost = document.createElement('div');
+    stageHost.className = 'account-record-stage';
+    host.appendChild(stageHost);
+    try {
+        const stage = createElement('c-account-stage-assistant', { is: AccountStageAssistant });
+        stage.recordId = recordId;
+        stageHost.appendChild(stage);
+    } catch (err) {
+        stageHost.hidden = true;
+        console.warn('[Account] stage assistant mount failed', err);
+    }
+
+    const tabDefs = [
+        { id: 'details', label: 'Details' },
+        { id: 'affiliations', label: 'Affiliations' },
+        { id: 'apm', label: 'APM' },
+        { id: 'ratings', label: 'Ratings' },
+        { id: 'insights', label: 'Visit Insights' }
+    ];
     const tabs = document.createElement('div');
     tabs.className = 'coaching-record-tabs account-record-tabs';
-    const detailBtn = document.createElement('button');
-    detailBtn.type = 'button';
-    detailBtn.className = 'coaching-record-tab is-active';
-    detailBtn.textContent = 'Details';
-    const affBtn = document.createElement('button');
-    affBtn.type = 'button';
-    affBtn.className = 'coaching-record-tab';
-    affBtn.textContent = 'Affiliations';
-    tabs.appendChild(detailBtn);
-    tabs.appendChild(affBtn);
-    host.appendChild(tabs);
+    const panes = {};
+    const buttons = {};
+    tabDefs.forEach((def, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `coaching-record-tab${index === 0 ? ' is-active' : ''}`;
+        btn.textContent = def.label;
+        tabs.appendChild(btn);
+        buttons[def.id] = btn;
 
-    const detailPane = document.createElement('div');
-    detailPane.className = 'coaching-record-pane';
-    const affPane = document.createElement('div');
-    affPane.className = 'coaching-record-pane';
-    affPane.hidden = true;
-    host.appendChild(detailPane);
-    host.appendChild(affPane);
+        const pane = document.createElement('div');
+        pane.className = 'coaching-record-pane';
+        pane.hidden = index !== 0;
+        host.appendChild(pane);
+        panes[def.id] = pane;
+    });
+    host.insertBefore(tabs, panes.details);
 
     const detailFrame = document.createElement('iframe');
     detailFrame.className = 'coaching-detail-frame';
     detailFrame.title = 'Account details';
     detailFrame.src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent('Account')}`;
-    detailPane.appendChild(detailFrame);
+    panes.details.appendChild(detailFrame);
 
-    try {
-        const network = createElement('c-account-affiliation-network', {
-            is: AccountAffiliationNetwork
+    const mountLwc = (pane, tag, Ctor, emptyTitle) => {
+        try {
+            const el = createElement(tag, { is: Ctor });
+            el.recordId = recordId;
+            pane.appendChild(el);
+        } catch (err) {
+            pane.innerHTML = `<div class="unsupported-message"><h2>${emptyTitle}</h2><p>Could not load this panel offline.</p></div>`;
+            console.warn(`[Account] ${emptyTitle} mount failed`, err);
+        }
+    };
+    mountLwc(panes.affiliations, 'c-account-affiliation-network', AccountAffiliationNetwork, 'Affiliations');
+    mountLwc(panes.apm, 'c-account-hcp-product-roi', AccountHcpProductRoi, 'APM');
+    mountLwc(panes.ratings, 'c-account-ratings-panel', AccountRatingsPanel, 'Ratings');
+    mountLwc(panes.insights, 'c-account-visit-insights-panel', AccountVisitInsightsPanel, 'Visit Insights');
+
+    const activate = (id) => {
+        Object.keys(buttons).forEach((key) => {
+            buttons[key].classList.toggle('is-active', key === id);
+            panes[key].hidden = key !== id;
         });
-        network.recordId = recordId;
-        affPane.appendChild(network);
-    } catch (err) {
-        affPane.innerHTML =
-            '<div class="unsupported-message"><h2>Affiliations</h2><p>Could not load the affiliation network offline.</p></div>';
-        console.warn('[Account] affiliation network mount failed', err);
-    }
-
-    detailBtn.addEventListener('click', () => {
-        detailBtn.classList.add('is-active');
-        affBtn.classList.remove('is-active');
-        detailPane.hidden = false;
-        affPane.hidden = true;
-    });
-    affBtn.addEventListener('click', () => {
-        affBtn.classList.add('is-active');
-        detailBtn.classList.remove('is-active');
-        affPane.hidden = false;
-        detailPane.hidden = true;
+    };
+    Object.keys(buttons).forEach((id) => {
+        buttons[id].addEventListener('click', () => activate(id));
     });
 }
 

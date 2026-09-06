@@ -414,10 +414,42 @@ function renderRecordFromUi(uiGroups, id) {
         fieldDisp('Name') || fieldVal('Name') ||
         `${fieldVal('FirstName') || ''} ${fieldVal('LastName') || ''}`.trim() || id;
 
+    const highlightBits = [];
+    const subtype = fieldDisp('Subtype__c') || fieldVal('Subtype__c') || fieldDisp('Professional_Designation__c');
+    const specialty1 = fieldDisp('Specialty_1__c') || fieldVal('Specialty_1__c');
+    const specialty2 = fieldDisp('Specialty_2__c') || fieldVal('Specialty_2__c');
+    const phone =
+        fieldDisp('Phone') ||
+        fieldVal('Phone') ||
+        fieldDisp('PersonMobilePhone') ||
+        fieldVal('PersonMobilePhone') ||
+        fieldDisp('Maps_Phone_Number__c');
+    if (subtype) highlightBits.push(`Subtype: ${subtype}`);
+    if (specialty1) highlightBits.push(`Specialty: ${specialty1}`);
+    if (specialty2) highlightBits.push(`Specialty 2: ${specialty2}`);
+    if (phone && phone !== '—') highlightBits.push(`Phone: ${phone}`);
+
     const subtitleParts = [];
+    if (highlightBits.length) subtitleParts.push(highlightBits.join(' · '));
     if (fieldDisp('CreatedDate')) subtitleParts.push(`Created ${fieldDisp('CreatedDate')}`);
     if (fieldDisp('LastModifiedDate')) subtitleParts.push(`Updated ${fieldDisp('LastModifiedDate')}`);
     el('record-subtitle').textContent = subtitleParts.length ? subtitleParts.join(' · ') : '—';
+
+    let highlightHost = el('record-highlights');
+    if (!highlightHost) {
+        highlightHost = document.createElement('div');
+        highlightHost.id = 'record-highlights';
+        highlightHost.className = 'record-highlights';
+        const titleEl = el('record-title');
+        titleEl?.parentElement?.insertBefore(highlightHost, titleEl.nextSibling);
+    }
+    highlightHost.innerHTML = '';
+    highlightBits.forEach((bit) => {
+        const chip = document.createElement('span');
+        chip.className = 'record-highlight-chip';
+        chip.textContent = bit;
+        highlightHost.appendChild(chip);
+    });
 
     renderGroups(uiGroups.groups, '');
 

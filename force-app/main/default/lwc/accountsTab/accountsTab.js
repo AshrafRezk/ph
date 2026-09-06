@@ -1252,31 +1252,85 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
 
   async handleExportCsv() {
     try {
-      const csv = await exportAccountsCsv({
-        scope: this.scope,
-        searchTerm: (this.searchTerm || '').trim() || null,
-        recordTypeDeveloperName: this.recordType,
-        classification: this.classification === FILTER_ALL ? null : this.classification,
-        sortBy: this.sortBy,
-        sortDirection: this.sortDirection,
-        monthStart: null,
-        contextUserId: null,
-        brickId: this.brickId === FILTER_ALL ? null : this.brickId,
-        specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
-      });
-      // Lightning Web Security (LWS) only allows a limited set of Blob MIME types,
-      // and it does not support MIME parameters like "charset=utf-8".
-      // Using a permitted text MIME type so the download works.
+      let csv = null;
+      try {
+        csv = await exportAccountsCsv({
+          scope: this.scope,
+          searchTerm: (this.searchTerm || '').trim() || null,
+          recordTypeDeveloperName: this.recordType,
+          classification: this.classification === FILTER_ALL ? null : this.classification,
+          sortBy: this.sortBy,
+          sortDirection: this.sortDirection,
+          monthStart: null,
+          contextUserId: null,
+          brickId: this.brickId === FILTER_ALL ? null : this.brickId,
+          specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
+        });
+      } catch (_apexError) {
+        csv = null;
+      }
+      if (!csv || csv === 'null' || String(csv).trim() === '') {
+        csv = this.buildClientCsv(this.rows || []);
+      }
+      if (!csv) {
+        this.errorMessage = 'Nothing to export for the current filters.';
+        return;
+      }
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = 'accounts_export.csv';
+      document.body.appendChild(link);
       link.click();
+      link.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
       this.errorMessage = this.reduceError(error);
     }
+  }
+
+  buildClientCsv(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    const headers = [
+      'Account Name',
+      'Record Type',
+      'Classification',
+      'Specialty',
+      'Brick',
+      'City',
+      'Plan',
+      'Health',
+      'Score',
+      'Account Id'
+    ];
+    const escape = (value) => {
+      const text = value == null ? '' : String(value);
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+    const lines = [headers.join(',')];
+    list.forEach((row) => {
+      lines.push(
+        [
+          row.accountName,
+          row.recordTypeLabel || row.typeLabel,
+          row.classification,
+          row.specialtyDisplay || row.specialty,
+          row.brickName,
+          row.city,
+          row.planLabel || row.inPlanLabel,
+          row.healthLabel,
+          row.scoreDisplay || row.healthScore,
+          row.accountId
+        ]
+          .map(escape)
+          .join(',')
+      );
+    });
+    return lines.join('\n');
   }
 
   handleColumnSort(event) {
@@ -1295,7 +1349,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.sortDirection =
         sortField === SORT_NAME || sortField === SORT_CLASSIFICATION ? 'asc' : 'desc';
     }
-    this.reloadData(true);
+    // Oce list sorts the current page client-side — avoid a full Apex round-trip.
   }
 
   handleBrickChange(event) {
@@ -1473,7 +1527,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   handleSearchChange(event) {
-    this.applySearch(this.readInputValue(event));
+    this.scheduleSearch(this.readInputValue(event));
   }
 
   handleSearchKeyUp(event) {
@@ -2545,7 +2599,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   handleOceRowAction(event) {
     const { accountId, action } = event.detail;
     if (action === 'plan' || action === 'rtd') {
-      this.navigateToPlanner();
+      this.navigateToPlanner(accountId);
       if (action === 'rtd') {
         this.dispatchEvent(
           new ShowToastEvent({
@@ -2753,12 +2807,46 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     });
   }
 
-  navigateToPlanner() {
+  navigateToPlanner(accountId) {
+    const state = accountId ? { c__accountId: accountId, accountId } : undefined;
     this[NavigationMixin.Navigate]({
       type: 'standard__navItemPage',
       attributes: {
         apiName: 'Field_Rep_Planner'
+      },
+      state
+    });
+    // Offline PWA: NavigationMixin may no-op for nav items — also broadcast.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('zeta-navigate-tab', {
+          detail: {
+            apiName: 'Field_Rep_Planner',
+            accountId: accountId || null
+          }
+        })
+      );
+    }
+  }
+
+  get displayRowsWithMatch() {
+    const term = (this.searchTerm || '').trim().toLowerCase();
+    return (this.rows || []).map((row) => {
+      if (!term) {
+        return { ...row, matchReason: row.matchReason || '' };
       }
+      const reasons = [];
+      if ((row.accountName || '').toLowerCase().includes(term)) reasons.push('Name');
+      if ((row.specialtyDisplay || row.specialty || '').toLowerCase().includes(term)) {
+        reasons.push('Specialty');
+      }
+      if ((row.brickName || '').toLowerCase().includes(term)) reasons.push('Brick');
+      if ((row.city || '').toLowerCase().includes(term)) reasons.push('City');
+      if ((row.classification || '').toLowerCase().includes(term)) reasons.push('Class');
+      return {
+        ...row,
+        matchReason: reasons.length ? `Matched: ${reasons.join(' · ')}` : row.matchReason || ''
+      };
     });
   }
 

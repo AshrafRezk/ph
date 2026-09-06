@@ -933,7 +933,7 @@ export function renderFidelityPlanner(opts: {
   return html`
     <section class="osr-lwc-mirror planner-shell slds-card">
       <header class="planner-card-title">
-        <h2>${opts.label || 'Field Rep Planner'}</h2>
+        <h2>${opts.label || 'Planner'}</h2>
         ${opts.cached ? html`<span class="osr-cache-pill">Cached</span>` : nothing}
       </header>
       ${opts.cached

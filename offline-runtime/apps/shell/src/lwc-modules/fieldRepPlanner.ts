@@ -64,7 +64,7 @@ export default class FieldRepPlanner extends HTMLElement {
       </style>
       <article>
         <header>
-          <h2>Field Planner</h2>
+          <h2>Planner</h2>
           <span class="pill">IFRAME ENGINE</span>
         </header>
         <p class="note">Week visits from Apex cache (map/calendar chrome available via shell when needed).</p>

@@ -10,7 +10,7 @@
         <name>main</name>
         <type>Region</type>
     </flexiPageRegions>
-    <masterLabel>Field Rep Planner</masterLabel>
+    <masterLabel>Planner</masterLabel>
     <template>
         <name>flexipage:defaultAppHomeTemplate</name>
     </template>
