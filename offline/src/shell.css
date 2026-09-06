@@ -47,6 +47,30 @@ body.screen-chooser .app-nav {
     pointer-events: none !important;
 }
 
+/* Restore a stored session before JS boots — never flash the empty Welcome card. */
+html.osr-has-session:not(.osr-session-confirmed) #login-fresh,
+html.osr-has-session:not(.osr-session-confirmed) #login-downloads {
+    display: none !important;
+}
+html.osr-has-session:not(.osr-session-confirmed) #login-resume {
+    display: block !important;
+}
+html.osr-has-session:not(.osr-session-confirmed) .login-title-welcome {
+    display: none !important;
+}
+html.osr-has-session:not(.osr-session-confirmed) .login-title-back {
+    display: block !important;
+}
+html.osr-session-confirmed body.screen-login #session-bar {
+    display: none !important;
+    visibility: hidden !important;
+}
+html.osr-session-confirmed body.screen-login #app-chooser {
+    display: block !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
 body {
     display: flex;
     flex-direction: column;
@@ -317,6 +341,27 @@ body {
     font-size: 24px;
     color: #032d60;
     text-align: center;
+}
+
+.login-lead-follow {
+    margin-top: -10px;
+}
+
+.login-resume-name {
+    color: #032d60;
+}
+
+.login-btn.login-btn-secondary {
+    margin-top: 10px;
+    background: #fff;
+    color: #032d60;
+    border: 1px solid #dddbda;
+    font-weight: 600;
+}
+
+.login-btn.login-btn-secondary:hover:not(:disabled) {
+    background: #f3f3f3;
+    color: #032d60;
 }
 
 .login-brand {
@@ -950,13 +995,37 @@ body {
     box-shadow: -12px 0 40px rgba(3, 45, 96, 0.2);
     display: flex;
     flex-direction: column;
+    transition: width 0.2s ease;
 }
 
+.record-modal.is-fullscreen .record-modal-panel {
+    width: 100%;
+    max-width: none;
+}
+
+.record-modal-chrome {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    flex-shrink: 0;
+}
+
+.record-modal-chrome-title {
+    margin-right: auto;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #032d60;
+}
+
+.record-modal-expand,
 .record-modal-close {
-    position: absolute;
-    top: 0.65rem;
-    right: 0.75rem;
-    z-index: 2;
+    position: static;
+    top: auto;
+    right: auto;
+    z-index: auto;
     border: 1px solid #c9c9c9;
     background: #fff;
     color: #032d60;
@@ -967,10 +1036,17 @@ body {
     cursor: pointer;
 }
 
+.record-modal-expand:hover,
+.record-modal-close:hover {
+    background: #f3f3f3;
+}
+
 .record-modal-panel iframe {
     border: 0;
     width: 100%;
     height: 100%;
+    min-height: 0;
+    flex: 1;
     background: #f3f3f3;
 }
 

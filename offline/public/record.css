@@ -1,3 +1,8 @@
+body {
+    box-sizing: border-box;
+    padding: 1.25rem 1.5rem 1.75rem;
+}
+
 .record-header {
     display: flex;
     align-items: center;
@@ -64,8 +69,7 @@
     border-color: #0176d3;
 }
 
-.record-load-btn,
-.record-raw-btn {
+.record-load-btn {
     appearance: none;
     border: 0;
     border-radius: 0.375rem;
@@ -78,8 +82,7 @@
     white-space: nowrap;
 }
 
-.record-load-btn:hover,
-.record-raw-btn:hover {
+.record-load-btn:hover {
     background: #0b5cab;
 }
 
@@ -101,8 +104,8 @@
     display: flex;
     align-items: center;
     gap: 0.85rem;
-    padding: 0.85rem 1rem;
-    margin: 0.75rem 0;
+    padding: 1rem 1.15rem;
+    margin: 0 0 1.15rem;
     background: #fff;
     border: 1px solid #dddbda;
     border-radius: 0.4rem;
@@ -172,7 +175,7 @@
 .record-sections {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 
 .record-card {
@@ -198,7 +201,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0 2rem;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.15rem;
 }
 
 .record-item {
@@ -228,34 +231,25 @@
 .record-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
-    margin: 0.75rem 0 0.5rem;
+    margin: 0 0 1rem;
 }
 
 .record-filter {
     border: 1px solid #c9c9c9;
     border-radius: 0.375rem;
-    padding: 0.45rem 0.6rem;
+    padding: 0.5rem 0.75rem;
     font-size: 0.8125rem;
     background: #fff;
     color: #181818;
     flex: 1;
-    max-width: 22rem;
+    max-width: none;
 }
 
 .record-filter:focus-visible {
     outline: 2px solid #0176d3;
     outline-offset: 1px;
     border-color: #0176d3;
-}
-
-.record-raw-btn {
-    background: #032d60;
-}
-
-.record-raw-btn:hover {
-    background: #10244c;
 }
 
 .record-table-wrap {
@@ -343,20 +337,6 @@
     padding: 1.5rem 0.75rem;
 }
 
-.record-raw {
-    margin-top: 0.75rem;
-    padding: 0.75rem;
-    background: #032d60;
-    color: #e9f2fb;
-    border-radius: 0.5rem;
-    font-size: 0.6875rem;
-    line-height: 1.4;
-    overflow: auto;
-    max-height: 40vh;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
 @media (max-width: 40rem) {
     .record-form {
         grid-template-columns: 1fr;
@@ -381,12 +361,13 @@
     }
 }
 
-body.record-embed .record-form,
-body.record-embed .record-hint,
-body.record-embed .record-version-badge {
-    display: none !important;
+body.record-embed {
+    padding: 1.15rem 1.35rem 1.6rem;
 }
 
+body.record-embed .record-form,
+body.record-embed .record-hint,
+body.record-embed .record-version-badge,
 body.record-embed .record-header {
-    padding-right: 5rem;
+    display: none !important;
 }

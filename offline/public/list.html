@@ -15,12 +15,36 @@
 
     <div id="list-result" style="display:none">
         <div class="list-toolbar" role="toolbar" aria-label="List views">
-            <button type="button" class="list-view-btn is-active" data-view="table">Tabular</button>
-            <button type="button" class="list-view-btn" data-view="kanban">Kanban</button>
-            <button type="button" class="list-view-btn" data-view="calendar">Calendar</button>
-            <button type="button" class="list-view-btn" data-view="cards">Cards</button>
+            <div class="list-view-group">
+                <button type="button" class="list-view-btn is-active" data-view="table">Tabular</button>
+                <button type="button" class="list-view-btn" data-view="kanban">Kanban</button>
+                <button type="button" class="list-view-btn" data-view="calendar">Calendar</button>
+                <button type="button" class="list-view-btn" data-view="cards">Cards</button>
+            </div>
+            <label class="list-search">
+                <span class="visually-hidden">Search records</span>
+                <input id="list-search" type="search" placeholder="Search records…" spellcheck="false" />
+            </label>
         </div>
+        <p id="list-count" class="list-count"></p>
         <div id="list-stage" class="list-stage"></div>
+        <nav id="list-pagination" class="list-pagination" hidden>
+            <button type="button" id="list-page-prev" class="list-page-btn">Previous</button>
+            <span id="list-page-label" class="list-page-label">Page 1 of 1</span>
+            <button type="button" id="list-page-next" class="list-page-btn">Next</button>
+        </nav>
+    </div>
+
+    <div id="calendar-field-picker" class="list-picker-backdrop" hidden>
+        <div class="list-picker" role="dialog" aria-modal="true" aria-labelledby="calendar-field-title">
+            <h3 id="calendar-field-title">Which field should the calendar use?</h3>
+            <p>Pick a Date or Date/Time field to place records on the calendar.</p>
+            <select id="calendar-field-select"></select>
+            <div class="list-picker-actions">
+                <button type="button" id="calendar-field-cancel">Cancel</button>
+                <button type="button" id="calendar-field-apply" class="list-picker-primary">Use field</button>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="list.js"></script>

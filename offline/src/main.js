@@ -14,6 +14,7 @@ import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
 import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
 import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs } from './apex/fetchAppTabs';
+import { plannerApiFetch } from './apex/restHelper';
 import { setupToastListener } from './toastManager';
 import './slds-shim.css';
 import './shell.css';
@@ -21,6 +22,10 @@ import './shell.css';
 const TOKEN_KEY = 'zeta.pwa.sfAccessToken';
 const REFRESH_TOKEN_KEY = 'zeta.pwa.sfRefreshToken';
 const INSTANCE_URL_KEY = 'zeta.pwa.sfInstanceUrl';
+const USER_NAME_KEY = 'zeta.pwa.sfUserName';
+const USER_USERNAME_KEY = 'zeta.pwa.sfUserUsername';
+const USER_ID_KEY = 'zeta.pwa.sfUserId';
+const SESSION_CONFIRMED_KEY = 'zeta.pwa.sessionConfirmed';
 const HOME_TAB_KEY = 'Field_Rep_Home_App';
 const VISIT_CALL_TAB_KEY = 'Visit_Call';
 const ACTIVE_VISIT_KEY = 'zeta.pwa.activeVisitId';
@@ -65,11 +70,23 @@ function isCapacitor() {
     return false;
 }
 
-// Wait for Capacitor to be ready (for remote URL loading)
+function looksLikeCapacitorHost() {
+    if (typeof window === 'undefined') return false;
+    if (window.Capacitor) return true;
+    const ua = navigator.userAgent || '';
+    return /Capacitor/i.test(ua);
+}
+
+// Wait for Capacitor to be ready (for remote URL loading in a native WebView).
+// Regular browsers never become Capacitor — don't stall boot for seconds.
 function waitForCapacitor(timeout = 5000) {
     return new Promise((resolve) => {
         if (isCapacitor()) {
             resolve(true);
+            return;
+        }
+        if (!looksLikeCapacitorHost()) {
+            resolve(false);
             return;
         }
 
@@ -210,6 +227,133 @@ function readRefreshToken() {
 
 function readInstanceUrl() {
     return window.localStorage.getItem(INSTANCE_URL_KEY) || defaultInstanceUrl();
+}
+
+function hasStoredSession() {
+    return !!(readToken() || readRefreshToken());
+}
+
+function readStoredIdentity() {
+    return {
+        name: (window.localStorage.getItem(USER_NAME_KEY) || '').trim(),
+        username: (window.localStorage.getItem(USER_USERNAME_KEY) || '').trim(),
+        userId: (window.localStorage.getItem(USER_ID_KEY) || '').trim()
+    };
+}
+
+function saveIdentity({ name, username, userId }) {
+    if (name) window.localStorage.setItem(USER_NAME_KEY, name);
+    if (username) window.localStorage.setItem(USER_USERNAME_KEY, username);
+    if (userId) window.localStorage.setItem(USER_ID_KEY, userId);
+}
+
+function clearIdentity() {
+    window.localStorage.removeItem(USER_NAME_KEY);
+    window.localStorage.removeItem(USER_USERNAME_KEY);
+    window.localStorage.removeItem(USER_ID_KEY);
+}
+
+function isSessionConfirmed() {
+    try {
+        return sessionStorage.getItem(SESSION_CONFIRMED_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function confirmSession() {
+    try {
+        sessionStorage.setItem(SESSION_CONFIRMED_KEY, '1');
+    } catch {
+        /* ignore */
+    }
+}
+
+function clearSessionConfirmed() {
+    try {
+        sessionStorage.removeItem(SESSION_CONFIRMED_KEY);
+    } catch {
+        /* ignore */
+    }
+}
+
+function applyResumeUserLabels() {
+    const { name, username } = readStoredIdentity();
+    const display = name || username || 'Someone';
+    const nameEl = document.getElementById('resume-user-name');
+    if (nameEl) nameEl.textContent = display;
+    const unameEl = document.getElementById('resume-user-username');
+    const wrap = document.getElementById('resume-user-username-wrap');
+    if (unameEl) unameEl.textContent = username;
+    if (wrap) wrap.hidden = !username || username === display;
+}
+
+function showResumeSession() {
+    document.documentElement.classList.add('osr-has-session');
+    document.documentElement.classList.remove('osr-session-confirmed');
+    const resume = document.getElementById('login-resume');
+    const fresh = document.getElementById('login-fresh');
+    const downloads = document.getElementById('login-downloads');
+    if (resume) {
+        resume.hidden = false;
+        resume.removeAttribute('hidden');
+    }
+    if (fresh) fresh.hidden = true;
+    if (downloads) downloads.hidden = true;
+    applyResumeUserLabels();
+}
+
+function showFreshLogin() {
+    document.documentElement.classList.remove('osr-has-session');
+    document.documentElement.classList.remove('osr-session-confirmed');
+    const resume = document.getElementById('login-resume');
+    const fresh = document.getElementById('login-fresh');
+    const downloads = document.getElementById('login-downloads');
+    if (resume) resume.hidden = true;
+    if (fresh) {
+        fresh.hidden = false;
+        fresh.removeAttribute('hidden');
+    }
+    if (downloads) {
+        downloads.hidden = false;
+        downloads.removeAttribute('hidden');
+    }
+    syncLoginFormUi();
+}
+
+async function fetchAndStoreUserIdentity() {
+    if (!readToken()) return readStoredIdentity();
+    try {
+        const info = await plannerApiFetch('/services/oauth2/userinfo');
+        const name = String(info?.name || info?.display_name || '').trim();
+        const username = String(
+            info?.preferred_username || info?.username || info?.email || ''
+        ).trim();
+        const userId = String(info?.user_id || '').trim();
+        saveIdentity({ name, username, userId });
+        applyResumeUserLabels();
+    } catch (error) {
+        console.warn('[Auth] Could not load user identity:', error);
+    }
+    return readStoredIdentity();
+}
+
+function enterAuthenticatedApp() {
+    const token = readToken();
+    if (!token) {
+        showFreshLogin();
+        showScreen('login');
+        setLoginStatus('Session expired. Please sign in again.', true);
+        return;
+    }
+    confirmSession();
+    document.documentElement.classList.add('osr-session-confirmed');
+    configureRuntime(token);
+    buildAppChooser();
+    registerOfflineListener((status) => {
+        console.log('[OfflineSyncListener] Sync phase changed:', status);
+    });
+    startSyncService();
 }
 
 function configureRuntime(token, refreshToken = null, instanceUrl = null) {
@@ -597,7 +741,7 @@ async function handleCapacitorCallback(url) {
                 /* ignore */
             }
         }
-        initializeApp();
+        initializeApp({ enterImmediately: true });
     } catch (error) {
         console.error('[OAuth] Callback error:', error);
         showScreen('login');
@@ -634,8 +778,11 @@ function logout() {
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.localStorage.removeItem(INSTANCE_URL_KEY);
+    clearIdentity();
+    clearSessionConfirmed();
     configureRuntime('');
     unmountApp();
+    showFreshLogin();
     showScreen('login');
 }
 
@@ -1317,18 +1464,50 @@ function setupRecordModal() {
     modal.innerHTML =
         '<div class="record-modal-backdrop" data-close="1"></div>' +
         '<div class="record-modal-panel" role="dialog" aria-modal="true" aria-label="Record">' +
+        '<div class="record-modal-chrome">' +
+        '<span class="record-modal-chrome-title">Record</span>' +
+        '<button type="button" class="record-modal-expand" data-expand="1" aria-pressed="false">Full screen</button>' +
         '<button type="button" class="record-modal-close" data-close="1">Close</button>' +
+        '</div>' +
         '<iframe id="record-modal-frame" title="Record"></iframe>' +
         '</div>';
     modal.addEventListener('click', (event) => {
-        if (event.target && event.target.getAttribute('data-close')) {
+        const target = event.target;
+        if (!target || !target.getAttribute) return;
+        if (target.getAttribute('data-close')) {
             closeRecordModal();
+            return;
+        }
+        if (target.getAttribute('data-expand')) {
+            toggleRecordModalFullscreen();
         }
     });
     document.body.appendChild(modal);
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') closeRecordModal();
+        if (event.key !== 'Escape') return;
+        const openModal = document.getElementById('record-modal');
+        if (!openModal || openModal.hidden) return;
+        if (openModal.classList.contains('is-fullscreen')) {
+            toggleRecordModalFullscreen();
+            return;
+        }
+        closeRecordModal();
     });
+}
+
+function syncRecordModalExpandButton(modal) {
+    const btn = modal && modal.querySelector('[data-expand]');
+    if (!btn) return;
+    const expanded = modal.classList.contains('is-fullscreen');
+    btn.textContent = expanded ? 'Exit full screen' : 'Full screen';
+    btn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+}
+
+function toggleRecordModalFullscreen() {
+    const modal = document.getElementById('record-modal');
+    if (!modal) return;
+    modal.classList.toggle('is-fullscreen');
+    syncRecordModalExpandButton(modal);
 }
 
 function openRecordModal(recordId, objectApiName) {
@@ -1339,6 +1518,8 @@ function openRecordModal(recordId, objectApiName) {
     const src = `${import.meta.env.BASE_URL}record.html?embed=1&recordId=${encodeURIComponent(recordId)}&object=${encodeURIComponent(objectApiName || '')}`;
     if (frame) frame.src = src;
     if (modal) {
+        modal.classList.remove('is-fullscreen');
+        syncRecordModalExpandButton(modal);
         modal.hidden = false;
         modal.removeAttribute('hidden');
     }
@@ -1350,6 +1531,8 @@ function closeRecordModal() {
     const frame = document.getElementById('record-modal-frame');
     if (frame) frame.src = 'about:blank';
     if (modal) {
+        modal.classList.remove('is-fullscreen');
+        syncRecordModalExpandButton(modal);
         modal.hidden = true;
         modal.setAttribute('hidden', '');
     }
@@ -1389,11 +1572,21 @@ window.testAccountsEndpoint = async function() {
     }
 };
 
+let sessionBarWired = false;
+
 function setupSessionBar(token) {
+    if (sessionBarWired) {
+        void token;
+        return;
+    }
+    sessionBarWired = true;
+
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const envSelect = document.getElementById('login-env');
     const domainInput = document.getElementById('custom-domain-input');
+    const continueBtn = document.getElementById('continue-session-btn');
+    const switchUserBtn = document.getElementById('switch-user-btn');
 
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
@@ -1421,6 +1614,14 @@ function setupSessionBar(token) {
 
     if (loginBtn) {
         loginBtn.addEventListener('click', login);
+    }
+    if (continueBtn) {
+        continueBtn.addEventListener('click', () => {
+            enterAuthenticatedApp();
+        });
+    }
+    if (switchUserBtn) {
+        switchUserBtn.addEventListener('click', logout);
     }
 
     setupLoginDownloads();
@@ -1513,13 +1714,26 @@ async function setupLoginDownloads() {
     });
 }
 
-async function initializeApp() {
+async function initializeApp(options = {}) {
     console.log('[App] Initializing...');
     console.log('[App] User Agent:', navigator.userAgent);
     console.log('[App] Initial window.Capacitor:', typeof window.Capacitor);
 
-    // Hide chrome immediately so OAuth/token work never flashes the sidebar.
-    showScreen('login');
+    const enterImmediately = !!options.enterImmediately;
+    const oauthCallback = isOAuthCallbackLocation();
+    const storedSession = hasStoredSession();
+
+    if (oauthCallback) {
+        showFreshLogin();
+        showScreen('login');
+        setLoginStatus('Completing sign-in…');
+    } else if (storedSession && !isSessionConfirmed() && !enterImmediately) {
+        showResumeSession();
+        showScreen('login');
+    } else if (!storedSession) {
+        showFreshLogin();
+        showScreen('login');
+    }
 
     const capacitorReady = await waitForCapacitor(3000);
     console.log('[App] Capacitor ready:', capacitorReady);
@@ -1531,7 +1745,7 @@ async function initializeApp() {
     await initCapacitorListener();
 
     let oauthHandled = false;
-    if (isOAuthCallbackLocation()) {
+    if (oauthCallback) {
         oauthHandled = true;
         try {
             await completeWebOAuthLogin(window.location.href);
@@ -1540,6 +1754,7 @@ async function initializeApp() {
             // Stay on login with a visible error — never silent Welcome bounce.
             window.history.replaceState({}, document.title, '/');
             setupSessionBar(null);
+            showFreshLogin();
             showScreen('login');
             setLoginStatus(
                 error instanceof Error
@@ -1564,7 +1779,12 @@ async function initializeApp() {
                 window.localStorage.removeItem(TOKEN_KEY);
                 window.localStorage.removeItem(REFRESH_TOKEN_KEY);
                 window.localStorage.removeItem(INSTANCE_URL_KEY);
+                clearIdentity();
+                clearSessionConfirmed();
                 configureRuntime('');
+                showFreshLogin();
+                showScreen('login');
+                setLoginStatus('Session expired. Please sign in again.', true);
             }
         }
     }
@@ -1577,12 +1797,15 @@ async function initializeApp() {
     setupToastListener();
 
     if (token) {
-        buildAppChooser();
-        registerOfflineListener((status) => {
-            console.log('[OfflineSyncListener] Sync phase changed:', status);
-        });
-        startSyncService();
+        void fetchAndStoreUserIdentity();
+        if (enterImmediately || oauthHandled || isSessionConfirmed()) {
+            enterAuthenticatedApp();
+        } else {
+            showResumeSession();
+            showScreen('login');
+        }
     } else {
+        showFreshLogin();
         showScreen('login');
         if (!oauthHandled) {
             syncLoginFormUi();

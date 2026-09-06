@@ -10,6 +10,7 @@ const REST_BASE = SF_INSTANCE;
 const DEFAULT_API_VERSION = 'v62.0';
 const KANBAN_FIELDS = ['StageName', 'Status', 'Type', 'Rating', 'Priority', 'Industry'];
 const DATE_FIELDS = ['ActivityDate', 'StartDateTime', 'Due_Date__c', 'CloseDate', 'CreatedDate'];
+const PAGE_SIZE = 25;
 
 let apiVersion = DEFAULT_API_VERSION;
 const describeCache = {};
@@ -21,6 +22,10 @@ let titleField = 'Name';
 let kanbanField = null;
 let dateField = null;
 let currentView = 'table';
+let searchTerm = '';
+let sortField = null;
+let sortDir = 'asc';
+let currentPage = 1;
 
 function el(id) {
     return document.getElementById(id);
@@ -53,6 +58,44 @@ function readCache(key) {
         return JSON.parse(raw);
     } catch (_err) {
         return null;
+    }
+}
+
+function calendarFieldKey(object) {
+    return `zeta.pwa.calendarField.${object || ''}`;
+}
+
+function sortKey(object) {
+    return `zeta.pwa.listSort.${object || ''}`;
+}
+
+function restoreSort(object) {
+    try {
+        const raw = localStorage.getItem(sortKey(object));
+        if (!raw) {
+            sortField = null;
+            sortDir = 'asc';
+            return;
+        }
+        const parsed = JSON.parse(raw);
+        sortField = parsed.field || null;
+        sortDir = parsed.dir === 'desc' ? 'desc' : 'asc';
+    } catch (_err) {
+        sortField = null;
+        sortDir = 'asc';
+    }
+}
+
+function persistSort() {
+    if (!currentObject) return;
+    try {
+        if (!sortField) {
+            localStorage.removeItem(sortKey(currentObject));
+            return;
+        }
+        localStorage.setItem(sortKey(currentObject), JSON.stringify({ field: sortField, dir: sortDir }));
+    } catch (_err) {
+        /* ignore */
     }
 }
 
@@ -156,7 +199,24 @@ function pickKanbanField(describe) {
     return pick ? pick.name : null;
 }
 
-function pickDateField(describe) {
+function dateFieldsFromDescribe(describe) {
+    return (describe.fields || []).filter(
+        (field) =>
+            (field.type === 'date' || field.type === 'datetime') &&
+            field.queryable !== false
+    );
+}
+
+function pickDateField(describe, object) {
+    try {
+        const saved = localStorage.getItem(calendarFieldKey(object));
+        const savedField = saved && fieldByName(describe, saved);
+        if (savedField && (savedField.type === 'date' || savedField.type === 'datetime')) {
+            return saved;
+        }
+    } catch (_err) {
+        /* ignore */
+    }
     for (const name of DATE_FIELDS) {
         const field = fieldByName(describe, name);
         if (field && (field.type === 'date' || field.type === 'datetime')) return name;
@@ -211,6 +271,106 @@ function formatCell(field, value) {
     }
 }
 
+function compareValues(fieldName, a, b) {
+    const info = fieldByName(currentDescribe, fieldName);
+    const av = a == null || a === '' ? null : a;
+    const bv = b == null || b === '' ? null : b;
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    const type = info?.type;
+    if (type === 'date' || type === 'datetime') {
+        return new Date(av).getTime() - new Date(bv).getTime();
+    }
+    if (type === 'currency' || type === 'double' || type === 'int' || type === 'percent' || type === 'long') {
+        return Number(av) - Number(bv);
+    }
+    if (type === 'boolean') {
+        return (av ? 1 : 0) - (bv ? 1 : 0);
+    }
+    return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function recordMatchesSearch(record, query) {
+    if (!query) return true;
+    const fields = currentFields.length ? currentFields : Object.keys(record);
+    for (const name of fields) {
+        const info = fieldByName(currentDescribe, name);
+        const formatted = formatCell(info, record[name]);
+        if (formatted && formatted !== '—' && formatted.toLowerCase().includes(query)) return true;
+        const raw = record[name];
+        if (raw != null && String(raw).toLowerCase().includes(query)) return true;
+    }
+    return String(record.Id || '')
+        .toLowerCase()
+        .includes(query);
+}
+
+function visibleRecords() {
+    const query = searchTerm.trim().toLowerCase();
+    let rows = currentRecords;
+    if (query) {
+        rows = rows.filter((record) => recordMatchesSearch(record, query));
+    }
+    if (sortField) {
+        const dir = sortDir === 'desc' ? -1 : 1;
+        rows = [...rows].sort(
+            (a, b) => compareValues(sortField, a[sortField], b[sortField]) * dir
+        );
+    }
+    return rows;
+}
+
+function totalPagesFor(count) {
+    return Math.max(1, Math.ceil(count / PAGE_SIZE));
+}
+
+function pagedRecords(rows) {
+    const pages = totalPagesFor(rows.length);
+    if (currentPage > pages) currentPage = pages;
+    if (currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+}
+
+function usesPagination() {
+    return currentView === 'table' || currentView === 'cards';
+}
+
+function updateCountAndPager(rows) {
+    const count = el('list-count');
+    const pager = el('list-pagination');
+    const label = el('list-page-label');
+    const prev = el('list-page-prev');
+    const next = el('list-page-next');
+    const total = currentRecords.length;
+    const shown = rows.length;
+    const query = searchTerm.trim();
+    let text = '';
+    if (!total) {
+        text = 'No records.';
+    } else if (query) {
+        text = `${shown} matching of ${total}`;
+    } else {
+        text = `${total} record${total === 1 ? '' : 's'}`;
+    }
+    if (currentView === 'calendar' && dateField) {
+        const info = fieldByName(currentDescribe, dateField);
+        text += ` · calendar by ${(info && info.label) || dateField}`;
+    }
+    if (count) count.textContent = text;
+
+    const paginate = usesPagination() && shown > 0;
+    if (pager) pager.hidden = !paginate;
+    if (!paginate) return;
+    const pages = totalPagesFor(shown);
+    const start = (currentPage - 1) * PAGE_SIZE + 1;
+    const end = Math.min(currentPage * PAGE_SIZE, shown);
+    if (label) label.textContent = `${start}–${end} of ${shown} · Page ${currentPage} of ${pages}`;
+    if (prev) prev.disabled = currentPage <= 1;
+    if (next) next.disabled = currentPage >= pages;
+}
+
 function openRecord(id, object) {
     if (!id) return;
     if (object === 'Visit__c' && window.parent && window.parent !== window) {
@@ -239,11 +399,13 @@ async function runQuery(object) {
     const describe = await getDescribe(object);
     titleField = pickTitleField(describe);
     kanbanField = pickKanbanField(describe);
-    dateField = pickDateField(describe);
+    dateField = pickDateField(describe, object);
     const displayFields = pickDisplayFields(describe);
     const selectFields = ['Id', ...displayFields];
     if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
-    if (dateField && !selectFields.includes(dateField)) selectFields.push(dateField);
+    dateFieldsFromDescribe(describe).forEach((field) => {
+        if (!selectFields.includes(field.name)) selectFields.push(field.name);
+    });
 
     const soql = `SELECT ${selectFields.join(', ')} FROM ${object} LIMIT 200`;
     const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`);
@@ -264,10 +426,23 @@ async function runQuery(object) {
     currentRecords = records;
     currentFields = displayFields;
     currentDescribe = describe;
+    currentPage = 1;
+    restoreSort(object);
     renderCurrentView();
     setVisible('list-result', true);
     showError('');
     return records.length;
+}
+
+function recordsForView() {
+    const rows = visibleRecords();
+    if (usesPagination()) {
+        const pages = totalPagesFor(Math.max(rows.length, 1));
+        if (currentPage > pages) currentPage = pages;
+        if (currentPage < 1) currentPage = 1;
+    }
+    updateCountAndPager(rows);
+    return usesPagination() ? pagedRecords(rows) : rows;
 }
 
 function renderCurrentView() {
@@ -277,13 +452,26 @@ function renderCurrentView() {
     document.querySelectorAll('.list-view-btn').forEach((btn) => {
         btn.classList.toggle('is-active', btn.dataset.view === currentView);
     });
-    if (currentView === 'kanban') renderKanban(stage);
-    else if (currentView === 'calendar') renderCalendar(stage);
-    else if (currentView === 'cards') renderCards(stage);
-    else renderTable(stage);
+    const rows = recordsForView();
+    if (currentView === 'kanban') renderKanban(stage, rows);
+    else if (currentView === 'calendar') renderCalendar(stage, rows);
+    else if (currentView === 'cards') renderCards(stage, rows);
+    else renderTable(stage, rows);
 }
 
-function renderTable(stage) {
+function toggleSort(fieldName) {
+    if (sortField === fieldName) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortField = fieldName;
+        sortDir = 'asc';
+    }
+    currentPage = 1;
+    persistSort();
+    renderCurrentView();
+}
+
+function renderTable(stage, records) {
     const wrap = document.createElement('div');
     wrap.className = 'list-table-wrap';
     const table = document.createElement('table');
@@ -293,21 +481,43 @@ function renderTable(stage) {
     currentFields.forEach((name) => {
         const th = document.createElement('th');
         const info = fieldByName(currentDescribe, name);
-        th.textContent = (info && info.label) || name;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-sort-btn';
+        if (sortField === name) {
+            btn.classList.add(sortDir === 'desc' ? 'is-desc' : 'is-asc');
+            btn.setAttribute('aria-sort', sortDir === 'desc' ? 'descending' : 'ascending');
+        } else {
+            btn.setAttribute('aria-sort', 'none');
+        }
+        const label = document.createElement('span');
+        label.textContent = (info && info.label) || name;
+        btn.appendChild(label);
+        const mark = document.createElement('span');
+        mark.className = 'list-sort-mark';
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = sortField === name ? (sortDir === 'desc' ? '↓' : '↑') : '↕';
+        btn.appendChild(mark);
+        btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleSort(name);
+        });
+        th.appendChild(btn);
         headRow.appendChild(th);
     });
     thead.appendChild(headRow);
     const tbody = document.createElement('tbody');
-    if (!currentRecords.length) {
+    if (!records.length) {
         const empty = document.createElement('tr');
         const td = document.createElement('td');
         td.colSpan = currentFields.length;
         td.className = 'list-empty';
-        td.textContent = 'No records returned.';
+        td.textContent = searchTerm.trim() ? 'No records match this search.' : 'No records returned.';
         empty.appendChild(td);
         tbody.appendChild(empty);
     } else {
-        currentRecords.forEach((record) => {
+        records.forEach((record) => {
             const tr = document.createElement('tr');
             tr.className = 'list-row';
             bindRecordOpener(tr, record);
@@ -336,16 +546,16 @@ function renderTable(stage) {
     stage.appendChild(wrap);
 }
 
-function renderCards(stage) {
+function renderCards(stage, records) {
     const grid = document.createElement('div');
     grid.className = 'list-card-grid';
-    if (!currentRecords.length) {
-        grid.innerHTML = '<p class="list-empty">No records returned.</p>';
+    if (!records.length) {
+        grid.innerHTML = `<p class="list-empty">${searchTerm.trim() ? 'No records match this search.' : 'No records returned.'}</p>`;
         stage.appendChild(grid);
         return;
     }
     const subtitleFields = currentFields.filter((name) => name !== titleField).slice(0, 3);
-    currentRecords.forEach((record) => {
+    records.forEach((record) => {
         const card = document.createElement('button');
         card.type = 'button';
         card.className = 'list-card';
@@ -365,7 +575,7 @@ function renderCards(stage) {
     stage.appendChild(grid);
 }
 
-function renderKanban(stage) {
+function renderKanban(stage, records) {
     const field = kanbanField && fieldByName(currentDescribe, kanbanField);
     if (!field) {
         stage.innerHTML = '<p class="list-empty">No grouping picklist is available for a Kanban view.</p>';
@@ -377,7 +587,7 @@ function renderKanban(stage) {
     const buckets = new Map();
     values.forEach((value) => buckets.set(value, []));
     buckets.set('—', []);
-    currentRecords.forEach((record) => {
+    records.forEach((record) => {
         const key = record[kanbanField] || '—';
         if (!buckets.has(key)) buckets.set(key, []);
         buckets.get(key).push(record);
@@ -404,7 +614,7 @@ function renderKanban(stage) {
     stage.appendChild(board);
 }
 
-function renderCalendar(stage) {
+function renderCalendar(stage, records) {
     const field = dateField && fieldByName(currentDescribe, dateField);
     if (!field) {
         stage.innerHTML = '<p class="list-empty">No date field is available for a calendar view.</p>';
@@ -417,7 +627,7 @@ function renderCalendar(stage) {
     const startWeekday = first.getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const byDay = new Map();
-    currentRecords.forEach((record) => {
+    records.forEach((record) => {
         const raw = record[dateField];
         if (!raw) return;
         const d = new Date(raw);
@@ -466,17 +676,125 @@ function renderCalendar(stage) {
     stage.appendChild(wrap);
 }
 
+function closeCalendarFieldPicker() {
+    const picker = el('calendar-field-picker');
+    if (picker) picker.hidden = true;
+}
+
+function openCalendarFieldPicker() {
+    const fields = dateFieldsFromDescribe(currentDescribe);
+    if (!fields.length) {
+        dateField = null;
+        currentView = 'calendar';
+        try {
+            localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, currentView);
+        } catch (_err) {
+            /* ignore */
+        }
+        closeCalendarFieldPicker();
+        renderCurrentView();
+        return;
+    }
+    const select = el('calendar-field-select');
+    const picker = el('calendar-field-picker');
+    if (!select || !picker) return;
+    select.innerHTML = '';
+    fields.forEach((field) => {
+        const option = document.createElement('option');
+        option.value = field.name;
+        option.textContent = `${field.label} (${field.name})`;
+        select.appendChild(option);
+    });
+    const preferred = dateField && fields.some((field) => field.name === dateField) ? dateField : fields[0].name;
+    select.value = preferred;
+    picker.hidden = false;
+    select.focus();
+}
+
+function applyCalendarField() {
+    const select = el('calendar-field-select');
+    const chosen = select && select.value;
+    if (!chosen) return;
+    dateField = chosen;
+    try {
+        localStorage.setItem(calendarFieldKey(currentObject), chosen);
+        localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, 'calendar');
+    } catch (_err) {
+        /* ignore */
+    }
+    currentView = 'calendar';
+    closeCalendarFieldPicker();
+    renderCurrentView();
+}
+
+function setView(nextView) {
+    if (nextView === 'calendar') {
+        openCalendarFieldPicker();
+        return;
+    }
+    currentView = nextView || 'table';
+    currentPage = 1;
+    try {
+        localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, currentView);
+    } catch (_err) {
+        /* ignore */
+    }
+    renderCurrentView();
+}
+
 function setupViewButtons() {
     document.querySelectorAll('.list-view-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-            currentView = btn.dataset.view || 'table';
-            try {
-                localStorage.setItem(`zeta.pwa.listView.${currentObject || ''}`, currentView);
-            } catch (_err) {
-                /* ignore */
-            }
+            setView(btn.dataset.view || 'table');
+        });
+    });
+}
+
+function setupSearchAndPager() {
+    const search = el('list-search');
+    if (search) {
+        search.addEventListener('input', () => {
+            searchTerm = search.value;
+            currentPage = 1;
             renderCurrentView();
         });
+    }
+    const prev = el('list-page-prev');
+    const next = el('list-page-next');
+    if (prev) {
+        prev.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage -= 1;
+                renderCurrentView();
+            }
+        });
+    }
+    if (next) {
+        next.addEventListener('click', () => {
+            const rows = visibleRecords();
+            if (currentPage < totalPagesFor(rows.length)) {
+                currentPage += 1;
+                renderCurrentView();
+            }
+        });
+    }
+}
+
+function setupCalendarPicker() {
+    const picker = el('calendar-field-picker');
+    const cancel = el('calendar-field-cancel');
+    const apply = el('calendar-field-apply');
+    if (cancel) cancel.addEventListener('click', closeCalendarFieldPicker);
+    if (apply) apply.addEventListener('click', applyCalendarField);
+    if (picker) {
+        picker.addEventListener('click', (event) => {
+            if (event.target === picker) closeCalendarFieldPicker();
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && picker && !picker.hidden) {
+            closeCalendarFieldPicker();
+        }
     });
 }
 
@@ -491,6 +809,8 @@ function setupQueryParams() {
 async function init() {
     setupQueryParams();
     setupViewButtons();
+    setupSearchAndPager();
+    setupCalendarPicker();
     const params = new URLSearchParams(window.location.search);
     const object = params.get('object');
     if (!object) {
@@ -501,6 +821,9 @@ async function init() {
     showLoading(true);
     try {
         await runQuery(object);
+        if (currentView === 'calendar' && !dateField) {
+            openCalendarFieldPicker();
+        }
     } catch (err) {
         showError(err?.message || 'Query failed.');
     } finally {

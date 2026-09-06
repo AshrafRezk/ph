@@ -374,7 +374,6 @@ function renderRecord(record, object, describe) {
     el('record-subtitle').textContent = subtitleParts.length ? subtitleParts.join(' · ') : '—';
 
     renderTable(fieldInfo, record, describe, '');
-    el('record-raw').textContent = JSON.stringify(record, null, 2);
 
     showError('');
     setVisible('record-result', true);
@@ -421,7 +420,6 @@ function renderRecordFromUi(uiGroups, id) {
     el('record-subtitle').textContent = subtitleParts.length ? subtitleParts.join(' · ') : '—';
 
     renderGroups(uiGroups.groups, '');
-    el('record-raw').textContent = JSON.stringify(record.fields, null, 2);
 
     showError('');
     setVisible('record-result', true);
@@ -652,18 +650,6 @@ function setupFilter() {
     });
 }
 
-function setupRawToggle() {
-    const btn = el('btn-raw');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-        const raw = el('record-raw');
-        if (!raw) return;
-        const showing = raw.style.display !== 'none';
-        raw.style.display = showing ? 'none' : 'block';
-        btn.textContent = showing ? 'Show raw JSON' : 'Hide raw JSON';
-    });
-}
-
 function setupForm() {
     const form = el('record-form');
     const idInput = el('record-id');
@@ -711,7 +697,6 @@ function init() {
     }
     setupForm();
     setupFilter();
-    setupRawToggle();
     setupQueryParams();
 }
 
