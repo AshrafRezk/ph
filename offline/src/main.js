@@ -11,7 +11,6 @@ import FieldRepPlanner from 'c/fieldRepPlanner';
 import AccountsTab from 'c/accountsTab';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
-import MyLearning from 'c/myLearning';
 import VisitCallShell from 'c/visitCallShell';
 import { startSyncService, registerOfflineListener, setForceOfflineAndSync, getForceOffline } from 'c/clmOfflineSync';
 import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons } from './apex/fetchAppTabs';
@@ -708,16 +707,6 @@ function mountClmPresentationsView() {
     }
 }
 
-function mountMyLearningView() {
-    const root = document.getElementById('view-learning');
-    if (!root) {
-        return;
-    }
-    if (!root.querySelector('c-my-learning')) {
-        root.appendChild(createElement('c-my-learning', { is: MyLearning }));
-    }
-}
-
 // Map app tab keys (UI API developerName) to their PWA view panel + renderer.
 // Entity tabs (object list views) use the generic list page via mountListView.
 // Tabs not handled render the "not available" in-panel message.
@@ -806,7 +795,6 @@ const APP_TAB_VIEWS = {
     Accounts_Tab: { panel: 'view-accounts', mount: mountAccountsView },
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
-    My_Learning: { panel: 'view-learning', mount: mountMyLearningView },
     Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView }
 };
 
@@ -896,14 +884,12 @@ function unmountApp() {
     const plannerRoot = document.getElementById('view-planner');
     const entityRoot = document.getElementById('view-entity');
     const unsupportedRoot = document.getElementById('view-unsupported');
-    const learningRoot = document.getElementById('view-learning');
     const clmRoot = document.getElementById('view-clm');
     if (homeRoot) homeRoot.innerHTML = '';
     if (accountsRoot) accountsRoot.innerHTML = '';
     if (plannerRoot) plannerRoot.innerHTML = '';
     if (entityRoot) entityRoot.innerHTML = '';
     if (unsupportedRoot) unsupportedRoot.innerHTML = '';
-    if (learningRoot) learningRoot.innerHTML = '';
     if (clmRoot) clmRoot.innerHTML = '';
     currentTab = HOME_TAB_KEY;
     currentOpenApp = null;
