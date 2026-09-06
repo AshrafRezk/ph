@@ -169,7 +169,7 @@ function getOAuthClientId() {
 }
 
 const OAUTH_CONFIG = {
-    scopes: 'api refresh_token',
+    scopes: 'id api web full refresh_token',
     get clientId() {
         return getOAuthClientId();
     },

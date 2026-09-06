@@ -4,7 +4,7 @@ See [README.md](./README.md) for the current Netlify + Connected App cutover.
 
 Summary:
 
-- Flow: Authorization Code + **PKCE** (no client secret in the browser)
+- Flow: Authorization Code + **PKCE** (no client secret in the browser); authorize scopes `id api web full refresh_token` (Connected App: Full + Refresh Token, etc.)
 - Token proxy: `/.netlify/functions/sf-token` (not Vercel)
 - API proxy: `/.netlify/functions/sf-api` (browser CORS)
 - Web callback: `https://www.salesforceoffline.com/oauth/callback`
