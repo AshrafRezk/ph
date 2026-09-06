@@ -5,6 +5,9 @@
     border-radius: 0.75rem;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    /* Override any leaked full-viewport card min-heights from other widget CSS. */
+    min-height: 0 !important;
+    height: auto;
 }
 
 .ho-header {

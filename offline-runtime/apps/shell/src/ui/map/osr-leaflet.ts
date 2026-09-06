@@ -2,6 +2,9 @@
  * Shared Leaflet map for Today Plan, Planner, and future map:true fidelity entries.
  * Leaflet CSS is also injected into Lit shadow via mirror-styles (document import alone
  * is not enough for shadow DOM).
+ *
+ * Tiles: prefer CartoCDN (identifiable referrer-friendly CDN). OSM.org often returns blank
+ * panes for Capacitor/Android WebViews that lack an identifiable User-Agent.
  */
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -38,6 +41,26 @@ const KIND_COLOR: Record<string, string> = {
 
 const CAIRO: [number, number] = [30.0444, 31.2357];
 
+/** Primary + fallback basemaps (no API key). */
+const TILE_LAYERS: { url: string; attribution: string; options?: L.TileLayerOptions }[] = [
+  {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    options: { subdomains: 'abcd', maxZoom: 20 }
+  },
+  {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    options: { maxZoom: 19 }
+  },
+  {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    options: { maxZoom: 19 }
+  }
+];
+
 function isFiniteLatLng(lat: unknown, lon: unknown): lat is number {
   return Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
 }
@@ -68,6 +91,62 @@ function pinIcon(kind: string, selected: boolean): L.DivIcon {
   });
 }
 
+function ensureHostSize(el: HTMLElement): void {
+  const cs = getComputedStyle(el);
+  const parent = el.parentElement;
+  const parentH = parent?.clientHeight ?? 0;
+  const hasPaintHeight = el.clientHeight >= 80 || (cs.height !== 'auto' && parseFloat(cs.height) >= 80);
+
+  if (!el.style.width) el.style.width = '100%';
+
+  // Prefer inheriting a sized parent (planner flex / today-plan absolute fill) over forcing 360px,
+  // which collapses flex map panes to a stub height and leaves a blank grey box.
+  if (!hasPaintHeight) {
+    if (parentH >= 80) {
+      el.style.height = '100%';
+      el.style.minHeight = `${Math.max(parentH, 280)}px`;
+    } else if (!el.style.minHeight) {
+      el.style.minHeight = '360px';
+      if (!el.style.height || el.style.height === '100%') el.style.height = '360px';
+    }
+  }
+}
+
+function addBasemap(map: L.Map): void {
+  let layerIndex = 0;
+  let tileLayer: L.TileLayer | null = null;
+  let errorCount = 0;
+
+  const mountLayer = (index: number) => {
+    const spec = TILE_LAYERS[index];
+    if (!spec) return;
+    if (tileLayer) {
+      try {
+        map.removeLayer(tileLayer);
+      } catch {
+        /* ignore */
+      }
+    }
+    errorCount = 0;
+    tileLayer = L.tileLayer(spec.url, {
+      attribution: spec.attribution,
+      crossOrigin: true,
+      ...spec.options
+    });
+    tileLayer.on('tileerror', () => {
+      errorCount += 1;
+      // After several tile failures, swap to the next basemap.
+      if (errorCount >= 4 && layerIndex < TILE_LAYERS.length - 1) {
+        layerIndex += 1;
+        mountLayer(layerIndex);
+      }
+    });
+    tileLayer.addTo(map);
+  };
+
+  mountLayer(0);
+}
+
 export function createOsrMap(
   el: HTMLElement,
   opts: {
@@ -78,10 +157,7 @@ export function createOsrMap(
     fitBounds?: boolean;
   } = {}
 ): OsrMapHandle {
-  // Ensure host has a paint size before Leaflet measures it
-  if (!el.style.minHeight) el.style.minHeight = '360px';
-  if (!el.style.height || el.style.height === '100%') el.style.height = '360px';
-  if (!el.style.width) el.style.width = '100%';
+  ensureHostSize(el);
 
   let destroyed = false;
   const timers: number[] = [];
@@ -94,38 +170,34 @@ export function createOsrMap(
       } catch {
         /* map may already be torn down */
       }
-      timers.push(
-        window.setTimeout(() => {
-          if (destroyed) return;
-          try {
-            map.invalidateSize({ animate: false });
-          } catch {
-            /* ignore */
-          }
-        }, 120)
-      );
-      timers.push(
-        window.setTimeout(() => {
-          if (destroyed) return;
-          try {
-            map.invalidateSize({ animate: false });
-          } catch {
-            /* ignore */
-          }
-        }, 400)
-      );
+      for (const delay of [50, 150, 400, 900]) {
+        timers.push(
+          window.setTimeout(() => {
+            if (destroyed) return;
+            try {
+              ensureHostSize(el);
+              map.invalidateSize({ animate: false });
+            } catch {
+              /* ignore */
+            }
+          }, delay)
+        );
+      }
     });
   };
+
+  // Avoid Leaflet "Map container is already initialized" when Lit reuses the node.
+  if ((el as HTMLElement & { _leaflet_id?: number })._leaflet_id != null) {
+    el.replaceChildren();
+    delete (el as HTMLElement & { _leaflet_id?: number })._leaflet_id;
+  }
 
   const map = L.map(el, {
     zoomControl: true,
     attributionControl: true
   }).setView(safeCenter(opts.center), opts.zoom ?? 12);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  addBasemap(map);
 
   const layer = L.layerGroup().addTo(map);
   const routeLayer = L.layerGroup().addTo(map);
@@ -208,6 +280,7 @@ export function createOsrMap(
       if (!destroyed) scheduleInvalidate(map);
     });
     ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
   }
 
   return {

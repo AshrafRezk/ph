@@ -53,6 +53,17 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Tablet/desktop: lock viewport so shell chrome (topbar + rail) stays fixed. */
+@media (min-width: 768px) {
+  html,
+  body {
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+}
+
 button,
 input,
 select,

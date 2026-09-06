@@ -1200,6 +1200,27 @@ export class OsrApp extends LitElement {
       min-width: 0;
     }
 
+    /* Planner fills the main pane instead of 100vh (frozen chrome clips 100vh). */
+    .page.page-fill {
+      max-width: none;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .page.page-fill > .planner-shell {
+      flex: 1 1 auto;
+      min-height: 0;
+      height: 100%;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+    }
+
     /* Object lists: use full main-pane width; rows fill the content column */
     .page.crmhub-list {
       max-width: none;
@@ -2356,6 +2377,18 @@ export class OsrApp extends LitElement {
         -webkit-overflow-scrolling: touch;
       }
 
+      .main-pane:has(.page-fill) {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .main-pane:has(.page-fill) > .page-fill {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
+      }
+
       .launcher {
         max-width: none;
         width: 100%;
@@ -2385,6 +2418,11 @@ export class OsrApp extends LitElement {
         width: 100%;
         max-width: none;
         padding: 16px clamp(16px, 2vw, 28px);
+      }
+
+      .page.page-fill {
+        padding: 0;
+        height: 100%;
       }
 
       .page.crmhub-list {
@@ -2433,6 +2471,17 @@ export class OsrApp extends LitElement {
       .page.crmhub-list {
         padding: 12px;
         max-width: 100%;
+      }
+
+      .page.page-fill {
+        padding: 0;
+        height: calc(100dvh - 7.5rem - var(--safe-top) - var(--safe-bottom));
+        max-height: calc(100dvh - 7.5rem - var(--safe-top) - var(--safe-bottom));
+      }
+
+      .body.has-bottom:has(.page-fill) {
+        padding-bottom: 0;
+        overflow: hidden;
       }
 
       .page.crmhub-list .calendar-day .row {
@@ -3254,6 +3303,17 @@ export class OsrApp extends LitElement {
     this.usableLwc = next;
   }
 
+  /** True when a FlexiPage region hosts the Field Rep Planner LWC. */
+  private flexiContainsPlanner(page: FlexiPageModel | null): boolean {
+    if (!page?.regions?.length) return false;
+    for (const region of page.regions) {
+      for (const c of region.components) {
+        if (lwcBundleFromComponent(c) === 'c/fieldRepPlanner') return true;
+      }
+    }
+    return false;
+  }
+
   /** Known custom-tab → LWC when FlexiPage sync left a record-layout stub. */
   private knownTabLwcFallback(t: TabRow): string | null {
     const page = t.tab.pageDeveloperName ?? t.developerName;
@@ -3358,10 +3418,21 @@ export class OsrApp extends LitElement {
     }
     if (typ === 'flexipage' || t.tab.pageDeveloperName) {
       const pageName = t.tab.pageDeveloperName ?? t.developerName;
+      const fallback = this.knownTabLwcFallback(t);
+      // Planner is a single-LWC AppPage. Mount the Lit port directly so it
+      // receives a height chain under frozen tablet chrome. Flexi region
+      // wrappers + extra page toolbar + 100vh overflow:hidden collapse the calendar.
+      if (fallback === 'c/fieldRepPlanner') {
+        await mountLwcTab(fallback);
+        return;
+      }
       const raw = await getFlexiPage(this.db, pageName);
       const flexi = parseFlexiPage(raw);
+      if (this.flexiContainsPlanner(flexi)) {
+        await mountLwcTab('c/fieldRepPlanner');
+        return;
+      }
       if (!flexi || this.isRecordLayoutStub(flexi)) {
-        const fallback = this.knownTabLwcFallback(t);
         if (fallback) {
           await mountLwcTab(fallback);
           return;
@@ -6523,7 +6594,7 @@ export class OsrApp extends LitElement {
         ? 'c/clmPlayer'
         : this.customTabLwc;
     return html`
-      <div class="page">
+      <div class="page ${this.customTabFidelityPlanner ? 'page-fill' : ''}">
         ${lwcBundle && isFidelityBundle(lwcBundle)
           ? nothing
           : html`<div class="list-toolbar">

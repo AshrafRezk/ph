@@ -142,9 +142,10 @@ export const mirrorStyles = css`
   .osr-lwc-mirror .map-wrapper .leaflet-container {
     border-radius: 0.5rem;
   }
+  .osr-lwc-mirror.planner-shell,
   .osr-lwc-mirror .planner-shell {
-    height: calc(100vh - 7rem);
-    min-height: 32rem;
+    height: 100%;
+    min-height: 0;
   }
   .osr-lwc-mirror .account-chip {
     display: flex;

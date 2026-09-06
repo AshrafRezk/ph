@@ -1,6 +1,6 @@
 /**
  * Field Rep Home layout helpers — single vertical stack (no sidebar columns).
- * Order matches product: CLM → Performance → Messages → Today's Plan → NBC → Reports.
+ * Order matches product: CLM → Messages → Performance → Today's Plan → NBC → Reports.
  */
 
 /** Minimal component shape (avoids circular import with index.ts). */
@@ -13,8 +13,8 @@ export type HomeFlexiComponent = {
 /** Preferred vertical order for Field Rep Home LWCs (lower = earlier). */
 export const FIELD_HOME_BUNDLE_PRIORITY: Record<string, number> = {
   'c/fieldRepHomeClmPrefetch': 10,
-  'c/fieldRepHomeMetrics': 20,
-  'c/homeOfficeMessages': 30,
+  'c/homeOfficeMessages': 20,
+  'c/fieldRepHomeMetrics': 30,
   'c/fieldRepHomeTodayPlan': 40,
   'c/fieldRepHomeNextBestCustomer': 50,
   'c/reportsHub': 60

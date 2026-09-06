@@ -3,7 +3,8 @@
   command = "npm run build -w @osr/shell"
   functions = "netlify/functions"
   # Skip Netlify builds when the commit only touches Salesforce/Plan/etc.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF ."
+  # Map git errors (128, shallow clone missing refs) to exit 1 so the build still runs.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- .; c=$?; if [ $c -eq 0 ]; then exit 0; else exit 1; fi"
 
 [[headers]]
   for = "/downloads/*.apk"
