@@ -7,7 +7,7 @@
   "theme_color": "#0176d3",
   "icons": [
     {
-      "src": "/salesforce-logo.svg",
+      "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -15,6 +15,12 @@
     {
       "src": "/salesforce-logo.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/salesforce-logo-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }

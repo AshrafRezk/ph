@@ -1,10 +1,12 @@
-const CACHE_NAME = 'zeta-field-pwa-v5';
+const CACHE_NAME = 'zeta-field-pwa-v6';
 const APP_SHELL = [
     '/',
     '/index.html',
     '/manifest.webmanifest',
+    '/icon.svg',
     '/salesforce-logo.svg',
     '/salesforce-logo.png',
+    '/salesforce-logo-512.png',
     '/android-logo.svg',
     '/apple-logo.svg',
     '/accounts.html',
