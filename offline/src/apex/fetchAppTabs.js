@@ -1,12 +1,12 @@
 // Org apps + tabs via Salesforce UI API / REST /tabs.
 // Browser traffic goes through plannerApiFetch (Netlify sf-api) so CORS cannot
-// collapse the launcher to the local Pharma Field fallback.
+// collapse the launcher to the local Salesforce OSR fallback.
 
 import { plannerApiFetch } from './restHelper.js';
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v5';
-const APPS_CACHE_KEY = 'zeta.pwa.apps.v5';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v5';
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v6';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v6';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v6';
 const DEFAULT_API_VERSION = 'v62.0';
 const FORM_FACTOR = 'Large';
 const HYDRATE_BATCH = 6;
@@ -16,6 +16,7 @@ const FALLBACK_TABS = [
     { key: 'Field_Rep_Home_App', label: 'Home', type: 'TabFlexiPage', iconUrl: null },
     { key: 'Field_Rep_Planner', label: 'Planner', type: 'TabAura', iconUrl: null },
     { key: 'Accounts_Tab', label: 'Accounts', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Class_Engine', label: 'Class Engine', type: 'TabFlexiPage', iconUrl: null },
     { key: 'Visit__c', label: 'Visits', type: 'Entity', iconUrl: null, objectApiName: 'Visit__c' },
     { key: 'CLM_Presentations', label: 'CLM Presentations', type: 'TabFlexiPage', iconUrl: null },
     { key: 'My_Learning', label: 'My Learning', type: 'TabFlexiPage', iconUrl: null },
@@ -26,7 +27,7 @@ const FALLBACK_TABS = [
 export const PHARMA_APP = {
     id: null,
     developerName: 'LightningSales',
-    label: 'Pharma Field',
+    label: 'Salesforce OSR',
     iconUrl: null,
     description: 'Home, planner, accounts, CLM & time off — full offline support.',
     fullOffline: true,
@@ -109,7 +110,8 @@ function mapOrgApp(app) {
         iconUrl,
         description: app.description || '',
         selected: app.selected === true,
-        fullOffline: false,
+        // Every profile-visible app is treated as syncable offline (nav + entity lists).
+        fullOffline: true,
         tabs: normalizeTabs(app)
     };
 }
@@ -258,10 +260,15 @@ function isFieldApp(app) {
 }
 
 function markOfflineFirst(apps) {
-    const list = (apps || []).map((app) => (isFieldApp(app) ? ensureAppTabs(app) : app));
-    list.sort((a, b) => (b.fullOffline === true) - (a.fullOffline === true));
-    if (!list.some((a) => a.fullOffline)) {
-        list.unshift(ensureAppTabs(PHARMA_APP));
+    const list = (apps || []).map((app) => {
+        const mapped = isFieldApp(app) ? ensureAppTabs(app) : app;
+        return { ...mapped, fullOffline: true };
+    });
+    // Prefer the Field app first when present; never inject the OSR seed when
+    // the org returned real apps.
+    list.sort((a, b) => Number(isFieldApp(b)) - Number(isFieldApp(a)));
+    if (!list.length) {
+        return [ensureAppTabs(PHARMA_APP)];
     }
     return list;
 }
@@ -320,7 +327,9 @@ export function readCachedApps() {
 export async function fetchApps({ forceRefresh = false } = {}) {
     const cached = cacheRead(APPS_CACHE_KEY);
     if (cached && !forceRefresh) {
-        refreshApps().catch((err) => console.warn('[AppChooser] background refresh failed', err));
+        refreshApps().catch(() => {
+            /* quiet background refresh — keep cached apps on screen */
+        });
         return markOfflineFirst(cached);
     }
     try {
@@ -331,7 +340,7 @@ export async function fetchApps({ forceRefresh = false } = {}) {
                 itemTabs = await fetchTabsFromOrg();
                 if (itemTabs.length) cacheWrite(TABS_CACHE_KEY, itemTabs);
             } catch (_err) {
-                /* All Items is optional for the app cards */
+                /* tab icons optional */
             }
             const merged = overlayTabIcons(apps, itemTabs);
             cacheWrite(APPS_CACHE_KEY, merged);
@@ -342,7 +351,8 @@ export async function fetchApps({ forceRefresh = false } = {}) {
         console.warn('[AppChooser] fetchApps failed', err);
     }
     if (cached) return markOfflineFirst(cached);
-    return [PHARMA_APP];
+    // Last resort only when cache is empty and the org cannot be reached.
+    return [ensureAppTabs(PHARMA_APP)];
 }
 
 async function refreshApps() {

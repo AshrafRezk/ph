@@ -1,14 +1,16 @@
 import '@lwc/synthetic-shadow';
 import { createElement } from 'lwc';
 import FieldRepHomeMetrics from 'c/fieldRepHomeMetrics';
-import FieldRepHomeMonthlyTimecard from 'c/fieldRepHomeMonthlyTimecard';
 import FieldRepHomeTodayPlan from 'c/fieldRepHomeTodayPlan';
+import FieldRepHomeActivityPlan from 'c/fieldRepHomeActivityPlan';
 import FieldRepHomeNextBestCustomer from 'c/fieldRepHomeNextBestCustomer';
 import HomeOfficeMessages from 'c/homeOfficeMessages';
+import StayInTheKnow from 'c/stayInTheKnow';
 import FieldRepHomeClmPrefetch from 'c/fieldRepHomeClmPrefetch';
 import ReportsHub from 'c/reportsHub';
 import FieldRepPlanner from 'c/fieldRepPlanner';
 import AccountsTab from 'c/accountsTab';
+import ClassEngineTab from 'c/classEngineTab';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
@@ -21,13 +23,45 @@ import AccountRatingsPanel from 'c/accountRatingsPanel';
 import AccountVisitInsightsPanel from 'c/accountVisitInsightsPanel';
 import PendingPaymentAlert from 'c/pendingPaymentAlert';
 import OfflineAppBanner from 'c/offlineAppBanner';
-import { startSyncService, registerOfflineListener } from 'c/clmOfflineSync';
-import { fetchApps, fetchTabs, PHARMA_APP, overlayTabIcons, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
-import { plannerApiFetch } from './apex/restHelper';
-import { setupToastListener } from './toastManager';
+import { plannerApiFetch, isNetworkError } from './apex/restHelper';
+import {
+    isStaleOfflineBeyond24h,
+    isStaleOnlineBeyond1h,
+    hoursSinceLastOnline,
+    formatHoursAgo,
+    writeLastOnlineAt,
+    readLastOnlineAt
+} from './apex/restHelper';
+import { setupToastListener, showToast } from './toastManager';
+import {
+    startSyncService,
+    registerOfflineListener,
+    hydrateOfflineMode,
+    isOfflineMode,
+    drainQueue
+} from 'c/clmOfflineSync';
+import { countPendingActions } from 'c/clmOfflineStore';
+import { startBackgroundSync } from './backgroundSync';
+import { fetchApps, PHARMA_APP, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
+import {
+    runOfflineBootstrap,
+    BOOTSTRAP_STATUS_EVENT,
+    isBootstrapComplete
+} from './offlineBootstrap';
+import {
+    initApprovalInbox,
+    teardownApprovalInbox,
+    closeApprovalInbox
+} from './approvalNotifications';
+import {
+    initPushNotifications,
+    registerPushNotifications,
+    teardownPushNotifications
+} from './pushNotifications.js';
 import { mountChatterView as renderChatterView } from './views/chatterView';
 import { mountReportsView as renderReportsView } from './views/reportsView';
 import { mountDashboardsView as renderDashboardsView } from './views/dashboardsView';
+import { mountAgentforceChat, setAgentforceChatVisible } from './agentforceChat.js';
 import {
     initUserMenu,
     refreshUserChrome,
@@ -74,22 +108,40 @@ function isCapacitor() {
         return true;
     }
 
-    // Check for Capacitor object
-    if (window.Capacitor && window.Capacitor.isNativePlatform) {
-        return window.Capacitor.isNativePlatform();
+    const cap = window.Capacitor;
+    if (cap) {
+        try {
+            if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
+                return true;
+            }
+        } catch (_e) {
+            // ignore
+        }
+        if (cap.isNative === true) {
+            return true;
+        }
+        try {
+            const platform = typeof cap.getPlatform === 'function' ? cap.getPlatform() : '';
+            if (platform === 'android' || platform === 'ios') {
+                return true;
+            }
+        } catch (_e) {
+            // ignore
+        }
     }
 
-    // Fallback: Check if running in Android WebView with Capacitor
-    const ua = navigator.userAgent;
-    console.log('[Capacitor] User Agent:', ua);
+    const ua = navigator.userAgent || '';
     if (/android/i.test(ua) && /Capacitor/i.test(ua)) {
-        console.log('[Capacitor] Detected via User Agent');
+        return true;
+    }
+    if (window.CapacitorCookies || window.CapacitorHttp || window.CapacitorWebView) {
         return true;
     }
 
-    // Fallback: Check for Capacitor-specific flags
-    if (window.CapacitorCookies || window.CapacitorHttp || window.CapacitorWebView) {
-        console.log('[Capacitor] Detected via global flags');
+    // Bundled Capacitor Android WebView is https://localhost with no Vite port.
+    const host = window.location?.hostname || '';
+    const port = window.location?.port || '';
+    if (host === 'localhost' && !port && /android/i.test(ua) && /(wv|WebView)/i.test(ua)) {
         return true;
     }
 
@@ -155,16 +207,54 @@ const SANDBOX_LOGIN = 'https://test.salesforce.com';
 const MY_DOMAIN_SUFFIX = '.my.salesforce.com';
 const APP_SCHEME = 'com.zetapharma.fieldpwa';
 const LOGIN_URL_KEY = 'zeta.pwa.sfLoginUrl';
+const LOGIN_ENV_KEY = 'zeta.pwa.sfLoginEnv';
+const CUSTOM_DOMAIN_KEY = 'zeta.pwa.sfCustomDomain';
 const REDIRECT_URI_KEY = 'zeta.pwa.sfRedirectUri';
 const PKCE_VERIFIER_KEY = 'zeta.pwa.oauthPkceVerifier';
 const OAUTH_STATE_KEY = 'zeta.pwa.oauthState';
-const TOKEN_PROXY_URL = '/.netlify/functions/sf-token';
+const TOKEN_PROXY_PATH = '/.netlify/functions/sf-token';
+const DEFAULT_PUBLIC_WEB_ORIGIN = 'https://www.salesforceoffline.com';
 /** @type {'login' | 'chooser' | 'app' | null} */
 let currentScreen = null;
 
+function getPublicWebOrigin() {
+    const explicit = String(import.meta.env.VITE_PUBLIC_WEB_ORIGIN || '')
+        .trim()
+        .replace(/\/$/, '');
+    if (explicit) return explicit;
+    const webRedirect = String(import.meta.env.VITE_SF_WEB_REDIRECT_URI || '').trim();
+    if (webRedirect) {
+        try {
+            return new URL(webRedirect).origin;
+        } catch {
+            /* ignore */
+        }
+    }
+    return DEFAULT_PUBLIC_WEB_ORIGIN;
+}
+
+function isBundledNativeOrigin() {
+    if (typeof window === 'undefined') return false;
+    const host = window.location.hostname || '';
+    const port = window.location.port || '';
+    return (host === 'localhost' || host === '127.0.0.1') && !port;
+}
+
+function getTokenProxyUrl() {
+    const explicit = String(import.meta.env.VITE_TOKEN_PROXY_URL || '').trim();
+    if (explicit) return explicit;
+    // Bundled APK origin is https://localhost — a relative Netlify path
+    // hits the WebView SPA (HTML 200) and surfaces as "Invalid response from token proxy".
+    if (isCapacitor() || isBundledNativeOrigin()) {
+        return `${getPublicWebOrigin()}${TOKEN_PROXY_PATH}`;
+    }
+    return TOKEN_PROXY_PATH;
+}
+
 function defaultInstanceUrl() {
-    const fromEnv = (import.meta.env.VITE_SF_INSTANCE_URL || '').trim();
-    return fromEnv.replace(/\/$/, '');
+    // Never bake a tenant My Domain into the PWA/APK. After OAuth, instance_url
+    // lives in localStorage. Local Vite may still proxy via VITE_SF_INSTANCE_URL.
+    return '';
 }
 
 function extractMyDomainLabel(raw) {
@@ -252,7 +342,10 @@ function readRefreshToken() {
 }
 
 function readInstanceUrl() {
-    return window.localStorage.getItem(INSTANCE_URL_KEY) || defaultInstanceUrl();
+    return String(window.localStorage.getItem(INSTANCE_URL_KEY) || defaultInstanceUrl()).replace(
+        /\/$/,
+        ''
+    );
 }
 
 function hasStoredSession() {
@@ -292,7 +385,11 @@ function clearIdentity() {
 
 function isSessionConfirmed() {
     try {
-        return sessionStorage.getItem(SESSION_CONFIRMED_KEY) === '1';
+        if (sessionStorage.getItem(SESSION_CONFIRMED_KEY) === '1') {
+            return true;
+        }
+        // Native APK: persist across WebView refresh even if sessionStorage is cleared.
+        return localStorage.getItem(SESSION_CONFIRMED_KEY) === '1';
     } catch {
         return false;
     }
@@ -301,6 +398,9 @@ function isSessionConfirmed() {
 function confirmSession() {
     try {
         sessionStorage.setItem(SESSION_CONFIRMED_KEY, '1');
+        if (isCapacitor()) {
+            localStorage.setItem(SESSION_CONFIRMED_KEY, '1');
+        }
     } catch {
         /* ignore */
     }
@@ -309,6 +409,7 @@ function confirmSession() {
 function clearSessionConfirmed() {
     try {
         sessionStorage.removeItem(SESSION_CONFIRMED_KEY);
+        localStorage.removeItem(SESSION_CONFIRMED_KEY);
     } catch {
         /* ignore */
     }
@@ -375,6 +476,23 @@ function isPharmaWorkspace(saved) {
     return name === 'lightningsales' || name === 'pharmafield';
 }
 
+function isNativeInstalledApp() {
+    return isCapacitor() || isBundledNativeOrigin();
+}
+
+function syncLoginDownloadsVisibility() {
+    const hide = isNativeInstalledApp();
+    document.documentElement.classList.toggle('osr-native', hide);
+    const downloads = document.getElementById('login-downloads');
+    if (!downloads) return;
+    downloads.hidden = hide;
+    if (hide) {
+        downloads.setAttribute('hidden', '');
+    } else if (!document.documentElement.classList.contains('osr-has-session')) {
+        downloads.removeAttribute('hidden');
+    }
+}
+
 function applyResumeUserLabels() {
     const { name, username, firstName, lastName } = readStoredIdentity();
     const composed = `${firstName || ''} ${lastName || ''}`.trim();
@@ -407,16 +525,16 @@ function showFreshLogin() {
     document.documentElement.classList.remove('osr-session-confirmed');
     const resume = document.getElementById('login-resume');
     const fresh = document.getElementById('login-fresh');
-    const downloads = document.getElementById('login-downloads');
     if (resume) resume.hidden = true;
     if (fresh) {
         fresh.hidden = false;
         fresh.removeAttribute('hidden');
     }
-    if (downloads) {
-        downloads.hidden = false;
-        downloads.removeAttribute('hidden');
+    const envSelect = document.getElementById('login-env');
+    if (envSelect && !window.localStorage.getItem(LOGIN_ENV_KEY)) {
+        envSelect.value = 'production';
     }
+    syncLoginDownloadsVisibility();
     syncLoginFormUi();
 }
 
@@ -442,16 +560,29 @@ async function fetchAndStoreUserIdentity() {
 
 function enterAuthenticatedApp() {
     const token = readToken();
-    if (!token) {
+    if (!token && !(readRefreshToken() || readStoredIdentity().userId)) {
         showFreshLogin();
         showScreen('login');
         setLoginStatus('Session expired. Please sign in again.', true);
         return;
     }
+
+    const navigatorOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (navigatorOffline && isStaleOfflineBeyond24h()) {
+        const hours = formatHoursAgo(hoursSinceLastOnline());
+        showOfflineLaunchLock(
+            `Connect to the internet to open the app. Last online ${hours} ago (more than 24 hours).`
+        );
+        return;
+    }
+
     confirmSession();
     document.documentElement.classList.add('osr-session-confirmed');
-    configureRuntime(token);
+    hideOfflineLaunchLock();
+    configureRuntime(token || '');
     void refreshUserChrome();
+    initApprovalInbox();
+    void initPushNotifications({ isCapacitor });
     if (!restoreLastLightningApp()) {
         buildAppChooser();
     } else {
@@ -462,6 +593,138 @@ function enterAuthenticatedApp() {
         console.log('[OfflineSyncListener] Sync phase changed:', status);
     });
     startSyncService();
+    startBackgroundSync();
+    wireBootstrapStatusChip();
+    void runOfflineBootstrap({ force: !isBootstrapComplete() }).catch(() => {});
+    void maybeNotifyStaleSync();
+    void maybeNotifyBrickGrowth();
+    void maybeNotifyClassSuggestions();
+}
+
+async function maybeNotifyBrickGrowth() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return;
+    }
+    try {
+        const { default: getBrickGrowthAlerts } = await import('./apex/getBrickGrowthAlerts.js');
+        const alerts = await getBrickGrowthAlerts({});
+        if (!Array.isArray(alerts) || !alerts.length) {
+            return;
+        }
+        const top = alerts[0];
+        const doctorCount = Array.isArray(top.doctors) ? top.doctors.length : 0;
+        showToast({
+            title: `Brick sales up: ${top.brickName || 'Brick'}`,
+            message: `${top.growthPercent || 0}% MoM. Focus on ${doctorCount} doctor(s) in this brick.`,
+            variant: 'info',
+            duration: 10000
+        });
+    } catch (error) {
+        console.warn('[BrickAlerts] Unable to load brick growth alerts:', error);
+    }
+}
+
+async function maybeNotifyClassSuggestions() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return;
+    }
+    try {
+        const { default: getPendingSuggestions } = await import('./apex/getPendingSuggestions.js');
+        const rows = await getPendingSuggestions({});
+        if (!Array.isArray(rows) || !rows.length) {
+            return;
+        }
+        const first = rows[0];
+        showToast({
+            title: 'Classification suggestions',
+            message: `${rows.length} pending. Open account ratings to approve or reject (e.g. ${first.accountName || 'account'} → ${first.suggestedClass || ''}).`,
+            variant: 'info',
+            duration: 10000
+        });
+    } catch (error) {
+        console.warn('[ClassSuggestions] Unable to load pending suggestions:', error);
+    }
+}
+
+function showOfflineLaunchLock(message) {
+    let lock = document.getElementById('offline-launch-lock');
+    if (!lock) {
+        lock = document.createElement('div');
+        lock.id = 'offline-launch-lock';
+        lock.className = 'offline-launch-lock';
+        lock.innerHTML = `
+            <div class="offline-launch-lock-card" role="alertdialog" aria-modal="true" aria-labelledby="offline-lock-title">
+                <h2 id="offline-lock-title">Internet required</h2>
+                <p class="offline-launch-lock-message"></p>
+                <button type="button" class="offline-launch-lock-btn" id="offline-lock-retry">Try again</button>
+            </div>
+        `;
+        document.body.appendChild(lock);
+        lock.querySelector('#offline-lock-retry')?.addEventListener('click', () => {
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
+                hideOfflineLaunchLock();
+                enterAuthenticatedApp();
+            } else {
+                const msg = lock.querySelector('.offline-launch-lock-message');
+                if (msg) {
+                    msg.textContent =
+                        'Still offline. Connect to the internet, then tap Try again.';
+                }
+            }
+        });
+    }
+    const msg = lock.querySelector('.offline-launch-lock-message');
+    if (msg) {
+        msg.textContent = message;
+    }
+    lock.hidden = false;
+    lock.removeAttribute('hidden');
+    lock.style.display = 'flex';
+    showScreen('login');
+    setLoginStatus(message, true);
+}
+
+function hideOfflineLaunchLock() {
+    const lock = document.getElementById('offline-launch-lock');
+    if (!lock) {
+        return;
+    }
+    lock.hidden = true;
+    lock.setAttribute('hidden', '');
+    lock.style.display = 'none';
+}
+
+async function maybeNotifyStaleSync() {
+    const navigatorOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (navigatorOffline || !isStaleOnlineBeyond1h()) {
+        if (!navigatorOffline && readLastOnlineAt()) {
+            writeLastOnlineAt();
+        }
+        return;
+    }
+    const hours = formatHoursAgo(hoursSinceLastOnline());
+    let pending = 0;
+    try {
+        pending = await countPendingActions();
+    } catch (_err) {
+        pending = 0;
+    }
+    const pendingPart =
+        pending > 0
+            ? ` ${pending} queued visit action${pending === 1 ? '' : 's'} will sync.`
+            : '';
+    showToast({
+        title: 'Syncing visits',
+        message: `Last online ${hours} ago.${pendingPart}`,
+        variant: 'info',
+        duration: 8000
+    });
+    try {
+        await drainQueue();
+        writeLastOnlineAt();
+    } catch (error) {
+        console.warn('[OfflineGate] Sync after stale reopen failed:', error);
+    }
 }
 
 function configureRuntime(token, refreshToken = null, instanceUrl = null) {
@@ -569,6 +832,84 @@ function clearOAuthTransientState() {
     window.localStorage.removeItem('oauth_state');
 }
 
+function looksLikeHtml(text) {
+    const trimmed = String(text || '')
+        .trim()
+        .slice(0, 32)
+        .toLowerCase();
+    return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html') || trimmed.startsWith('<head');
+}
+
+function tokenProxyErrorDetail(raw) {
+    if (raw && typeof raw === 'object') {
+        return raw.error_description || raw.errorMessage || raw.error || JSON.stringify(raw);
+    }
+    return String(raw || '').slice(0, 300);
+}
+
+function parseTokenProxyBody(raw, status, failLabel) {
+    let json = raw;
+    if (typeof raw === 'string' || raw == null) {
+        const text = String(raw || '');
+        if (looksLikeHtml(text)) {
+            console.error('[Auth] Token proxy returned HTML instead of JSON from', getTokenProxyUrl());
+            throw new Error('Invalid response from token proxy');
+        }
+        try {
+            json = JSON.parse(text);
+        } catch {
+            console.error('[Auth] Non-JSON token response:', text.substring(0, 500));
+            throw new Error('Invalid response from token proxy');
+        }
+    }
+    if (!json || typeof json !== 'object') {
+        throw new Error('Invalid response from token proxy');
+    }
+    if (status < 200 || status >= 300) {
+        throw new Error(`${failLabel} (${status}): ${tokenProxyErrorDetail(json)}`);
+    }
+    return json;
+}
+
+async function postTokenProxy(payload, failLabel = 'Token exchange failed') {
+    const url = getTokenProxyUrl();
+    console.log('[Auth] Token proxy POST', url);
+
+    if (isCapacitor()) {
+        try {
+            const { CapacitorHttp } = await import('@capacitor/core');
+            const result = await CapacitorHttp.post({
+                url,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json'
+                },
+                data: payload,
+                connectTimeout: 30000,
+                readTimeout: 30000
+            });
+            return parseTokenProxyBody(result.data, result.status, failLabel);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (
+                message === 'Invalid response from token proxy' ||
+                message.startsWith(`${failLabel} (`)
+            ) {
+                throw error;
+            }
+            console.warn('[Auth] CapacitorHttp token proxy failed, falling back to fetch:', error);
+        }
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    return parseTokenProxyBody(text, response.status, failLabel);
+}
+
 async function exchangeCodeForToken(code) {
     const codeVerifier = readPkceVerifier();
     if (!codeVerifier) {
@@ -583,43 +924,14 @@ async function exchangeCodeForToken(code) {
         throw new Error('Connected App client id is not configured (VITE_SF_CLIENT_ID).');
     }
 
-    const response = await fetch(TOKEN_PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            tokenUrl,
-            grant_type: 'authorization_code',
-            client_id: clientId,
-            redirect_uri: redirectUri,
-            code,
-            code_verifier: codeVerifier
-        })
+    const json = await postTokenProxy({
+        tokenUrl,
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code,
+        code_verifier: codeVerifier
     });
-
-    const text = await response.text();
-    if (!response.ok) {
-        console.error('Token exchange failed:', response.status, text);
-        let detail = text;
-        try {
-            const parsed = JSON.parse(text);
-            detail =
-                parsed.error_description ||
-                parsed.errorMessage ||
-                parsed.error ||
-                text;
-        } catch {
-            /* keep raw text */
-        }
-        throw new Error(`Token exchange failed (${response.status}): ${detail}`);
-    }
-
-    let json;
-    try {
-        json = JSON.parse(text);
-    } catch {
-        console.error('Non-JSON token response:', text.substring(0, 500));
-        throw new Error('Invalid response from token proxy');
-    }
     if (!json?.access_token) {
         throw new Error('Token exchange returned no access_token');
     }
@@ -637,31 +949,15 @@ async function refreshAccessToken() {
     const loginUrl = OAUTH_CONFIG.loginUrl;
     const tokenUrl = `${loginUrl}/services/oauth2/token`;
 
-    const response = await fetch(TOKEN_PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    return postTokenProxy(
+        {
             tokenUrl,
             grant_type: 'refresh_token',
             client_id: OAUTH_CONFIG.clientId,
             refresh_token: refreshToken
-        })
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        console.error('Token refresh failed:', response.status, text);
-        throw new Error('Failed to refresh token: ' + response.status);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text.substring(0, 500));
-        throw new Error('Invalid response from token proxy');
-    }
-
-    return response.json();
+        },
+        'Failed to refresh token'
+    );
 }
 
 /** True when this navigation is an OAuth redirect (path and/or ?code=). */
@@ -739,9 +1035,21 @@ function setLoginStatus(message, isError = false) {
     el.style.color = isError ? '#ba0517' : '#706e6b';
 }
 
+function describeOAuthError(error) {
+    const raw = error instanceof Error ? error.message : String(error || '');
+    const lower = raw.toLowerCase();
+    if (lower.includes('cross-org') || lower.includes('external client app')) {
+        return 'This app can’t sign in other Salesforce companies yet. Sign-in must use a Connected App, not an External Client App.';
+    }
+    if (lower.includes('redirect_uri') || lower.includes('redirect uri')) {
+        return 'Sign-in couldn’t return to this app. Check the Connected App callback URL and try again.';
+    }
+    return raw || 'Sign-in failed. Please try again.';
+}
+
 function resolveLoginUrlFromForm() {
     const envSelect = document.getElementById('login-env');
-    const env = envSelect?.value || 'custom';
+    const env = envSelect?.value || 'production';
     if (env === 'production') return PRODUCTION_LOGIN;
     if (env === 'sandbox') return SANDBOX_LOGIN;
     const input = document.getElementById('custom-domain-input');
@@ -774,11 +1082,29 @@ function syncLoginFormUi() {
     if (loginBtn) loginBtn.disabled = showCustom && !customReady;
 }
 
-function prefillsCustomDomainFromEnv() {
+function persistLoginFormChoice() {
+    const envSelect = document.getElementById('login-env');
+    const env = envSelect?.value || 'production';
+    if (env === 'production' || env === 'sandbox' || env === 'custom') {
+        window.localStorage.setItem(LOGIN_ENV_KEY, env);
+    }
+    const input = document.getElementById('custom-domain-input');
+    const label = extractMyDomainLabel(input?.value || '');
+    if (label) {
+        window.localStorage.setItem(CUSTOM_DOMAIN_KEY, label);
+    }
+}
+
+function restoreLoginFormChoice() {
+    const envSelect = document.getElementById('login-env');
+    const savedEnv = (window.localStorage.getItem(LOGIN_ENV_KEY) || '').trim();
+    if (envSelect && (savedEnv === 'production' || savedEnv === 'sandbox' || savedEnv === 'custom')) {
+        envSelect.value = savedEnv;
+    }
     const input = document.getElementById('custom-domain-input');
     if (!input || input.value) return;
-    const label = extractMyDomainLabel(defaultInstanceUrl());
-    if (label) input.value = label;
+    const savedLabel = (window.localStorage.getItem(CUSTOM_DOMAIN_KEY) || '').trim();
+    if (savedLabel) input.value = savedLabel;
 }
 
 async function login() {
@@ -788,6 +1114,7 @@ async function login() {
         setLoginStatus('Enter your company login name.', true);
         return;
     }
+    persistLoginFormChoice();
 
     let authUrl;
     try {
@@ -854,7 +1181,7 @@ async function handleCapacitorCallback(url) {
         console.error('[OAuth] Callback error:', error);
         showScreen('login');
         setLoginStatus(
-            error instanceof Error ? error.message : 'Login failed. Please try again.',
+            describeOAuthError(error),
             true
         );
     }
@@ -879,17 +1206,33 @@ async function initCapacitorListener() {
                 handleCapacitorCallback(url);
             }
         });
+        capacitorApp.addListener('appStateChange', (state) => {
+            if (state?.isActive && !isOfflineMode()) {
+                startSyncService();
+                startBackgroundSync();
+                void registerPushNotifications();
+            }
+        });
     }
 }
 
-function logout() {
+async function logout() {
+    try {
+        await teardownPushNotifications();
+    } catch {
+        /* best-effort unregister */
+    }
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.localStorage.removeItem(INSTANCE_URL_KEY);
+    window.localStorage.removeItem(LOGIN_URL_KEY);
+    window.localStorage.removeItem(LOGIN_ENV_KEY);
     clearIdentity();
     clearSessionConfirmed();
     clearLastWorkspace();
     closeUserMenu();
+    closeApprovalInbox();
+    teardownApprovalInbox();
     document.documentElement.classList.remove('osr-restore-app');
     configureRuntime('');
     unmountApp();
@@ -914,14 +1257,17 @@ function mountHomeView() {
     if (!homeRoot.querySelector('c-home-office-messages')) {
         homeRoot.appendChild(createElement('c-home-office-messages', { is: HomeOfficeMessages }));
     }
+    if (!homeRoot.querySelector('c-stay-in-the-know')) {
+        homeRoot.appendChild(createElement('c-stay-in-the-know', { is: StayInTheKnow }));
+    }
     if (!homeRoot.querySelector('c-field-rep-home-metrics')) {
         homeRoot.appendChild(createElement('c-field-rep-home-metrics', { is: FieldRepHomeMetrics }));
     }
-    if (!homeRoot.querySelector('c-field-rep-home-monthly-timecard')) {
-        homeRoot.appendChild(createElement('c-field-rep-home-monthly-timecard', { is: FieldRepHomeMonthlyTimecard }));
-    }
     if (!homeRoot.querySelector('c-field-rep-home-today-plan')) {
         homeRoot.appendChild(createElement('c-field-rep-home-today-plan', { is: FieldRepHomeTodayPlan }));
+    }
+    if (!homeRoot.querySelector('c-field-rep-home-activity-plan')) {
+        homeRoot.appendChild(createElement('c-field-rep-home-activity-plan', { is: FieldRepHomeActivityPlan }));
     }
     if (!homeRoot.querySelector('c-field-rep-home-next-best-customer')) {
         homeRoot.appendChild(createElement('c-field-rep-home-next-best-customer', { is: FieldRepHomeNextBestCustomer }));
@@ -936,8 +1282,13 @@ function mountPlannerView() {
     if (!plannerRoot) {
         return;
     }
-    if (!plannerRoot.querySelector('c-field-rep-planner')) {
-        plannerRoot.appendChild(createElement('c-field-rep-planner', { is: FieldRepPlanner }));
+    let planner = plannerRoot.querySelector('c-field-rep-planner');
+    if (!planner) {
+        planner = createElement('c-field-rep-planner', { is: FieldRepPlanner });
+        planner.hideEmbeddedAgentforce = true;
+        plannerRoot.appendChild(planner);
+    } else {
+        planner.hideEmbeddedAgentforce = true;
     }
 }
 
@@ -948,6 +1299,16 @@ function mountAccountsView() {
     }
     if (!accountsRoot.querySelector('c-accounts-tab')) {
         accountsRoot.appendChild(createElement('c-accounts-tab', { is: AccountsTab }));
+    }
+}
+
+function mountClassEngineView() {
+    const root = document.getElementById('view-class-engine');
+    if (!root) {
+        return;
+    }
+    if (!root.querySelector('c-class-engine-tab')) {
+        root.appendChild(createElement('c-class-engine-tab', { is: ClassEngineTab }));
     }
 }
 
@@ -1007,18 +1368,25 @@ function mountDashboardsPanel() {
 // from the planner), or — as a fallback so the tab is never empty — the user's
 // most recent visit.
 async function resolveActiveVisitId() {
-    const urlVisit = new URLSearchParams(window.location.search).get('visit');
-    if (urlVisit) {
-        return urlVisit;
-    }
     const stored = window.localStorage.getItem(ACTIVE_VISIT_KEY);
     if (stored) {
         return stored;
     }
+    const urlVisit = new URLSearchParams(window.location.search).get('visit');
+    if (urlVisit) {
+        window.localStorage.setItem(ACTIVE_VISIT_KEY, urlVisit);
+        return urlVisit;
+    }
+    const hashVisit = String(window.location.hash || '').match(/^#visit\/(.+)$/);
+    if (hashVisit && hashVisit[1]) {
+        const id = decodeURIComponent(hashVisit[1]);
+        window.localStorage.setItem(ACTIVE_VISIT_KEY, id);
+        return id;
+    }
     try {
         const base = String(globalThis.PLANNER_SF_INSTANCE || '').replace(/\/$/, '');
         const token = globalThis.PLANNER_ACCESS_TOKEN || '';
-        if (!base || !token) {
+        if (!base || !token || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
             return null;
         }
         const q = encodeURIComponent(
@@ -1058,30 +1426,24 @@ function mountVisitCallView() {
     });
 }
 
-// Open a specific Visit in the Visit Call Shell (replaces the generic record
-// page for Visit__c). Called when a Visit row is opened from the entity list.
+// Open a specific Visit in the Visit Call Shell without a full-page redirect.
+// Same panel swap as switching tabs, so it stays in-app and works offline.
 function openVisitCall(recordId) {
     if (recordId) {
         window.localStorage.setItem(ACTIVE_VISIT_KEY, recordId);
-        try {
-            const url = new URL(window.location.href);
-            url.searchParams.set('visit', recordId);
-            window.history.replaceState({}, '', url);
-        } catch (_err) {
-            /* ignore */
-        }
     }
     closeRecordModal();
+    const shell = document.getElementById('app');
+    if (shell && currentTab !== VISIT_CALL_TAB_KEY) {
+        shell.classList.remove('tab-dir-back');
+        shell.classList.add('tab-dir-forward');
+    }
+    switchTab(VISIT_CALL_TAB_KEY);
     const root = document.getElementById('view-visitcall');
     const el = root && root.querySelector('c-visit-call-shell');
     if (el && recordId) {
         el.recordId = recordId;
     }
-    currentTab = VISIT_CALL_TAB_KEY;
-    if (currentOpenApp) persistOpenWorkspace();
-    document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
-    if (root) root.classList.add('active');
-    mountVisitCallView();
     document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
         const active = btn.dataset.tab === 'Visit__c' || btn.dataset.tab === VISIT_CALL_TAB_KEY;
         btn.classList.toggle('nav-tab-active', active);
@@ -1089,18 +1451,43 @@ function openVisitCall(recordId) {
     });
 }
 
+function visitIdFromHref(href) {
+    if (!href) {
+        return null;
+    }
+    try {
+        const url = new URL(href, window.location.href);
+        const fromQuery = url.searchParams.get('visit');
+        if (fromQuery) {
+            return fromQuery;
+        }
+        const hash = String(url.hash || '');
+        const hashMatch = hash.match(/^#visit\/(.+)$/);
+        if (hashMatch) {
+            return decodeURIComponent(hashMatch[1]);
+        }
+    } catch (_err) {
+        /* ignore */
+    }
+    return null;
+}
+
+function isVisitObjectName(objectApiName) {
+    const obj = String(objectApiName || '');
+    return obj === 'Visit__c' || obj === 'Visit';
+}
+
 function handleRecordNavigation(recordId, objectApiName) {
     if (!recordId) return;
-    const obj = String(objectApiName || '');
-    if (obj === 'Visit__c' || obj === 'Visit') {
+    if (isVisitObjectName(objectApiName)) {
         openVisitCall(recordId);
         return;
     }
-    if (/^report$/i.test(obj) || /^dashboard$/i.test(obj)) {
-        openAnalyticsRecord(recordId, obj);
+    if (/^report$/i.test(String(objectApiName || '')) || /^dashboard$/i.test(String(objectApiName || ''))) {
+        openAnalyticsRecord(recordId, objectApiName);
         return;
     }
-    openRecordModal(recordId, obj);
+    openRecordModal(recordId, objectApiName);
 }
 
 function openAnalyticsRecord(recordId, objectApiName) {
@@ -1114,10 +1501,9 @@ function openAnalyticsRecord(recordId, objectApiName) {
         btn.classList.toggle('nav-tab-active', active);
         btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
-    document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
     const panelId = isReport ? 'view-reports' : 'view-dashboards';
     const root = document.getElementById(panelId);
-    if (root) root.classList.add('active');
+    activatePanel(panelId);
     if (isReport) {
         renderReportsView(root, { recordId });
     } else {
@@ -1174,6 +1560,11 @@ window.addEventListener('message', (event) => {
     }
     if (data.type === 'close-record-modal') {
         closeRecordModal();
+        return;
+    }
+    if (data.type === 'osr-record-title' && data.title) {
+        const title = document.querySelector('.record-modal-chrome-title');
+        if (title) title.textContent = data.title;
     }
 });
 
@@ -1181,6 +1572,7 @@ const APP_TAB_VIEWS = {
     Field_Rep_Home_App: { panel: 'view-home', mount: mountHomeView },
     Field_Rep_Planner: { panel: 'view-planner', mount: mountPlannerView },
     Accounts_Tab: { panel: 'view-accounts', mount: mountAccountsView },
+    Class_Engine: { panel: 'view-class-engine', mount: mountClassEngineView },
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
     Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView },
@@ -1205,37 +1597,86 @@ function isSupportedTab(tab) {
     return tab.type === 'Entity';
 }
 
+function tabOrderIndex(tabKey) {
+    return appTabs.findIndex((item) => item.key === tabKey);
+}
+
+function activatePanel(panelId) {
+    document.querySelectorAll('.view-panel').forEach((panel) => {
+        const on = panel.id === panelId;
+        panel.classList.toggle('active', on);
+        panel.toggleAttribute('inert', !on);
+        panel.setAttribute('aria-hidden', on ? 'false' : 'true');
+    });
+}
+
+let primaryTabsWarmed = false;
+
+function warmupPrimaryTabs() {
+    if (primaryTabsWarmed) {
+        return;
+    }
+    primaryTabsWarmed = true;
+    const mountNow = () => {
+        ['Field_Rep_Home_App', 'Field_Rep_Planner', 'Accounts_Tab'].forEach((key) => {
+            const view = APP_TAB_VIEWS[key];
+            if (view) {
+                view.mount();
+            }
+        });
+        const mountLater = () => {
+            const learning = APP_TAB_VIEWS.My_Learning;
+            if (learning) {
+                learning.mount();
+            }
+        };
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(mountLater, { timeout: 1200 });
+        } else {
+            window.setTimeout(mountLater, 200);
+        }
+    };
+    window.requestAnimationFrame(mountNow);
+}
+
 function switchTab(tab) {
     if (!tab) return;
+    const previousTab = currentTab;
     currentTab = tab;
     if (currentOpenApp) persistOpenWorkspace();
 
-    // Update sidebar nav tab active state
-    document.querySelectorAll('#app-tabs .nav-tab').forEach(btn => {
+    const fromIdx = tabOrderIndex(previousTab);
+    const toIdx = tabOrderIndex(tab);
+    const shell = document.getElementById('app');
+    if (shell && fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx) {
+        shell.classList.toggle('tab-dir-back', toIdx < fromIdx);
+        shell.classList.toggle('tab-dir-forward', toIdx > fromIdx);
+    }
+
+    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
         const active = btn.dataset.tab === tab;
         btn.classList.toggle('nav-tab-active', active);
         btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
-    // Hide all view panels
-    document.querySelectorAll('.view-panel').forEach(panel => {
-        panel.classList.remove('active');
-    });
-
     const view = APP_TAB_VIEWS[tab];
     if (view) {
-        const panel = document.getElementById(view.panel);
-        panel?.classList.add('active');
         view.mount();
+        activatePanel(view.panel);
+        warmupPrimaryTabs();
+        syncAgentforceFab(true);
         return;
     }
 
     if (isEntityTab(tab)) {
         mountListView();
+        activatePanel('view-entity');
+        syncAgentforceFab(true);
         return;
     }
 
     showUnsupportedTab(tab);
+    syncAgentforceFab(true);
 }
 
 function showUnsupportedTab(key) {
@@ -1249,7 +1690,7 @@ function showUnsupportedTab(key) {
             <p>This tab isn't available offline. Open it in Salesforce, or pick another tab from the sidebar.</p>
         </div>
     `;
-    panel.classList.add('active');
+    activatePanel('view-unsupported');
 }
 
 function mountListView() {
@@ -1272,7 +1713,6 @@ function mountListView() {
         iframe.dataset.src = src;
         iframe.src = src;
     }
-    entityRoot.classList.add('active');
 }
 
 function unmountApp() {
@@ -1300,17 +1740,36 @@ function unmountApp() {
     if (dashboardsRoot) dashboardsRoot.innerHTML = '';
     currentTab = HOME_TAB_KEY;
     currentOpenApp = null;
+    primaryTabsWarmed = false;
 }
 
 function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
         return;
     }
-    window.addEventListener('load', () => {
+    // Capacitor APK already ships the shell in the package. A service worker
+    // cache-first layer is what blanked the WebView after a refresh.
+    if (isCapacitor()) {
+        navigator.serviceWorker
+            .getRegistrations()
+            .then((regs) => regs.forEach((reg) => reg.unregister()))
+            .catch(() => {});
+        return;
+    }
+    const register = () => {
         navigator.serviceWorker.register('/sw.js').catch((error) => {
             console.warn('Service worker registration failed', error);
         });
-    });
+    };
+    if (document.readyState === 'complete') {
+        register();
+    } else {
+        window.addEventListener('load', register, { once: true });
+    }
+}
+
+function syncAgentforceFab(appVisible) {
+    setAgentforceChatVisible(Boolean(appVisible));
 }
 
 // Show exactly one top-level screen: 'login' | 'chooser' | 'app'.
@@ -1350,6 +1809,12 @@ function showScreen(name) {
     setVisible(chooser, name === 'chooser', 'block');
     setVisible(nav, name === 'app', 'flex');
     setVisible(shell, name === 'app', '');
+    syncAgentforceFab(name === 'app');
+    if (name === 'app') {
+        mountAgentforceChat({
+            openPlanner: () => switchTab('Field_Rep_Planner')
+        });
+    }
 
     if (toast) {
         if (name === 'login') {
@@ -1363,21 +1828,56 @@ function showScreen(name) {
     }
 }
 
-// Salesforce-style App Launcher: search across apps + items, open an app or
-// jump straight to a single object/tab. Renders Pharma immediately (local,
-// always tappable), then augments with the org's apps once fetchApps resolves.
+// Salesforce-style App Launcher: apps only. Paint cached org apps immediately
+// (no Salesforce OSR seed flash). Refresh quietly in the background.
 let chooserApps = [];
-let chooserItems = [];
 let chooserSearchWired = false;
+let bootstrapChipWired = false;
+
+function wireBootstrapStatusChip() {
+    if (bootstrapChipWired) return;
+    bootstrapChipWired = true;
+    let chip = document.getElementById('bootstrap-status-chip');
+    if (!chip) {
+        chip = document.createElement('div');
+        chip.id = 'bootstrap-status-chip';
+        chip.className = 'bootstrap-status-chip';
+        chip.hidden = true;
+        chip.setAttribute('role', 'status');
+        document.body.appendChild(chip);
+    }
+    window.addEventListener(BOOTSTRAP_STATUS_EVENT, (event) => {
+        const detail = (event && event.detail) || {};
+        if (detail.phase === 'done' || detail.phase === 'error' || detail.phase === 'skipped') {
+            chip.hidden = true;
+            chip.textContent = '';
+            return;
+        }
+        if (detail.phase === 'entities' && detail.total) {
+            chip.hidden = false;
+            chip.textContent = `Preparing offline data… ${detail.done || 0}/${detail.total}`;
+            return;
+        }
+        if (detail.phase === 'start' || detail.phase === 'apps' || detail.phase === 'field' || detail.phase === 'entities') {
+            chip.hidden = false;
+            chip.textContent = 'Preparing offline data…';
+        }
+    });
+}
 
 function buildAppChooser() {
     showScreen('chooser');
     const grid = document.getElementById('app-chooser-grid');
     if (!grid) return;
 
-    chooserApps = [ensureAppTabs(PHARMA_APP)];
-    chooserItems = buildItemsFromApps(chooserApps);
-    renderChooser();
+    const cached = readCachedApps();
+    if (cached.length) {
+        chooserApps = cached;
+        renderChooser();
+    } else {
+        chooserApps = [];
+        grid.innerHTML = '<p class="chooser-loading">Loading apps…</p>';
+    }
     wireChooserSearch();
     loadOrgAppsIntoChooser();
 }
@@ -1386,30 +1886,27 @@ function seedChooserFromCache() {
     const cached = readCachedApps();
     if (!cached.length) return;
     chooserApps = cached;
-    chooserItems = buildItemsFromApps(chooserApps);
 }
 
 function loadOrgAppsIntoChooser() {
-    fetchApps({ forceRefresh: true })
+    // Always cache-first; forceRefresh only when we have nothing to paint.
+    const forceRefresh = !readCachedApps().length;
+    fetchApps({ forceRefresh })
         .then((apps) => {
             if (apps && apps.length) {
                 chooserApps = apps;
+                applyChooserUpdate();
+            } else if (!chooserApps.length) {
+                chooserApps = [ensureAppTabs(PHARMA_APP)];
                 applyChooserUpdate();
             }
         })
         .catch((error) => {
             console.warn('[AppChooser] Failed to load org apps:', error);
-        });
-
-    fetchTabs({ forceRefresh: true })
-        .then((tabs) => {
-            if (tabs && tabs.length) {
-                chooserItems = tabs;
+            if (!chooserApps.length) {
+                chooserApps = [ensureAppTabs(PHARMA_APP)];
                 applyChooserUpdate();
             }
-        })
-        .catch((error) => {
-            console.warn('[AppChooser] Failed to load org tabs:', error);
         });
 }
 
@@ -1439,10 +1936,6 @@ function restorePendingAppFromChooser() {
 }
 
 function applyChooserUpdate() {
-    chooserApps = overlayTabIcons(chooserApps, chooserItems);
-    if (!chooserItems.length) {
-        chooserItems = buildItemsFromApps(chooserApps);
-    }
     renderChooser();
     syncOpenAppFromOrg();
     restorePendingAppFromChooser();
@@ -1456,22 +1949,6 @@ window.addEventListener('zeta-apps-refreshed', (event) => {
     }
 });
 
-// Flatten every app's tabs into a de-duped, sorted item list (the "All Items"
-// section — objects, record pages and flexipage tabs the user can open).
-function buildItemsFromApps(apps) {
-    const seen = new Map();
-    (apps || []).forEach((app) => {
-        (app.tabs || []).forEach((tab) => {
-            if (tab && tab.key && !seen.has(tab.key)) {
-                seen.set(tab.key, tab);
-            }
-        });
-    });
-    return Array.from(seen.values()).sort((a, b) =>
-        (a.label || '').localeCompare(b.label || '')
-    );
-}
-
 function wireChooserSearch() {
     if (chooserSearchWired) return;
     const input = document.getElementById('chooser-search');
@@ -1484,7 +1961,6 @@ function renderChooser() {
     const term = (document.getElementById('chooser-search')?.value || '').trim().toLowerCase();
     const match = (label) => !term || (label || '').toLowerCase().includes(term);
     renderAppCards(chooserApps.filter((a) => match(a.label)));
-    renderItemCards(chooserItems.filter((i) => match(i.label)));
 }
 
 // Build an icon element: real image when a URL loads, else a letter tile.
@@ -1517,7 +1993,7 @@ function renderAppCards(apps) {
     }
     apps.forEach((app) => {
         const card = document.createElement('button');
-        card.className = 'chooser-card' + (app.fullOffline ? ' chooser-card-offline' : '');
+        card.className = 'chooser-card';
         card.type = 'button';
         card.title = app.label;
 
@@ -1531,39 +2007,8 @@ function renderAppCards(apps) {
 
         card.appendChild(buildIconEl(app.iconUrl, app.label, 'chooser-card-icon'));
         card.appendChild(body);
-        if (app.fullOffline) {
-            const badge = document.createElement('span');
-            badge.className = 'chooser-card-badge';
-            badge.textContent = 'Offline ready';
-            card.appendChild(badge);
-        }
         card.addEventListener('click', () => openApp(app));
         grid.appendChild(card);
-    });
-}
-
-function renderItemCards(items) {
-    const grid = document.getElementById('item-chooser-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    if (!items.length) {
-        grid.innerHTML = '<p class="chooser-empty">No matching items.</p>';
-        return;
-    }
-    items.forEach((item) => {
-        const chip = document.createElement('button');
-        chip.className = 'chooser-item';
-        chip.type = 'button';
-        chip.title = item.label;
-
-        const label = document.createElement('span');
-        label.className = 'chooser-item-label';
-        label.textContent = item.label;
-
-        chip.appendChild(buildIconEl(item.iconUrl, item.label, 'chooser-item-icon'));
-        chip.appendChild(label);
-        chip.addEventListener('click', () => openItem(item));
-        grid.appendChild(chip);
     });
 }
 
@@ -1573,13 +2018,24 @@ const FIELD_ITEM_ALIASES = {
     standard_Account: 'Accounts_Tab'
 };
 
-// Open a single object/tab directly (the "All Items" behaviour), so the shell
-// shows just that item. switchTab handles entity list views, known offline
-// views and the "not available" fallback.
+// Keep the Salesforce logo in the top-left; never replace it with app text.
+function setNavBrand(label) {
+    document.title = 'Salesforce OSR';
+    const brandEl = document.getElementById('nav-title');
+    if (!brandEl) return;
+    const title = label ? `${label} · Salesforce OSR` : 'Salesforce OSR';
+    brandEl.setAttribute('title', title);
+    brandEl.setAttribute('alt', 'Salesforce');
+}
+
+// Open a single object/tab directly (used when navigating to an entity from
+// elsewhere). Prefers the Field app when the tab lives there.
 function openItem(item) {
     if (!item || !item.key) return;
     const fieldApp = ensureAppTabs(
-        chooserApps.find((app) => app.fullOffline) || PHARMA_APP
+        chooserApps.find((app) => isFieldAppChooser(app)) ||
+            chooserApps.find((app) => app.fullOffline) ||
+            PHARMA_APP
     );
     const mappedKey = FIELD_ITEM_ALIASES[item.key] || FIELD_ITEM_ALIASES[item.objectApiName] || item.key;
     const match = (fieldApp.tabs || []).find(
@@ -1597,12 +2053,17 @@ function openItem(item) {
     currentOpenApp = null;
     const tabs = [item];
     appTabs = tabs;
-    const titleEl = document.getElementById('nav-title');
-    if (titleEl) titleEl.textContent = item.label || 'Item';
+    setNavBrand();
     renderTabButtons(tabs);
     currentTab = item.key;
     showScreen('app');
     switchTab(item.key);
+}
+
+function isFieldAppChooser(app) {
+    if (!app) return false;
+    if (app.developerName === 'LightningSales' || app.developerName === 'PharmaField') return true;
+    return (app.tabs || []).some((t) => t.key === HOME_TAB_KEY);
 }
 
 // Open the chosen app: load its tabs, render the sidebar, show the app screen.
@@ -1612,9 +2073,7 @@ function openApp(app, options = {}) {
     pendingRestore = null;
     const tabs = resolved && Array.isArray(resolved.tabs) ? resolved.tabs.slice() : [];
     appTabs = tabs;
-    const titleEl = document.getElementById('nav-title');
-    if (titleEl) titleEl.textContent = (resolved && resolved.label) || 'App';
-
+    setNavBrand(resolved && resolved.label);
     renderTabButtons(tabs);
     showScreen('app');
 
@@ -1636,23 +2095,27 @@ function openApp(app, options = {}) {
     }
 
     const visitFromUrl = new URLSearchParams(window.location.search).get('visit');
-    if (visitFromUrl && resolved.fullOffline) {
-        openVisitCall(visitFromUrl);
+    const hashVisit = visitIdFromHref(window.location.href);
+    const resumeVisitId =
+        visitFromUrl ||
+        hashVisit ||
+        (options.preferredTab === VISIT_CALL_TAB_KEY ? window.localStorage.getItem(ACTIVE_VISIT_KEY) : null);
+    if (resumeVisitId && (resolved.fullOffline || isFieldAppChooser(resolved))) {
+        openVisitCall(resumeVisitId);
     }
 }
 
 function showEmptyApp(app) {
-    document.querySelectorAll('.view-panel').forEach((p) => p.classList.remove('active'));
     const panel = document.getElementById('view-unsupported');
     if (!panel) return;
+    activatePanel('view-unsupported');
     const label = (app && app.label) || 'This app';
     panel.innerHTML = `
         <div class="unsupported-message">
             <h2>${label}</h2>
-            <p>No offline-available tabs for this app. Use <strong>All Items</strong> in the launcher to open an object, or open the app in Salesforce.</p>
+            <p>No offline-available tabs for this app yet. Open another app from the launcher, or open this app in Salesforce.</p>
         </div>
     `;
-    panel.classList.add('active');
 }
 
 function syncOpenAppFromOrg() {
@@ -1660,7 +2123,7 @@ function syncOpenAppFromOrg() {
     const key = currentOpenApp.developerName;
     const fresh =
         chooserApps.find((a) => a.developerName === key) ||
-        chooserApps.find((a) => a.fullOffline);
+        chooserApps.find((a) => isFieldAppChooser(a));
     if (!fresh || !Array.isArray(fresh.tabs) || !fresh.tabs.length) return;
 
     const sameTabs =
@@ -1670,8 +2133,7 @@ function syncOpenAppFromOrg() {
 
     currentOpenApp = fresh;
     appTabs = fresh.tabs.slice();
-    const titleEl = document.getElementById('nav-title');
-    if (titleEl) titleEl.textContent = fresh.label || 'App';
+    setNavBrand(fresh.label);
     const keep = currentTab;
     renderTabButtons(appTabs);
     if (keep && appTabs.some((t) => t.key === keep)) {
@@ -1727,6 +2189,9 @@ function defaultTabIcon(tabKey) {
     if (exact === 'Accounts_Tab' || key.includes('account')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 21V9l8-6 8 6v12h-6v-6H10v6H4zm2-2h2v-4h8v4h2v-9.2L12 5.5 6 9.8V19z"/></svg>`;
     }
+    if (exact === 'Class_Engine' || key.includes('class_engine') || key.includes('class-engine')) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3V5zm2 4h14v2H5V9zm-2 4h18v2H3v-2zm2 4h14v2H5v-2z"/></svg>`;
+    }
     if (exact === 'My_Learning' || key.includes('learning')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zm-7.84 9.15L12 16.5l7.84-4.35L12 21 4.16 12.15z"/></svg>`;
     }
@@ -1758,6 +2223,29 @@ function defaultTabIcon(tabKey) {
 
 function setupNavigation() {
     setupRecordModal();
+    document.addEventListener(
+        'click',
+        (event) => {
+            const anchor = event.target && event.target.closest && event.target.closest('a[href]');
+            if (!anchor) {
+                return;
+            }
+            const visitId = visitIdFromHref(anchor.getAttribute('href'));
+            if (!visitId) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            openVisitCall(visitId);
+        },
+        true
+    );
+    window.addEventListener('hashchange', () => {
+        const visitId = visitIdFromHref(window.location.href);
+        if (visitId) {
+            openVisitCall(visitId);
+        }
+    });
 }
 
 function setupRecordModal() {
@@ -2006,11 +2494,11 @@ function mountAccountRecord(recordId) {
     }
 
     const tabDefs = [
-        { id: 'details', label: 'Details' },
+        { id: 'details', label: 'Overview' },
         { id: 'affiliations', label: 'Affiliations' },
         { id: 'apm', label: 'APM' },
         { id: 'ratings', label: 'Ratings' },
-        { id: 'insights', label: 'Visit Insights' }
+        { id: 'insights', label: 'Visits' }
     ];
     const tabs = document.createElement('div');
     tabs.className = 'coaching-record-tabs account-record-tabs';
@@ -2041,8 +2529,8 @@ function mountAccountRecord(recordId) {
     const mountLwc = (pane, tag, Ctor, emptyTitle) => {
         try {
             const el = createElement(tag, { is: Ctor });
-            el.recordId = recordId;
             pane.appendChild(el);
+            el.recordId = recordId;
         } catch (err) {
             pane.innerHTML = `<div class="unsupported-message"><h2>${emptyTitle}</h2><p>Could not load this panel offline.</p></div>`;
             console.warn(`[Account] ${emptyTitle} mount failed`, err);
@@ -2058,6 +2546,21 @@ function mountAccountRecord(recordId) {
             buttons[key].classList.toggle('is-active', key === id);
             panes[key].hidden = key !== id;
         });
+        if (id === 'affiliations') {
+            window.requestAnimationFrame(() => {
+                window.dispatchEvent(new Event('resize'));
+                const network = panes.affiliations.querySelector('c-account-affiliation-network');
+                if (network && typeof network.redrawNetwork === 'function') {
+                    network.redrawNetwork();
+                }
+            });
+        }
+        if (id === 'apm') {
+            const apm = panes.apm.querySelector('c-account-hcp-product-roi');
+            if (apm && typeof apm.handleRefresh === 'function') {
+                apm.handleRefresh();
+            }
+        }
     };
     Object.keys(buttons).forEach((id) => {
         buttons[id].addEventListener('click', () => activate(id));
@@ -2163,7 +2666,7 @@ function setupSessionBar(token) {
         saveIdentity
     });
 
-    prefillsCustomDomainFromEnv();
+    restoreLoginFormChoice();
     if (envSelect) {
         envSelect.addEventListener('change', syncLoginFormUi);
     }
@@ -2203,8 +2706,26 @@ function isStandalonePwa() {
     );
 }
 
+function publicApkFileName(fileName, version) {
+    const cleaned = String(fileName || '')
+        .replace(/-debug(?=\.apk$)/i, '')
+        .replace(/-debug/gi, '')
+        .trim();
+    if (cleaned) {
+        return cleaned;
+    }
+    const ver = String(version || '').replace(/^v/i, '').trim();
+    return ver ? `OSR-${ver}.apk` : '';
+}
+
 async function setupLoginDownloads() {
+    syncLoginDownloadsVisibility();
+    if (isNativeInstalledApp()) {
+        return;
+    }
+
     const androidMeta = document.getElementById('android-download-meta');
+    const androidLink = document.getElementById('android-download');
     const iosBtn = document.getElementById('ios-install-btn');
     const iosHint = document.getElementById('ios-install-hint');
 
@@ -2213,8 +2734,13 @@ async function setupLoginDownloads() {
             const res = await fetch('/downloads/apk-latest.json', { cache: 'no-store' });
             if (res.ok) {
                 const meta = await res.json();
-                if (meta?.version) {
-                    androidMeta.textContent = `v${meta.version}`;
+                const version = String(meta?.version || '').replace(/^v/i, '');
+                if (version) {
+                    const file = publicApkFileName(meta?.fileName, version);
+                    androidMeta.textContent = file ? `v${version} - ${file}` : `v${version}`;
+                    if (androidLink && file) {
+                        androidLink.setAttribute('download', file);
+                    }
                 }
             }
         } catch {
@@ -2232,7 +2758,7 @@ async function setupLoginDownloads() {
         deferredPwaInstallPrompt = null;
         if (iosHint) {
             iosHint.hidden = false;
-            iosHint.textContent = 'Installed. Open Pharma Field from your home screen anytime.';
+            iosHint.textContent = 'Installed. Open Salesforce OSR from your home screen anytime.';
         }
     });
 
@@ -2256,7 +2782,7 @@ async function setupLoginDownloads() {
                     iosHint.hidden = false;
                     iosHint.textContent =
                         choice?.outcome === 'accepted'
-                            ? 'Installing… Look for Pharma Field on your home screen.'
+                            ? 'Installing… Look for Salesforce OSR on your home screen.'
                             : 'Install cancelled. You can try again anytime.';
                 }
                 return;
@@ -2268,34 +2794,55 @@ async function setupLoginDownloads() {
         if (iosHint) {
             iosHint.hidden = false;
             iosHint.textContent = isIosDevice()
-                ? 'On iPhone/iPad: tap Share, then Add to Home Screen to install Pharma Field.'
-                : 'In your browser menu, choose Install app or Add to Home Screen to install Pharma Field.';
+                ? 'On iPhone/iPad: tap Share, then Add to Home Screen to install Salesforce OSR.'
+                : 'In your browser menu, choose Install app or Add to Home Screen to install Salesforce OSR.';
         }
     });
 }
 
-async function stampOfflineRuntimeVersion() {
-    document.documentElement.classList.add('osr-offline-shell');
-    let version = '';
+async function readNativeAppVersion() {
+    if (!isCapacitor()) {
+        return '';
+    }
     try {
-        const local = await fetch('/downloads/apk-latest.json', { cache: 'no-store' });
-        if (local.ok) {
-            const meta = await local.json();
-            version = meta?.version ? String(meta.version) : '';
+        if (!capacitorApp) {
+            await initCapacitorPlugins();
+        }
+        if (capacitorApp?.getInfo) {
+            const info = await capacitorApp.getInfo();
+            if (info?.version) {
+                return String(info.version);
+            }
         }
     } catch (_e) {
-        // ignore
+        // Fall through to the last native stamp, if any.
     }
-    if (!version) {
-        try {
-            version = localStorage.getItem(APP_VERSION_KEY) || '';
-        } catch (_e) {
-            version = '';
+    try {
+        return localStorage.getItem(APP_VERSION_KEY) || '';
+    } catch (_e) {
+        return '';
+    }
+}
+
+async function stampOfflineRuntimeVersion() {
+    document.documentElement.classList.add('osr-offline-shell');
+    const capacitor = isCapacitor();
+    // Only the APK's native versionName counts as "installed". Never stamp
+    // hosted apk-latest.json here — that would hide updates and also make a
+    // browser session look like the Android app is already installed.
+    let version = '';
+    if (capacitor) {
+        version = await readNativeAppVersion();
+        if (version) {
+            try {
+                localStorage.setItem(APP_VERSION_KEY, version);
+            } catch (_e) {
+                // ignore
+            }
         }
-    }
-    if (version) {
+    } else {
         try {
-            localStorage.setItem(APP_VERSION_KEY, version);
+            localStorage.removeItem(APP_VERSION_KEY);
         } catch (_e) {
             // ignore
         }
@@ -2303,7 +2850,7 @@ async function stampOfflineRuntimeVersion() {
     window.__OSR_RUNTIME__ = {
         shell: 'offline',
         version,
-        capacitor: isCapacitor()
+        capacitor
     };
 }
 
@@ -2312,7 +2859,8 @@ async function initializeApp(options = {}) {
     console.log('[App] User Agent:', navigator.userAgent);
     console.log('[App] Initial window.Capacitor:', typeof window.Capacitor);
 
-    await stampOfflineRuntimeVersion();
+    document.documentElement.classList.add('osr-offline-shell');
+    hydrateOfflineMode();
 
     const enterImmediately = !!options.enterImmediately;
     const oauthCallback = isOAuthCallbackLocation();
@@ -2333,11 +2881,15 @@ async function initializeApp(options = {}) {
     const capacitorReady = await waitForCapacitor(3000);
     console.log('[App] Capacitor ready:', capacitorReady);
     console.log('[App] isCapacitor():', isCapacitor());
+    syncLoginDownloadsVisibility();
+    console.log('[App] tokenProxy:', getTokenProxyUrl());
     console.log('[App] callbackUrl:', OAUTH_CONFIG.callbackUrl);
     console.log('[App] stored redirectUri:', OAUTH_CONFIG.redirectUri);
     console.log('[App] stored loginUrl:', OAUTH_CONFIG.loginUrl);
 
     await initCapacitorListener();
+    await stampOfflineRuntimeVersion();
+    console.log('[App] runtime:', window.__OSR_RUNTIME__);
 
     let oauthHandled = false;
     if (oauthCallback) {
@@ -2352,9 +2904,7 @@ async function initializeApp(options = {}) {
             showFreshLogin();
             showScreen('login');
             setLoginStatus(
-                error instanceof Error
-                    ? error.message
-                    : 'Sign-in failed after Allow Access. Please try again.',
+                describeOAuthError(error),
                 true
             );
             registerServiceWorker();
@@ -2365,21 +2915,26 @@ async function initializeApp(options = {}) {
         if (refreshToken) {
             try {
                 const tokenData = await refreshAccessToken();
-                const { access_token, instance_url } = tokenData;
+                const { access_token, refresh_token, instance_url } = tokenData;
                 console.log('[OAuth] Token refresh successful');
                 window.localStorage.setItem(TOKEN_KEY, access_token);
-                configureRuntime(access_token, null, instance_url);
+                configureRuntime(access_token, refresh_token || null, instance_url);
             } catch (error) {
                 console.error('Token refresh error:', error);
-                window.localStorage.removeItem(TOKEN_KEY);
-                window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-                window.localStorage.removeItem(INSTANCE_URL_KEY);
-                clearIdentity();
-                clearSessionConfirmed();
-                configureRuntime('');
-                showFreshLogin();
-                showScreen('login');
-                setLoginStatus('Session expired. Please sign in again.', true);
+                if (isNetworkError(error)) {
+                    hydrateOfflineMode();
+                    configureRuntime(readToken() || '');
+                } else {
+                    window.localStorage.removeItem(TOKEN_KEY);
+                    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+                    window.localStorage.removeItem(INSTANCE_URL_KEY);
+                    clearIdentity();
+                    clearSessionConfirmed();
+                    configureRuntime('');
+                    showFreshLogin();
+                    showScreen('login');
+                    setLoginStatus('Session expired. Please sign in again.', true);
+                }
             }
         }
     }
@@ -2394,6 +2949,13 @@ async function initializeApp(options = {}) {
     if (token) {
         void fetchAndStoreUserIdentity();
         if (enterImmediately || oauthHandled || isSessionConfirmed()) {
+            enterAuthenticatedApp();
+        } else {
+            showResumeSession();
+            showScreen('login');
+        }
+    } else if ((readRefreshToken() || readStoredIdentity().userId) && (isSessionConfirmed() || enterImmediately || isOfflineMode())) {
+        if (enterImmediately || isSessionConfirmed() || isOfflineMode()) {
             enterAuthenticatedApp();
         } else {
             showResumeSession();

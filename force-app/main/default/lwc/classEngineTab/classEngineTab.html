@@ -1,0 +1,228 @@
+<template>
+    <div class="ce-shell">
+        <header class="ce-header">
+            <div>
+                <h1 class="ce-title">Class Engine</h1>
+                <template if:true={page}>
+                    <p class="ce-subtitle">
+                        {page.territoryName} · Line {page.lineTerritoryName} ·
+                        {page.dailyVisitRate} visits/day · Status {cycleStatus}
+                    </p>
+                </template>
+                <p class="ce-capacity">{capacitySummary}</p>
+            </div>
+            <div class="ce-actions">
+                <template if:true={showRepSwitcher}>
+                    <lightning-combobox
+                        label="Rep"
+                        value={selectedEmployeeId}
+                        options={teamRepOptions}
+                        onchange={handleRepChange}
+                        class="ce-rep"
+                    ></lightning-combobox>
+                </template>
+                <lightning-input
+                    type="text"
+                    label="Quarter"
+                    value={quarter}
+                    onchange={handleQuarterChange}
+                    class="ce-quarter"
+                ></lightning-input>
+                <lightning-button
+                    label="Promo Grid Settings"
+                    onclick={toggleSettings}
+                ></lightning-button>
+                <lightning-button
+                    label="Promo Grid Classify"
+                    variant="brand"
+                    disabled={isBusy}
+                    onclick={handleClassify}
+                ></lightning-button>
+                <lightning-button
+                    label="Submit for Approval"
+                    disabled={isBusy}
+                    onclick={handleSubmit}
+                ></lightning-button>
+                <template if:true={canApprove}>
+                    <lightning-button
+                        label="Approve"
+                        variant="success"
+                        disabled={isBusy}
+                        onclick={handleApprove}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Reject"
+                        variant="destructive"
+                        disabled={isBusy}
+                        onclick={handleReject}
+                    ></lightning-button>
+                </template>
+            </div>
+        </header>
+
+        <template if:true={hasPending}>
+            <section class="ce-pending">
+                <h2>Pending approval</h2>
+                <ul>
+                    <template for:each={pendingCycles} for:item="cycle">
+                        <li key={cycle.id}>
+                            <button
+                                type="button"
+                                class="pending-link"
+                                data-employee={cycle.employeeId}
+                                data-quarter={cycle.quarter}
+                                onclick={handleOpenPending}
+                            >
+                                {cycle.employeeName} · {cycle.quarter}
+                            </button>
+                        </li>
+                    </template>
+                </ul>
+            </section>
+        </template>
+
+        <template if:true={showSettings}>
+            <section class="ce-settings">
+                <h2>Promo Grid Settings (read-only)</h2>
+                <template if:true={promoGrid}>
+                    <div class="settings-grid">
+                        <div>
+                            <h3>Products</h3>
+                            <template for:each={promoGrid.productWeights} for:item="row">
+                                <div key={row.id} class="settings-row">
+                                    {row.productName}: {row.weightPercentage}%
+                                </div>
+                            </template>
+                        </div>
+                        <div>
+                            <h3>Specialties</h3>
+                            <template for:each={promoGrid.specialtyFocus} for:item="row">
+                                <div key={row.id} class="settings-row">
+                                    {row.specialtyLabel}: {row.listPercentage}%
+                                </div>
+                            </template>
+                        </div>
+                        <div>
+                            <h3>Classes</h3>
+                            <template for:each={promoGrid.classTargeting} for:item="row">
+                                <div key={row.id} class="settings-row">
+                                    {row.classCode}: {row.listPercentage}% ·
+                                    {row.targetMonthlyVisits} visits
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template if:false={promoGrid}>
+                    <p>No Line promo grid found for this territory.</p>
+                </template>
+            </section>
+        </template>
+
+        <section class="ce-filters">
+            <lightning-input
+                type="search"
+                label="Search"
+                value={searchTerm}
+                onchange={handleSearch}
+            ></lightning-input>
+            <lightning-combobox
+                label="Specialty"
+                value={specialtyFilter}
+                options={specialtyOptions}
+                onchange={handleSpecialtyFilter}
+            ></lightning-combobox>
+        </section>
+
+        <template if:true={isBusy}>
+            <lightning-spinner alternative-text="Loading"></lightning-spinner>
+        </template>
+
+        <template if:true={hasAccounts}>
+            <div class="ce-table">
+                <div class="ce-table-head">
+                    <span></span>
+                    <span>Account</span>
+                    <span>Specialty</span>
+                    <span>Rx</span>
+                    <span>Sales</span>
+                    <span>Chosen</span>
+                    <span>Grid</span>
+                    <span>Month</span>
+                </div>
+                <template for:each={filteredAccounts} for:item="row">
+                    <div key={row.accountId} class={row.rowClass}>
+                        <button
+                            type="button"
+                            class="expand-btn"
+                            data-id={row.accountId}
+                            onclick={toggleRow}
+                            aria-label="Expand"
+                        >
+                            <template if:true={row.expanded}>▼</template>
+                            <template if:false={row.expanded}>▶</template>
+                        </button>
+                        <span class="name">{row.accountName}</span>
+                        <span>{row.specialty}</span>
+                        <span>{row.rxClass}</span>
+                        <span>{row.salesClass}</span>
+                        <span>
+                            <lightning-combobox
+                                variant="label-hidden"
+                                label="Chosen class"
+                                value={row.chosenClass}
+                                options={classOptions}
+                                data-id={row.accountId}
+                                onchange={handleChosenClass}
+                                disabled={isBusy}
+                            ></lightning-combobox>
+                        </span>
+                        <span>{row.gridFrequencyLabel}</span>
+                        <span>{row.monthFrequencyLabel}</span>
+                        <template if:true={row.expanded}>
+                            <div class="product-panel">
+                                <template for:each={row.products} for:item="product">
+                                    <div key={product.key} class="product-row">
+                                        <strong>{product.productName}</strong>
+                                        <label>
+                                            Potential (Rx)
+                                            <input
+                                                type="number"
+                                                value={product.rxPotential}
+                                                data-product={product.product2Id}
+                                                data-account={row.accountId}
+                                                data-field="potential"
+                                                onchange={handleSaveRating}
+                                            />
+                                        </label>
+                                        <label>
+                                            Penetration (Rx)
+                                            <input
+                                                type="number"
+                                                value={product.rxPenetration}
+                                                data-product={product.product2Id}
+                                                data-account={row.accountId}
+                                                data-field="penetration"
+                                                onchange={handleSaveRating}
+                                            />
+                                        </label>
+                                        <span
+                                            >Potential (Sales): {product.salesPotential}</span
+                                        >
+                                        <span
+                                            >Penetration (Sales):
+                                            {product.salesPenetration}</span
+                                        >
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </template>
+        <template if:false={hasAccounts}>
+            <p class="ce-empty">No territory accounts found for Class Engine.</p>
+        </template>
+    </div>
+</template>

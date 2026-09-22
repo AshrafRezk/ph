@@ -104,7 +104,12 @@ function compileSfdxLwc() {
             }
             if (id.startsWith('@salesforce/apex/')) {
                 const parts = id.split('/');
-                const method = parts[parts.length - 1].split('.')[1] || parts[parts.length - 1];
+                const classAndMethod = parts[parts.length - 1];
+                const method = classAndMethod.split('.')[1] || classAndMethod;
+                const classMethodStub = path.resolve(root, `src/apex/${classAndMethod}.js`);
+                if (fs.existsSync(classMethodStub)) {
+                    return classMethodStub;
+                }
                 const specificStub = path.resolve(root, `src/apex/${method}.js`);
                 if (fs.existsSync(specificStub)) {
                     return specificStub;
@@ -268,7 +273,7 @@ function salesforceProxy(instanceUrl) {
     };
 }
 
-/** Local stand-in for Netlify `sf-token` / `sf-api` so web CORS works in `npm run dev`. */
+/** Local stand-in for Netlify `sf-token` / `sf-api` / `rss-feeds` so web CORS works in `npm run dev`. */
 function netlifyFunctionsPlugin() {
     return {
         name: 'zeta-netlify-functions',
@@ -280,6 +285,48 @@ function netlifyFunctionsPlugin() {
                     req.url = '/' + ((req.url || '').includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
                 }
                 next();
+            });
+
+            server.middlewares.use('/.netlify/functions/rss-feeds', async (req, res) => {
+                if (req.method === 'OPTIONS') {
+                    res.statusCode = 204;
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                    res.end();
+                    return;
+                }
+                if (req.method !== 'GET') {
+                    res.statusCode = 405;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+                    return;
+                }
+                try {
+                    const { aggregateStayInTheKnow } = await import(
+                        path.resolve(root, 'netlify/functions/rssAggregator.js')
+                    );
+                    const qs = new URL(req.url || '/', 'http://localhost').searchParams;
+                    const payload = await aggregateStayInTheKnow({
+                        specialties: qs.get('specialties') || '',
+                        products: qs.get('products') || ''
+                    });
+                    res.statusCode = 200;
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    res.setHeader('Cache-Control', 'public, max-age=900');
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(payload));
+                } catch (e) {
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(
+                        JSON.stringify({
+                            error: e instanceof Error ? e.message : String(e),
+                            articles: [],
+                            categories: []
+                        })
+                    );
+                }
             });
 
             server.middlewares.use('/.netlify/functions/sf-token', async (req, res) => {
@@ -434,6 +481,11 @@ export default defineConfig(({ mode }) => {
                 ? { proxy: { '/services': salesforceProxy(instanceUrl) } }
                 : {})
         },
+        // Production/APK must not bake a tenant My Domain from local .env or Netlify.
+        define:
+            mode === 'production'
+                ? { 'import.meta.env.VITE_SF_INSTANCE_URL': JSON.stringify('') }
+                : {},
         build: {
             outDir: 'dist',
             emptyOutDir: true
