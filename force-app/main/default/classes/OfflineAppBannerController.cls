@@ -29,7 +29,7 @@ public with sharing class OfflineAppBannerController {
                 }
             }
         } catch (Exception ex) {
-            // Callout may fail without Remote Site / network — LWC still shows promo downloads.
+            // Callout may fail without Remote Site / network ï¿½ LWC still shows promo downloads.
         }
         return result;
     }

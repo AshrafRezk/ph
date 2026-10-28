@@ -24,7 +24,7 @@
     </values>
     <values>
         <field>LwcBundles_JSON__c</field>
-        <value xsi:type="xsd:string">["c/visitCallShell","c/visitCallShellLite","c/clmPlayerLite","c/fieldRepHomeTodayPlan","c/fieldRepHomeMetrics","c/fieldRepHomeNextBestCustomer","c/fieldRepHomeClmPrefetch","c/homeOfficeMessages","c/repLocationPublisher","c/reportsHub","c/fieldRepPlanner"]</value>
+        <value xsi:type="xsd:string">["c/visitCallShell","c/visitCallShellLite","c/clmPlayerLite","c/fieldRepHomeTodayPlan","c/fieldRepHomeMetrics","c/fieldRepHomeNextBestCustomer","c/fieldRepHomeClmPrefetch","c/homeOfficeMessages","c/stayInTheKnow","c/repLocationPublisher","c/reportsHub","c/fieldRepPlanner"]</value>
     </values>
     <values>
         <field>FileScopes_JSON__c</field>

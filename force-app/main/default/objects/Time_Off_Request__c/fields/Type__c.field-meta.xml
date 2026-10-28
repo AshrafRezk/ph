@@ -11,14 +11,24 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Holiday</fullName>
+                <fullName>Annual Leave</fullName>
                 <default>false</default>
-                <label>Holiday</label>
+                <label>Annual Leave</label>
             </value>
             <value>
-                <fullName>Sick Leave</fullName>
+                <fullName>Annual Vacation</fullName>
                 <default>false</default>
-                <label>Sick Leave</label>
+                <label>Annual Vacation</label>
+            </value>
+            <value>
+                <fullName>Business Trip</fullName>
+                <default>false</default>
+                <label>Business Trip</label>
+            </value>
+            <value>
+                <fullName>Sick</fullName>
+                <default>false</default>
+                <label>Sick</label>
             </value>
             <value>
                 <fullName>Training</fullName>
@@ -26,14 +36,104 @@
                 <label>Training</label>
             </value>
             <value>
+                <fullName>Casual/Emergency</fullName>
+                <default>false</default>
+                <label>Casual/Emergency</label>
+            </value>
+            <value>
+                <fullName>Health Day</fullName>
+                <default>false</default>
+                <label>Health Day</label>
+            </value>
+            <value>
+                <fullName>Maternity/Paternity</fullName>
+                <default>false</default>
+                <label>Maternity/Paternity</label>
+            </value>
+            <value>
+                <fullName>Office Work</fullName>
+                <default>false</default>
+                <label>Office Work</label>
+            </value>
+            <value>
+                <fullName>Marriage</fullName>
+                <default>false</default>
+                <label>Marriage</label>
+            </value>
+            <value>
+                <fullName>Cycle Meeting</fullName>
+                <default>false</default>
+                <label>Cycle Meeting</label>
+            </value>
+            <value>
+                <fullName>Unpaid</fullName>
+                <default>false</default>
+                <label>Unpaid</label>
+            </value>
+            <value>
+                <fullName>Sales Meeting</fullName>
+                <default>false</default>
+                <label>Sales Meeting</label>
+            </value>
+            <value>
+                <fullName>Military</fullName>
+                <default>false</default>
+                <label>Military</label>
+            </value>
+            <value>
+                <fullName>Prospection</fullName>
+                <default>false</default>
+                <label>Prospection</label>
+            </value>
+            <value>
+                <fullName>Handover</fullName>
+                <default>false</default>
+                <label>Handover</label>
+            </value>
+            <value>
+                <fullName>Sales Day</fullName>
+                <default>false</default>
+                <label>Sales Day</label>
+            </value>
+            <value>
+                <fullName>Delegation</fullName>
+                <default>false</default>
+                <label>Delegation</label>
+            </value>
+            <value>
+                <fullName>RTD</fullName>
+                <default>false</default>
+                <label>RTD</label>
+            </value>
+            <value>
+                <fullName>Speaker</fullName>
+                <default>false</default>
+                <label>Speaker</label>
+            </value>
+            <value>
+                <fullName>Conference</fullName>
+                <default>false</default>
+                <label>Conference</label>
+            </value>
+            <value>
+                <fullName>Holiday</fullName>
+                <default>false</default>
+                <label>Holiday (Legacy)</label>
+            </value>
+            <value>
+                <fullName>Sick Leave</fullName>
+                <default>false</default>
+                <label>Sick Leave (Legacy)</label>
+            </value>
+            <value>
                 <fullName>Event</fullName>
                 <default>false</default>
-                <label>Event</label>
+                <label>Event (Legacy)</label>
             </value>
             <value>
                 <fullName>Travelling</fullName>
                 <default>false</default>
-                <label>Travelling</label>
+                <label>Travelling (Legacy)</label>
             </value>
         </valueSetDefinition>
     </valueSet>

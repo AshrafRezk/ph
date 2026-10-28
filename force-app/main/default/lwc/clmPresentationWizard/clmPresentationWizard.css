@@ -35,6 +35,12 @@
     font-size: 1rem;
 }
 
+.layout-hint {
+    margin: 0.75rem 0 0;
+    color: #3e3e3c;
+    font-size: 0.85rem;
+}
+
 .wizard-body {
     padding: 1rem;
     overflow: auto;

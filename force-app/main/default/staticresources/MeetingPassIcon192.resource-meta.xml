@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>image/png</contentType>
+    <description>Zeta Pass app icon (192px), inlined into the meet site PWA manifest.</description>
+</StaticResource>

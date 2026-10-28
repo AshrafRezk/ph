@@ -1,0 +1,85 @@
+<template>
+    <div class="scanner" role="dialog" aria-modal="true" aria-label="Scan attendees">
+        <header class="bar">
+            <button class="icon-btn" title="Close scanner" aria-label="Close scanner" onclick={handleClose}>
+                <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+            </button>
+            <div class="bar__title">
+                <span class="bar__eyebrow">Door check-in</span>
+                <span class="bar__name">{meetingTitle}</span>
+            </div>
+            <div class="counter" title="Checked in / invited">
+                <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="m16 11 2 2 4-4"></path></svg>
+                {counterText}
+            </div>
+        </header>
+
+        <div class="stage">
+            <template lwc:if={isCamera}>
+                <video class="video" autoplay muted playsinline></video>
+                <canvas class="decode"></canvas>
+            </template>
+            <template lwc:if={isNative}>
+                <div class="native-hint">
+                    <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg>
+                    <p>The scanner opens full screen. Each code is checked as soon as it is read.</p>
+                    <button class="pill-btn" onclick={handleScanNext}>Open scanner</button>
+                </div>
+            </template>
+
+            <div class={viewfinderCls}>
+                <span class="corner corner_tl"></span>
+                <span class="corner corner_tr"></span>
+                <span class="corner corner_bl"></span>
+                <span class="corner corner_br"></span>
+                <span class="laser"></span>
+            </div>
+
+            <template lwc:if={cameraError}>
+                <div class="error">
+                    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><path d="m2 2 20 20"></path></svg>
+                    <p>{cameraError}</p>
+                    <button class="pill-btn" onclick={handleRetryCamera}>Try again</button>
+                </div>
+            </template>
+
+            <template lwc:if={hasResult}>
+                <div class={resultCls} role="status" aria-live="assertive">
+                    <span class="result__icon">
+                        <template lwc:if={isOk}>
+                            <svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"></path></svg>
+                        </template>
+                        <template lwc:elseif={isWarn}>
+                            <svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                        </template>
+                        <template lwc:else>
+                            <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+                        </template>
+                    </span>
+                    <div class="result__text">
+                        <div class="result__title">{result.title}</div>
+                        <div class="result__msg">{result.message}</div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <footer class="sheet">
+            <div class="sheet__hint">
+                <template lwc:if={busy}>Checking…</template>
+                <template lwc:else>Ask the guest to open their invitation link and show the live code.</template>
+            </div>
+            <template lwc:if={hasRecent}>
+                <ul class="recent">
+                    <template for:each={recent} for:item="r">
+                        <li key={r.key} class="recent__item">
+                            <span class="recent__avatar">{r.initials}</span>
+                            <span class="recent__name">{r.name}</span>
+                            <span class="recent__time">{r.time}</span>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </footer>
+    </div>
+</template>

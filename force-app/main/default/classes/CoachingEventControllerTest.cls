@@ -185,4 +185,42 @@ private class CoachingEventControllerTest {
             CoachingEventController.getEvaluationData(newEvent.Id);
         System.assertEquals(82.5, data.previousScore);
     }
+
+    @IsTest
+    static void testManagerCanApprove() {
+        Coaching_Event__c event = [SELECT Id FROM Coaching_Event__c LIMIT 1];
+        Test.startTest();
+        CoachingEventController.approveCoaching(event.Id);
+        Test.stopTest();
+        Coaching_Event__c updated = [SELECT Status__c FROM Coaching_Event__c WHERE Id = :event.Id];
+        System.assertEquals('Completed', updated.Status__c);
+    }
+
+    @IsTest
+    static void testManagerCanReject() {
+        Coaching_Event__c event = [SELECT Id FROM Coaching_Event__c LIMIT 1];
+
+        Boolean threwOnEmpty = false;
+        try {
+            CoachingEventController.rejectCoaching(event.Id, '');
+        } catch (Exception e) {
+            threwOnEmpty = true;
+        }
+        System.assert(threwOnEmpty, 'Reject without a reason should fail');
+
+        CoachingEventController.rejectCoaching(event.Id, 'Scores need rework');
+        Coaching_Event__c updated = [
+            SELECT Status__c, Rejection_Reason__c FROM Coaching_Event__c WHERE Id = :event.Id
+        ];
+        System.assertEquals('Self Evaluation', updated.Status__c);
+        System.assertEquals('Scores need rework', updated.Rejection_Reason__c);
+    }
+
+    @IsTest
+    static void testEvaluationExposesCanApprove() {
+        Coaching_Event__c event = [SELECT Id FROM Coaching_Event__c LIMIT 1];
+        CoachingEventController.EvaluationData data =
+            CoachingEventController.getEvaluationData(event.Id);
+        System.assertEquals(true, data.canApprove, 'Manager should be able to approve');
+    }
 }

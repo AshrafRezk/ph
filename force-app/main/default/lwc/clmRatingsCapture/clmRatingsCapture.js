@@ -1,4 +1,5 @@
 import { LightningElement, api, wire } from 'lwc';
+import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getRatingCaptureContext from '@salesforce/apex/ClmMetricsController.getRatingCaptureContext';
 import saveVisitRatings from '@salesforce/apex/ClmMetricsController.saveVisitRatings';
@@ -189,6 +190,9 @@ export default class ClmRatingsCapture extends LightningElement {
                     layoutId: this.layoutId,
                     values: payload
                 });
+                if (this.wiredContextResult) {
+                    await refreshApex(this.wiredContextResult);
+                }
             } else {
                 await queueOfflineAction({
                     actionType: 'SAVE_VISIT_RATINGS',

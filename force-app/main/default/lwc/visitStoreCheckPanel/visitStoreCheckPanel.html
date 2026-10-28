@@ -1,0 +1,102 @@
+<template>
+    <article class="workflow-panel">
+        <h2 class="workflow-title">Store check</h2>
+        <p class="workflow-help">Record pharmacy availability, facings, and shelf photos for this visit.</p>
+        <template if:true={errorMessage}>
+            <p class="workflow-error" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading store check" size="small"></lightning-spinner>
+        </template>
+        <template if:false={isLoading}>
+            <div class="photo-block">
+                <div class="photo-actions">
+                    <lightning-button
+                        label="Take photo"
+                        icon-name="utility:photo"
+                        onclick={openCamera}
+                        disabled={photoDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Choose photo"
+                        icon-name="utility:upload"
+                        onclick={openLibrary}
+                        disabled={photoDisabled}
+                    ></lightning-button>
+                    <input
+                        class="photo-input"
+                        type="file"
+                        accept="image/*"
+                        data-role="camera"
+                        onchange={handlePhotoSelected}
+                        disabled={photoDisabled}
+                    />
+                    <input
+                        class="photo-input"
+                        type="file"
+                        accept="image/*"
+                        data-role="library"
+                        onchange={handlePhotoSelected}
+                        disabled={photoDisabled}
+                    />
+                </div>
+                <template if:true={isUploadingPhoto}>
+                    <p class="workflow-help">Saving photo…</p>
+                </template>
+                <template if:true={hasPhotos}>
+                    <ul class="photo-grid">
+                        <template for:each={photos} for:item="photo">
+                            <li key={photo.key}>
+                                <a href={photo.previewUrl} target="_blank" rel="noopener">
+                                    <img src={photo.previewUrl} alt={photo.title} />
+                                </a>
+                                <lightning-button-icon
+                                    icon-name="utility:delete"
+                                    alternative-text="Remove photo"
+                                    data-id={photo.contentDocumentId}
+                                    onclick={handleRemovePhoto}
+                                    disabled={photoDisabled}
+                                ></lightning-button-icon>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+            </div>
+            <div class="add-row">
+                <lightning-combobox
+                    label="Product"
+                    value={draftProductId}
+                    options={productOptions}
+                    onchange={handleDraftProduct}
+                    disabled={disabled}
+                ></lightning-combobox>
+                <lightning-input type="number" label="Facings" value={draftFacings} onchange={handleDraftFacings} disabled={disabled}></lightning-input>
+                <lightning-input type="checkbox" label="Available" checked={draftAvailable} onchange={handleDraftAvailable} disabled={disabled}></lightning-input>
+                <lightning-button label="Add line" onclick={handleAddLine} disabled={addDisabled}></lightning-button>
+            </div>
+            <lightning-textarea class="slds-m-top_small" label="Notes" value={notes} onchange={handleNotes} disabled={disabled}></lightning-textarea>
+            <template if:true={hasLines}>
+                <ul class="workflow-list">
+                    <template for:each={lines} for:item="line">
+                        <li key={line.key}>
+                            <div>
+                                <strong>{line.productName}</strong>
+                                <span>{line.summary}</span>
+                            </div>
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                alternative-text="Remove"
+                                data-key={line.key}
+                                onclick={handleRemove}
+                                disabled={disabled}
+                            ></lightning-button-icon>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <div class="slds-m-top_small">
+                <lightning-button label="Save store check" variant="brand" onclick={handleSave} disabled={disabled}></lightning-button>
+            </div>
+        </template>
+    </article>
+</template>

@@ -1,0 +1,115 @@
+<template>
+    <lightning-card title="Requests to Sales" icon-name="standard:request">
+        <lightning-button
+            slot="actions"
+            label="New request"
+            onclick={handleNew}
+            variant="brand"
+        ></lightning-button>
+
+        <div class="slds-p-horizontal_medium">
+            <!-- New request form -->
+            <template if:true={showForm}>
+                <div class="slds-box slds-m-bottom_small">
+                    <lightning-combobox
+                        label="Request type"
+                        data-field="requestType"
+                        value={draft.requestType}
+                        options={typeOptions}
+                        onchange={handleChange}
+                    ></lightning-combobox>
+                    <lightning-input
+                        label="Item requested"
+                        data-field="itemName"
+                        value={draft.itemName}
+                        placeholder="e.g. Glucose monitor device"
+                        onchange={handleChange}
+                        required
+                    ></lightning-input>
+                    <lightning-input
+                        type="number"
+                        label="Quantity"
+                        data-field="quantity"
+                        value={draft.quantity}
+                        onchange={handleChange}
+                    ></lightning-input>
+                    <lightning-textarea
+                        label="Details"
+                        data-field="details"
+                        value={draft.details}
+                        onchange={handleChange}
+                    ></lightning-textarea>
+                    <div class="slds-m-top_small">
+                        <lightning-button
+                            label="Submit for approval"
+                            variant="brand"
+                            onclick={handleSave}
+                            disabled={saving}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Cancel"
+                            class="slds-m-left_x-small"
+                            onclick={handleCancel}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Requests list -->
+            <template if:true={hasRows}>
+                <template for:each={rows} for:item="r">
+                    <div key={r.id} class="slds-box slds-box_x-small slds-m-bottom_x-small">
+                        <div class="slds-grid slds-grid_align-spread">
+                            <div>
+                                <strong>{r.itemName}</strong>
+                                <span class="slds-text-body_small slds-m-left_x-small"
+                                    >({r.requestType})</span
+                                >
+                                <template if:true={r.quantityLabel}>
+                                    <span class="slds-text-body_small slds-m-left_x-small"
+                                        >x{r.quantityLabel}</span
+                                    >
+                                </template>
+                            </div>
+                            <span class={r.badgeClass}>{r.status}</span>
+                        </div>
+                        <template if:true={r.details}>
+                            <p class="slds-text-body_small slds-m-top_xx-small">{r.details}</p>
+                        </template>
+                        <p class="slds-text-body_small slds-text-color_weak">
+                            {r.name} · by {r.requestedByName} · DM: {r.managerName}
+                        </p>
+                        <template if:true={r.isRejected}>
+                            <p class="slds-text-color_error slds-text-body_small">
+                                Rejected: {r.rejectionReason}
+                            </p>
+                        </template>
+                        <template if:true={r.canApprove}>
+                            <div class="slds-m-top_x-small">
+                                <lightning-button
+                                    label="Approve"
+                                    variant="success"
+                                    data-id={r.id}
+                                    onclick={handleApprove}
+                                ></lightning-button>
+                                <lightning-button
+                                    label="Reject"
+                                    variant="destructive"
+                                    class="slds-m-left_x-small"
+                                    data-id={r.id}
+                                    onclick={handleReject}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </template>
+
+            <template if:false={hasRows}>
+                <p class="slds-text-body_small slds-text-color_weak slds-p-vertical_small">
+                    No requests yet.
+                </p>
+            </template>
+        </div>
+    </lightning-card>
+</template>

@@ -6,7 +6,11 @@ import {
     productMatrixRatingDisplay,
     numberDonutVisual
 } from 'c/ratingCalculations';
-import { flattenLayoutFields, parseLayoutJson } from 'c/ratingLayoutUtils';
+import {
+    flattenLayoutFields,
+    parseLayoutJson,
+    kolReasonOptionsForVariant
+} from 'c/ratingLayoutUtils';
 
 const DOT_COLORS = ['#2e844a', '#8bc34a', '#ffb75d', '#fe9339', '#ea001e'];
 
@@ -32,12 +36,24 @@ function formatRelativeDate(value) {
     return `${diffDays} days ago`;
 }
 
-function defaultPicklistOptions(fieldApiName) {
+function resolvePicklistPlaceholder(fieldApiName) {
+    if (fieldApiName === 'HCP_Classification__c') {
+        return 'Select classification';
+    }
     if (fieldApiName === 'KOL_In_What__c') {
-        return [
-            { label: 'High Prescriber', value: 'High Prescriber' },
-            { label: 'Key Scientific Leader', value: 'Key Scientific Leader' }
-        ];
+        return 'Select KOL reason';
+    }
+    if (fieldApiName === 'KOL_Profile__c') {
+        return 'Select KOL profile';
+    }
+    return 'Select an option';
+}
+
+const TOGGLE_FIELD_NAMES = new Set(['Is_KOL__c', 'Has_KOLs__c', 'Is_Speaker__c']);
+
+function defaultPicklistOptions(fieldApiName, accountVariant) {
+    if (fieldApiName === 'KOL_In_What__c') {
+        return kolReasonOptionsForVariant(accountVariant);
     }
     if (fieldApiName === 'KOL_Profile__c') {
         return [
@@ -48,6 +64,17 @@ function defaultPicklistOptions(fieldApiName) {
         ];
     }
     return [];
+}
+
+function isToggleOn(value) {
+    if (value === true || value === 1) {
+        return true;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === '1';
+    }
+    return false;
 }
 
 function resolveAccountVariant(layoutJson) {
@@ -89,34 +116,48 @@ function defaultDotOptions(fieldApiName) {
     return [];
 }
 
-function decorateField(field, values, readOnly) {
+function decorateField(field, values, readOnly, accountVariant) {
     const key = fieldKey(field);
     let resolvedField = field;
+    if (TOGGLE_FIELD_NAMES.has(field.fieldApiName)) {
+        resolvedField = {
+            ...resolvedField,
+            widget: 'toggle'
+        };
+    }
     if (field.fieldApiName === 'KOL_In_What__c') {
         resolvedField = {
-            ...field,
+            ...resolvedField,
             label: 'KOL Reason',
             widget: 'picklist',
-            options: field.options?.length ? field.options : defaultPicklistOptions('KOL_In_What__c')
+            options:
+                accountVariant === 'Pharmacy'
+                    ? kolReasonOptionsForVariant('Pharmacy')
+                    : field.options?.length
+                      ? field.options
+                      : defaultPicklistOptions('KOL_In_What__c', accountVariant)
         };
     } else if (field.fieldApiName === 'KOL_Profile__c') {
         resolvedField = {
-            ...field,
+            ...resolvedField,
             label: 'KOL Profile',
             widget: 'picklist',
-            options: field.options?.length ? field.options : defaultPicklistOptions('KOL_Profile__c')
+            options: field.options?.length
+                ? field.options
+                : defaultPicklistOptions('KOL_Profile__c', accountVariant)
         };
     }
     const rawValue = values[resolvedField.fieldApiName] ?? values[key] ?? '';
     const isCalculated = resolvedField.widget === 'calculatedBadge' || resolvedField.readOnly === true;
-    const isToggle = resolvedField.widget === 'toggle';
+    const isToggle = resolvedField.widget === 'toggle' || TOGGLE_FIELD_NAMES.has(resolvedField.fieldApiName);
     const isNumberDonut = resolvedField.widget === 'numberDonut';
     const isDotScale = resolvedField.widget === 'dotScale';
     const isPicklist = resolvedField.widget === 'picklist';
     const isDateRelative = resolvedField.widget === 'dateRelative';
     const isTextValue =
-        resolvedField.widget === 'textValue' ||
-        (!isToggle && !isNumberDonut && !isDotScale && !isPicklist && !isDateRelative && !isCalculated);
+        !isToggle &&
+        (resolvedField.widget === 'textValue' ||
+            (!isNumberDonut && !isDotScale && !isPicklist && !isDateRelative && !isCalculated));
 
     let displayValue = rawValue;
     if (resolvedField.fieldApiName === 'Matrix_Rating__c') {
@@ -135,7 +176,7 @@ function decorateField(field, values, readOnly) {
     const picklistOptions = resolvedField.options?.length
         ? resolvedField.options
         : isPicklist
-          ? defaultPicklistOptions(resolvedField.fieldApiName)
+          ? defaultPicklistOptions(resolvedField.fieldApiName, accountVariant)
           : defaultDotOptions(resolvedField.fieldApiName);
     const options = picklistOptions.map((opt, index) => ({
         label: opt.label,
@@ -153,23 +194,26 @@ function decorateField(field, values, readOnly) {
         ? `--donut-percent:${donutPercent};--donut-color:${donutVisual.color}`
         : `--donut-percent:${donutPercent}`;
     const donutValueStyle = donutVisual ? `color:${donutVisual.valueColor}` : '';
+    const toggleOn = isToggleOn(displayValue);
 
     return {
         ...resolvedField,
         key,
-        rawValue: isToggle ? displayValue === true || displayValue === 'true' : displayValue,
+        rawValue: isToggle ? toggleOn : displayValue,
         displayValue: isToggle
-            ? displayValue === true || displayValue === 'true'
+            ? toggleOn
                 ? 'On'
                 : 'Off'
             : isDateRelative
               ? formatRelativeDate(displayValue)
               : String(displayValue ?? ''),
+        toggleTextClass: toggleOn ? 'toggle-text' : 'toggle-text toggle-text-off',
         isToggle,
         isNumberDonut,
         isDotScale,
         isPicklist,
         picklistOptions: isPicklist ? picklistOptions : [],
+        picklistPlaceholder: resolvePicklistPlaceholder(resolvedField.fieldApiName),
         isDateRelative,
         isTextValue,
         isCalculated,
@@ -288,16 +332,20 @@ export default class RatingFormRenderer extends LightningElement {
             if (field.hidden === true) {
                 return;
             }
+            if (
+                field.fieldApiName === 'Is_Speaker__c' &&
+                this.accountVariant === 'Pharmacy'
+            ) {
+                return;
+            }
             if (field.fieldApiName === 'KOL_In_What__c') {
-                const isKol =
-                    this.values.Is_KOL__c === true || this.values.Is_KOL__c === 'true';
+                const isKol = isToggleOn(this.values.Is_KOL__c);
                 if (!isKol) {
                     return;
                 }
             }
             if (field.fieldApiName === 'KOL_Profile__c') {
-                const hasKols =
-                    this.values.Has_KOLs__c === true || this.values.Has_KOLs__c === 'true';
+                const hasKols = isToggleOn(this.values.Has_KOLs__c);
                 if (!hasKols) {
                     return;
                 }
@@ -310,7 +358,7 @@ export default class RatingFormRenderer extends LightningElement {
                 };
             }
             sectionMap[field.sectionKey].fields.push(
-                decorateField(field, this.values, this.readOnly)
+                decorateField(field, this.values, this.readOnly, this.accountVariant)
             );
         });
         let sections = Object.values(sectionMap).filter((section) => section.fields.length > 0);

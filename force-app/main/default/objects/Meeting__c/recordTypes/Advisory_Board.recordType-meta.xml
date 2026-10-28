@@ -56,5 +56,9 @@
             <fullName>Rejected</fullName>
             <default>false</default>
         </values>
+        <values>
+            <fullName>Incomplete</fullName>
+            <default>false</default>
+        </values>
     </picklistValues>
 </RecordType>

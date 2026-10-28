@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Product__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Product2 lookup for reports and exports. Mirrors Product2_Id__c, which stays the key used in Unique_Key__c.</description>
+    <label>Product</label>
+    <referenceTo>Product2</referenceTo>
+    <relationshipLabel>Pharmacy Sales Withdrawals</relationshipLabel>
+    <relationshipName>Pharmacy_Sales_Withdrawals</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

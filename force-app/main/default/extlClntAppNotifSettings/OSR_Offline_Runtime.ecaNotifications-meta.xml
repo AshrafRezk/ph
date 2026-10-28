@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtlClntAppNotificationSettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <externalClientApplication>OSR_Offline_Runtime</externalClientApplication>
+    <label>OSR Offline Runtime Notification Settings</label>
+    <notificationTypes>
+        <notificationType>Visit_Plan_Submitted_To_Manager</notificationType>
+        <pushByDefault>false</pushByDefault>
+    </notificationTypes>
+    <notificationTypes>
+        <notificationType>Time_Off_Submitted_To_Manager</notificationType>
+        <pushByDefault>false</pushByDefault>
+    </notificationTypes>
+    <notificationTypes>
+        <notificationType>Coaching_Event_Updated</notificationType>
+        <pushByDefault>false</pushByDefault>
+    </notificationTypes>
+    <notificationTypes>
+        <notificationType>Brick_Sales_Increase</notificationType>
+        <pushByDefault>false</pushByDefault>
+    </notificationTypes>
+</ExtlClntAppNotificationSettings>

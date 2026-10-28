@@ -1,5 +1,5 @@
 <template>
-    <div class="my-learning">
+    <div class={wrapperClass}>
         <template if:true={loading}>
             <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
         </template>
@@ -11,45 +11,214 @@
         <template if:true={showCatalog}>
             <header class="catalog-header">
                 <h1>My Learning</h1>
-                <p>Continue your assigned courses and track your progress.</p>
+                <p>{catalogIntro}</p>
             </header>
 
-            <template if:true={hasCourses}>
-                <div class="course-grid">
-                    <template for:each={courses} for:item="course">
-                        <article key={course.instanceId} class="course-card">
-                            <div class="course-card-body">
-                                <h2>{course.title}</h2>
-                                <p class="status">{course.status}</p>
-                                <div class="progress-track" aria-hidden="true">
-                                    <div class="progress-fill" style={course.progressStyle}></div>
-                                </div>
-                                <p class="progress-label">{course.progressLabel} complete</p>
-                            </div>
-                            <div class="course-card-actions">
-                                <lightning-button
-                                    variant="brand"
-                                    label="Continue"
-                                    data-id={course.instanceId}
-                                    onclick={handleContinue}
-                                ></lightning-button>
-                                <template if:true={course.canShowCertificate}>
-                                    <lightning-button
-                                        class="slds-m-left_x-small"
-                                        label="Certificate"
-                                        data-id={course.instanceId}
-                                        onclick={handleShowCertificateFromCard}
-                                    ></lightning-button>
-                                </template>
-                            </div>
-                        </article>
-                    </template>
+            <template if:true={showScopeTabs}>
+                <div class="scope-tabs" role="tablist" aria-label="Learning scope">
+                    <button
+                        type="button"
+                        role="tab"
+                        class={mineTabClass}
+                        aria-selected={mineSelected}
+                        data-scope="mine"
+                        onclick={handleScopeChange}
+                    >
+                        My learning materials
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        class={teamTabClass}
+                        aria-selected={teamSelected}
+                        data-scope="team"
+                        onclick={handleScopeChange}
+                    >
+                        My team's learning materials
+                    </button>
                 </div>
+            </template>
+
+            <template if:true={showMineCatalog}>
+            <c-learning-dashboard refresh-key={refreshKey}></c-learning-dashboard>
+
+            <template if:true={hasCourses}>
+                <template if:true={hasInProgressCourses}>
+                    <section class="course-section">
+                        <h2 class="section-title">{inProgressCountLabel}</h2>
+                        <div class="course-grid">
+                            <template for:each={inProgressCourses} for:item="course">
+                                <article key={course.instanceId} class={course.cardClass}>
+                                    <div class="course-card-body">
+                                        <h3>{course.title}</h3>
+                                        <p class="status">{course.status}</p>
+                                        <template if:true={course.endDateLabel}>
+                                            <p class="end-date">{course.endDateLabel}</p>
+                                        </template>
+                                        <div class="progress-track" aria-hidden="true">
+                                            <div class="progress-fill" style={course.progressStyle}></div>
+                                        </div>
+                                        <p class="progress-label">{course.progressLabel} complete</p>
+                                    </div>
+                                    <div class="course-card-actions">
+                                        <lightning-button
+                                            variant="brand"
+                                            label={course.actionLabel}
+                                            data-id={course.instanceId}
+                                            onclick={handleContinue}
+                                        ></lightning-button>
+                                        <template if:true={course.canShowCertificate}>
+                                            <lightning-button
+                                                class="slds-m-left_x-small"
+                                                label="Certificate"
+                                                data-id={course.instanceId}
+                                                onclick={handleShowCertificateFromCard}
+                                            ></lightning-button>
+                                        </template>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+
+                <template if:true={hasNotStartedCourses}>
+                    <section class="course-section">
+                        <h2 class="section-title">{notStartedCountLabel}</h2>
+                        <div class="course-grid">
+                            <template for:each={notStartedCourses} for:item="course">
+                                <article key={course.instanceId} class={course.cardClass}>
+                                    <div class="course-card-body">
+                                        <h3>{course.title}</h3>
+                                        <p class="status">{course.status}</p>
+                                        <template if:true={course.endDateLabel}>
+                                            <p class="end-date">{course.endDateLabel}</p>
+                                        </template>
+                                        <div class="progress-track" aria-hidden="true">
+                                            <div class="progress-fill" style={course.progressStyle}></div>
+                                        </div>
+                                        <p class="progress-label">{course.progressLabel} complete</p>
+                                    </div>
+                                    <div class="course-card-actions">
+                                        <lightning-button
+                                            variant="brand"
+                                            label={course.actionLabel}
+                                            data-id={course.instanceId}
+                                            onclick={handleContinue}
+                                        ></lightning-button>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+
+                <template if:true={hasCompletedCourses}>
+                    <section class="course-section">
+                        <h2 class="section-title">{completedCountLabel}</h2>
+                        <div class="course-grid">
+                            <template for:each={completedCourses} for:item="course">
+                                <article key={course.instanceId} class={course.cardClass}>
+                                    <div class="course-card-body">
+                                        <h3>{course.title}</h3>
+                                        <p class="status">{course.status}</p>
+                                        <template if:true={course.endDateLabel}>
+                                            <p class="end-date">{course.endDateLabel}</p>
+                                        </template>
+                                        <div class="progress-track" aria-hidden="true">
+                                            <div class="progress-fill" style={course.progressStyle}></div>
+                                        </div>
+                                        <p class="progress-label">{course.progressLabel} complete</p>
+                                    </div>
+                                    <div class="course-card-actions">
+                                        <lightning-button
+                                            variant="brand"
+                                            label={course.actionLabel}
+                                            data-id={course.instanceId}
+                                            onclick={handleContinue}
+                                        ></lightning-button>
+                                        <template if:true={course.canShowCertificate}>
+                                            <lightning-button
+                                                class="slds-m-left_x-small"
+                                                label="Certificate"
+                                                data-id={course.instanceId}
+                                                onclick={handleShowCertificateFromCard}
+                                            ></lightning-button>
+                                        </template>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+
+                <template if:true={hasMissedCourses}>
+                    <section class="course-section">
+                        <h2 class="section-title">{missedCountLabel}</h2>
+                        <div class="course-grid">
+                            <template for:each={missedCourses} for:item="course">
+                                <article key={course.instanceId} class={course.cardClass}>
+                                    <div class="course-card-body">
+                                        <h3>{course.title}</h3>
+                                        <p class="status status-missed">{course.status}</p>
+                                        <template if:true={course.endDateLabel}>
+                                            <p class="end-date">{course.endDateLabel}</p>
+                                        </template>
+                                        <div class="progress-track" aria-hidden="true">
+                                            <div class="progress-fill" style={course.progressStyle}></div>
+                                        </div>
+                                        <p class="progress-label">{course.progressLabel} complete</p>
+                                        <p class="missed-note">Availability window ended before completion.</p>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </section>
+                </template>
             </template>
             <template if:false={hasCourses}>
                 <div class="empty-state">
                     No learning modules are assigned to you yet. Ask your learning manager to assign a course.
                 </div>
+            </template>
+            </template>
+
+            <template if:true={showTeamCatalog}>
+                <template if:true={teamError}>
+                    <div class="empty-state error">{teamError}</div>
+                </template>
+                <template if:true={hasTeamRows}>
+                    <p class="team-summary">{teamSummary}</p>
+                    <template for:each={teamGroups} for:item="group">
+                        <section key={group.key} class="team-group">
+                            <header class="team-group-header">
+                                <h2>{group.learnerName}</h2>
+                                <template if:true={group.territoryName}>
+                                    <p>{group.territoryName}</p>
+                                </template>
+                            </header>
+                            <div class="course-grid">
+                                <template for:each={group.courses} for:item="course">
+                                    <article key={course.instanceId} class="course-card">
+                                        <div class="course-card-body">
+                                            <h3>{course.title}</h3>
+                                            <p class={course.statusClass}>{course.status}</p>
+                                            <div class="progress-track" aria-hidden="true">
+                                                <div class="progress-fill" style={course.progressStyle}></div>
+                                            </div>
+                                            <p class="progress-label">{course.progressLabel} complete</p>
+                                        </div>
+                                    </article>
+                                </template>
+                            </div>
+                        </section>
+                    </template>
+                </template>
+                <template if:true={showTeamEmpty}>
+                    <div class="empty-state">
+                        No courses are assigned on your subordinate territories yet.
+                    </div>
+                </template>
             </template>
         </template>
 

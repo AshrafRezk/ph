@@ -2,8 +2,8 @@
     <article class="mgmt-dashboard slds-card">
         <header class="mgmt-header">
             <div class="mgmt-header-text">
-                <h2 class="mgmt-title">Team KPI Command Center</h2>
-                <p class="mgmt-subtitle">Filter by business unit, line, or district — click any KPI to drill down</p>
+                <h2 class="mgmt-title">Team KPI Performance</h2>
+                <p class="mgmt-subtitle">What is the result? Where is the gap? Who is affected? — click KPIs and reps to drill down</p>
             </div>
             <div class="mgmt-header-actions">
                 <button type="button" class="broadcast-btn" onclick={openBroadcastModal}>
@@ -16,7 +16,24 @@
 
         <div class="slds-card__body slds-card__body_inner">
             <div class="slds-grid slds-gutters slds-wrap slds-m-bottom_medium filter-row">
-                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-5">
+                    <lightning-combobox
+                        label="Period"
+                        value={selectedPeriodMonthKey}
+                        options={periodOptions}
+                        onchange={handlePeriodChange}
+                    ></lightning-combobox>
+                </div>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-5">
+                    <lightning-combobox
+                        label="KPI role targets"
+                        value={selectedRole}
+                        options={roleOptions}
+                        onchange={handleRoleChange}
+                        field-level-help="Compare against admin KPI Targets for this role. Auto uses your resolved role."
+                    ></lightning-combobox>
+                </div>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-5">
                     <lightning-combobox
                         label="Business Unit"
                         value={selectedBu}
@@ -24,17 +41,17 @@
                         onchange={handleBuChange}
                     ></lightning-combobox>
                 </div>
-                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-5">
                     <lightning-combobox
-                        label="Line"
+                        label="Line (Region)"
                         value={selectedLine}
                         options={lineOptions}
                         onchange={handleLineChange}
                     ></lightning-combobox>
                 </div>
-                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-5">
                     <lightning-combobox
-                        label="District"
+                        label="District (Area)"
                         value={selectedDistrict}
                         options={districtOptions}
                         onchange={handleDistrictChange}
@@ -54,10 +71,245 @@
 
             <template if:false={isLoading}>
                 <div class={dashboardBodyClass}>
-                    <section class="workforce-section">
+                    <section class="kpi-section exec-kpi-section">
+                        <div class="section-heading exec-kpi-heading">
+                            <h3 class="section-title">Team KPI Summary</h3>
+                            <p class="section-hint">Framework targets · click a card to drill down</p>
+                        </div>
+                        <div class="exec-kpi-grid">
+                            <template for:each={executiveKpiCards} for:item="card">
+                                <button
+                                    key={card.id}
+                                    type="button"
+                                    class={card.accentClass}
+                                    data-kpi={card.id}
+                                    onclick={handleExecutiveKpiClick}
+                                >
+                                    <div class="exec-kpi-card-head">
+                                        <span class="exec-kpi-icon-wrap">
+                                            <lightning-icon icon-name={card.iconName} size="small"></lightning-icon>
+                                        </span>
+                                        <div class="exec-kpi-head-text">
+                                            <span class="exec-kpi-name">{card.label}</span>
+                                            <template if:true={card.showFootnote}>
+                                                <span class="exec-kpi-sublabel">{card.footnote}</span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <div class="exec-kpi-value-row">
+                                        <span class="exec-kpi-actual">{card.actual}</span>
+                                        <span class={card.trendClass}>
+                                            <lightning-icon
+                                                icon-name={card.trendIcon}
+                                                size="xx-small"
+                                                class="exec-kpi-trend-icon"
+                                            ></lightning-icon>
+                                            <span>{card.trendLabel}</span>
+                                        </span>
+                                    </div>
+                                    <div class="exec-kpi-footer">
+                                        <div class="exec-kpi-footer-left">
+                                            <span class="exec-kpi-target">{card.targetLabel}</span>
+                                            <span class={card.statusClass}>{card.statusLabel}</span>
+                                        </div>
+                                        <span class="exec-kpi-period-hint">{card.periodHint}</span>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </section>
+
+                    <section class="chart-section row2-section">
                         <div class="section-heading">
-                            <h3 class="section-title">Workforce &amp; Activity</h3>
-                            <p class="section-hint">Headcount, monthly visits, and CLM adoption for the selected scope</p>
+                            <h3 class="section-title">What is happening?</h3>
+                            <p class="section-hint">Trends and distribution</p>
+                        </div>
+                        <div class="row2-grid">
+                            <div class="report-panel">
+                                <h4 class="monthly-chart-title">Visit Plan Achievement — Last 6 Months</h4>
+                                <div class="monthly-chart-wrap compact">
+                                    <div class="monthly-plot">
+                                        <template for:each={monthlyAchievementChart} for:item="point">
+                                            <div key={point.monthKey} class="monthly-bar-column">
+                                                <span class="monthly-count">{point.countLabel}</span>
+                                                <div class="monthly-bar-track">
+                                                    <div class="monthly-bar" style={point.barStyle} title={point.tooltip}></div>
+                                                </div>
+                                                <span class="monthly-label">{point.monthLabel}</span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-panel">
+                                <h4 class="monthly-chart-title">Field KPIs — Actual vs Target</h4>
+                                <div class="field-kpi-bars">
+                                    <template for:each={fieldKpiComparison} for:item="item">
+                                        <div key={item.key} class="field-kpi-column">
+                                            <div class="field-kpi-bar-track">
+                                                <div class="field-kpi-bar target" style={item.targetBarStyle}></div>
+                                                <div class="field-kpi-bar actual" style={item.actualBarStyle}></div>
+                                            </div>
+                                            <span class="field-kpi-label">{item.label}</span>
+                                            <span class="field-kpi-value">{item.actualLabel}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="report-panel">
+                                <h4 class="monthly-chart-title">Team Distribution (visit plan)</h4>
+                                <template if:true={hasPerformanceDistribution}>
+                                    <template for:each={performanceDistribution} for:item="bucket">
+                                        <div key={bucket.key} class="dist-row">
+                                            <span class="dist-label">{bucket.label}</span>
+                                            <div class="dist-track">
+                                                <div class="dist-fill" style={bucket.barStyle}></div>
+                                            </div>
+                                            <span class="dist-count">{bucket.countLabel}</span>
+                                        </div>
+                                    </template>
+                                </template>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="drill-section">
+                        <div class="section-heading">
+                            <h3 class="section-title">Where is the problem?</h3>
+                            <p class="section-hint">Team performance · click a rep for customer drill-down</p>
+                        </div>
+                        <template if:true={hasDrillDown}>
+                            <div class="drill-table-wrap">
+                                <table class="drill-table team-kpi-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Level</th>
+                                            <th>Sales %*</th>
+                                            <th>Coverage</th>
+                                            <th>RF %</th>
+                                            <th>Field Days</th>
+                                            <th>KOL</th>
+                                            <th>Quiz</th>
+                                            <th>Overall</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={drillDownRows} for:item="row">
+                                            <tr key={row.key} class={row.rowClass}>
+                                                <td>
+                                                    <div class="drill-name-cell" style={row.indentStyle}>
+                                                        <template if:true={row.hasChildren}>
+                                                            <button
+                                                                type="button"
+                                                                class="drill-toggle"
+                                                                data-key={row.key}
+                                                                onclick={handleToggleRow}
+                                                                aria-label="Toggle row"
+                                                            >
+                                                                <lightning-icon
+                                                                    icon-name={row.toggleIcon}
+                                                                    size="xx-small"
+                                                                ></lightning-icon>
+                                                            </button>
+                                                        </template>
+                                                        <template if:false={row.hasChildren}>
+                                                            <span class="drill-spacer"></span>
+                                                        </template>
+                                                        <template if:true={row.isRep}>
+                                                            <button
+                                                                type="button"
+                                                                class="drill-rep-link"
+                                                                data-rep-id={row.employeeId}
+                                                                data-rep-name={row.label}
+                                                                onclick={handleDrillRepSelect}
+                                                            >
+                                                                {row.label}
+                                                            </button>
+                                                        </template>
+                                                        <template if:false={row.isRep}>
+                                                            <span>{row.label}</span>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                                <td><span class="level-badge">{row.level}</span></td>
+                                                <td>{row.salesDisplay}</td>
+                                                <td>{row.coverageDisplay}</td>
+                                                <td>{row.callRateDisplay}</td>
+                                                <td>{row.fieldDaysDisplay}</td>
+                                                <td>{row.kolDisplay}</td>
+                                                <td>{row.quizDisplay}</td>
+                                                <td><span class={row.overallStatusClass}>{row.overallStatus}</span></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="section-hint slds-m-top_x-small">* Sales % = visit plan proxy</p>
+                        </template>
+                        <template if:false={hasDrillDown}>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:info" size="small"></lightning-icon>
+                                <span>No hierarchy data for the selected filters</span>
+                            </div>
+                        </template>
+
+                        <template if:true={hasManagementAlerts}>
+                            <div class="mgmt-alerts slds-m-top_medium">
+                                <h4 class="section-title">Management Attention Required</h4>
+                                <template for:each={managementAlerts} for:item="alert">
+                                    <div key={alert.key} class="mgmt-alert-row">
+                                        <span class="mgmt-alert-label">{alert.kpiLabel}</span>
+                                        <span>Actual {alert.actualDisplay}</span>
+                                        <span>Target {alert.targetDisplay}</span>
+                                        <span>Gap {alert.gapDisplay}</span>
+                                        <button
+                                            type="button"
+                                            class="mgmt-alert-drill"
+                                            data-kpi={alert.kpiKey}
+                                            onclick={handleAlertDrill}
+                                        >
+                                            Drill down
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template if:true={hasAccountDrill}>
+                            <div class="account-drill-panel slds-m-top_medium">
+                                <h4 class="section-title">Customer drill-down — {accountDrillRepName}</h4>
+                                <template if:true={accountDrillLoading}>
+                                    <lightning-spinner alternative-text="Loading accounts" size="small"></lightning-spinner>
+                                </template>
+                                <template if:false={accountDrillLoading}>
+                                    <template for:each={accountDrillRows} for:item="acct">
+                                        <div key={acct.key} class="account-drill-row">
+                                            <span>{acct.accountName} · {acct.visitsLabel} · {acct.statusLabel}</span>
+                                            <button
+                                                type="button"
+                                                class="mgmt-alert-drill"
+                                                data-account-id={acct.accountId}
+                                                onclick={handleOpenAccount}
+                                            >
+                                                Open account
+                                            </button>
+                                        </div>
+                                    </template>
+                                </template>
+                            </div>
+                        </template>
+                    </section>
+
+                    <div class="slds-m-vertical_medium">
+                        <c-visit-plan-approval-queue></c-visit-plan-approval-queue>
+                        <c-visit-unplanned-validation-queue></c-visit-unplanned-validation-queue>
+                    </div>
+
+                    <section class="workforce-section secondary-section">
+                        <div class="section-heading">
+                            <h3 class="section-title">Field Activity</h3>
+                            <p class="section-hint">Headcount, visits, and CLM adoption</p>
                         </div>
                         <div class="workforce-grid">
                             <template for:each={workforceTiles} for:item="tile">
@@ -76,80 +328,8 @@
                                 </button>
                             </template>
                         </div>
-                        <template if:true={hasMonthlyVisitChart}>
-                            <div class="monthly-visits-chart">
-                                <h4 class="monthly-chart-title">Completed Visits — Last 6 Months</h4>
-                                <p class="monthly-chart-caption">Completed field visits across team reps · last 6 calendar months</p>
-                                <div class="monthly-chart-wrap">
-                                    <div class="monthly-y-axis" aria-hidden="true">
-                                        <span>{monthlyChartMeta.yMaxLabel}</span>
-                                        <span>{monthlyChartMeta.yMidLabel}</span>
-                                        <span>{monthlyChartMeta.yZeroLabel}</span>
-                                    </div>
-                                    <div class="monthly-plot">
-                                        <template for:each={monthlyVisitChart} for:item="point">
-                                            <div key={point.monthKey} class="monthly-bar-column">
-                                                <span class="monthly-count">{point.countLabel}</span>
-                                                <div class="monthly-bar-track">
-                                                    <div class="monthly-bar" style={point.barStyle} title={point.tooltip}></div>
-                                                </div>
-                                                <span class="monthly-label">{point.monthLabel}</span>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                        <template if:true={hasCoachingScoreChart}>
-                            <c-coaching-score-trend-chart
-                                rep-trends={summary.coachingRepTrends}
-                                team-score-delta={summary.coachingScoreDelta}
-                                bu-territory-id={selectedBu}
-                                line-territory-id={selectedLine}
-                                district-territory-id={selectedDistrict}
-                            ></c-coaching-score-trend-chart>
-                        </template>
                     </section>
 
-                    <!-- Primary ring KPIs -->
-                    <section class="kpi-section">
-                        <div class="section-heading">
-                            <h3 class="section-title">Team Performance</h3>
-                            <p class="section-hint">Month-to-date averages · click a ring for rep breakdown</p>
-                        </div>
-                        <div class="kpi-row-primary">
-                            <template for:each={primaryRings} for:item="ring">
-                                <button
-                                    key={ring.id}
-                                    type="button"
-                                    class={ring.cardClass}
-                                    data-kpi={ring.id}
-                                    onclick={handleKpiClick}
-                                >
-                                    <div class="kpi-ring">
-                                        <svg class="kpi-ring-svg" viewBox="0 0 52 52" aria-hidden="true">
-                                            <circle class="kpi-ring-bg" cx="26" cy="26" r="22"></circle>
-                                            <circle
-                                                class={ring.ringClass}
-                                                cx="26"
-                                                cy="26"
-                                                r="22"
-                                                style={ring.ringStroke}
-                                            ></circle>
-                                        </svg>
-                                        <span class="kpi-ring-value">{ring.value}</span>
-                                    </div>
-                                    <div class="kpi-meta">
-                                        <span class="kpi-label">{ring.label}</span>
-                                        <span class="kpi-hint">{ring.hint}</span>
-                                    </div>
-                                    <span class={ring.statusClass}></span>
-                                </button>
-                            </template>
-                        </div>
-                    </section>
-
-                    <!-- Secondary stats + visit mix -->
                     <div class="reports-grid">
                         <section class="report-panel">
                             <h3 class="section-title">Activity Snapshot</h3>
@@ -268,11 +448,13 @@
                         </section>
                     </template>
 
-                    <c-egypt-coverage-heat-map
-                        bu-territory-id={selectedBu}
-                        line-territory-id={selectedLine}
-                        district-territory-id={selectedDistrict}
-                    ></c-egypt-coverage-heat-map>
+                    <template if:true={showEgyptCoverageMap}>
+                        <c-egypt-coverage-heat-map
+                            bu-territory-id={selectedBu}
+                            line-territory-id={selectedLine}
+                            district-territory-id={selectedDistrict}
+                        ></c-egypt-coverage-heat-map>
+                    </template>
 
                     <!-- Product performance (when BU selected) -->
                     <template if:true={showProductSection}>
@@ -326,169 +508,6 @@
                         </section>
                     </template>
 
-                    <!-- Probation watchlist -->
-                    <section class="probation-section">
-                        <div class="section-heading">
-                            <div>
-                                <h3 class="section-title">Probation Watchlist</h3>
-                                <p class="section-hint">Reps within 90-day probation window</p>
-                            </div>
-                            <template if:true={hasProbationReps}>
-                                <span class="probation-count-badge">{probationCountLabel}</span>
-                            </template>
-                        </div>
-                        <template if:true={hasProbationReps}>
-                            <div class="probation-grid">
-                                <template for:each={probationReps} for:item="rep">
-                                    <article key={rep.userId} class={rep.urgencyClass}>
-                                        <div class="probation-header">
-                                            <span class="probation-name">{rep.name}</span>
-                                            <span class="probation-days">{rep.daysLabel}</span>
-                                        </div>
-                                        <div class="probation-meta">
-                                            <span>{rep.territoryLine}</span>
-                                            <span>Hired {rep.hireDateDisplay}</span>
-                                        </div>
-                                        <div class="probation-track">
-                                            <div class="probation-fill" style={rep.progressStyle}></div>
-                                        </div>
-                                    </article>
-                                </template>
-                            </div>
-                        </template>
-                        <template if:false={hasProbationReps}>
-                            <div class="empty-state">
-                                <lightning-icon icon-name="utility:check" size="small"></lightning-icon>
-                                <span>No reps currently on probation in this scope</span>
-                            </div>
-                        </template>
-                    </section>
-
-                    <!-- Expandable drill-down -->
-                    <section class="drill-section">
-                        <div class="section-heading">
-                            <h3 class="section-title">Hierarchy Drill-Down</h3>
-                            <p class="section-hint">Expand rows to see districts and reps · mini bars show coverage &amp; call rate</p>
-                        </div>
-                        <template if:true={hasDrillDown}>
-                            <div class="drill-table-wrap">
-                                <table class="drill-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Level</th>
-                                            <th>Coverage</th>
-                                            <th>Call Rate</th>
-                                            <th>KOL</th>
-                                            <th>Coaching Score</th>
-                                            <th>Products</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <template for:each={drillDownRows} for:item="row">
-                                            <tr key={row.key} class={row.rowClass}>
-                                                <td>
-                                                    <div class="drill-name-cell" style={row.indentStyle}>
-                                                        <template if:true={row.hasChildren}>
-                                                            <button
-                                                                type="button"
-                                                                class="drill-toggle"
-                                                                data-key={row.key}
-                                                                onclick={handleToggleRow}
-                                                                aria-label="Toggle row"
-                                                            >
-                                                                <lightning-icon
-                                                                    icon-name={row.toggleIcon}
-                                                                    size="xx-small"
-                                                                ></lightning-icon>
-                                                            </button>
-                                                        </template>
-                                                        <template if:false={row.hasChildren}>
-                                                            <span class="drill-spacer"></span>
-                                                        </template>
-                                                        <span>{row.label}</span>
-                                                    </div>
-                                                </td>
-                                                <td><span class="level-badge">{row.level}</span></td>
-                                                <td>
-                                                    <div class="mini-bar-cell">
-                                                        <span>{row.coverageDisplay}</span>
-                                                        <div class="mini-bar-track">
-                                                            <div
-                                                                class={row.coverageStatus}
-                                                                style={row.coverageBarStyle}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="mini-bar-cell">
-                                                        <span>{row.callRateDisplay}</span>
-                                                        <div class="mini-bar-track">
-                                                            <div
-                                                                class={row.callRateStatus}
-                                                                style={row.callRateBarStyle}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>{row.kolDisplay}</td>
-                                                <td>
-                                                    <template if:true={row.hasCoachingScore}>
-                                                        <div class="coaching-score-cell">
-                                                            <div class="coaching-score-main">
-                                                                <span class="coaching-score-value">{row.coachingScoreDisplay}</span>
-                                                                <template if:true={row.coachingDeltaDisplay}>
-                                                                    <span class={row.coachingTrendClass}>
-                                                                        {row.coachingDeltaDisplay} {row.coachingTrendArrow}
-                                                                    </span>
-                                                                </template>
-                                                            </div>
-                                                            <template if:true={row.hasCoachingSections}>
-                                                                <div class="coaching-section-chips">
-                                                                    <template for:each={row.coachingSectionChips} for:item="section">
-                                                                        <span key={section.key} class={section.trendClass} title={section.sectionName}>
-                                                                            {section.shortName} {section.deltaDisplay} {section.arrow}
-                                                                        </span>
-                                                                    </template>
-                                                                </div>
-                                                            </template>
-                                                        </div>
-                                                    </template>
-                                                    <template if:false={row.hasCoachingScore}>
-                                                        <span class="coaching-days-fallback">{row.coachingDisplay} days</span>
-                                                    </template>
-                                                </td>
-                                                <td>
-                                                    <template if:true={row.hasProducts}>
-                                                        <div class="product-chip-row">
-                                                            <template for:each={row.visibleProducts} for:item="chip">
-                                                                <span key={chip.productId} class="product-chip" title={chip.productName}>
-                                                                    {chip.productName}
-                                                                </span>
-                                                            </template>
-                                                            <template if:true={row.showOverflow}>
-                                                                <span class="product-overflow">+{row.overflowCount}</span>
-                                                            </template>
-                                                        </div>
-                                                    </template>
-                                                    <template if:false={row.hasProducts}>
-                                                        <span class="product-empty">—</span>
-                                                    </template>
-                                                </td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </template>
-                        <template if:false={hasDrillDown}>
-                            <div class="empty-state">
-                                <lightning-icon icon-name="utility:info" size="small"></lightning-icon>
-                                <span>No hierarchy data for the selected filters</span>
-                            </div>
-                        </template>
-                    </section>
                 </div>
             </template>
         </div>

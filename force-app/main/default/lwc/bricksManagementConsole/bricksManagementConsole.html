@@ -1,235 +1,450 @@
 <template>
-    <section class="bricks-console">
-        <header class="console-header">
-            <div class="console-header-text">
-                <p class="console-subtitle">
-                    Align IQVIA IMS / IbnSina / Pharmaoverseas geographic bricks to territories and manage pharmacy membership.
-                </p>
+    <section class="bm">
+        <header class="bm-head">
+            <div class="bm-title">
+                <h2>Bricks Manager</h2>
+                <p>Each parcel is GeoJSON on the brick record — not leftover JSON files. OSM draws the IMS name; you can still drag the outline like HAP.</p>
             </div>
-            <div class="console-header-actions">
-                <lightning-button
-                    label="Load Demo Bricks"
-                    onclick={handleSeedDemoData}
-                    disabled={isSeeding}
-                ></lightning-button>
-                <lightning-button
-                    label="New Brick"
-                    variant="brand"
-                    onclick={handleNewBrick}
-                ></lightning-button>
+            <div class="bm-seg" role="group" aria-label="Brick level">
+                <template for:each={levelButtons} for:item="btn">
+                    <button key={btn.value} class={btn.className} type="button" data-value={btn.value} aria-pressed={btn.pressed} onclick={handleLevel}>
+                        {btn.label}
+                    </button>
+                </template>
+            </div>
+            <div class="bm-seg" role="group" aria-label="View">
+                <template for:each={viewButtons} for:item="btn">
+                    <button key={btn.value} class={btn.className} type="button" data-value={btn.value} aria-pressed={btn.pressed} onclick={handleView}>
+                        {btn.label}
+                    </button>
+                </template>
+            </div>
+            <div class="bm-stats">
+                <template lwc:if={isSalesView}>
+                    <template for:each={salesChips} for:item="chip">
+                        <span key={chip.key} class="bm-stat bm-stat_sales"><b>{chip.value}</b> {chip.label}</span>
+                    </template>
+                </template>
+                <template lwc:else>
+                    <span class="bm-stat"><b>{mapped702Label}</b> 702 with region</span>
+                    <span class="bm-stat"><b>{mapped148Label}</b> 148 with region</span>
+                    <span class="bm-stat" title={clientsTitle}><b>{clientsLabel}</b> clients placed</span>
+                </template>
+            </div>
+            <div class="bm-actions">
+                <lightning-button label="New brick" icon-name="utility:add" onclick={handleNewBrick} disabled={cannotEdit}></lightning-button>
+                <lightning-button label="Generate IMS outlines" icon-name="utility:location" onclick={handleGenerateIms} disabled={generateDisabled}></lightning-button>
+                <lightning-button variant="brand" label={applyLabel} onclick={handleApply} disabled={applyDisabled}></lightning-button>
             </div>
         </header>
 
-        <div class="console-panels">
-            <section class="panel panel-territories">
-                <div class="panel-heading">
-                    <h3>Territories</h3>
-                    <p class="panel-caption">Filter bricks by aligned territory</p>
+        <template lwc:if={showApplyBanner}>
+            <div class="bm-banner" role="status">
+                <lightning-icon icon-name="utility:info" size="x-small"></lightning-icon>
+                <span>Regions changed after sales lines were last placed. Apply regions to sales so past sales move to the right bricks.</span>
+            </div>
+        </template>
+        <template lwc:if={showApproximateNote}>
+            <p class="bm-note">
+                Clients whose address only gave a town or governorate centre are not put in a 702 brick. Fix their address in Distributors Management to place them.
+            </p>
+        </template>
+        <template lwc:if={loadError}>
+            <div class="bm-banner bm-banner_error" role="alert">{loadError}</div>
+        </template>
+
+        <template lwc:if={isSalesView}>
+            <div class="bm-sales-bar">
+                <lightning-combobox class="bm-sales-pick bm-sales-start" label="Start month" value={salesStart} options={monthChoices} onchange={handleSalesStart}></lightning-combobox>
+                <lightning-combobox class="bm-sales-pick bm-sales-end" label="End month" value={salesEnd} options={endOptions} onchange={handleSalesEnd}></lightning-combobox>
+                <lightning-combobox class="bm-sales-pick bm-sales-quarter" label="Quarter" value={salesQuarter} options={quarterOptions} placeholder="Pick a quarter" onchange={handleSalesQuarter}></lightning-combobox>
+                <lightning-button class="bm-sales-now" label="This month" onclick={handleThisMonth}></lightning-button>
+                <lightning-combobox class="bm-sales-pick bm-sales-source" label="Distributor" value={salesSource} options={sourceOptions} onchange={handleSalesSource}></lightning-combobox>
+                <lightning-combobox class="bm-sales-pick bm-sales-pick_wide" label="Product" value={salesProduct} options={productOptions} onchange={handleSalesProduct}></lightning-combobox>
+                <div class="bm-seg" role="group" aria-label="Shade bricks by">
+                    <template for:each={metricButtons} for:item="btn">
+                        <button key={btn.value} class={btn.className} type="button" data-value={btn.value} aria-pressed={btn.pressed} onclick={handleSalesMetric}>{btn.label}</button>
+                    </template>
                 </div>
-                <template if:true={hasTerritories}>
-                    <ul class="tree-list" role="tree" aria-label="Territory tree">
-                        <template for:each={territoryFlatRows} for:item="row">
-                            <li key={row.key} class={row.rowClass} role="treeitem">
-                                <div class="tree-row-content" style={row.depthStyle}>
-                                    <template if:true={row.hasChildren}>
-                                        <button
-                                            class="toggle-btn"
-                                            data-id={row.id}
-                                            onclick={handleTerritoryToggle}
-                                            title="Expand or collapse"
-                                        >
-                                            <lightning-icon icon-name={row.chevronIcon} size="x-small"></lightning-icon>
-                                        </button>
-                                    </template>
-                                    <template if:false={row.hasChildren}>
-                                        <span class="toggle-spacer"></span>
-                                    </template>
-                                    <button
-                                        class="territory-select-btn"
-                                        data-id={row.id}
-                                        data-name={row.name}
-                                        onclick={handleTerritorySelect}
-                                    >
-                                        {row.name}
-                                    </button>
-                                </div>
+                <div class="bm-seg" role="group" aria-label="Sales rows">
+                    <template for:each={tabButtons} for:item="btn">
+                        <button key={btn.value} class={btn.className} type="button" data-value={btn.value} aria-pressed={btn.pressed} onclick={handleSalesTab}>{btn.label}</button>
+                    </template>
+                </div>
+            </div>
+            <template lwc:if={salesNotice}>
+                <p class="bm-note bm-note_warn">{salesNotice}</p>
+            </template>
+            <p class="bm-sales-line" role="status">
+                <span>{salesHeadline}</span>
+                <span class="bm-sales-line-off">{unplacedHeadline}</span>
+            </p>
+            <div class="bm-sales-grid">
+                <template lwc:if={hasDistributorRows}>
+                    <div class="bm-dist" role="table" aria-label="Sales by distributor">
+                        <div class="bm-dist-row bm-dist-head" role="row">
+                            <span role="columnheader">Distributor</span>
+                            <span role="columnheader">Sales</span>
+                            <span role="columnheader">Share</span>
+                            <span role="columnheader">Units</span>
+                            <span role="columnheader">Lines in a brick</span>
+                            <span role="columnheader" title="Brick found from the pharmacy address text">From address</span>
+                            <span role="columnheader" title="Brick found from the client's map point">From map point</span>
+                            <span role="columnheader">{bricksHeader}</span>
+                            <span role="columnheader" title="Client × product rows kept because the client has no brick">Not placed</span>
+                        </div>
+                        <template for:each={distributorRows} for:item="d">
+                            <button key={d.key} class={d.className} type="button" role="row" data-source={d.source} onclick={handleDistributorRow} title="Show only this distributor on the map">
+                                <span role="cell">{d.name}</span>
+                                <span role="cell">{d.revenue}</span>
+                                <span role="cell">{d.share}</span>
+                                <span role="cell">{d.units}</span>
+                                <span role="cell">{d.lines}</span>
+                                <span role="cell">{d.address}</span>
+                                <span role="cell">{d.point}</span>
+                                <span role="cell">{d.bricks}</span>
+                                <span role="cell">{d.unplaced}</span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+                <template lwc:if={hasTopProducts}>
+                    <section class="bm-top" aria-label={topProductsTitle}>
+                        <h4>{topProductsTitle}</h4>
+                        <ol class="bm-top-list">
+                            <template for:each={topProductRows} for:item="p">
+                                <li key={p.key}>
+                                    <span class="bm-top-rank">{p.rank}</span>
+                                    <span class="bm-top-name">{p.name}</span>
+                                    <span class="bm-top-share">{p.share}</span>
+                                    <span class="bm-top-meta">{p.meta}</span>
+                                </li>
+                            </template>
+                        </ol>
+                    </section>
+                </template>
+            </div>
+            <template lwc:if={salesError}>
+                <div class="bm-banner bm-banner_error" role="alert">{salesError}</div>
+            </template>
+        </template>
+
+        <div class={bodyClass}>
+            <aside class="bm-rail" aria-label="Bricks">
+                <lightning-input type="search" variant="label-hidden" label="Search bricks" placeholder="Search name, code, 148, city" value={search} onchange={handleSearch}></lightning-input>
+                <div class="bm-filters" role="group" aria-label="Filter bricks">
+                    <template for:each={filterChips} for:item="chip">
+                        <button key={chip.value} class={chip.className} type="button" data-value={chip.value} onclick={handleFilter}>{chip.label}</button>
+                    </template>
+                </div>
+                <p class="bm-caption">{listCaption}</p>
+                <template lwc:if={loading}>
+                    <div class="bm-empty"><lightning-spinner size="small" alternative-text="Loading bricks"></lightning-spinner></div>
+                </template>
+                <template lwc:elseif={hasRows}>
+                    <ul class="bm-list">
+                        <template for:each={listRows} for:item="row">
+                            <li key={row.id}>
+                                <button class={row.className} type="button" data-id={row.id} onclick={handleRowSelect}>
+                                    <span class="bm-row-name">{row.name}</span>
+                                    <span class="bm-row-meta">{row.meta}</span>
+                                    <span class="bm-row-tags">
+                                        <span class={row.regionClass}>{row.regionLabel}</span>
+                                        <template lwc:if={row.salesLabel}>
+                                            <span class={row.salesClass}>{row.salesLabel}</span>
+                                        </template>
+                                        <template lwc:if={row.clients}>
+                                            <span class="bm-tag">{row.clients} clients</span>
+                                        </template>
+                                        <template lwc:if={row.inactive}>
+                                            <span class="bm-tag bm-tag_off">Inactive</span>
+                                        </template>
+                                    </span>
+                                </button>
                             </li>
                         </template>
                     </ul>
                 </template>
-                <template if:false={hasTerritories}>
-                    <div class="empty-state">
-                        <p>No territories found. Run territory seeding first.</p>
-                    </div>
+                <template lwc:else>
+                    <div class="bm-empty">{emptyListMessage}</div>
                 </template>
-            </section>
+            </aside>
 
-            <section class="panel panel-bricks">
-                <div class="panel-heading">
-                    <h3>Bricks — {selectedTerritoryName}</h3>
-                    <lightning-input
-                        type="search"
-                        variant="label-hidden"
-                        label="Search bricks"
-                        placeholder="Search by name, code, city..."
-                        value={brickSearchTerm}
-                        onchange={handleBrickSearch}
-                    ></lightning-input>
-                </div>
-
-                <template if:true={hasBricks}>
-                    <div class="brick-list">
-                        <template for:each={filteredBrickRows} for:item="brick">
-                            <article key={brick.brickId} class={brick.rowClass}>
-                                <button
-                                    class="brick-select-btn"
-                                    data-brickid={brick.brickId}
-                                    data-brickname={brick.brickName}
-                                    onclick={handleBrickSelect}
-                                >
-                                    <span class="brick-name">{brick.brickName}</span>
-                                    <span class="brick-meta">
-                                        {brick.brickCode} · {brick.dataSource} · {brick.city}
-                                    </span>
-                                    <span class="brick-count">{brick.pharmacyCount} pharmacies</span>
-                                </button>
-                                <div class="brick-actions">
-                                    <lightning-button-icon
-                                        icon-name="utility:edit"
-                                        alternative-text="Edit"
-                                        title="Edit brick"
-                                        data-id={brick.brickId}
-                                        onclick={handleEditBrick}
-                                    ></lightning-button-icon>
-                                    <lightning-button-icon
-                                        icon-name="utility:target"
-                                        alternative-text="Align"
-                                        title="Align to selected territory"
-                                        data-id={brick.brickId}
-                                        onclick={handleAssignTerritory}
-                                    ></lightning-button-icon>
-                                    <lightning-button-icon
-                                        icon-name="utility:delete"
-                                        alternative-text="Delete"
-                                        title="Delete brick"
-                                        data-id={brick.brickId}
-                                        onclick={handleDeleteBrick}
-                                    ></lightning-button-icon>
-                                </div>
-                            </article>
+            <main class={mainClass}>
+                <iframe class="bm-frame" src={mapSrc} title="Bricks map" onload={handleFrameLoad}></iframe>
+                <template lwc:if={showUnplaced}>
+                    <div class="bm-unplaced" aria-label="Sales not placed in a brick">
+                        <h3>Not placed in a brick</h3>
+                        <template lwc:if={unplacedLoading}>
+                            <div class="bm-empty"><lightning-spinner size="small" alternative-text="Loading unplaced sales"></lightning-spinner></div>
+                        </template>
+                        <template lwc:if={unplacedError}>
+                            <div class="bm-banner bm-banner_error" role="alert">{unplacedError}</div>
+                        </template>
+                        <p class="bm-muted">{unplacedSummary}</p>
+                        <template lwc:if={unplacedSinceNote}>
+                            <p class="bm-muted">{unplacedSinceNote}</p>
+                        </template>
+                        <template lwc:if={hasUnplacedRows}>
+                            <p class="bm-muted">Give these clients an address or governorate in Distributors Management, or link them to a CRM pharmacy, then load the month again.</p>
+                            <div class="bm-unplaced-cols">
+                                <section>
+                                    <h4>Clients</h4>
+                                    <ul class="bm-mini-list bm-mini-list_tall">
+                                        <template for:each={unplacedClientRows} for:item="c">
+                                            <li key={c.key}>
+                                                <span class="bm-mini-name">{c.name}</span>
+                                                <span class="bm-mini-meta">{c.meta}</span>
+                                                <span class="bm-mini-tail">
+                                                    <span class="bm-mini-value">{c.value}</span>
+                                                    <span class={c.placementClass}>{c.placement}</span>
+                                                </span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </section>
+                                <section>
+                                    <h4>Products</h4>
+                                    <ul class="bm-mini-list bm-mini-list_tall">
+                                        <template for:each={unplacedProductRows} for:item="p">
+                                            <li key={p.key}>
+                                                <span class="bm-mini-name">{p.name}</span>
+                                                <span class="bm-mini-meta">{p.meta}</span>
+                                                <span class="bm-mini-value">{p.value}</span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </section>
+                            </div>
                         </template>
                     </div>
                 </template>
-                <template if:false={hasBricks}>
-                    <div class="empty-state">
-                        <p>No bricks for this territory. Create one or load demo data.</p>
+                <template lwc:if={mapVeil}>
+                    <div class="bm-veil"><lightning-spinner size="medium" alternative-text="Loading the map"></lightning-spinner></div>
+                </template>
+                <template lwc:if={mapError}>
+                    <div class="bm-veil bm-veil_error">
+                        <p>{mapError}</p>
+                        <lightning-button label="Retry" onclick={handleRetryMap}></lightning-button>
                     </div>
                 </template>
-            </section>
+            </main>
 
-            <section class="panel panel-pharmacies">
-                <div class="panel-heading">
-                    <h3>{pharmacyPaneTitle}</h3>
-                </div>
+            <template lwc:if={hasSelection}>
+                <aside class="bm-detail" aria-label="Brick details">
+                    <div class="bm-detail-head">
+                        <div>
+                            <p class="bm-eyebrow">{levelLabel}</p>
+                            <h3>{selected.name}</h3>
+                            <p class="bm-detail-sub">
+                                <span class={selectedStatusClass}>{selectedStatusLabel}</span>
+                                <template lwc:if={selected.parentName}><span>in {selected.parentName}</span></template>
+                            </p>
+                        </div>
+                        <lightning-button-icon icon-name="utility:close" variant="bare" alternative-text="Close" title="Close" onclick={handleCloseDetail}></lightning-button-icon>
+                    </div>
 
-                <template if:true={showPharmacyPane}>
-                    <div class="pharmacy-add-row">
-                        <lightning-input
-                            type="search"
-                            label="Search pharmacies"
-                            value={pharmacySearchTerm}
-                            onchange={handlePharmacySearch}
-                        ></lightning-input>
-                        <lightning-combobox
-                            label="Pharmacy account"
-                            value={selectedPharmacyId}
-                            options={pharmacyOptions}
-                            placeholder="Select pharmacy"
-                            onchange={handlePharmacySelect}
-                        ></lightning-combobox>
-                        <lightning-button
-                            label="Add to Brick"
-                            variant="brand"
-                            disabled={isAddPharmacyDisabled}
-                            onclick={handleAddPharmacy}
-                        ></lightning-button>
+                    <template lwc:if={showBrickSales}>
+                        <section class="bm-card">
+                            <h4>Sales</h4>
+                            <p class="bm-muted">{brickSalesCaption}</p>
+                            <template lwc:if={hasSelectedSourceRows}>
+                                <h5 class="bm-subhead">Sales lines by distributor</h5>
+                                <ul class="bm-mini-list">
+                                    <template for:each={selectedSourceRows} for:item="d">
+                                        <li key={d.key}>
+                                            <span class="bm-mini-name">{d.name}</span>
+                                            <span class="bm-mini-value">{d.value}</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template lwc:if={hasBrickSalesRows}>
+                                <h5 class="bm-subhead">By product</h5>
+                                <ul class="bm-mini-list">
+                                    <template for:each={brickProductRows} for:item="p">
+                                        <li key={p.key}>
+                                            <span class="bm-mini-name">{p.name}</span>
+                                            <span class="bm-mini-meta">{p.meta}</span>
+                                            <span class="bm-mini-value">{p.value}</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                                <h5 class="bm-subhead">Top clients</h5>
+                                <ul class="bm-mini-list">
+                                    <template for:each={brickClientRows} for:item="c">
+                                        <li key={c.key}>
+                                            <span class="bm-mini-name">{c.name}</span>
+                                            <span class="bm-mini-meta">{c.meta}</span>
+                                            <span class="bm-mini-tail">
+                                                <span class="bm-mini-value">{c.value}</span>
+                                                <span class={c.placementClass}>{c.placement}</span>
+                                            </span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                        </section>
+                    </template>
+
+                    <section class="bm-card">
+                        <h4>Region</h4>
+                        <template lwc:if={isEditingSelected}>
+                            <p class="bm-muted">Editing on the map. Use the bar at the bottom of the map to save or cancel.</p>
+                        </template>
+                        <template lwc:elseif={selectedHasRegion}>
+                            <p class="bm-region">{regionSummary}</p>
+                        </template>
+                        <template lwc:else>
+                            <p class="bm-muted">No region yet. Draw it so distributor sales can be placed in this brick.</p>
+                        </template>
+                        <template lwc:if={isLevel148}>
+                            <p class="bm-muted">{childSummary}</p>
+                        </template>
+                        <div class="bm-btns">
+                            <template lwc:if={selectedHasRegion}>
+                                <lightning-button label="Edit region" icon-name="utility:edit" onclick={handleDrawRegion} disabled={regionActionsDisabled}></lightning-button>
+                                <lightning-button label="Zoom to" icon-name="utility:search" onclick={handleZoomRegion} disabled={isEditingSelected}></lightning-button>
+                            </template>
+                            <template lwc:else>
+                                <lightning-button variant="brand" label="Draw region" icon-name="utility:edit_form" onclick={handleDrawRegion} disabled={regionActionsDisabled}></lightning-button>
+                            </template>
+                            <lightning-button label="Suggest from OSM" icon-name="utility:world" onclick={handleSuggestOsm} disabled={suggestDisabled}></lightning-button>
+                            <template lwc:if={showChildOutline}>
+                                <lightning-button label="Outline its 702 bricks" onclick={handleChildOutline} disabled={regionActionsDisabled}></lightning-button>
+                            </template>
+                            <lightning-button label="Import GeoJSON" onclick={handleOpenImport} disabled={regionActionsDisabled}></lightning-button>
+                        </div>
+                    </section>
+
+                    <section class="bm-card">
+                        <h4>Details</h4>
+                        <div class="bm-form">
+                            <lightning-input label="Name" data-field="name" value={draft.name} required max-length="80" onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                            <lightning-input label="Code" data-field="code" value={draft.code} field-level-help="IQVIA or distributor brick code. Left blank, it is the name." onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                            <lightning-combobox label={parentLevelLabel} data-field="parentId" value={draft.parentId} options={parentOptions} placeholder="Choose" required onchange={handleDraftChange} disabled={cannotEdit}></lightning-combobox>
+                            <div class="bm-form-row">
+                                <lightning-input label="Governorate" data-field="governorate" value={draft.governorate} onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                                <lightning-input label="City" data-field="city" value={draft.city} onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                            </div>
+                            <lightning-combobox label="Data source" data-field="dataSource" value={draft.dataSource} options={dataSourceOptions} onchange={handleDraftChange} disabled={cannotEdit}></lightning-combobox>
+                            <div class="bm-form-row">
+                                <lightning-input type="toggle" label="Active" data-field="isActive" checked={draft.isActive} message-toggle-active="" message-toggle-inactive="" onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                                <lightning-input type="toggle" label="Reps can pick it on accounts" data-field="accountSelectable" checked={draft.accountSelectable} message-toggle-active="" message-toggle-inactive="" onchange={handleDraftChange} disabled={cannotEdit}></lightning-input>
+                            </div>
+                        </div>
+                        <div class="bm-btns bm-btns_end">
+                            <lightning-button label="Reset" onclick={handleResetDetails} disabled={saveDetailsDisabled}></lightning-button>
+                            <lightning-button variant="brand" label="Save details" onclick={handleSaveDetails} disabled={saveDetailsDisabled}></lightning-button>
+                        </div>
+                    </section>
+
+                    <section class="bm-card">
+                        <h4>Distributor clients</h4>
+                        <p class="bm-muted">{clientCaption}</p>
+                        <template lwc:if={salesSummary}>
+                            <p class="bm-muted">{salesSummary}</p>
+                        </template>
+                        <template lwc:if={hasClients}>
+                            <ul class="bm-mini-list">
+                                <template for:each={clientRows} for:item="c">
+                                    <li key={c.id}>
+                                        <span class="bm-mini-name">{c.name}</span>
+                                        <span class="bm-mini-meta">{c.meta}</span>
+                                        <span class={c.placementClass}>{c.placement}</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </section>
+
+                    <section class="bm-card">
+                        <h4>Pharmacies</h4>
+                        <template lwc:if={hasPharmacies}>
+                            <ul class="bm-mini-list">
+                                <template for:each={pharmacies} for:item="p">
+                                    <li key={p.membershipId}>
+                                        <span class="bm-mini-name">{p.pharmacyName}</span>
+                                        <span class="bm-mini-meta">{p.pharmacyType}</span>
+                                        <lightning-button-icon icon-name="utility:close" variant="bare" size="small" alternative-text="Remove from brick" title="Remove from brick" data-id={p.membershipId} onclick={handleRemovePharmacy} disabled={cannotEdit}></lightning-button-icon>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <p class="bm-muted">No pharmacies are linked to this brick.</p>
+                        </template>
+                        <div class="bm-add">
+                            <lightning-input type="search" label="Find a pharmacy" placeholder="Name in Arabic or English" value={pharmacyTerm} onchange={handlePharmacySearch} disabled={cannotEdit}></lightning-input>
+                            <lightning-combobox label="Pharmacy" variant="label-hidden" value={selectedPharmacyId} options={pharmacyOptions} placeholder="Choose a pharmacy" onchange={handlePharmacyPick} disabled={cannotEdit}></lightning-combobox>
+                            <lightning-button label="Add" onclick={handleAddPharmacy} disabled={addPharmacyDisabled}></lightning-button>
+                        </div>
+                    </section>
+
+                    <section class="bm-card">
+                        <h4>Territories</h4>
+                        <template lwc:if={hasTerritories}>
+                            <ul class="bm-mini-list">
+                                <template for:each={territories} for:item="t">
+                                    <li key={t.alignmentId}>
+                                        <span class="bm-mini-name">{t.territoryName}</span>
+                                        <span class="bm-mini-meta">{t.shareLabel}</span>
+                                        <lightning-button-icon icon-name="utility:close" variant="bare" size="small" alternative-text="Remove alignment" title="Remove alignment" data-id={t.alignmentId} onclick={handleRemoveTerritory} disabled={cannotEdit}></lightning-button-icon>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <p class="bm-muted">Not aligned to a territory.</p>
+                        </template>
+                        <div class="bm-add">
+                            <lightning-combobox label="Align to territory" value={selectedTerritoryId} options={territoryOptions} placeholder="Choose a territory" onchange={handleTerritoryPick} disabled={cannotEdit}></lightning-combobox>
+                            <lightning-button label="Align" onclick={handleAlignTerritory} disabled={alignDisabled}></lightning-button>
+                        </div>
+                    </section>
+
+                    <div class="bm-danger">
+                        <lightning-button variant="destructive-text" label="Delete brick" icon-name="utility:delete" onclick={handleDelete} disabled={cannotEdit}></lightning-button>
                     </div>
-                    <lightning-datatable
-                        key-field="membershipId"
-                        data={pharmacyRows}
-                        columns={pharmacyColumns}
-                        hide-checkbox-column
-                        onrowaction={handlePharmacyRowAction}
-                    ></lightning-datatable>
-                </template>
-                <template if:false={showPharmacyPane}>
-                    <div class="empty-state">
-                        <p>Select a brick to view and manage linked pharmacy accounts.</p>
-                    </div>
-                </template>
-            </section>
+                </aside>
+            </template>
         </div>
 
-        <template if:true={showBrickModal}>
-            <section class="brick-modal" role="dialog" aria-modal="true" aria-label={modalTitle}>
-                <div class="brick-modal-backdrop" onclick={handleCloseBrickModal}></div>
-                <div class="brick-modal-panel">
-                    <h3 class="brick-modal-title">{modalTitle}</h3>
-                    <div class="brick-form-grid">
-                        <lightning-input
-                            label="Brick Name"
-                            data-field="name"
-                            value={draftBrick.name}
-                            required
-                            onchange={handleDraftChange}
-                        ></lightning-input>
-                        <lightning-input
-                            label="External ID"
-                            data-field="externalId"
-                            value={draftBrick.externalId}
-                            onchange={handleDraftChange}
-                        ></lightning-input>
-                        <lightning-input
-                            label="Brick Code (IQVIA)"
-                            data-field="brickCode"
-                            value={draftBrick.brickCode}
-                            onchange={handleDraftChange}
-                        ></lightning-input>
-                        <lightning-combobox
-                            label="Data Source"
-                            data-field="dataSource"
-                            value={draftBrick.dataSource}
-                            options={dataSourceOptions}
-                            onchange={handleDraftChange}
-                        ></lightning-combobox>
-                        <lightning-input
-                            label="Governorate"
-                            data-field="governorate"
-                            value={draftBrick.governorate}
-                            onchange={handleDraftChange}
-                        ></lightning-input>
-                        <lightning-input
-                            label="City / District"
-                            data-field="city"
-                            value={draftBrick.city}
-                            onchange={handleDraftChange}
-                        ></lightning-input>
-                        <lightning-input
-                            type="checkbox"
-                            label="Active"
-                            data-field="isActive"
-                            checked={draftBrick.isActive}
-                            onchange={handleDraftChange}
-                        ></lightning-input>
+        <template lwc:if={showNewModal}>
+            <section class="bm-modal" role="dialog" aria-modal="true" aria-label="New brick">
+                <div class="bm-modal-backdrop" onclick={handleCloseNew}></div>
+                <div class="bm-modal-panel">
+                    <h3>New brick</h3>
+                    <div class="bm-form">
+                        <lightning-combobox label="Level" data-field="level" value={newDraft.level} options={newLevelOptions} onchange={handleNewLevel}></lightning-combobox>
+                        <lightning-input label="Name" data-field="name" value={newDraft.name} required max-length="80" onchange={handleNewChange}></lightning-input>
+                        <lightning-combobox label={newParentLabel} data-field="parentId" value={newDraft.parentId} options={newParentOptions} placeholder="Choose" required onchange={handleNewChange}></lightning-combobox>
+                        <lightning-input label="Code" data-field="code" value={newDraft.code} field-level-help="Left blank, the code is the name." onchange={handleNewChange}></lightning-input>
+                        <div class="bm-form-row">
+                            <lightning-input label="Governorate" data-field="governorate" value={newDraft.governorate} onchange={handleNewChange}></lightning-input>
+                            <lightning-input label="City" data-field="city" value={newDraft.city} onchange={handleNewChange}></lightning-input>
+                        </div>
+                        <lightning-combobox label="Data source" data-field="dataSource" value={newDraft.dataSource} options={dataSourceOptions} onchange={handleNewChange}></lightning-combobox>
                     </div>
-                    <div class="brick-modal-actions">
-                        <lightning-button label="Cancel" onclick={handleCloseBrickModal}></lightning-button>
-                        <lightning-button
-                            label="Save"
-                            variant="brand"
-                            disabled={isSaveBrickDisabled}
-                            onclick={handleSaveBrick}
-                        ></lightning-button>
+                    <p class="bm-muted">After you create it, draw its region on the map.</p>
+                    <div class="bm-btns bm-btns_end">
+                        <lightning-button label="Cancel" onclick={handleCloseNew}></lightning-button>
+                        <lightning-button variant="brand" label="Create brick" onclick={handleCreate} disabled={createDisabled}></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template lwc:if={showImport}>
+            <section class="bm-modal" role="dialog" aria-modal="true" aria-label="Import a region">
+                <div class="bm-modal-backdrop" onclick={handleCloseImport}></div>
+                <div class="bm-modal-panel">
+                    <h3>Import a region</h3>
+                    <p class="bm-muted">Paste GeoJSON for this brick: a Polygon, MultiPolygon, Feature, or FeatureCollection with [longitude, latitude] points. You can adjust it on the map before saving.</p>
+                    <lightning-textarea label="GeoJSON" variant="label-hidden" value={importText} onchange={handleImportText} class="bm-import"></lightning-textarea>
+                    <div class="bm-btns bm-btns_end">
+                        <lightning-button label="Cancel" onclick={handleCloseImport}></lightning-button>
+                        <lightning-button variant="brand" label="Show on map" onclick={handleApplyImport} disabled={importDisabled}></lightning-button>
                     </div>
                 </div>
             </section>

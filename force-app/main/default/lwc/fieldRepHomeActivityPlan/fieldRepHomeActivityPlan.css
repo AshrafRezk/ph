@@ -1,0 +1,59 @@
+:host {
+    display: block;
+}
+
+.plan-card {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    margin: 0 0 1rem;
+}
+
+.plan-header {
+    padding: 1rem 1.25rem 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.plan-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #032d60;
+}
+
+.plan-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: #706e6b;
+}
+
+.plan-error {
+    margin: 0.75rem 1.25rem;
+    color: #ba0517;
+    font-size: 0.8125rem;
+}
+
+.plan-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 1rem 1.25rem 1.15rem;
+}
+
+.plan-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #706e6b;
+}
+
+.plan-metric strong {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 1.125rem;
+    color: #032d60;
+}

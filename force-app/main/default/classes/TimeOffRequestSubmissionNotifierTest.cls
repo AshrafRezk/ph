@@ -22,6 +22,7 @@ private class TimeOffRequestSubmissionNotifierTest {
             tor = new Time_Off_Request__c(
                 Type__c = 'Holiday',
                 Start_Date_Time__c = startDt,
+                End_Date_Time__c = startDt.addHours(4),
                 Span_Type__c = 'Hours',
                 Span_Duration__c = 4,
                 Stage__c = 'Draft'
@@ -70,6 +71,7 @@ private class TimeOffRequestSubmissionNotifierTest {
             tor = new Time_Off_Request__c(
                 Type__c = 'Holiday',
                 Start_Date_Time__c = startDt,
+                End_Date_Time__c = startDt.addHours(2),
                 Span_Type__c = 'Hours',
                 Span_Duration__c = 2,
                 Stage__c = 'Draft'

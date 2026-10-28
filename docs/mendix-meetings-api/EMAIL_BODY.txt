@@ -1,0 +1,23 @@
+Hi team,
+
+We’ve exposed a Salesforce REST API for **Meetings** (status, expenses, and invoice files as base64 so you can store them in Mendix). The same OAuth app (**Mendix Integration API**) will also cover **Time Off (TOT)** next.
+
+**Attached / in the shared folder:**
+1. `API_CONTRACT.md` — endpoints, payloads, errors  
+2. `Mendix_Meetings_API.postman_collection.json` — import into Postman and run  
+3. Auth details (Consumer Key + how to get Consumer Secret) — **send separately / keep private**
+
+**Base URL:** `https://zetapharma.my.salesforce.com`  
+**Auth:** OAuth 2.0 Client Credentials (External Client App: *Mendix Integration API* — Meetings + Time Off)  
+**Quick test keys:** `MTG-DEMO-SPEAKER` or `MX-DEMO-Speaker_Meeting`
+
+Suggested first run in Postman:
+1. **Get Access Token**  
+2. **List Meetings**  
+3. **Get Meeting Detail (with base64)** — confirm PDF lands in your file entity  
+
+Please reply once token + demo meeting work on your side.  
+Push (create/update) meetings and a dedicated TOT API are next if you need them.
+
+Thanks,  
+Ashraf

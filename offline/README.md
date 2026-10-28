@@ -1,4 +1,4 @@
-# Pharma Field PWA (Zeta offline shell)
+# Salesforce OSR PWA (Zeta offline shell)
 
 Vite + Capacitor app that compiles Salesforce LWCs from `../force-app/main/default/lwc`
 and runs them as a Progressive Web App / native shell.
@@ -22,9 +22,11 @@ npm install
 npm run dev
 ```
 
-Open `https://localhost:5173` (Vite uses basic SSL). The login card defaults
-**Company login page** to the My Domain label from `VITE_SF_INSTANCE_URL`
-(e.g. `zetapharma`).
+Open `https://localhost:5173` (Vite uses basic SSL). Sign-in defaults to
+**Live account** (`https://login.salesforce.com`) so any production org can
+authenticate. Users can switch to a sandbox or enter their company My Domain.
+`VITE_SF_INSTANCE_URL` is only the local Vite `/services` proxy ï¿½ it is not
+prefilled into the login form and must not be set for production/APK builds.
 
 Local stubs for `/.netlify/functions/sf-token` and `sf-api` are built into Vite
 so OAuth + REST work without the Netlify CLI.
@@ -41,16 +43,16 @@ so OAuth + REST work without the Netlify CLI.
 
 | Variable | Value | Notes |
 |----------|--------|--------|
-| `VITE_SF_INSTANCE_URL` | `https://zetapharma.my.salesforce.com` | **Omar’s var** — proxy default + login prefill |
-| `VITE_SF_CLIENT_ID` | Connected App consumer key | Keep from existing OSR site |
-| `VITE_SF_LOGIN_URL` | `https://login.salesforce.com` | Form can override via My Domain |
+| `VITE_SF_CLIENT_ID` | Connected App consumer key | One Connected App works for any org via login.salesforce.com or that orgâ€™s My Domain. **Never** an External Client App key (cross-org OAuth is blocked). |
+| `VITE_SF_LOGIN_URL` | `https://login.salesforce.com` | Form can override (sandbox / My Domain) |
 | `VITE_SF_WEB_REDIRECT_URI` | `https://www.salesforceoffline.com/oauth/callback` | Must match Connected App |
 | `VITE_SF_REDIRECT_URI` | `com.zetapharma.fieldpwa://oauth/callback` | Native Capacitor |
 
 **Do not set**
 
-- `VITE_SF_ACCESS_TOKEN` — real OAuth login is restored
-- Any `VITE_*` client secret — would be baked into the JS bundle
+- `VITE_SF_INSTANCE_URL` ï¿½ local Vite proxy only; baking it in locks the PWA to one org
+- `VITE_SF_ACCESS_TOKEN` ï¿½ real OAuth login is restored
+- Any `VITE_*` client secret ï¿½ would be baked into the JS bundle
 
 Optional function-only (not `VITE_`): `SF_CLIENT_SECRET` only if PKCE-without-secret fails.
 Prefer the existing OSR Connected App with consumer secret optional + PKCE.
@@ -69,8 +71,8 @@ Remove when done: `https://omarikas.github.io/Zeta` and the Vercel token proxy.
 
 ### 4. Security (do first)
 
-Omar’s original PWA committed a Connected App **client secret** in JS. That secret must be
-**rotated in Salesforce**. This repo’s `offline/src` uses PKCE only and exchanges tokens
+Omarï¿½s original PWA committed a Connected App **client secret** in JS. That secret must be
+**rotated in Salesforce**. This repoï¿½s `offline/src` uses PKCE only and exchanges tokens
 via `/.netlify/functions/sf-token` with **no browser secret**.
 
 ### 5. Apex / org deploy for the PWA

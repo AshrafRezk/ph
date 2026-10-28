@@ -8,8 +8,8 @@ let activeWatchId = null;
 function mapGeolocationError(error) {
     const messages = {
         1: 'Location permission denied. Allow location access to route from your position.',
-        2: 'Unable to determine your location.',
-        3: 'Location request timed out.'
+        2: 'Unable to determine your location. Make sure location services are enabled and try again.',
+        3: 'Location request timed out. Make sure location services are enabled and try again.'
     };
     return new Error(messages[error.code] || 'Unable to get your current location.');
 }

@@ -5,6 +5,8 @@ import { getRecordNotifyChange } from 'lightning/uiRecordApi';
 import getEvaluationData from '@salesforce/apex/CoachingEventController.getEvaluationData';
 import saveEvaluation from '@salesforce/apex/CoachingEventController.saveEvaluation';
 import requestSelfEvaluation from '@salesforce/apex/CoachingEventController.requestSelfEvaluation';
+import approveCoaching from '@salesforce/apex/CoachingEventController.approveCoaching';
+import rejectCoaching from '@salesforce/apex/CoachingEventController.rejectCoaching';
 
 function getScaleLabel(question, value) {
     if (value == null) return '';
@@ -128,10 +130,13 @@ export default class CoachingEventEvaluation extends LightningElement {
     @track userRole = 'admin';
     @track selfEvaluationRequested = false;
     @track activeSections = [];
+    @track canApprove = false;
+    @track rejectionReason;
 
     templateQuestions = [];
     answerMap = {};
     wiredDataResult;
+    scoringOpened = false;
 
     @wire(getEvaluationData, { eventId: '$recordId' })
     wiredData(result) {
@@ -153,6 +158,8 @@ export default class CoachingEventEvaluation extends LightningElement {
         this.status = data.status;
         this.userRole = data.userRole;
         this.selfEvaluationRequested = data.selfEvaluationRequested;
+        this.canApprove = data.canApprove === true;
+        this.rejectionReason = data.rejectionReason;
 
         try {
             const template = JSON.parse(data.templateJson || '{}');
@@ -162,6 +169,14 @@ export default class CoachingEventEvaluation extends LightningElement {
         }
 
         this.answerMap = buildAnswerMap(data.responsesJson);
+        if (
+            !this.scoringOpened &&
+            (this.userRole === 'manager' || this.userRole === 'admin') &&
+            (this.status === 'Draft' || this.status === 'Planned')
+        ) {
+            this.isEditMode = true;
+            this.scoringOpened = true;
+        }
         this.rebuildSections();
         if (this.activeSections.length === 0 && this.sections.length > 0) {
             this.activeSections = this.sections.map((s) => s.name);
@@ -229,6 +244,43 @@ export default class CoachingEventEvaluation extends LightningElement {
             await refreshApex(this.wiredDataResult);
         } catch (error) {
             this.showToast('Error', error.body?.message || error.message, 'error');
+        }
+    }
+
+    async handleApprove() {
+        this.isSaving = true;
+        try {
+            await approveCoaching({ eventId: this.recordId });
+            this.showToast('Approved', 'Coaching approved.', 'success');
+            getRecordNotifyChange([{ recordId: this.recordId }]);
+            await refreshApex(this.wiredDataResult);
+        } catch (error) {
+            this.showToast('Error', error.body?.message || error.message, 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    async handleReject() {
+        // eslint-disable-next-line no-alert
+        const reason = window.prompt('Reason for rejecting this coaching:');
+        if (reason === null) {
+            return;
+        }
+        if (!reason.trim()) {
+            this.showToast('Missing reason', 'A rejection reason is required.', 'warning');
+            return;
+        }
+        this.isSaving = true;
+        try {
+            await rejectCoaching({ eventId: this.recordId, reason });
+            this.showToast('Rejected', 'Coaching sent back for rework.', 'success');
+            getRecordNotifyChange([{ recordId: this.recordId }]);
+            await refreshApex(this.wiredDataResult);
+        } catch (error) {
+            this.showToast('Error', error.body?.message || error.message, 'error');
+        } finally {
+            this.isSaving = false;
         }
     }
 

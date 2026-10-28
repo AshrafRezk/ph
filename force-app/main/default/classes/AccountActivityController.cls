@@ -130,33 +130,40 @@ public with sharing class AccountActivityController {
       throw new AuraHandledException('Account Id is required.');
     }
 
-    List<Account> accounts = [
-      SELECT
-        Id,
-        Name,
-        RecordType.Name,
-        RecordType.DeveloperName,
-        Professional_Designation__c,
-        Tier__c,
-        Professional_License_Number__c,
-        Account_Status__c,
-        PersonEmail,
-        PersonMobilePhone,
-        BillingStreet,
-        BillingCity,
-        BillingState,
-        BillingPostalCode,
-        BillingCountry,
-        Owner.Name,
-        Specialty_1__c,
-        Specialty_2__c,
-        Specialty_3__c,
-        Specialty_4__c
-      FROM Account
-      WHERE Id = :accountId
-      WITH USER_MODE
-      LIMIT 1
-    ];
+    List<String> selectFields = new List<String>{
+      'Id',
+      'Name',
+      'RecordType.Name',
+      'RecordType.DeveloperName',
+      'BillingStreet',
+      'BillingCity',
+      'BillingState',
+      'BillingPostalCode',
+      'BillingCountry',
+      'Owner.Name'
+    };
+    for (String fieldName : new List<String>{
+      'Professional_Designation__c',
+      'Tier__c',
+      'Professional_License_Number__c',
+      'Account_Status__c',
+      'PersonEmail',
+      'PersonMobilePhone',
+      'Specialty_1__c',
+      'Specialty_2__c',
+      'Specialty_3__c',
+      'Specialty_4__c'
+    }) {
+      if (isAccountFieldQueryable(fieldName)) {
+        selectFields.add(fieldName);
+      }
+    }
+
+    String soql =
+      'SELECT ' +
+      String.join(selectFields, ',') +
+      ' FROM Account WHERE Id = :accountId LIMIT 1';
+    List<Account> accounts = Database.query(soql);
 
     if (accounts.isEmpty()) {
       throw new AuraHandledException('Account not found.');
@@ -168,12 +175,12 @@ public with sharing class AccountActivityController {
     overview.name = acct.Name;
     overview.recordTypeName = acct.RecordType?.Name;
     overview.isHcp = HCP_RECORD_TYPES.contains(acct.RecordType?.DeveloperName);
-    overview.designation = acct.Professional_Designation__c;
-    overview.tier = acct.Tier__c;
-    overview.licenseNumber = acct.Professional_License_Number__c;
-    overview.status = acct.Account_Status__c;
-    overview.email = acct.PersonEmail;
-    overview.phone = acct.PersonMobilePhone;
+    overview.designation = (String) safeGet(acct, 'Professional_Designation__c');
+    overview.tier = (String) safeGet(acct, 'Tier__c');
+    overview.licenseNumber = (String) safeGet(acct, 'Professional_License_Number__c');
+    overview.status = (String) safeGet(acct, 'Account_Status__c');
+    overview.email = (String) safeGet(acct, 'PersonEmail');
+    overview.phone = (String) safeGet(acct, 'PersonMobilePhone');
     overview.street = acct.BillingStreet;
     overview.city = acct.BillingCity;
     overview.state = acct.BillingState;
@@ -213,6 +220,7 @@ public with sharing class AccountActivityController {
 
     List<TimelineItem> items = new List<TimelineItem>();
     items.addAll(buildVisitTimelineItems(accountId));
+    items.addAll(buildMeetingTimelineItems(accountId));
     items.addAll(buildPresentationTimelineItems(accountId));
     items.addAll(buildSampleTimelineItems(accountId));
     items.addAll(buildEmailTimelineItems(accountId));
@@ -235,11 +243,31 @@ public with sharing class AccountActivityController {
 
   private static List<SpecialtyRow> buildSpecialtyRows(Account acct) {
     List<SpecialtyRow> rows = new List<SpecialtyRow>();
-    rows.add(buildSpecialtyRow(1, 'Specialty 1', acct.Specialty_1__c));
-    rows.add(buildSpecialtyRow(2, 'Specialty 2', acct.Specialty_2__c));
-    rows.add(buildSpecialtyRow(3, 'Specialty 3', acct.Specialty_3__c));
-    rows.add(buildSpecialtyRow(4, 'Specialty 4', acct.Specialty_4__c));
+    rows.add(buildSpecialtyRow(1, 'Specialty 1', (String) safeGet(acct, 'Specialty_1__c')));
+    rows.add(buildSpecialtyRow(2, 'Specialty 2', (String) safeGet(acct, 'Specialty_2__c')));
+    rows.add(buildSpecialtyRow(3, 'Specialty 3', (String) safeGet(acct, 'Specialty_3__c')));
+    rows.add(buildSpecialtyRow(4, 'Specialty 4', (String) safeGet(acct, 'Specialty_4__c')));
     return rows;
+  }
+
+  private static Boolean isAccountFieldQueryable(String fieldName) {
+    Map<String, Schema.SObjectField> fieldMap = Account.SObjectType.getDescribe().fields.getMap();
+    if (!fieldMap.containsKey(fieldName)) {
+      return false;
+    }
+    Schema.DescribeFieldResult describe = fieldMap.get(fieldName).getDescribe();
+    return describe.isAccessible();
+  }
+
+  private static Object safeGet(Account acct, String fieldName) {
+    if (acct == null || String.isBlank(fieldName)) {
+      return null;
+    }
+    try {
+      return acct.get(fieldName);
+    } catch (Exception ex) {
+      return null;
+    }
   }
 
   private static SpecialtyRow buildSpecialtyRow(Integer specialtyNumber, String label, String value) {
@@ -321,6 +349,108 @@ public with sharing class AccountActivityController {
     return items;
   }
 
+  private static List<TimelineItem> buildMeetingTimelineItems(Id accountId) {
+    List<TimelineItem> items = new List<TimelineItem>();
+    Date yearStart = Date.newInstance(Date.today().year(), 1, 1);
+    Date yearEnd = yearStart.addYears(1);
+    Datetime rangeStart = Datetime.newInstance(yearStart, Time.newInstance(0, 0, 0, 0));
+    Datetime rangeEnd = Datetime.newInstance(yearEnd, Time.newInstance(0, 0, 0, 0));
+
+    List<Meeting_Member__c> memberships = [
+      SELECT
+        Id,
+        Attendance_Status__c,
+        Meeting__c,
+        Meeting__r.Name,
+        Meeting__r.Objectives__c,
+        Meeting__r.Start_Date_Time__c,
+        Meeting__r.Status__c,
+        Meeting__r.RecordType.Name,
+        Meeting__r.Pharma_Project__r.Name,
+        Meeting__r.Owner.Name
+      FROM Meeting_Member__c
+      WHERE
+        Customer__c = :accountId
+        AND Meeting__r.Start_Date_Time__c >= :rangeStart
+        AND Meeting__r.Start_Date_Time__c < :rangeEnd
+        AND Meeting__r.Status__c != 'Cancelled'
+      WITH USER_MODE
+      ORDER BY Meeting__r.Start_Date_Time__c DESC NULLS LAST
+      LIMIT 100
+    ];
+    if (memberships.isEmpty()) {
+      return items;
+    }
+
+    Set<Id> meetingIds = new Set<Id>();
+    for (Meeting_Member__c membership : memberships) {
+      meetingIds.add(membership.Meeting__c);
+    }
+    Map<Id, List<String>> productsByMeeting = getMeetingProductNames(meetingIds);
+
+    for (Meeting_Member__c membership : memberships) {
+      Meeting__c meeting = membership.Meeting__r;
+      TimelineItem item = new TimelineItem();
+      item.key = 'meeting-' + membership.Meeting__c;
+      item.type = 'meeting';
+      item.typeLabel = meeting.RecordType?.Name != null ? meeting.RecordType.Name : 'Meeting';
+      item.iconName = 'utility:groups';
+      item.recordId = membership.Meeting__c;
+      item.title = String.isNotBlank(meeting.Objectives__c)
+        ? meeting.Objectives__c
+        : meeting.Name;
+      item.subtitle = membership.Attendance_Status__c;
+      item.activityDate = meeting.Start_Date_Time__c;
+      item.ownerName = meeting.Owner?.Name;
+      item.status = meeting.Status__c;
+      item.channel = item.typeLabel;
+      item.productNames = productsByMeeting.containsKey(membership.Meeting__c)
+        ? productsByMeeting.get(membership.Meeting__c)
+        : new List<String>();
+      if (
+        item.productNames.isEmpty() &&
+        meeting.Pharma_Project__r?.Name != null
+      ) {
+        item.productNames = new List<String>{ meeting.Pharma_Project__r.Name };
+      }
+      item.products = buildProductChipsFromNames(item.productNames);
+      item.detailLines = new List<String>();
+      if (meeting.Pharma_Project__r?.Name != null) {
+        item.detailLines.add('Brand / project: ' + meeting.Pharma_Project__r.Name);
+      }
+      if (membership.Attendance_Status__c != null) {
+        item.detailLines.add('Attendance: ' + membership.Attendance_Status__c);
+      }
+      items.add(item);
+    }
+    return items;
+  }
+
+  private static Map<Id, List<String>> getMeetingProductNames(Set<Id> meetingIds) {
+    Map<Id, List<String>> byMeeting = new Map<Id, List<String>>();
+    if (meetingIds == null || meetingIds.isEmpty()) {
+      return byMeeting;
+    }
+    if (!Schema.sObjectType.Meeting_Product__c.isAccessible()) {
+      return byMeeting;
+    }
+    List<Id> meetingIdList = new List<Id>(meetingIds);
+    for (Meeting_Product__c row : [
+      SELECT Meeting__c, Product__r.Name
+      FROM Meeting_Product__c
+      WHERE Meeting__c IN :meetingIdList
+    ]) {
+      if (row.Product__r?.Name == null) {
+        continue;
+      }
+      if (!byMeeting.containsKey(row.Meeting__c)) {
+        byMeeting.put(row.Meeting__c, new List<String>());
+      }
+      byMeeting.get(row.Meeting__c).add(row.Product__r.Name);
+    }
+    return byMeeting;
+  }
+
   private static List<TimelineItem> buildPresentationTimelineItems(Id accountId) {
     List<TimelineItem> items = new List<TimelineItem>();
     List<CLM_Presentation_Session__c> sessions = [
@@ -400,53 +530,60 @@ public with sharing class AccountActivityController {
   private static List<TimelineItem> buildEmailTimelineItems(Id accountId) {
     List<TimelineItem> items = new List<TimelineItem>();
 
-    if (Schema.sObjectType.EmailMessage.isAccessible()) {
-      for (EmailMessage email : [
-        SELECT Id, Subject, MessageDate, FromName, FromAddress, TextBody, Status
-        FROM EmailMessage
-        WHERE RelatedToId = :accountId
-        WITH USER_MODE
-        ORDER BY MessageDate DESC NULLS LAST
+    try {
+      if (Schema.sObjectType.EmailMessage.isAccessible()) {
+        for (EmailMessage email : [
+          SELECT Id, Subject, MessageDate, FromName, FromAddress, TextBody, Status
+          FROM EmailMessage
+          WHERE RelatedToId = :accountId
+          ORDER BY MessageDate DESC NULLS LAST
+          LIMIT 50
+        ]) {
+          TimelineItem item = new TimelineItem();
+          item.key = 'email-' + email.Id;
+          item.type = 'email';
+          item.typeLabel = 'Email Sent';
+          item.iconName = 'utility:email';
+          item.recordId = email.Id;
+          item.title = String.isNotBlank(email.Subject) ? email.Subject : '(No subject)';
+          item.subtitle = email.FromName;
+          item.activityDate = email.MessageDate;
+          item.ownerName = email.FromName;
+          item.status = email.Status;
+          item.detailLines = buildEmailPreview(email.TextBody);
+          items.add(item);
+        }
+      }
+    } catch (Exception ex) {
+      // EmailMessage may be unavailable depending on org features.
+    }
+
+    try {
+      String emailType = 'Email';
+      for (Task task : [
+        SELECT Id, Subject, ActivityDate, Owner.Name, Description, Status, Type
+        FROM Task
+        WHERE WhatId = :accountId AND Type = :emailType
+        ORDER BY ActivityDate DESC NULLS LAST
         LIMIT 50
       ]) {
         TimelineItem item = new TimelineItem();
-        item.key = 'email-' + email.Id;
+        item.key = 'task-email-' + task.Id;
         item.type = 'email';
-        item.typeLabel = 'Email Sent';
+        item.typeLabel = 'Email';
         item.iconName = 'utility:email';
-        item.recordId = email.Id;
-        item.title = String.isNotBlank(email.Subject) ? email.Subject : '(No subject)';
-        item.subtitle = email.FromName;
-        item.activityDate = email.MessageDate;
-        item.ownerName = email.FromName;
-        item.status = email.Status;
-        item.detailLines = buildEmailPreview(email.TextBody);
+        item.recordId = task.Id;
+        item.title = String.isNotBlank(task.Subject) ? task.Subject : '(No subject)';
+        item.activityDate = task.ActivityDate != null
+          ? Datetime.newInstance(task.ActivityDate, Time.newInstance(12, 0, 0, 0))
+          : null;
+        item.ownerName = task.Owner?.Name;
+        item.status = task.Status;
+        item.detailLines = buildEmailPreview(task.Description);
         items.add(item);
       }
-    }
-
-    for (Task task : [
-      SELECT Id, Subject, ActivityDate, Owner.Name, Description, Status, Type
-      FROM Task
-      WHERE WhatId = :accountId AND Type = 'Email'
-      WITH USER_MODE
-      ORDER BY ActivityDate DESC NULLS LAST
-      LIMIT 50
-    ]) {
-      TimelineItem item = new TimelineItem();
-      item.key = 'task-email-' + task.Id;
-      item.type = 'email';
-      item.typeLabel = 'Email';
-      item.iconName = 'utility:email';
-      item.recordId = task.Id;
-      item.title = String.isNotBlank(task.Subject) ? task.Subject : '(No subject)';
-      item.activityDate = task.ActivityDate != null
-        ? Datetime.newInstance(task.ActivityDate, Time.newInstance(12, 0, 0, 0))
-        : null;
-      item.ownerName = task.Owner?.Name;
-      item.status = task.Status;
-      item.detailLines = buildEmailPreview(task.Description);
-      items.add(item);
+    } catch (Exception ex) {
+      // Task.Type filtering can fail in some orgs.
     }
 
     return items;

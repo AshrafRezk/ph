@@ -3,6 +3,7 @@
     <fullName>MR_CT_Scan_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — CT Scan Sold</description>
+    <externalId>false</externalId>
     <label>CT Scan Sold</label>
     <precision>16</precision>
     <required>false</required>

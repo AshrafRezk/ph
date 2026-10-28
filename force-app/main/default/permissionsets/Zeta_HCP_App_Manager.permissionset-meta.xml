@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Publish Zeta News, choose which products and events appear in the HCP app, and work the requests HCPs send from it.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Zeta HCP App Manager</label>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Summary__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Body__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Image_URL__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Article_URL__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Category__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Therapy_Area__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Publish_Date__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Expiry_Date__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Zeta_News__c.Published__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Product2.Show_In_HCP_App__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Meeting__c.Show_In_HCP_App__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>true</editable><field>Case.Request_Type__c</field><readable>true</readable></fieldPermissions>
+    <fieldPermissions><editable>false</editable><field>Case.HCP_App_Code__c</field><readable>true</readable></fieldPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Zeta_News__c</object>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <tabSettings>
+        <tab>Zeta_News__c</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+</PermissionSet>

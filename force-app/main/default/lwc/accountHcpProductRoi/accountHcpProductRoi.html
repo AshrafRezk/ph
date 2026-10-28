@@ -1,18 +1,16 @@
 <template>
-    <lightning-card title="HCP Product ROI" icon-name="standard:product">
-        <div slot="actions">
-            <lightning-button-icon
-                icon-name="utility:refresh"
-                alternative-text="Refresh"
-                title="Refresh"
-                onclick={handleRefresh}>
-            </lightning-button-icon>
-        </div>
+    <article class="apm-shell">
+        <header class="apm-header">
+            <h2 class="apm-title">APM</h2>
+            <button type="button" class="apm-refresh" title="Refresh" onclick={handleRefresh}>
+                Refresh
+            </button>
+        </header>
 
         <div class="roi-body">
             <template lwc:if={isLoading}>
                 <div class="loading-wrap">
-                    <lightning-spinner alternative-text="Loading HCP product ROI" size="small"></lightning-spinner>
+                    <lightning-spinner alternative-text="Loading APM" size="small"></lightning-spinner>
                 </div>
             </template>
 
@@ -25,18 +23,24 @@
             <template lwc:if={hasPayload}>
                 <template lwc:if={hasProducts}>
                     <div class="toolbar">
-                        <lightning-combobox
-                            name="product"
-                            label="Product"
-                            value={selectedProductId}
+                        <lightning-dual-listbox
+                            name="products"
+                            label="Products"
+                            source-label="Available"
+                            selected-label="Selected (first = primary)"
                             options={productOptions}
+                            value={selectedProductIds}
                             onchange={handleProductChange}
+                            min="1"
                             class="product-picker">
-                        </lightning-combobox>
+                        </lightning-dual-listbox>
                         <template lwc:if={roiMultipleLabel}>
                             <span class="roi-badge">{roiMultipleLabel}</span>
                         </template>
                     </div>
+                    <template lwc:if={primaryProductHint}>
+                        <p class="product-primary-hint">{primaryProductHint}</p>
+                    </template>
 
                     <p class="cta">{ctaText}</p>
 
@@ -101,6 +105,8 @@
                                     <span class="legend-item speaker">Speaker / RTD</span>
                                     <span class="legend-item samples">Samples</span>
                                     <span class="legend-item brochures">Brochures</span>
+                                    <span class="legend-item visits">Visits</span>
+                                    <span class="legend-item meetings">Meetings</span>
                                     <span class="legend-item today">Today</span>
                                 </div>
 
@@ -109,7 +115,7 @@
                                         <div class="class-band">
                                             <div class="class-band-label">Classification</div>
                                             <div class="class-band-track">
-                                                <template lwc:if={classificationBand.hasData}>
+                                                <template lwc:if={hasClassificationBand}>
                                                     <svg
                                                         class="class-line"
                                                         viewBox={classificationBand.viewBox}
@@ -194,61 +200,114 @@
                         </template>
                     </section>
 
-                    <div class="charts-grid">
-                        <section class="section chart-section">
-                            <h3 class="section-title">Sell-out growth (affiliated pharmacies)</h3>
-                            <template lwc:if={salesChart.hasData}>
-                                <svg class="chart" viewBox={salesChart.viewBox} role="img" aria-label="Sell-out growth chart">
-                                    <path d={salesChart.path} fill="none" stroke={salesChart.color} stroke-width="3"></path>
-                                    <template for:each={salesChart.dots} for:item="dot">
-                                        <circle
-                                            key={dot.key}
-                                            cx={dot.cx}
-                                            cy={dot.cy}
-                                            r="4"
-                                            fill={salesChart.color}>
-                                            <title>{dot.title}</title>
-                                        </circle>
-                                    </template>
-                                    <template for:each={salesChart.labels} for:item="label">
-                                        <text key={label.key} x={label.x} y="172" text-anchor="middle" class="axis-label">
-                                            {label.label}
-                                        </text>
-                                    </template>
-                                </svg>
-                            </template>
-                            <template lwc:else>
-                                <p class="empty-hint">No affiliated pharmacy sell-out for this product yet.</p>
-                            </template>
-                        </section>
+                    <section class="section combined-chart-section">
+                        <h3 class="section-title">Sell-out vs classification</h3>
+                        <template lwc:if={hasCombinedChart}>
+                            <div class="combined-legend">
+                                <span class="legend-item sellout">Sell-out (affiliated pharmacies)</span>
+                                <span class="legend-item classification">Rep classification</span>
+                                <span class="legend-item divergence">Difference</span>
+                            </div>
+                            <svg
+                                class="chart combined-chart"
+                                viewBox={combinedChart.viewBox}
+                                role="img"
+                                aria-label="Sell-out versus classification">
+                                <template for:each={combinedChart.yTicks} for:item="tick">
+                                    <line
+                                        key={tick.lineKey}
+                                        x1={tick.x1}
+                                        x2={tick.x2}
+                                        y1={tick.y}
+                                        y2={tick.y}
+                                        stroke="#ecebea"
+                                        stroke-width="1"></line>
+                                </template>
+                                <template for:each={combinedChart.yTicks} for:item="tick">
+                                    <text
+                                        key={tick.leftKey}
+                                        x={tick.leftX}
+                                        y={tick.y}
+                                        text-anchor="end"
+                                        dominant-baseline="middle"
+                                        class={tick.leftClass}>
+                                        {tick.leftLabel}
+                                    </text>
+                                </template>
+                                <template for:each={combinedChart.yTicks} for:item="tick">
+                                    <text
+                                        key={tick.rightKey}
+                                        x={tick.rightX}
+                                        y={tick.y}
+                                        text-anchor="start"
+                                        dominant-baseline="middle"
+                                        class={tick.rightClass}>
+                                        {tick.rightLabel}
+                                    </text>
+                                </template>
+                                <path d={combinedChart.gapPath} fill="#fe9339" fill-opacity="0.18" stroke="none"></path>
+                                <path
+                                    d={combinedChart.salesPath}
+                                    fill="none"
+                                    stroke={combinedChart.salesColor}
+                                    stroke-width="3"></path>
+                                <path
+                                    d={combinedChart.ratingPath}
+                                    fill="none"
+                                    stroke={combinedChart.ratingColor}
+                                    stroke-width="3"></path>
+                                <template for:each={combinedChart.salesDots} for:item="dot">
+                                    <circle
+                                        key={dot.key}
+                                        cx={dot.cx}
+                                        cy={dot.cy}
+                                        r="4"
+                                        fill={dot.color}>
+                                        <title>{dot.title}</title>
+                                    </circle>
+                                </template>
+                                <template for:each={combinedChart.ratingDots} for:item="dot">
+                                    <circle
+                                        key={dot.key}
+                                        cx={dot.cx}
+                                        cy={dot.cy}
+                                        r="4"
+                                        fill={dot.color}>
+                                        <title>{dot.title}</title>
+                                    </circle>
+                                </template>
+                                <template for:each={combinedChart.labels} for:item="label">
+                                    <text
+                                        key={label.key}
+                                        x={label.x}
+                                        y={label.y}
+                                        text-anchor="middle"
+                                        class="axis-label">
+                                        {label.label}
+                                    </text>
+                                </template>
+                            </svg>
+                            <p class="chart-note">{combinedChart.scaleNote}</p>
+                        </template>
+                        <template lwc:else>
+                            <p class="empty-hint">No affiliated pharmacy sell-out or classification history for this product yet.</p>
+                        </template>
 
-                        <section class="section chart-section">
-                            <h3 class="section-title">Rep classification movement</h3>
-                            <template lwc:if={ratingChart.hasData}>
-                                <svg class="chart" viewBox={ratingChart.viewBox} role="img" aria-label="Rep classification movement chart">
-                                    <path d={ratingChart.path} fill="none" stroke={ratingChart.color} stroke-width="3"></path>
-                                    <template for:each={ratingChart.dots} for:item="dot">
-                                        <circle
-                                            key={dot.key}
-                                            cx={dot.cx}
-                                            cy={dot.cy}
-                                            r="4"
-                                            fill={ratingChart.color}>
-                                            <title>{dot.title}</title>
-                                        </circle>
-                                    </template>
-                                    <template for:each={ratingChart.labels} for:item="label">
-                                        <text key={label.key} x={label.x} y="172" text-anchor="middle" class="axis-label">
-                                            {label.label}
-                                        </text>
-                                    </template>
-                                </svg>
-                            </template>
-                            <template lwc:else>
-                                <p class="empty-hint">No historical classification snapshots for this product yet.</p>
-                            </template>
-                        </section>
-                    </div>
+                        <template lwc:if={hasDivergenceHeadline}>
+                            <div class={divergenceAnalysis.bannerClass}>
+                                <strong>{divergenceAnalysis.headline}</strong>
+                                <p>{divergenceAnalysis.summary}</p>
+                            </div>
+                            <ul class="reason-list">
+                                <template for:each={divergenceAnalysis.reasons} for:item="reason">
+                                    <li key={reason.key} class={reason.itemClass}>
+                                        <span class="reason-title">{reason.title}</span>
+                                        <span class="reason-detail">{reason.detail}</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </section>
                 </template>
 
                 <template lwc:else>
@@ -256,5 +315,5 @@
                 </template>
             </template>
         </div>
-    </lightning-card>
+    </article>
 </template>

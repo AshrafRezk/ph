@@ -11,7 +11,7 @@ export function releaseMessageContext(_context) {
 
 export function subscribe(_messageContext, _channel, listener, _options) {
     if (typeof listener === 'function') {
-        // No live LMS traffic offline.
+        // No live LMS traffic offline ï¿½ consumers use window/BroadcastChannel.
     }
     return { unsubscribe() {} };
 }
@@ -25,7 +25,8 @@ export function publish(_messageContext, _channel, _payload) {
 }
 
 /**
- * @wire(MessageContext) adapter — emits a fake context object.
+ * @wire(MessageContext) adapter ï¿½ emits a fake context object.
+ * Both connect and update must emit so wired consumers set _messageContext.
  */
 export function MessageContext(dataCallback) {
     if (!(this instanceof MessageContext)) {
@@ -34,11 +35,16 @@ export function MessageContext(dataCallback) {
     this._dataCallback = dataCallback;
 }
 MessageContext.prototype.connect = function connect() {
+    this._emit();
+};
+MessageContext.prototype.update = function update() {
+    this._emit();
+};
+MessageContext.prototype.disconnect = function disconnect() {
+    this._dataCallback = null;
+};
+MessageContext.prototype._emit = function _emit() {
     if (this._dataCallback) {
         this._dataCallback({ data: createMessageContext(), error: undefined });
     }
-};
-MessageContext.prototype.update = function update() {};
-MessageContext.prototype.disconnect = function disconnect() {
-    this._dataCallback = null;
 };

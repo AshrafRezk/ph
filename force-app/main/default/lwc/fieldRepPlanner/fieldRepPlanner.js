@@ -1,4 +1,4 @@
-import { LightningElement, track, wire } from 'lwc';
+import { LightningElement, api, track, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import LightningConfirm from 'lightning/confirm';
@@ -9,27 +9,42 @@ import getMapAccounts from '@salesforce/apex/FieldPlannerController.getMapAccoun
 import getPlannerAccountRecordTypes from '@salesforce/apex/FieldPlannerController.getPlannerAccountRecordTypes';
 import getPlannerAccountFilterOptions from '@salesforce/apex/FieldPlannerController.getPlannerAccountFilterOptions';
 import getPlannerViewerContext from '@salesforce/apex/FieldPlannerController.getPlannerViewerContext';
+import getWizardCreateOptions from '@salesforce/apex/AccountsTabController.getWizardCreateOptions';
 import {
     getVisitStatusOptions,
     validateVisitStatusChange,
     isNonWorkingDay,
+    setWorkingDays,
     canSubmitForApproval,
     isLockedVisitStatus,
     isPendingApprovalStatus,
+    isPlannedVisitType,
     VISIT_STATUS_DRAFT,
-    VISIT_STATUS_SUBMITTED
+    VISIT_STATUS_SUBMITTED,
+    VISIT_STATUS_SCHEDULED,
+    VISIT_STATUS_COMPLETED,
+    VISIT_STATUS_CANCELLED
 } from 'c/visitStatusUtils';
 import submitVisit from '@salesforce/apex/FieldPlannerController.submitVisit';
 import submitWeekPlans from '@salesforce/apex/FieldPlannerController.submitWeekPlans';
+import approvePlanVisit from '@salesforce/apex/FieldPlannerController.approvePlanVisit';
+import rejectPlanVisit from '@salesforce/apex/VisitValidationController.rejectPlanVisit';
+import approveTotRequest from '@salesforce/apex/TimeOffRequestController.approveRequest';
+import rejectTotRequest from '@salesforce/apex/TimeOffRequestController.rejectRequest';
+import approveMeetingPlan from '@salesforce/apex/MeetingPlannerController.approveMeetingPlan';
+import rejectMeetingPlan from '@salesforce/apex/MeetingPlannerController.rejectMeetingPlan';
 import getAccountVisitTargets from '@salesforce/apex/FieldPlannerController.getAccountVisitTargets';
+import getWeeklyPlanRecommendations from '@salesforce/apex/FieldPlannerAssistController.getWeeklyPlanRecommendations';
+import copyDayVisits from '@salesforce/apex/FieldPlannerAssistController.copyDayVisits';
+import copyWeekVisits from '@salesforce/apex/FieldPlannerAssistController.copyWeekVisits';
+import askPlannerQuestion from '@salesforce/apex/PlannerAskService.askPlannerQuestion';
 import searchAccountsPage from '@salesforce/apex/FieldPlannerController.searchAccountsPage';
 import upsertVisit from '@salesforce/apex/FieldPlannerController.upsertVisit';
 import rescheduleVisits from '@salesforce/apex/FieldPlannerController.rescheduleVisits';
 import deleteVisit from '@salesforce/apex/FieldPlannerController.deleteVisit';
 import createTimeOff from '@salesforce/apex/FieldPlannerController.createTimeOff';
+import updateTimeOff from '@salesforce/apex/FieldPlannerAssistController.updateTimeOff';
 import getPromotionalProjects from '@salesforce/apex/FieldPlannerController.getPromotionalProjects';
-import createMeeting from '@salesforce/apex/MeetingPlannerController.createMeeting';
-import getMeetingRecordTypes from '@salesforce/apex/MeetingPlannerController.getMeetingRecordTypes';
 import fetchMeetings from '@salesforce/apex/MeetingPlannerController.fetchMeetings';
 import {
     getCurrentPosition,
@@ -43,9 +58,12 @@ import {
     addOsmTileLayer,
     createVisitPinIcon,
     ensureLeaflet,
+    prefetchMapAreaTiles,
     resolveAccountPinKind,
-    resolveAccountTypeLabel
+    resolveAccountTypeLabel,
+    resolveAccountListKind
 } from 'c/plannerMapPins';
+import { accountTypeIconUrl, resolveAccountThemeKind } from 'c/accountTypeTheme';
 import {
     loadAccountCollections,
     saveAccountCollections
@@ -54,6 +72,7 @@ import {
     subscribeTerritoryContext,
     unsubscribeTerritoryContext
 } from 'c/territoryContextClient';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
 import Id from '@salesforce/user/Id';
 import {
     getMapAccountsCache,
@@ -62,21 +81,24 @@ import {
     getUserPlannerCacheKey,
     newClientKey,
     putCachedAccounts,
+    putCachedMapLocation,
+    getCachedMapLocation,
     putMapAccountsCache,
     putPlannerCache,
     searchCachedAccounts
 } from 'c/clmOfflineStore';
-import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
+import { isOfflineMode, queueOfflineAction, markOnline, markOffline } from 'c/clmOfflineSync';
 
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 24;
 const SLOT_MINUTES = 30;
-const PX_PER_MINUTE = 1.25;
-const CALENDAR_HEADER_HEIGHT = 48;
+const PX_PER_MINUTE = 1;
+const CALENDAR_HEADER_HEIGHT = 32;
 const CALENDAR_DAY_END_MARKER_HEIGHT = 1;
 const DEFAULT_VISIT_MINUTES = 60;
-const ACCOUNT_PAGE_SIZE = 10;
+const ACCOUNT_PAGE_SIZE = 40;
 const ACCOUNT_LIST_VISIBLE_COUNT = 10;
+const ACCOUNT_AUTO_FILL_MAX_PAGES = 1;
 const SEARCH_DEBOUNCE_MS = 350;
 const ROUTE_PREVIEW_DEBOUNCE_MS = 400;
 const FILTER_ALL = 'All';
@@ -88,19 +110,85 @@ const DRAG_TYPE_ACCOUNT = 'account';
 const DRAG_TYPE_TOT = 'tot';
 const DRAG_TYPE_EVENT = 'event';
 const DRAG_TYPE_PROMO = 'promo';
+const DRAG_TYPE_MEETING = 'meeting';
 const DEFAULT_PROMO_MINUTES = 120;
 const DEFAULT_MEETING_MINUTES = 120;
+const TOT_STAGE_SUBMITTED = 'Submitted for Approval';
+const MEETING_PENDING_STATUSES = new Set([
+    'PendingApproval',
+    'Pending GPM Approval',
+    'Pending NLM Approval'
+]);
+const PLAN_SLOT_DAY_FORMAT = { weekday: 'long', day: 'numeric', month: 'long' };
+const PLAN_SLOT_TIME_FORMAT = { hour: 'numeric', minute: '2-digit' };
 const OSRM_BASE = 'https://router.project-osrm.org';
 const LIST_MODE_ALL = 'all';
 const LIST_MODE_COLLECTION = 'collection';
 const COLLECTION_FETCH_PAGE_SIZE = 200;
 
+function totStageKind(stage) {
+    const raw = String(stage || 'Draft').trim();
+    if (raw === 'Approved' || raw === 'Scheduled') return 'scheduled';
+    if (raw === 'Rejected') return 'rejected';
+    if (raw === 'Submitted for Approval' || raw === 'Submitted') return 'submitted';
+    return 'draft';
+}
+
+function meetingStatusKind(status) {
+    const raw = String(status || 'Draft').trim();
+    const lower = raw.toLowerCase();
+    if (raw === 'Rejected' || raw === 'Cancelled') return 'rejected';
+    if (
+        raw === 'Approved' ||
+        raw === 'Scheduled' ||
+        raw === 'Closed' ||
+        raw === 'Concluded'
+    ) {
+        return 'scheduled';
+    }
+    if (
+        raw === 'PendingApproval' ||
+        raw === 'Pending Approval' ||
+        raw === 'Pending GPM Approval' ||
+        raw === 'Pending NLM Approval' ||
+        raw === 'Submitted' ||
+        lower.includes('pending') ||
+        lower.includes('gpm') ||
+        lower.includes('nlm')
+    ) {
+        return 'submitted';
+    }
+    return 'draft';
+}
+
+function plannerStatusTitlePrefix(kind) {
+    if (kind === 'scheduled') return 'Scheduled — ';
+    if (kind === 'rejected') return 'Rejected — ';
+    if (kind === 'submitted') return 'Submitted — ';
+    return 'Draft — ';
+}
+
+// Keep in sync with timeOffSubmission TYPE_OPTIONS (types only; spans unchanged here).
 const TOT_TYPES = [
-    { label: 'Holiday', value: 'Holiday' },
-    { label: 'Sick Leave', value: 'Sick Leave' },
+    { label: 'Annual Leave', value: 'Annual Leave' },
+    { label: 'Business Trip', value: 'Business Trip' },
+    { label: 'Sick', value: 'Sick' },
     { label: 'Training', value: 'Training' },
-    { label: 'Event', value: 'Event' },
-    { label: 'Travelling', value: 'Travelling' }
+    { label: 'Casual/Emergency', value: 'Casual/Emergency' },
+    { label: 'Health Day', value: 'Health Day' },
+    { label: 'Maternity/Paternity', value: 'Maternity/Paternity' },
+    { label: 'Office Work', value: 'Office Work' },
+    { label: 'Marriage', value: 'Marriage' },
+    { label: 'Cycle Meeting', value: 'Cycle Meeting' },
+    { label: 'Unpaid', value: 'Unpaid' },
+    { label: 'Sales Meeting', value: 'Sales Meeting' },
+    { label: 'Military', value: 'Military' },
+    { label: 'Prospection', value: 'Prospection' },
+    { label: 'Handover', value: 'Handover' },
+    { label: 'Sales Day', value: 'Sales Day' },
+    { label: 'Delegation', value: 'Delegation' },
+    { label: 'RTD', value: 'RTD' },
+    { label: 'Speaker', value: 'Speaker' }
 ];
 
 const TOT_SPANS = [
@@ -110,22 +198,24 @@ const TOT_SPANS = [
 
 const TOT_QUICK_PRESETS = [
     { id: 'training-2h', label: 'Training · 2h', typeValue: 'Training', spanType: 'Hours', durationHours: '2' },
-    { id: 'sick-4h', label: 'Sick · 4h', typeValue: 'Sick Leave', spanType: 'Hours', durationHours: '4' },
-    { id: 'holiday-full', label: 'Holiday · Full day', typeValue: 'Holiday', spanType: 'Full_Day', durationHours: null },
-    { id: 'event-3h', label: 'Event · 3h', typeValue: 'Event', spanType: 'Hours', durationHours: '3' }
+    { id: 'sick-4h', label: 'Sick · 4h', typeValue: 'Sick', spanType: 'Hours', durationHours: '4' },
+    {
+        id: 'annual-leave-full',
+        label: 'Annual Leave · Full day',
+        typeValue: 'Annual Leave',
+        spanType: 'Full_Day',
+        durationHours: null
+    },
+    { id: 'health-3h', label: 'Health Day · 3h', typeValue: 'Health Day', spanType: 'Hours', durationHours: '3' }
 ];
 
 function startOfWeek(date) {
     const d = new Date(date);
-    // Saturday-start working week (Sat–Wed working days).
+    // Saturday-start calendar week; working days come from Planner Rules.
     const daysFromSaturday = (d.getDay() + 1) % 7;
     d.setDate(d.getDate() - daysFromSaturday);
     d.setHours(0, 0, 0, 0);
     return d;
-}
-
-function isWeekendDay(date) {
-    return isNonWorkingDay(date);
 }
 
 function addDays(date, days) {
@@ -159,6 +249,21 @@ function sameSalesforceId(left, right) {
         return left === right;
     }
     return String(left).substring(0, 15) === String(right).substring(0, 15);
+}
+
+function isViewerOwnTerritory(option, defaultUserId, assignedTerritoryIds) {
+    const userId = option?.userId || option?.value;
+    if (defaultUserId && userId && sameSalesforceId(userId, defaultUserId)) {
+        return true;
+    }
+    if (option?.assigned === true) {
+        return true;
+    }
+    const territoryId = option?.territoryId;
+    if (!territoryId || !Array.isArray(assignedTerritoryIds)) {
+        return false;
+    }
+    return assignedTerritoryIds.some((id) => sameSalesforceId(id, territoryId));
 }
 
 function toSalesforceDateTimeLocal(date) {
@@ -325,17 +430,57 @@ function accountMatchesFilters(account, filters) {
             return false;
         }
     }
-    if (filters.brickId && filters.brickId !== FILTER_ALL) {
-        if (account.brickId !== filters.brickId) {
-            return false;
-        }
+    if (!accountMatchesBrickFilters(account, filters)) {
+        return false;
     }
     if (term) {
-        const haystack = [account.name, account.specialty, account.city, account.classification, account.brickName]
+        const haystack = [
+            account.name,
+            account.specialty,
+            account.city,
+            account.classification,
+            account.brickName,
+            account.brick148Name,
+            account.brick702Name
+        ]
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
         if (!haystack.includes(term)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function accountMatchesBrickFilters(account, filters) {
+    const brick702Id = filters.brick702Id && filters.brick702Id !== FILTER_ALL ? String(filters.brick702Id) : '';
+    const brick148Id = filters.brick148Id && filters.brick148Id !== FILTER_ALL ? String(filters.brick148Id) : '';
+    const legacyBrickId = filters.brickId && filters.brickId !== FILTER_ALL ? String(filters.brickId) : '';
+    if (brick702Id) {
+        const ids = [account.brick702Id, account.brickId].filter(Boolean).map((value) => String(value));
+        if (!ids.includes(brick702Id)) {
+            return false;
+        }
+    }
+    if (brick148Id) {
+        const ids = [account.brick148Id, account.brickId].filter(Boolean).map((value) => String(value));
+        if (!ids.includes(brick148Id)) {
+            const childMatch = (filters.brick702Options || []).some(
+                (option) =>
+                    String(option?.parentValue || '') === brick148Id &&
+                    ids.includes(String(option.value))
+            );
+            if (!childMatch) {
+                return false;
+            }
+        }
+    }
+    if (!brick702Id && !brick148Id && legacyBrickId) {
+        const ids = [account.brickId, account.brick148Id, account.brick702Id]
+            .filter(Boolean)
+            .map((value) => String(value));
+        if (!ids.includes(legacyBrickId)) {
             return false;
         }
     }
@@ -385,14 +530,23 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track visits = [];
     @track timeOffBlocks = [];
     @track meetings = [];
+    @track publicHolidayDates = [];
+    // Planner Rules for the planner owner (from the server); null until the week loads.
+    @track plannerWorkingDays = null;
+    @track plannerPolicies = {};
     @track accountSearch = '';
     @track accountRecordType = 'All';
     @track accountSpecialty = 'All';
     @track accountClassification = 'All';
     @track accountBrick = 'All';
+    @track accountBrick148 = 'All';
+    @track accountBrick702 = 'All';
+    @track visitCoverage = 'all';
     @track specialtyOptions = [{ label: 'All Specialties', value: 'All' }];
     @track classificationOptions = [{ label: 'All Classifications', value: 'All' }];
     @track brickOptions = [{ label: 'All Bricks', value: 'All' }];
+    @track brick148Options = [{ label: 'All 148 bricks', value: 'All' }];
+    @track brick702Options = [{ label: 'All 702 bricks', value: 'All' }];
     @track recordTypeOptions = [];
     @track accountOffset = 0;
     @track hasMoreAccounts = false;
@@ -401,6 +555,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track isLoading = false;
     @track isSaving = false;
     @track errorMessage;
+    @track modalClosing = false;
     @track showTotModal = false;
     @track totTypeValue = '';
     @track totSpanType = '';
@@ -423,11 +578,30 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track arrivalStatuses = [];
     @track visitSuggestions = [];
     @track accountVisitTargets = [];
+    @track weekRecommendations = [];
+    @track weekForecast;
+    @track isLoadingRecommendations = false;
+    @track copyTargetDayKey = '';
+    @track isCopyingDay = false;
+    @track showCopyPlanMenu = false;
+    @track showViewerMenu = false;
+    @track isCopyingWeek = false;
+    @track showPlannerInsights = false;
+    @track plannerInsightLines = [];
+    @track plannerChatMessages = [];
+    @track plannerChatQuestion = '';
+    @track isAskingPlanner = false;
+    agentforceFabX = null;
+    agentforceFabY = null;
+    _agentforceDrag = null;
+    _agentforceMoved = false;
+    resizingEventType;
     @track proposedStops = [];
     @track selectedStopId;
     @track isRefreshingRoutePreview = false;
     @track plannerViewerContext;
     @track selectedContextUserId;
+    @track selectedTerritoryId;
     @track viewerContextLabel = '';
     @track showPlanChoiceModal = false;
     @track showVisitModal = false;
@@ -436,34 +610,52 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     @track showVisitPickerModal = false;
     @track visitPickerOptions = [];
     @track visitAccountId = '';
-    @track visitAccountOptions = [];
-    @track visitAccountSearch = '';
+    @track visitAccountName = '';
+    @track visitAccountIconName = '';
+    @track visitAccountRecordTypeLabel = '';
+    @track visitAccountInvalid = false;
     @track visitDetailId = '';
     @track visitDetailAccountName = '';
     @track visitDetailStatus = VISIT_STATUS_DRAFT;
     @track visitDetailOriginalStatus = '';
     @track visitDetailCancellationReason = '';
-    @track visitDetailStartLabel = '';
-    @track visitDetailEndLabel = '';
+    @track visitDetailStartDateTime = '';
+    @track visitDetailEndDateTime = '';
     @track pendingSlotStart = null;
     @track touchDragState;
     @track showPromoModal = false;
     @track promoProjectId = '';
     @track promoTitle = '';
     @track promoProjectOptions = [];
-    @track showMeetingModal = false;
-    @track meetingTitle = '';
-    @track meetingRecordType = 'Promotional_Activity';
-    @track meetingRecordTypeOptions = [];
-    @track meetingProjectId = '';
+    @track showMeetingPanel = false;
+    meetingPanelId = null;
+    meetingPanelStart = null;
+    meetingPanelEnd = null;
+    @track showPlanApprovalModal = false;
+    @track planApprovalKind = '';
+    @track planApprovalRecordId = '';
+    @track planApprovalTitle = '';
+    @track planApprovalRejectionReason = '';
+    @track managerPlanRejectionReason = '';
     @track totQuickPresets = TOT_QUICK_PRESETS;
     @track showAccountFilterPanel = false;
     @track showPlanningPalettePanel = false;
+    @track showLegendPanel = false;
     @track accountCollections = [];
     @track selectedCollectionId = null;
     @track listViewMode = LIST_MODE_ALL;
     @track showSaveCollectionModal = false;
     @track saveCollectionName = '';
+    @api hideEmbeddedAgentforce = false;
+    meetingExpensesEnabled = true;
+    mapRouteEnabled = true;
+    copyPreviousEnabled = true;
+    addMeetingEnabled = true;
+    timeOffEnabled = true;
+    fieldAiEnabled = true;
+    @track showMeetingExpenseModal = false;
+    @track meetingExpenseId;
+    @track meetingExpenseTitle = '';
     @track isSavingCollection = false;
     @track showRenameCollectionModal = false;
     @track renameCollectionName = '';
@@ -501,19 +693,114 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     connectedCallback() {
         this._handleDocumentTouchMove = this.handleDocumentTouchMove.bind(this);
         this._handleDocumentTouchEnd = this.handleDocumentTouchEnd.bind(this);
+        this._onPlannerWeekUpdated = (event) => this.handlePlannerWeekUpdated(event);
+        this._onPlanAccount = () => this.consumePendingPlanAccount();
+        if (typeof window !== 'undefined') {
+            window.addEventListener('zeta-planner-week-updated', this._onPlannerWeekUpdated);
+            window.addEventListener('zeta-plan-account', this._onPlanAccount);
+        }
         this.subscribeTerritoryContext();
+        void this.bootstrapWithFeatures();
+        this.bindPlannerViewport();
+    }
+
+    async bootstrapWithFeatures() {
+        await loadFieldFeatures();
+        this.mapRouteEnabled = isFieldFeatureEnabled('planner.mapRoute');
+        this.copyPreviousEnabled = isFieldFeatureEnabled('planner.copyPrevious');
+        this.addMeetingEnabled = isFieldFeatureEnabled('planner.addMeeting');
+        this.timeOffEnabled = isFieldFeatureEnabled('planner.timeOff');
+        this.meetingExpensesEnabled = isFieldFeatureEnabled('meetingExpenses');
+        this.fieldAiEnabled = isFieldFeatureEnabled('agentforce');
+        if (!this.mapRouteEnabled && this.viewMode === 'map') {
+            this.viewMode = 'calendar';
+        }
         this.bootstrapPlanner();
     }
 
+    bindPlannerViewport() {
+        if (this._onPlannerViewportResize || typeof window === 'undefined') {
+            return;
+        }
+        this._onPlannerViewportResize = () => this.pinPlannerToViewport();
+        window.addEventListener('resize', this._onPlannerViewportResize);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', this._onPlannerViewportResize);
+        }
+    }
+
+    pinPlannerToViewport() {
+        const host = this.template?.host;
+        if (!host || typeof window === 'undefined') {
+            return;
+        }
+        if (this.hideEmbeddedAgentforce === true) {
+            host.classList.add('planner-embedded');
+            host.style.height = '';
+            host.style.maxHeight = '';
+            this._pinnedHostHeight = undefined;
+            return;
+        }
+        host.classList.remove('planner-embedded');
+        const top = Math.max(0, host.getBoundingClientRect().top);
+        const next = Math.max(280, Math.round(window.innerHeight - top - 8));
+        if (Math.abs((this._pinnedHostHeight || 0) - next) < 4) {
+            return;
+        }
+        this._pinnedHostHeight = next;
+        host.style.height = `${next}px`;
+        host.style.maxHeight = `${next}px`;
+    }
+
     async bootstrapPlanner() {
-        await this.loadViewerContext();
-        await Promise.all([
-            this.loadRecordTypes(),
-            this.loadFilterOptions(),
-            this.loadWeek(),
-            this.loadAccountsPage(true)
-        ]);
-        this.consumePendingPlanAccount();
+        if (this._bootstrapInFlight) {
+            this._bootstrapQueued = true;
+            return;
+        }
+        this._bootstrapInFlight = true;
+        console.log('[PlannerDbg] bootstrapPlanner start', {
+            offlineMode: isOfflineMode(),
+            navigatorOnLine: typeof navigator !== 'undefined' ? navigator.onLine : 'n/a'
+        });
+        try {
+            await this.loadViewerContext();
+            await Promise.all([
+                this.loadRecordTypes(),
+                this.loadFilterOptions(),
+                this.loadWeek(),
+                this.loadAccountsPage(true)
+            ]);
+            console.log('[PlannerDbg] bootstrapPlanner done', {
+                accounts: this.accounts?.length,
+                totalAccountCount: this.totalAccountCount,
+                isCollectionView: this.isCollectionView
+            });
+            this.consumePendingPlanAccount();
+            void this.warmMapCache();
+        } finally {
+            this._bootstrapInFlight = false;
+            if (this._bootstrapQueued) {
+                this._bootstrapQueued = false;
+                void this.bootstrapPlanner();
+            }
+        }
+    }
+
+    handlePlannerWeekUpdated(event) {
+        const weekStart = event?.detail?.weekStart;
+        const payload = event?.detail?.payload;
+        if (!payload || weekStart !== toApexDate(this.weekStart)) {
+            return;
+        }
+        this.visits = payload.visits || [];
+        this.timeOffBlocks = payload.timeOffBlocks || payload.timeOff || [];
+        if (Array.isArray(payload.meetings) && (payload.meetings.length || !(this.meetings || []).length)) {
+            this.meetings = payload.meetings;
+        }
+        if (this.isMapView) {
+            this.initializeRouteVisitOrder();
+            void this.renderMap();
+        }
     }
 
     consumePendingPlanAccount() {
@@ -532,11 +819,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (!accountId) {
             return;
         }
-        this.visitAccountId = accountId;
+        this.primeVisitAccount(accountId);
         this.pendingSlotStart = new Date();
         this.pendingSlotStart.setMinutes(0, 0, 0);
         this.showVisitModal = true;
-        this.loadVisitAccountOptions('');
         this.showToast('Plan visit', 'Pick a date and time for this account, then save the draft.', 'info');
     }
 
@@ -556,13 +842,56 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
     }
 
+    renderedCallback() {
+        this.pinPlannerToViewport();
+        const list = this.template.querySelector('.account-list');
+        if (list && list !== this._accountListEl) {
+            this.unbindAccountListScroll();
+            this._accountListEl = list;
+            this._onAccountListScroll = (event) => this.handleAccountListScroll(event);
+            list.addEventListener('scroll', this._onAccountListScroll, { passive: true });
+        }
+        if (this._pendingAccountListFill) {
+            this._pendingAccountListFill = false;
+            this.fillAccountListIfNeeded();
+        }
+    }
+
+    unbindAccountListScroll() {
+        if (this._accountListEl && this._onAccountListScroll) {
+            this._accountListEl.removeEventListener('scroll', this._onAccountListScroll);
+        }
+        this._accountListEl = undefined;
+        this._onAccountListScroll = undefined;
+    }
+
     disconnectedCallback() {
+        this.unbindAccountListScroll();
         this.teardownTouchDragListeners();
         this.destroyMap();
         window.clearTimeout(this.searchDebounceTimer);
         window.clearTimeout(this.routePreviewTimer);
+        window.clearTimeout(this._modalCloseTimer);
         window.removeEventListener('mousemove', this.handleResizeMove);
         window.removeEventListener('mouseup', this.handleResizeEnd);
+        if (this._onPlannerWeekUpdated && typeof window !== 'undefined') {
+            window.removeEventListener('zeta-planner-week-updated', this._onPlannerWeekUpdated);
+        }
+        if (this._onPlanAccount && typeof window !== 'undefined') {
+            window.removeEventListener('zeta-plan-account', this._onPlanAccount);
+        }
+        if (this._onPlannerViewportResize && typeof window !== 'undefined') {
+            window.removeEventListener('resize', this._onPlannerViewportResize);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', this._onPlannerViewportResize);
+            }
+            this._onPlannerViewportResize = undefined;
+        }
+        if (this._onCopyPlanOutside && typeof window !== 'undefined') {
+            window.removeEventListener('click', this._onCopyPlanOutside, true);
+            this._onCopyPlanOutside = undefined;
+        }
+        this.unbindViewerMenuOutside();
         unsubscribeTerritoryContext(this.territoryContextSubscription);
         this.territoryContextSubscription = undefined;
     }
@@ -571,10 +900,155 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (this.territoryContextSubscription || !this._messageContext) {
             return;
         }
-        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, (message) => {
+            const nextKey = `${message?.territoryId || ''}|${message?.usingAllAssigned === true}`;
+            if (this._territoryContextKey === undefined) {
+                this._territoryContextKey = nextKey;
+                return;
+            }
+            if (nextKey === this._territoryContextKey) {
+                return;
+            }
+            this._territoryContextKey = nextKey;
             this.destroyMap();
             void this.bootstrapPlanner();
         });
+    }
+
+    get plannerModalClass() {
+        return this.modalClosing
+            ? 'slds-modal slds-fade-in-open planner-modal-exit'
+            : 'slds-modal slds-fade-in-open';
+    }
+
+    get plannerBackdropClass() {
+        return this.modalClosing
+            ? 'slds-backdrop slds-backdrop_open planner-backdrop-exit'
+            : 'slds-backdrop slds-backdrop_open';
+    }
+
+    stopPlannerModalContentClick(event) {
+        event.stopPropagation();
+    }
+
+    handlePlannerModalShellClick(event) {
+        if (event.target !== event.currentTarget) {
+            return;
+        }
+        this.dismissPlannerModal(event.currentTarget.dataset.modal);
+    }
+
+    closePlannerModal(applyClose) {
+        if (typeof applyClose !== 'function' || this.modalClosing) {
+            return;
+        }
+        const reduceMotion =
+            typeof window !== 'undefined' &&
+            window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduceMotion) {
+            applyClose();
+            return;
+        }
+        this.modalClosing = true;
+        window.clearTimeout(this._modalCloseTimer);
+        this._modalCloseTimer = window.setTimeout(() => {
+            this.modalClosing = false;
+            this._modalCloseTimer = undefined;
+            applyClose();
+        }, 240);
+    }
+
+    dismissPlannerModal(name) {
+        switch (name) {
+            case 'visitDetail':
+                this.handleVisitDetailCancel();
+                return;
+            case 'planChoice':
+                this.handlePlanChoiceCancel();
+                return;
+            case 'visit':
+                this.handleVisitCancel();
+                return;
+            case 'visitPicker':
+                this.handleVisitPickerCancel();
+                return;
+            case 'tot':
+                this.handleTotCancel();
+                return;
+            case 'planApproval':
+                this.handlePlanApprovalCancel();
+                return;
+            case 'renameCollection':
+                this.handleRenameCollectionCancel();
+                return;
+            case 'saveCollection':
+                this.handleSaveCollectionCancel();
+                return;
+            case 'promo':
+                this.handlePromoCancel();
+                return;
+            case 'meeting':
+                this.handleMeetingPanelClose();
+                return;
+            case 'meetingExpense':
+                this.handleMeetingExpenseClose();
+                return;
+            default:
+                return;
+        }
+    }
+
+    get isManagerSubTerritoryView() {
+        return (
+            this.plannerViewerContext?.viewerMode === 'manager' &&
+            this.plannerViewerContext?.canApproveTeamPlans !== true
+        );
+    }
+
+    get viewerPickerLabel() {
+        return this.isManagerSubTerritoryView ? 'Sub-territory' : 'View planner for';
+    }
+
+    get viewerPickerPlaceholder() {
+        return 'My territory';
+    }
+
+    get renderAgentforceFab() {
+        return this.hideEmbeddedAgentforce !== true && this.fieldAiEnabled === true;
+    }
+
+    get showMapRouteSwitch() {
+        return this.mapRouteEnabled === true;
+    }
+
+    get showCopyPreviousPlan() {
+        return this.copyPreviousEnabled === true;
+    }
+
+    get showPlanningPlus() {
+        return this.addMeetingEnabled === true || this.timeOffEnabled === true;
+    }
+
+    get showPlannerMeetingSection() {
+        return this.addMeetingEnabled === true;
+    }
+
+    get showPlannerTimeOffSection() {
+        return this.timeOffEnabled === true;
+    }
+
+    handleMeetingExpenseClose() {
+        this.showMeetingExpenseModal = false;
+        this.meetingExpenseId = null;
+        this.meetingExpenseTitle = '';
+    }
+
+    handleOpenMeetingRecord() {
+        if (this.meetingExpenseId) {
+            this.navigateToRecord(this.meetingExpenseId, 'Meeting__c');
+        }
+        this.handleMeetingExpenseClose();
     }
 
     get isViewingSelf() {
@@ -597,26 +1071,233 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return this.canSwitchPlannerView && !this.isViewingSelf;
     }
 
+    get canManageTeamPlans() {
+        if (this.plannerViewerContext?.canApproveTeamPlans !== true || this.isViewingSelf) {
+            return false;
+        }
+        return this.selectedViewerOption?.canApprove !== false;
+    }
+
+    get selectedViewerOption() {
+        const options = this.plannerViewerContext?.options || [];
+        if (this.selectedTerritoryId) {
+            const byTerritory = options.find(
+                (option) =>
+                    option.territoryId &&
+                    sameSalesforceId(option.territoryId, this.selectedTerritoryId) &&
+                    (!this.selectedContextUserId ||
+                        sameSalesforceId(option.userId, this.selectedContextUserId))
+            );
+            if (byTerritory) {
+                return byTerritory;
+            }
+        }
+        return options.find(
+            (option) => option.userId && sameSalesforceId(option.userId, this.selectedContextUserId)
+        );
+    }
+
+    get showTeamPlannerBanner() {
+        return this.canManageTeamPlans;
+    }
+
+    get teamPlannerBannerLabel() {
+        const repLabel = this.selectedViewerOption?.label || 'this rep';
+        return `Review ${repLabel}'s weekly plan. Approve or reject submitted visits, TOTs, and meetings.`;
+    }
+
     get canSwitchPlannerView() {
         return this.plannerViewerContext?.canSwitchView === true;
     }
 
     get plannerViewerOptions() {
         const defaultUserId = this.plannerViewerContext?.defaultUserId;
-        const options = [{ label: 'My planner', value: defaultUserId }];
+        const assignedTerritoryIds = this.plannerViewerContext?.assignedTerritoryIds;
+        const options = [
+            {
+                label: 'My territory',
+                value: defaultUserId,
+                territoryId: '',
+                assigned: true,
+                pendingApprovalCount: 0
+            }
+        ];
         const seen = new Set();
-        if (defaultUserId) {
-            seen.add(String(defaultUserId).substring(0, 15));
-        }
         (this.plannerViewerContext?.options || []).forEach((option) => {
             const val = option.userId || option.value;
-            const norm = val ? String(val).substring(0, 15) : '';
-            if (val && !seen.has(norm)) {
-                seen.add(norm);
-                options.push({ label: option.label, value: val });
+            if (!val || isViewerOwnTerritory(option, defaultUserId, assignedTerritoryIds)) {
+                return;
             }
+            const territoryId = option.territoryId || '';
+            const key = `${String(territoryId).substring(0, 15)}:${String(val).substring(0, 15)}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            const territoryName = option.territoryName || '';
+            const person = option.userName || '';
+            options.push({
+                label: option.label || [territoryName, person].filter(Boolean).join(' — '),
+                value: val,
+                territoryId,
+                assigned: false,
+                pendingApprovalCount: Number(option.pendingApprovalCount) || 0
+            });
         });
         return options;
+    }
+
+    get plannerViewerMenuItems() {
+        return this.plannerViewerOptions.map((option, index) => {
+            let selected = false;
+            if (option.assigned) {
+                selected = this.isViewingSelf;
+            } else if (option.territoryId && this.selectedTerritoryId) {
+                selected = sameSalesforceId(option.territoryId, this.selectedTerritoryId);
+            } else {
+                selected = Boolean(option.value) && sameSalesforceId(option.value, this.selectedContextUserId);
+            }
+            const pending = option.assigned ? 0 : option.pendingApprovalCount;
+            return {
+                key: `${option.territoryId || 'mine'}-${option.value || 'self'}-${index}`,
+                value: option.value || '',
+                territoryId: option.territoryId || '',
+                label: option.label,
+                hasPending: pending > 0,
+                pendingLabel: pending > 99 ? '99+' : String(pending),
+                pendingTitle: `${pending} item${pending === 1 ? '' : 's'} to approve`,
+                ariaSelected: selected ? 'true' : 'false',
+                className: `planner-viewer-option${selected ? ' is-selected' : ''}`
+            };
+        });
+    }
+
+    get selectedViewerLabel() {
+        if (this.isViewingSelf) {
+            return this.viewerPickerPlaceholder;
+        }
+        return this.selectedViewerOption?.label || this.viewerPickerPlaceholder;
+    }
+
+    get viewerPendingTotal() {
+        const seen = new Set();
+        return this.plannerViewerOptions.reduce((sum, option) => {
+            if (option.assigned) {
+                return sum;
+            }
+            const key = option.value ? String(option.value).substring(0, 15) : '';
+            if (!key || seen.has(key)) {
+                return sum;
+            }
+            seen.add(key);
+            return sum + (Number(option.pendingApprovalCount) || 0);
+        }, 0);
+    }
+
+    get hasViewerPendingTotal() {
+        return this.viewerPendingTotal > 0;
+    }
+
+    get viewerPendingTotalLabel() {
+        const total = this.viewerPendingTotal;
+        return total > 99 ? '99+' : String(total);
+    }
+
+    get viewerPendingTotalTitle() {
+        const total = this.viewerPendingTotal;
+        return `${total} item${total === 1 ? '' : 's'} pending your approval`;
+    }
+
+    get viewerMenuTriggerClass() {
+        return `planner-viewer-trigger${this.showViewerMenu ? ' is-open' : ''}`;
+    }
+
+    get viewerMenuExpanded() {
+        return this.showViewerMenu ? 'true' : 'false';
+    }
+
+    handleToggleViewerMenu(event) {
+        event.stopPropagation();
+        if (this.showViewerMenu) {
+            this.closeViewerMenu();
+            return;
+        }
+        this.showViewerMenu = true;
+        this.unbindViewerMenuOutside();
+        this._onViewerMenuOutside = (outsideEvent) => {
+            const wrap = this.template.querySelector('.planner-viewer-picker');
+            const path = typeof outsideEvent.composedPath === 'function' ? outsideEvent.composedPath() : [];
+            if (wrap && (wrap.contains(outsideEvent.target) || path.includes(wrap))) {
+                return;
+            }
+            this.closeViewerMenu();
+        };
+        window.setTimeout(() => {
+            if (this._onViewerMenuOutside) {
+                window.addEventListener('click', this._onViewerMenuOutside, true);
+            }
+        }, 0);
+    }
+
+    handleViewerMenuKeydown(event) {
+        if (event.key === 'Escape' && this.showViewerMenu) {
+            event.stopPropagation();
+            this.closeViewerMenu();
+        }
+    }
+
+    handleViewerOptionKeydown(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.handleViewerMenuSelect(event);
+        }
+    }
+
+    unbindViewerMenuOutside() {
+        if (this._onViewerMenuOutside && typeof window !== 'undefined') {
+            window.removeEventListener('click', this._onViewerMenuOutside, true);
+        }
+        this._onViewerMenuOutside = undefined;
+    }
+
+    closeViewerMenu() {
+        this.showViewerMenu = false;
+        this.unbindViewerMenuOutside();
+    }
+
+    async handleViewerMenuSelect(event) {
+        const value = event.currentTarget.dataset.value;
+        const territoryId = event.currentTarget.dataset.territoryId || '';
+        this.closeViewerMenu();
+        if (!value) {
+            return;
+        }
+        const sameUser = this.isViewingSelf
+            ? sameSalesforceId(value, this.plannerViewerContext?.defaultUserId)
+            : sameSalesforceId(value, this.selectedContextUserId);
+        const sameTerritory = !territoryId || sameSalesforceId(territoryId, this.selectedTerritoryId);
+        if (sameUser && (this.isViewingSelf || sameTerritory)) {
+            return;
+        }
+        await this.handleContextUserChange({ detail: { value, territoryId } });
+    }
+
+    adjustSelectedViewerPendingCount(delta) {
+        const context = this.plannerViewerContext;
+        if (!context?.options || this.isViewingSelf) {
+            return;
+        }
+        this.plannerViewerContext = {
+            ...context,
+            options: context.options.map((option) =>
+                option.userId && sameSalesforceId(option.userId, this.selectedContextUserId)
+                    ? {
+                          ...option,
+                          pendingApprovalCount: Math.max(0, (Number(option.pendingApprovalCount) || 0) + delta)
+                      }
+                    : option
+            )
+        };
     }
 
     get showViewerBadge() {
@@ -644,15 +1325,41 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     get showBrickFilter() {
-        return (this.brickOptions || []).length > 1;
+        return (this.brick148FilterOptions || []).length > 1 || (this.brick702FilterOptions || []).length > 1;
+    }
+
+    get brick148FilterOptions() {
+        const rows = (this.brick148Options || []).filter((item) => item?.value && item.value !== FILTER_ALL);
+        return [{ label: 'All 148 bricks', value: FILTER_ALL }, ...rows];
+    }
+
+    get brick702FilterOptions() {
+        const rows = (this.brick702Options || []).filter((item) => item?.value && item.value !== FILTER_ALL);
+        const selected148 = this.accountBrick148;
+        const source =
+            selected148 && selected148 !== FILTER_ALL
+                ? rows.filter((item) => String(item.parentValue || '') === String(selected148))
+                : rows;
+        return [{ label: 'All 702 bricks', value: FILTER_ALL }, ...source];
+    }
+
+    get brick148FilterDisabled() {
+        return (this.brick148FilterOptions || []).length <= 1;
+    }
+
+    get brick702FilterDisabled() {
+        return (this.brick702FilterOptions || []).length <= 1;
     }
 
     get brickFilterDisabled() {
-        return !this.showBrickFilter;
+        return this.brick148FilterDisabled && this.brick702FilterDisabled;
     }
 
     get hasActiveAccountFilters() {
-        return this.activeDropdownFilterCount > 0 || (this.accountSearch || '').trim().length > 0;
+        return (
+            this.activeDropdownFilterCount > 0 ||
+            (this.accountSearch || '').trim().length > 0
+        );
     }
 
     get activeDropdownFilterCount() {
@@ -666,7 +1373,16 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (this.accountClassification !== 'All') {
             count += 1;
         }
-        if (this.accountBrick !== 'All') {
+        if (this.accountBrick148 !== 'All') {
+            count += 1;
+        }
+        if (this.accountBrick702 !== 'All') {
+            count += 1;
+        }
+        if (this.accountBrick !== 'All' && this.accountBrick148 === 'All' && this.accountBrick702 === 'All') {
+            count += 1;
+        }
+        if (this.visitCoverage && this.visitCoverage !== 'all') {
             count += 1;
         }
         return count;
@@ -680,6 +1396,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     get planningPlusButtonClass() {
         return `planning-plus-btn${this.showPlanningPalettePanel ? ' is-open' : ''}`;
+    }
+
+    get legendButtonClass() {
+        return `planner-legend-btn${this.showLegendPanel ? ' is-open' : ''}`;
     }
 
     get collectionsStorageUserId() {
@@ -767,7 +1487,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     get accountSearchPlaceholder() {
         return this.isCollectionView
             ? 'Switch to All accounts to search'
-            : 'Search by name, specialty, or brick…';
+            : 'Search by name, specialty, or 148/702 brick…';
     }
 
     get showCompactFilterSummary() {
@@ -793,9 +1513,21 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             );
             chips.push({ key: 'classification', label: option?.label || 'Class filter' });
         }
-        if (this.accountBrick !== 'All') {
+        if (this.accountBrick148 !== 'All') {
+            const option = (this.brick148FilterOptions || []).find((item) => item.value === this.accountBrick148);
+            chips.push({ key: 'brick148', label: option?.label || '148 brick' });
+        }
+        if (this.accountBrick702 !== 'All') {
+            const option = (this.brick702FilterOptions || []).find((item) => item.value === this.accountBrick702);
+            chips.push({ key: 'brick702', label: option?.label || '702 brick' });
+        }
+        if (this.accountBrick !== 'All' && this.accountBrick148 === 'All' && this.accountBrick702 === 'All') {
             const option = (this.brickOptions || []).find((item) => item.value === this.accountBrick);
             chips.push({ key: 'brick', label: option?.label || 'Brick filter' });
+        }
+        if (this.visitCoverage && this.visitCoverage !== 'all') {
+            const option = (this.visitCoverageOptions || []).find((item) => item.value === this.visitCoverage);
+            chips.push({ key: 'coverage', label: option?.label || 'Visit status' });
         }
         return chips;
     }
@@ -812,22 +1544,6 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return this.isSaving || !this.promoProjectId || !(this.promoTitle || '').trim();
     }
 
-    get meetingEndLabel() {
-        if (!this.pendingSlotStart) {
-            return '';
-        }
-        const end = new Date(this.pendingSlotStart.getTime() + DEFAULT_MEETING_MINUTES * 60000);
-        return formatTime(end);
-    }
-
-    get isMeetingSaveDisabled() {
-        return (
-            this.isSaving ||
-            !this.meetingRecordType ||
-            !(this.meetingTitle || '').trim()
-        );
-    }
-
     get totSubmitDisabled() {
         return this.isSaving || Boolean(this.validateTotFormState());
     }
@@ -836,21 +1552,114 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         const sourceAccounts = this.isCollectionView
             ? this.selectedCollection?.accounts || []
             : this.accounts || [];
-        return sourceAccounts.map((account) => {
-            const decorated = this.decorateAccountForDisplay(account);
-            const hasVisit = this.findVisitsForAccount(decorated.id).length > 0;
-            return {
-                ...decorated,
-                chipClass: `account-chip${hasVisit ? ' account-chip-has-visit' : ''}${
-                    this.touchDragState?.accountId === decorated.id && this.touchDragState?.active
-                        ? ' is-touch-dragging'
-                        : ''
-                }`,
-                chipTitle: hasVisit
-                    ? 'Open scheduled visit'
-                    : 'Drag onto calendar to schedule a visit'
-            };
-        });
+        const coverageFilter = this.visitCoverage || 'all';
+        const brickFilters = this.getAccountFilters();
+        return sourceAccounts
+            .map((account) => {
+                const decorated = this.decorateAccountForDisplay(account);
+                const coverage = this.getAccountVisitCoverage(decorated.id);
+                const coverageLabel = this.visitCoverageLabel(coverage);
+                return {
+                    ...decorated,
+                    visitCoverage: coverage,
+                    coverageLabel,
+                    coverageBadgeClass: `account-coverage-badge account-coverage-${coverage}`,
+                    chipClass: `account-chip account-chip-${coverage}${
+                        this.touchDragState?.accountId === decorated.id && this.touchDragState?.active
+                            ? ' is-touch-dragging'
+                            : ''
+                    }`,
+                    chipTitle:
+                        coverage === 'none'
+                            ? 'No visit this week — drag onto the calendar'
+                            : coverage === 'draft'
+                              ? 'Has a draft visit — open to submit'
+                              : 'Open scheduled visit'
+                };
+            })
+            .filter(
+                (account) =>
+                    this.accountMatchesVisitCoverage(account.visitCoverage, coverageFilter) &&
+                    accountMatchesBrickFilters(account, brickFilters)
+            )
+            .sort((a, b) => {
+                const rank = (coverage) => {
+                    if (coverage === 'none') return 0;
+                    if (coverage === 'draft') return 1;
+                    if (coverage === 'submitted') return 2;
+                    return 3;
+                };
+                const byCoverage = rank(a.visitCoverage) - rank(b.visitCoverage);
+                if (byCoverage !== 0) {
+                    return byCoverage;
+                }
+                return String(a.name || '').localeCompare(String(b.name || ''));
+            });
+    }
+
+    get visitCoverageOptions() {
+        return [
+            { label: 'All accounts', value: 'all' },
+            { label: 'No visit this week', value: 'none' },
+            { label: 'Draft', value: 'draft' },
+            { label: 'Scheduled / submitted', value: 'scheduled' }
+        ];
+    }
+
+    get draftSubmitBannerLabel() {
+        const count = this.draftPlannedVisits.length;
+        const ready =
+            count === 1 ? '1 draft visit is ready to send for approval.' : `${count} draft visits are ready to send for approval.`;
+        if (!this.showWeeklyTargetGap) {
+            return ready;
+        }
+        return `${ready} ${this.weeklyTargetGapLabel}`;
+    }
+
+    getAccountVisitCoverage(accountId) {
+        const visits = this.findVisitsForAccount(accountId);
+        if (!visits.length) {
+            return 'none';
+        }
+        if (visits.some((visit) => visit.status === VISIT_STATUS_DRAFT)) {
+            return 'draft';
+        }
+        if (visits.some((visit) => visit.status === VISIT_STATUS_SUBMITTED)) {
+            return 'submitted';
+        }
+        return 'scheduled';
+    }
+
+    visitCoverageLabel(coverage) {
+        if (coverage === 'none') {
+            return 'No visit';
+        }
+        if (coverage === 'draft') {
+            return 'Draft';
+        }
+        if (coverage === 'submitted') {
+            return 'Submitted';
+        }
+        if (coverage === 'scheduled') {
+            return 'Scheduled';
+        }
+        return '';
+    }
+
+    accountMatchesVisitCoverage(coverage, filter) {
+        if (!filter || filter === 'all') {
+            return true;
+        }
+        if (filter === 'none') {
+            return coverage === 'none';
+        }
+        if (filter === 'draft') {
+            return coverage === 'draft';
+        }
+        if (filter === 'scheduled') {
+            return coverage === 'scheduled' || coverage === 'submitted';
+        }
+        return true;
     }
 
     get hasRouteAlternatives() {
@@ -906,9 +1715,18 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         try {
             this.plannerViewerContext = await getPlannerViewerContext();
             this.selectedContextUserId = this.plannerViewerContext?.defaultUserId;
+            this.selectedTerritoryId = null;
+            console.log('[PlannerDbg] loadViewerContext', {
+                viewerMode: this.plannerViewerContext?.viewerMode,
+                defaultUserId: this.plannerViewerContext?.defaultUserId,
+                selectedContextUserId: this.selectedContextUserId,
+                contextUserId: this.contextUserId,
+                options: this.plannerViewerContext?.options?.length
+            });
             this.updateViewerContextLabel();
             this.loadCollectionsFromStorage();
         } catch (error) {
+            console.error('[PlannerDbg] loadViewerContext ERROR', error);
             this.showToast('Planner context failed', this.reduceError(error), 'error');
         }
     }
@@ -920,10 +1738,50 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.classificationOptions =
                 options?.classificationOptions || [{ label: 'All Classifications', value: 'All' }];
             this.brickOptions = options?.brickOptions || [{ label: 'All Bricks', value: 'All' }];
+            this.brick148Options = options?.brick148Options || [{ label: 'All 148 bricks', value: 'All' }];
+            this.brick702Options = options?.brick702Options || [{ label: 'All 702 bricks', value: 'All' }];
+            await this.ensureBrickLevelOptions();
+            this.syncBrickFilterSelection();
         } catch (error) {
             this.specialtyOptions = [{ label: 'All Specialties', value: 'All' }];
             this.classificationOptions = [{ label: 'All Classifications', value: 'All' }];
             this.brickOptions = [{ label: 'All Bricks', value: 'All' }];
+            this.brick148Options = [{ label: 'All 148 bricks', value: 'All' }];
+            this.brick702Options = [{ label: 'All 702 bricks', value: 'All' }];
+            await this.ensureBrickLevelOptions();
+        }
+    }
+
+    async ensureBrickLevelOptions() {
+        const has148 = (this.brick148Options || []).some((item) => item?.value && item.value !== FILTER_ALL);
+        const has702 = (this.brick702Options || []).some((item) => item?.value && item.value !== FILTER_ALL);
+        if (has148 && has702) {
+            return;
+        }
+        try {
+            const wizard = await getWizardCreateOptions();
+            if (!has148) {
+                this.brick148Options = [
+                    { label: 'All 148 bricks', value: FILTER_ALL },
+                    ...(wizard?.bricks148 || []).map((brick) => ({
+                        label: brick.label,
+                        value: brick.brickId,
+                        parentValue: brick.parentBrickId || brick.zoneBrickId || ''
+                    }))
+                ];
+            }
+            if (!has702) {
+                this.brick702Options = [
+                    { label: 'All 702 bricks', value: FILTER_ALL },
+                    ...(wizard?.bricks702 || []).map((brick) => ({
+                        label: brick.label,
+                        value: brick.brickId,
+                        parentValue: brick.parentBrickId || ''
+                    }))
+                ];
+            }
+        } catch (_error) {
+            /* planner filter options remain as returned */
         }
     }
 
@@ -944,9 +1802,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.viewerContextLabel = '';
             return;
         }
-        const option = (this.plannerViewerContext?.options || []).find(
-            (item) => item.userId === this.selectedContextUserId
-        );
+        const option = this.selectedViewerOption;
         this.viewerContextLabel = option
             ? `Viewing ${option.label}'s planner (read-only)`
             : "Viewing another rep's planner (read-only)";
@@ -954,42 +1810,54 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     async handleContextUserChange(event) {
         this.selectedContextUserId = event.detail.value;
+        if (Object.prototype.hasOwnProperty.call(event.detail || {}, 'territoryId')) {
+            this.selectedTerritoryId = event.detail.territoryId || null;
+        }
         this.updateViewerContextLabel();
         this.resetRouteState();
         await this.loadFilterOptions();
         await this.loadWeek();
         await this.loadAccountsPage(true);
         if (this.isMapView) {
-            await this.loadMapAccounts();
+            await this.hydrateMapFromCache();
             await this.renderMap();
+            void this.refreshMapCacheInBackground();
         }
     }
 
+    normalizeClassificationCode(raw) {
+        if (raw == null || raw === '') {
+            return null;
+        }
+        const key = String(raw).trim().toUpperCase();
+        return /^[ABC][123]$/.test(key) ? key : null;
+    }
+
     buildAccountMetaLine(account) {
-        return [account.recordTypeName, account.specialty, account.classification, account.brickName || account.city]
+        const classification = this.normalizeClassificationCode(account.classification);
+        return [
+            account.recordTypeName,
+            account.specialty,
+            classification,
+            account.brick702Name || account.brick148Name || account.brickName || account.city
+        ]
             .filter(Boolean)
             .join(' · ');
     }
 
     buildAccountFootnote(account) {
-        const actual = account?.actualVisits;
-        const target = account?.targetVisits;
-        const planned = account?.plannedVisits;
-        const hasTarget = target != null && target !== undefined;
-        const hasActual = actual != null && actual !== undefined;
-        const hasPlanned = planned != null && planned !== undefined;
+        const planned = Math.round(Number(account?.plannedVisits) || 0);
+        const completed = Math.round(Number(account?.actualVisits) || 0);
+        const target = Math.round(Number(account?.targetVisits) || 0);
         const parts = [];
-        if (account?.classification) {
-            parts.push(account.classification);
+        const classification = this.normalizeClassificationCode(account?.classification);
+        if (classification) {
+            parts.push(classification);
         }
-        if (hasPlanned) {
-            parts.push(`Planned ${Math.round(Number(planned) || 0)}`);
-        }
-        if (hasTarget || hasActual) {
-            const actualLabel = Math.round(Number(actual) || 0);
-            const targetLabel = hasTarget ? Math.round(Number(target) || 0) : null;
-            parts.push(hasTarget ? `Actual ${actualLabel} / Target ${targetLabel}` : `Actual ${actualLabel}`);
-        }
+        // Always show planned / completed / target so SFE can read the gap at a glance.
+        parts.push(`Planned ${planned}`);
+        parts.push(`Completed ${completed}`);
+        parts.push(`Target ${target}`);
         const pace = (account?.paceStatusLabel || '').trim();
         if (pace && pace !== 'N/A') {
             parts.push(pace);
@@ -1024,10 +1892,25 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
 
     decorateAccountForDisplay(account) {
         const enriched = this.enrichAccountVisitMetrics(account);
+        const listKind =
+            typeof resolveAccountListKind === 'function'
+                ? resolveAccountListKind(
+                      enriched.recordTypeDeveloperName,
+                      enriched.recordTypeName
+                  )
+                : {
+                      kind: 'account',
+                      iconName: 'standard:account',
+                      label: enriched.recordTypeName || 'Account'
+                  };
         return {
             ...enriched,
             metaLine: enriched.metaLine || this.buildAccountMetaLine(enriched),
-            footnoteLine: enriched.footnoteLine || this.buildAccountFootnote(enriched)
+            footnoteLine: enriched.footnoteLine || this.buildAccountFootnote(enriched),
+            typeIconName: listKind.iconName,
+            typeIconUrl: accountTypeIconUrl(listKind.kind),
+            typeIconClass: `account-type-icon account-type-icon-${listKind.kind}`,
+            typeIconLabel: listKind.label
         };
     }
 
@@ -1037,8 +1920,66 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             recordType: this.accountRecordType,
             specialty: this.accountSpecialty,
             classification: this.accountClassification,
-            brickId: this.accountBrick
+            brickId: this.resolvedBrickFilterId(),
+            brick148Id: this.accountBrick148,
+            brick702Id: this.accountBrick702,
+            brick702Options: this.brick702Options,
+            visitCoverage: this.visitCoverage
         };
+    }
+
+    resolvedBrickFilterId() {
+        if (this.accountBrick702 && this.accountBrick702 !== FILTER_ALL) {
+            return this.accountBrick702;
+        }
+        if (this.accountBrick148 && this.accountBrick148 !== FILTER_ALL) {
+            return this.accountBrick148;
+        }
+        if (this.accountBrick && this.accountBrick !== FILTER_ALL) {
+            return this.accountBrick;
+        }
+        return null;
+    }
+
+    accountSearchParams(offset, pageSize) {
+        return {
+            searchTerm: this.accountSearch || null,
+            recordTypeDeveloperName: this.accountRecordType,
+            specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
+            classification: this.accountClassification === 'All' ? null : this.accountClassification,
+            brickId: this.resolvedBrickFilterId(),
+            brick148Id: this.accountBrick148 === 'All' ? null : this.accountBrick148,
+            brick702Id: this.accountBrick702 === 'All' ? null : this.accountBrick702,
+            offset,
+            pageSize,
+            contextUserId: this.contextUserId
+        };
+    }
+
+    toApexAccountSearchParams(offset, pageSize) {
+        const params = this.accountSearchParams(offset, pageSize);
+        return {
+            searchTerm: params.searchTerm,
+            recordTypeDeveloperName: params.recordTypeDeveloperName,
+            specialty: params.specialty,
+            classification: params.classification,
+            brickId: params.brickId,
+            offset: params.offset,
+            pageSize: params.pageSize,
+            contextUserId: params.contextUserId
+        };
+    }
+
+    syncBrickFilterSelection() {
+        const allowed148 = new Set((this.brick148FilterOptions || []).map((item) => String(item.value)));
+        if (this.accountBrick148 !== FILTER_ALL && !allowed148.has(String(this.accountBrick148))) {
+            this.accountBrick148 = FILTER_ALL;
+        }
+        const allowed702 = new Set((this.brick702FilterOptions || []).map((item) => String(item.value)));
+        if (this.accountBrick702 !== FILTER_ALL && !allowed702.has(String(this.accountBrick702))) {
+            this.accountBrick702 = FILTER_ALL;
+        }
+        this.accountBrick = this.resolvedBrickFilterId() || FILTER_ALL;
     }
 
     handleClearAccountFilters() {
@@ -1047,7 +1988,17 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.accountSpecialty = 'All';
         this.accountClassification = 'All';
         this.accountBrick = 'All';
+        this.accountBrick148 = 'All';
+        this.accountBrick702 = 'All';
+        this.visitCoverage = 'all';
         this.loadAccountsPage(true);
+        if (this.isMapView) {
+            this.focusMapOnFilteredAccounts();
+        }
+    }
+
+    handleVisitCoverageChange(event) {
+        this.visitCoverage = event.detail.value || 'all';
         if (this.isMapView) {
             this.focusMapOnFilteredAccounts();
         }
@@ -1057,6 +2008,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.showAccountFilterPanel = !this.showAccountFilterPanel;
         if (this.showAccountFilterPanel) {
             this.showPlanningPalettePanel = false;
+            this.showLegendPanel = false;
         }
     }
 
@@ -1071,11 +2023,28 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.showPlanningPalettePanel = !this.showPlanningPalettePanel;
         if (this.showPlanningPalettePanel) {
             this.showAccountFilterPanel = false;
+            this.showLegendPanel = false;
         }
     }
 
     handleClosePlanningPalette() {
         this.showPlanningPalettePanel = false;
+    }
+
+    handleToggleLegend() {
+        this.showLegendPanel = !this.showLegendPanel;
+        if (this.showLegendPanel) {
+            this.showAccountFilterPanel = false;
+            this.showPlanningPalettePanel = false;
+        }
+    }
+
+    handleCloseLegend() {
+        this.showLegendPanel = false;
+    }
+
+    stopLegendPanelClick(event) {
+        event.stopPropagation();
     }
 
     getCollectionsStorageKey() {
@@ -1121,6 +2090,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             classification: account.classification,
             brickId: account.brickId,
             brickName: account.brickName,
+            brick148Id: account.brick148Id,
+            brick148Name: account.brick148Name,
+            brick702Id: account.brick702Id,
+            brick702Name: account.brick702Name,
             city: account.city
         };
     }
@@ -1291,8 +2264,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleRenameCollectionCancel() {
-        this.showRenameCollectionModal = false;
-        this.renameCollectionName = '';
+        this.closePlannerModal(() => {
+            this.showRenameCollectionModal = false;
+            this.renameCollectionName = '';
+        });
     }
 
     handleRenameCollectionConfirm() {
@@ -1320,9 +2295,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleSaveCollectionCancel() {
-        this.showSaveCollectionModal = false;
-        this.saveCollectionName = '';
-        this.isSavingCollection = false;
+        this.closePlannerModal(() => {
+            this.showSaveCollectionModal = false;
+            this.saveCollectionName = '';
+            this.isSavingCollection = false;
+        });
     }
 
     async fetchAllFilteredAccounts() {
@@ -1331,16 +2308,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         let hasMore = true;
 
         while (hasMore) {
-            const result = await searchAccountsPage({
-                searchTerm: this.accountSearch || null,
-                recordTypeDeveloperName: this.accountRecordType,
-                specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
-                classification: this.accountClassification === 'All' ? null : this.accountClassification,
-                brickId: this.accountBrick === 'All' ? null : this.accountBrick,
-                offset,
-                pageSize: COLLECTION_FETCH_PAGE_SIZE,
-                contextUserId: this.contextUserId
-            });
+            const result = await searchAccountsPage(this.toApexAccountSearchParams(offset, COLLECTION_FETCH_PAGE_SIZE));
             const pageAccounts = (result?.accounts || []).map((account) =>
                 this.snapshotAccountForCollection(this.decorateAccountForDisplay(account))
             );
@@ -1412,9 +2380,97 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             return;
         }
         try {
-            this.currentLocation = await getCurrentPosition();
-        } catch (error) {
+            const cached = await getCachedMapLocation();
+            if (cached?.latitude != null && cached?.longitude != null) {
+                this.currentLocation = cached;
+            }
+        } catch (_error) {
+            // Cached GPS is optional; the map can still open on account pins.
+        }
+    }
+
+    async refreshCurrentLocation() {
+        try {
+            const position = await getCurrentPosition();
+            this.currentLocation = position;
+            await putCachedMapLocation(position);
+        } catch (_error) {
             // Location permission is optional for map display.
+        }
+    }
+
+    async hydrateMapFromCache() {
+        await this.ensureCurrentLocation();
+        if ((this.mapAccounts || []).length) {
+            return;
+        }
+        try {
+            const cached = await getMapAccountsCache(getUserMapAccountsKey(this.contextUserId || Id));
+            if (cached?.length) {
+                this.mapAccounts = cached;
+            }
+        } catch (_error) {
+            // First visit has no map cache yet.
+        }
+    }
+
+    collectMapPrefetchPoints() {
+        const points = [];
+        if (this.currentLocation) {
+            points.push(this.currentLocation);
+        }
+        (this.orderedRouteStops || []).forEach((stop) => {
+            if (stop.latitude != null && stop.longitude != null) {
+                points.push(stop);
+            }
+        });
+        const origin = this.currentLocation;
+        let accounts = (this.mapAccounts || []).filter(
+            (account) => account.latitude != null && account.longitude != null
+        );
+        if (origin && accounts.length) {
+            accounts = accounts.filter(
+                (account) =>
+                    haversineKm(
+                        origin.latitude,
+                        origin.longitude,
+                        Number(account.latitude),
+                        Number(account.longitude)
+                    ) <= 18
+            );
+        }
+        accounts.slice(0, 80).forEach((account) => points.push(account));
+        return points;
+    }
+
+    async prefetchVisibleMapTiles() {
+        try {
+            await prefetchMapAreaTiles(this.collectMapPrefetchPoints());
+        } catch (_error) {
+            // Tile prefetch is best-effort; live OSM still works.
+        }
+    }
+
+    async refreshMapCacheInBackground() {
+        await Promise.all([this.refreshCurrentLocation(), this.loadMapAccounts()]);
+        if (this.isMapView && this.mapInstance) {
+            this.plotStopsOnMap(
+                this.orderedRouteStops,
+                Boolean(this.currentLocation),
+                this.unplannedMapAccounts
+            );
+        }
+        void this.prefetchVisibleMapTiles();
+    }
+
+    async warmMapCache() {
+        try {
+            await this.hydrateMapFromCache();
+            await this.ensureLeaflet();
+            await this.prefetchVisibleMapTiles();
+            void this.refreshMapCacheInBackground();
+        } catch (_error) {
+            // Warming must never block planner.
         }
     }
 
@@ -1520,6 +2576,32 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
     }
 
+    handleBrick148Change(event) {
+        this.accountBrick148 = event.detail.value || FILTER_ALL;
+        this.syncBrickFilterSelection();
+        this.loadAccountsPage(true);
+        if (this.isMapView) {
+            this.focusMapOnFilteredAccounts();
+        }
+    }
+
+    handleBrick702Change(event) {
+        this.accountBrick702 = event.detail.value || FILTER_ALL;
+        if (this.accountBrick702 !== FILTER_ALL) {
+            const selected = (this.brick702Options || []).find(
+                (item) => String(item.value) === String(this.accountBrick702)
+            );
+            if (selected?.parentValue && this.accountBrick148 === FILTER_ALL) {
+                this.accountBrick148 = selected.parentValue;
+            }
+        }
+        this.syncBrickFilterSelection();
+        this.loadAccountsPage(true);
+        if (this.isMapView) {
+            this.focusMapOnFilteredAccounts();
+        }
+    }
+
     getPlannerContextDateKeys() {
         if (this.isMapView) {
             return new Set([this.mapDayKey]);
@@ -1593,6 +2675,15 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         }
 
         if (matches.length === 1) {
+            const visit = matches[0];
+            if (
+                visit.status === VISIT_STATUS_DRAFT ||
+                visit.status === VISIT_STATUS_SUBMITTED ||
+                canSubmitForApproval(visit.visitType, visit.status)
+            ) {
+                this.openVisitDetailModal(visit);
+                return;
+            }
             this.navigateToRecord(matches[0].id, 'Visit__c');
             return;
         }
@@ -1610,8 +2701,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleVisitPickerCancel() {
-        this.showVisitPickerModal = false;
-        this.visitPickerOptions = [];
+        this.closePlannerModal(() => {
+            this.showVisitPickerModal = false;
+            this.visitPickerOptions = [];
+        });
     }
 
     handleRouteStopClick(event) {
@@ -1801,11 +2894,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             return;
         }
         const accountId = event.currentTarget.dataset.accountId;
-        this.visitAccountId = accountId;
+        const suggestion = (this.visitSuggestions || []).find((item) => item.accountId === accountId);
+        this.primeVisitAccount(accountId, suggestion);
         this.pendingSlotStart = new Date();
         this.pendingSlotStart.setMinutes(0, 0, 0);
         this.showVisitModal = true;
-        this.loadVisitAccountOptions('');
     }
 
     getSelectedRoute() {
@@ -1831,18 +2924,6 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return `view-mode-switch__btn${this.isMapView ? ' is-active' : ''}`;
     }
 
-    get mapToolbarClass() {
-        return `planner-map-toolbar${this.isMapView ? ' is-open' : ''}`;
-    }
-
-    get isMapToolbarHidden() {
-        return !this.isMapView;
-    }
-
-    get isMapToolbarDisabled() {
-        return !this.isMapView;
-    }
-
     get weekEnd() {
         return addDays(this.weekStart, 6);
     }
@@ -1853,9 +2934,63 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     get draftPlannedVisits() {
-        return (this.visits || []).filter((visit) =>
-            canSubmitForApproval(visit?.visitType, visit?.status)
-        );
+        const seen = new Set();
+        return (this.visits || []).filter((visit) => {
+            if (!visit?.id || seen.has(visit.id)) {
+                return false;
+            }
+            if (visit.status !== VISIT_STATUS_DRAFT) {
+                return false;
+            }
+            if (visit.visitType && !isPlannedVisitType(visit.visitType)) {
+                return false;
+            }
+            seen.add(visit.id);
+            return true;
+        });
+    }
+
+    get plannedCallCount() {
+        const seen = new Set();
+        let count = 0;
+        (this.visits || []).forEach((visit) => {
+            if (!visit?.accountId || visit.status === VISIT_STATUS_CANCELLED) {
+                return;
+            }
+            if (visit.id && seen.has(visit.id)) {
+                return;
+            }
+            if (visit.id) {
+                seen.add(visit.id);
+            }
+            count += 1;
+        });
+        return count;
+    }
+
+    get weeklyTargetCount() {
+        return Number(this.weekForecast?.weeklyTarget) || 0;
+    }
+
+    get additionalCallsNeeded() {
+        if (!this.weeklyTargetCount) {
+            return 0;
+        }
+        return Math.max(0, this.weeklyTargetCount - this.plannedCallCount);
+    }
+
+    get showWeeklyTargetGap() {
+        return !this.isReadOnlyPlannerView && this.additionalCallsNeeded > 0;
+    }
+
+    get weeklyTargetGapLabel() {
+        const needed = this.additionalCallsNeeded;
+        if (!needed) {
+            return '';
+        }
+        const target = this.weeklyTargetCount;
+        const planned = this.plannedCallCount;
+        return `Weekly target ${target}: ${planned} planned, ${needed} more call${needed === 1 ? '' : 's'} needed. You can still submit.`;
     }
 
     get canSubmitWeek() {
@@ -1871,19 +3006,134 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return count > 0 ? `Submit week (${count})` : 'Submit week';
     }
 
+    holidayKeySet() {
+        return new Set((this.publicHolidayDates || []).map((value) => String(value).slice(0, 10)));
+    }
+
+    isPublicHolidayDate(date) {
+        return this.holidayKeySet().has(toDateKey(date));
+    }
+
+    isBlockedPlannerDay(date) {
+        return this.isPlannerNonWorkingDay(date) || this.isPublicHolidayDate(date);
+    }
+
+    /** Working days come from Planner Rules (org, line, title or user level) so the calendar matches the server. */
+    isPlannerNonWorkingDay(date) {
+        if (!date) {
+            return false;
+        }
+        const days = this.plannerWorkingDays;
+        if (Array.isArray(days) && days.length) {
+            const day = date instanceof Date ? date.getDay() : new Date(date).getDay();
+            return !days.includes(day);
+        }
+        return isNonWorkingDay(date);
+    }
+
+    applyPlannerRules(source) {
+        const days = Array.isArray(source?.workingDayNumbers)
+            ? source.workingDayNumbers.map(Number).filter((d) => d >= 0 && d <= 6)
+            : [];
+        if (days.length) {
+            this.plannerWorkingDays = days;
+            setWorkingDays(days);
+        }
+        this.plannerPolicies = {
+            weekend: source?.weekendPolicy || this.plannerPolicies?.weekend || 'Block',
+            visitHoliday: source?.visitHolidayPolicy || this.plannerPolicies?.visitHoliday || 'Block',
+            meetingHoliday: source?.meetingHolidayPolicy || this.plannerPolicies?.meetingHoliday || 'Warn'
+        };
+    }
+
+    get workingDaysLabel() {
+        const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const order = [6, 0, 1, 2, 3, 4, 5];
+        const active = order.filter((d) => !this.isPlannerNonWorkingDay(new Date(2026, 0, 3 + order.indexOf(d))));
+        if (!active.length) {
+            return 'on working days';
+        }
+        const first = order.indexOf(active[0]);
+        const contiguous = active.every((d, i) => order.indexOf(d) === first + i);
+        if (contiguous && active.length > 1) {
+            return `${names[active[0]]} through ${names[active[active.length - 1]]}`;
+        }
+        return active.map((d) => names[d]).join(', ');
+    }
+
+    /**
+     * Day check before planning on the calendar. Block refuses here; Warn asks (meetings) or lets
+     * the server ask (visits); Allow carries on. Returns false when planning should stop.
+     */
+    async confirmPlannerDay(start, kind) {
+        const policies = this.plannerPolicies || {};
+        const isMeeting = kind === DRAG_TYPE_MEETING;
+        if (this.isPlannerNonWorkingDay(start)) {
+            const policy = policies.weekend || 'Block';
+            if (policy === 'Block') {
+                this.showToast(
+                    'Non-working day',
+                    `${isMeeting ? 'Meetings' : 'Visits'} can only be planned ${this.workingDaysLabel}.`,
+                    'error'
+                );
+                return false;
+            }
+            if (policy === 'Warn' && isMeeting) {
+                const ok = await LightningConfirm.open({
+                    label: 'Non-working day',
+                    message: 'This day is a weekend for your team. Plan the meeting anyway?',
+                    theme: 'warning'
+                });
+                if (!ok) {
+                    return false;
+                }
+            }
+        }
+        if (this.isPublicHolidayDate(start)) {
+            const policy = isMeeting ? policies.meetingHoliday || 'Warn' : policies.visitHoliday || 'Block';
+            if (policy === 'Block') {
+                this.showToast(
+                    'Public holiday',
+                    isMeeting
+                        ? 'Meetings cannot be planned on a public holiday.'
+                        : 'Visits cannot be scheduled on a public holiday.',
+                    'error'
+                );
+                return false;
+            }
+            if (policy === 'Warn' && isMeeting) {
+                const ok = await LightningConfirm.open({
+                    label: 'Public holiday',
+                    message: 'This day is a public holiday. Plan the meeting anyway?',
+                    theme: 'warning'
+                });
+                if (!ok) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     get weekDays() {
         const todayKey = toDateKey(new Date());
+        const holidays = this.holidayKeySet();
         return Array.from({ length: 7 }, (_, index) => {
             const date = addDays(this.weekStart, index);
             const key = toDateKey(date);
             const isToday = key === todayKey;
-            const isWeekend = isWeekendDay(date);
+            const isWeekend = this.isPlannerNonWorkingDay(date);
+            const isHoliday = holidays.has(key);
+            const isBlocked = isWeekend || isHoliday;
             return {
                 key,
                 label: date.toLocaleDateString([], { weekday: 'short' }),
                 dateLabel: formatDateLabel(date),
-                headerClass: `calendar-header-cell${isToday ? ' is-today' : ''}`,
-                isWeekend
+                holidayLabel: isHoliday ? 'Public holiday' : '',
+                headerClass: `calendar-header-cell${isToday ? ' is-today' : ''}${isHoliday ? ' is-holiday' : ''}${isWeekend ? ' is-weekend' : ''}`,
+                isWeekend,
+                isHoliday,
+                isBlocked
             };
         });
     }
@@ -1931,7 +3181,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                         minutes,
                         columnClass: `day-column${day.key === toDateKey(new Date()) ? ' is-today' : ''}${
                             day.isWeekend ? ' is-weekend' : ''
-                        }`,
+                        }${day.isHoliday ? ' is-holiday' : ''}`,
                         style: `height:${SLOT_MINUTES * PX_PER_MINUTE}px`
                     }))
                 });
@@ -1954,7 +3204,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 minutes: this.totalMinutes,
                 columnClass: `day-column day-end-marker${day.key === toDateKey(new Date()) ? ' is-today' : ''}${
                     day.isWeekend ? ' is-weekend' : ''
-                }`,
+                }${day.isHoliday ? ' is-holiday' : ''}`,
                 style: `height:${CALENDAR_DAY_END_MARKER_HEIGHT}px`
             }))
         });
@@ -1965,13 +3215,36 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return this.displayAccounts.length > 0;
     }
 
+    get emptyAccountsHint() {
+        if (this.isLoadingAccounts) {
+            return '';
+        }
+        if (this.totalAccountCount > 0 && this.hasActiveAccountFilters) {
+            return 'No accounts match the current filters. Clear filters to see your territory list.';
+        }
+        if (this.totalAccountCount > 0) {
+            return 'Accounts loaded but hidden by view filters. Try clearing filters.';
+        }
+        return 'No accounts in your territory yet. Check territory alignment or open Accounts tab.';
+    }
+
+    get showAccountLoadMore() {
+        return !this.isCollectionView && this.hasMoreAccounts && !this.isLoadingAccounts;
+    }
+
     get accountCountLabel() {
         if (this.isCollectionView) {
             const count = this.selectedCollection?.accounts?.length || 0;
             return count === 1 ? '1 account in list' : `${count} accounts in list`;
         }
+        const visible = this.displayAccounts.length;
         if (this.totalAccountCount === 0) {
             return '0 accounts';
+        }
+        if (this.hasActiveAccountFilters && visible !== this.totalAccountCount) {
+            return visible === 1
+                ? `1 visible of ${this.totalAccountCount}`
+                : `${visible} visible of ${this.totalAccountCount}`;
         }
         const shown = this.accounts.length;
         if (shown < this.totalAccountCount) {
@@ -2005,14 +3278,23 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 Boolean(visit.accountId) &&
                 dayOutlierIds?.has(normalizeSalesforceId(visit.id));
             const statusClass =
-                visit.status === 'Draft'
+                visit.status === VISIT_STATUS_DRAFT
                     ? 'visit draft'
-                    : visit.status === 'Scheduled'
-                      ? 'visit scheduled'
-                      : visit.status === 'Cancelled'
-                        ? 'visit cancelled'
-                        : 'visit';
-            const titlePrefix = visit.status === 'Draft' ? 'Draft — ' : '';
+                    : visit.status === VISIT_STATUS_SUBMITTED
+                      ? 'visit submitted'
+                      : visit.status === VISIT_STATUS_SCHEDULED
+                        ? 'visit scheduled'
+                        : visit.status === VISIT_STATUS_CANCELLED
+                          ? 'visit cancelled'
+                          : visit.status === VISIT_STATUS_COMPLETED
+                            ? 'visit completed'
+                            : 'visit';
+            const titlePrefix =
+                visit.status === VISIT_STATUS_DRAFT
+                    ? 'Draft — '
+                    : visit.status === VISIT_STATUS_SUBMITTED
+                      ? 'Submitted — '
+                      : '';
             const promoTitle = visit.visitObjective || visit.zetaProjectName || 'Promotional Event';
             const event = this.buildPositionedEvent({
                 id: visit.id,
@@ -2026,10 +3308,12 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 resizable:
                     !isLocked &&
                     !isPromo &&
-                    (visit.status === 'Draft' || visit.status === 'Scheduled'),
+                    (visit.status === 'Draft' ||
+                        visit.status === 'Submitted' ||
+                        visit.status === 'Scheduled'),
                 extraClass: isPromo
                     ? 'visit promo'
-                    : `${statusClass}${isRouteOutlier ? ' visit-outlier' : ''}`
+                    : `${statusClass} theme-${resolveAccountThemeKind(visit.accountRecordTypeDeveloperName, visit.accountRecordTypeName)}${isRouteOutlier ? ' visit-outlier' : ''}`
             });
             if (event) {
                 events.push({
@@ -2067,7 +3351,12 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 : startDate && endDate
                   ? `${formatTime(startDate)} – ${formatTime(endDate)}`
                   : '';
-            const stagePrefix = tot.stage === 'Draft' ? 'Draft — ' : '';
+            const stageKind = totStageKind(tot.stage);
+            const stagePrefix = plannerStatusTitlePrefix(stageKind);
+            const canResizeTot =
+                !isFullDay &&
+                (stageKind === 'draft' || stageKind === 'submitted') &&
+                !this.isReadOnlyPlannerView;
 
             const event = this.buildPositionedEvent({
                 id: tot.id,
@@ -2077,8 +3366,8 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 end: endDate,
                 customTimeLabel,
                 draggable: false,
-                resizable: false,
-                extraClass: 'tot'
+                resizable: canResizeTot,
+                extraClass: `tot tot-${stageKind}`
             });
             if (event) {
                 events.push(event);
@@ -2086,11 +3375,8 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         });
 
         (this.meetings || []).forEach((meeting) => {
-            const isLocked =
-                meeting.status === 'Closed' ||
-                meeting.status === 'Cancelled' ||
-                meeting.status === 'Approved';
-            const titlePrefix = meeting.status === 'Draft' ? 'Draft — ' : '';
+            const statusKind = meetingStatusKind(meeting.status);
+            const titlePrefix = plannerStatusTitlePrefix(statusKind);
             const typeLabel = meeting.recordTypeLabel || 'Meeting';
             const meetingTitle = meeting.title || meeting.name || typeLabel;
             const event = this.buildPositionedEvent({
@@ -2101,7 +3387,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 end: parseSalesforceDateTime(meeting.endDateTime),
                 draggable: false,
                 resizable: false,
-                extraClass: 'meeting'
+                extraClass: `meeting meeting-${statusKind}`
             });
             if (event) {
                 events.push(event);
@@ -2125,7 +3411,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             const latitude = coerceGeoCoordinate(visit.accountLatitude);
             const longitude = coerceGeoCoordinate(visit.accountLongitude);
             const hasLocation = latitude != null && longitude != null;
-            const pinKind = resolveAccountPinKind(
+            const pinKind = resolveAccountThemeKind(
                 visit.accountRecordTypeDeveloperName,
                 visit.accountRecordTypeName
             );
@@ -2209,7 +3495,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             .filter((account) => account.latitude != null && account.longitude != null)
             .filter((account) => !plannedIds.has(account.id))
             .map((account) => {
-                const pinKind = resolveAccountPinKind(
+                const pinKind = resolveAccountThemeKind(
                     account.recordTypeDeveloperName,
                     account.recordTypeName
                 );
@@ -2455,6 +3741,21 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         return !this.visitDetailReadOnly && Boolean(this.visitDetailId);
     }
 
+    get visitDetailCanCoach() {
+        return this.isReadOnlyPlannerView && Boolean(this.visitDetailId);
+    }
+
+    get visitDetailCanManagerApprove() {
+        if (!this.canManageTeamPlans || !this.visitDetailId) {
+            return false;
+        }
+        const visit = (this.visits || []).find((item) => item.id === this.visitDetailId);
+        return (
+            this.visitDetailOriginalStatus === VISIT_STATUS_SUBMITTED &&
+            isPlannedVisitType(visit?.visitType)
+        );
+    }
+
     get totIsHoursSpan() {
         return this.totSpanType === 'Hours';
     }
@@ -2560,6 +3861,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (text === DRAG_TYPE_PROMO) {
             return { kind: DRAG_TYPE_PROMO };
         }
+        if (text === DRAG_TYPE_MEETING) {
+            return { kind: DRAG_TYPE_MEETING };
+        }
         const account = this.resolveAccountById(text);
         if (account) {
             return { kind: DRAG_TYPE_ACCOUNT, accountId: account.id, account };
@@ -2627,17 +3931,8 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.errorMessage = undefined;
         const cacheKey = `${getUserPlannerCacheKey(Id)}_${toDateKey(this.weekStart)}`;
         try {
-            if (isOfflineMode()) {
-                const cached = await getPlannerCache(cacheKey);
-                if (cached) {
-                    this.visits = cached.visits || [];
-                    this.timeOffBlocks = cached.timeOffBlocks || [];
-                    this.meetings = cached.meetings || [];
-                    return;
-                }
-                this.errorMessage = 'Planner data is not cached for offline use. Open planner while online first.';
-                return;
-            }
+            // Always go through the PWA stub: online it hits Salesforce then merges
+            // queued visits; offline it reads IndexedDB and never calls Salesforce.
             const payload = await fetchPlannerData({
                 weekStart: toApexDate(this.weekStart),
                 weekEnd: toApexDate(this.weekEnd),
@@ -2647,22 +3942,34 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             // never read .visits off a null payload — that blanked the calendar.
             this.visits = payload?.visits || [];
             this.timeOffBlocks = payload?.timeOffBlocks || payload?.timeOff || [];
-            try {
-                this.meetings =
-                    (await fetchMeetings({
+            this.publicHolidayDates = payload?.publicHolidayDates || [];
+            this.applyPlannerRules(payload);
+            const weekMeetings = payload?.meetings || [];
+            if (isOfflineMode()) {
+                this.meetings = weekMeetings;
+            } else {
+                try {
+                    const fetched = await fetchMeetings({
                         weekStart: toApexDate(this.weekStart),
                         weekEnd: toApexDate(this.weekEnd),
-                        contextUserId: this.contextUserId
-                    })) ||
-                    payload?.meetings ||
-                    [];
-            } catch (meetingError) {
-                this.meetings = payload?.meetings || [];
+                        contextUserId: this.contextUserId,
+                        fresh: true
+                    });
+                    const listed = Array.isArray(fetched) ? fetched : [];
+                    this.meetings = listed.length ? listed : weekMeetings;
+                } catch (meetingError) {
+                    this.meetings = weekMeetings.length ? weekMeetings : this.meetings || [];
+                }
             }
             await putPlannerCache(cacheKey, {
                 visits: this.visits,
                 timeOffBlocks: this.timeOffBlocks,
-                meetings: this.meetings
+                meetings: this.meetings,
+                publicHolidayDates: this.publicHolidayDates,
+                workingDayNumbers: this.plannerWorkingDays,
+                weekendPolicy: this.plannerPolicies?.weekend,
+                visitHolidayPolicy: this.plannerPolicies?.visitHoliday,
+                meetingHolidayPolicy: this.plannerPolicies?.meetingHoliday
             });
             if (this.isMapView) {
                 this.resetRouteState();
@@ -2672,18 +3979,390 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             if (this.isCalendarView && this.isCurrentWeekDisplayed()) {
                 this.scheduleScrollCalendarToNow();
             }
+            void this.loadWeekRecommendations();
+            void this.refreshPlannerInsights();
         } catch (error) {
             const cached = await getPlannerCache(cacheKey);
             if (cached) {
                 this.visits = cached.visits || [];
                 this.timeOffBlocks = cached.timeOffBlocks || [];
                 this.meetings = cached.meetings || [];
+                this.publicHolidayDates = cached.publicHolidayDates || [];
+                this.applyPlannerRules(cached);
                 this.errorMessage = undefined;
             } else {
                 this.errorMessage = this.reduceError(error);
             }
         } finally {
             this.isLoading = false;
+        }
+    }
+
+    async loadWeekRecommendations() {
+        this.isLoadingRecommendations = true;
+        try {
+            const payload = await getWeeklyPlanRecommendations({
+                weekStart: toApexDate(this.weekStart),
+                weekEnd: toApexDate(this.weekEnd),
+                contextUserId: this.contextUserId
+            });
+            this.weekForecast = payload?.forecast || null;
+            this.weekRecommendations = (payload?.recommendations || []).map((row) => ({
+                ...row,
+                key: row.accountId,
+                gapLabel:
+                    row.visitGap != null
+                        ? `${row.actualVisits || 0}/${row.targetVisitFrequency || 0} · gap ${row.visitGap}`
+                        : row.frequencyStatus || ''
+            }));
+        } catch (_error) {
+            this.weekRecommendations = [];
+            this.weekForecast = null;
+        } finally {
+            this.isLoadingRecommendations = false;
+        }
+    }
+
+    async refreshPlannerInsights() {
+        const lines = [];
+        const visits = this.visits || [];
+        const byStatus = {};
+        visits.forEach((visit) => {
+            const status = visit.status || 'Draft';
+            byStatus[status] = (byStatus[status] || 0) + 1;
+        });
+        lines.push(
+            `${visits.length} visit(s) this week` +
+                (Object.keys(byStatus).length
+                    ? ` — ${Object.entries(byStatus)
+                          .map(([k, v]) => `${v} ${k}`)
+                          .join(', ')}`
+                    : '')
+        );
+        const totCount = (this.timeOffBlocks || []).length;
+        if (totCount) {
+            lines.push(`${totCount} time-off block(s) on the calendar.`);
+        }
+        if (this.weekForecast) {
+            lines.push(
+                `Pace: ${this.weekForecast.paceLabel || '—'} · ${this.weekForecast.dailyFrequency || 0} visits/day over ${
+                    this.weekForecast.remainingWorkingDays || 0
+                } remaining working days.`
+            );
+        }
+        const uncovered = (this.weekRecommendations || []).filter((row) => !row.plannedThisWeek).slice(0, 3);
+        if (uncovered.length) {
+            lines.push(
+                `Priority to plan: ${uncovered.map((row) => row.accountName).join(', ')}.`
+            );
+        }
+        this.plannerInsightLines = lines.map((text, index) => ({ key: `insight-${index}`, text }));
+    }
+
+    get hasWeekRecommendations() {
+        return (this.weekRecommendations || []).length > 0;
+    }
+
+    get weekForecastLabel() {
+        if (!this.weekForecast) {
+            return '';
+        }
+        return `${this.weekForecast.plannedVisitCount || 0} planned · ${
+            this.weekForecast.dailyFrequency || 0
+        }/day · ${this.weekForecast.paceLabel || ''}`;
+    }
+
+    get copyTargetDayOptions() {
+        return (this.mapDayOptions || []).filter((opt) => opt.value !== this.mapDayKey);
+    }
+
+    get isCopyDayDisabled() {
+        return (
+            this.isReadOnlyPlannerView ||
+            this.isCopyingDay ||
+            !this.copyTargetDayKey ||
+            this.copyTargetDayKey === this.mapDayKey
+        );
+    }
+
+    get isCopyPlanDisabled() {
+        return this.isReadOnlyPlannerView || this.isSaving || this.isCopyingWeek;
+    }
+
+    get copyPlanButtonClass() {
+        return `copy-plan-btn${this.showCopyPlanMenu ? ' is-open' : ''}`;
+    }
+
+    handleToggleCopyPlanMenu(event) {
+        event.stopPropagation();
+        if (this.isCopyPlanDisabled) {
+            return;
+        }
+        this.showCopyPlanMenu = !this.showCopyPlanMenu;
+        if (this.showCopyPlanMenu) {
+            this.bindCopyPlanOutside();
+        } else {
+            this.unbindCopyPlanOutside();
+        }
+    }
+
+    bindCopyPlanOutside() {
+        this.unbindCopyPlanOutside();
+        this._onCopyPlanOutside = (event) => {
+            const wrap = this.template.querySelector('.copy-plan-wrap');
+            const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+            if (wrap && (wrap.contains(event.target) || path.includes(wrap))) {
+                return;
+            }
+            this.showCopyPlanMenu = false;
+            this.unbindCopyPlanOutside();
+        };
+        window.setTimeout(() => {
+            if (this._onCopyPlanOutside) {
+                window.addEventListener('click', this._onCopyPlanOutside, true);
+            }
+        }, 0);
+    }
+
+    unbindCopyPlanOutside() {
+        if (this._onCopyPlanOutside && typeof window !== 'undefined') {
+            window.removeEventListener('click', this._onCopyPlanOutside, true);
+        }
+        this._onCopyPlanOutside = undefined;
+    }
+
+    closeCopyPlanMenu() {
+        this.showCopyPlanMenu = false;
+        this.unbindCopyPlanOutside();
+    }
+
+    async handleCopyPreviousPlan(event) {
+        const weekCount = Number(event.currentTarget.dataset.weekCount);
+        this.closeCopyPlanMenu();
+        if (this.isCopyPlanDisabled || (weekCount !== 1 && weekCount !== 2)) {
+            return;
+        }
+        const confirmed = await LightningConfirm.open({
+            message:
+                weekCount === 2
+                    ? 'Copy the previous 2 weeks of visits (scheduled and completed) into this week and next week as drafts? Cancelled visits and days that already have a visit for the same account are skipped.'
+                    : "Copy last week's visits (scheduled and completed) into this week as drafts? Cancelled visits and days that already have a visit for the same account are skipped.",
+            label: weekCount === 2 ? 'Copy 2 weeks' : 'Copy 1 week',
+            theme: 'info'
+        });
+        if (!confirmed) {
+            return;
+        }
+        this.isCopyingWeek = true;
+        try {
+            const result = await copyWeekVisits({
+                targetWeekStart: toApexDate(this.weekStart),
+                weekCount,
+                contextUserId: this.contextUserId
+            });
+            const created = result?.createdCount || 0;
+            const skipped = result?.skippedCount || 0;
+            const errors = (result?.issues || []).filter((issue) => issue?.isError);
+            this.showToast(
+                created ? 'Plan copied' : 'Nothing copied',
+                created
+                    ? `${created} draft visit${created === 1 ? '' : 's'} added${skipped ? ` · ${skipped} skipped` : ''}.`
+                    : skipped
+                      ? `No new visits copied (${skipped} skipped).`
+                      : 'No visits found in the previous period.',
+                created ? 'success' : 'info'
+            );
+            if (errors.length) {
+                const lines = errors
+                    .slice(0, 5)
+                    .map((issue) => `${issue.accountName || 'Visit'} (${issue.sourceDate}): ${issue.message}`);
+                if (errors.length > 5) {
+                    lines.push(`…and ${errors.length - 5} more.`);
+                }
+                this.showToast(
+                    `${errors.length} visit${errors.length === 1 ? '' : 's'} could not be copied`,
+                    lines.join(' · '),
+                    'warning'
+                );
+            }
+            await this.loadWeek();
+        } catch (error) {
+            this.showToast('Copy failed', this.reduceError(error), 'error');
+        } finally {
+            this.isCopyingWeek = false;
+        }
+    }
+
+    handleCloseAgentforcePopup() {
+        this.showPlannerInsights = false;
+    }
+
+    handleAgentforceFabClick = (event) => {
+        if (this._agentforceMoved) {
+            event.preventDefault();
+            event.stopPropagation();
+            this._agentforceMoved = false;
+            return;
+        }
+        const opening = !this.showPlannerInsights;
+        this.showPlannerInsights = opening;
+        if (opening) {
+            void this.loadWeekRecommendations().then(() => this.refreshPlannerInsights());
+        }
+    };
+
+    get agentforceFabStyle() {
+        if (this.agentforceFabX == null || this.agentforceFabY == null) {
+            return '';
+        }
+        return `left:${this.agentforceFabX}px;top:${this.agentforceFabY}px;right:auto;bottom:auto;`;
+    }
+
+    handleAgentforceFabPointerDown = (event) => {
+        if (event.button != null && event.button !== 0) {
+            return;
+        }
+        const root = this.template.querySelector('.agentforce-fab-root');
+        if (!root) {
+            return;
+        }
+        const rect = root.getBoundingClientRect();
+        this._agentforceMoved = false;
+        this._agentforceDrag = {
+            startX: event.clientX,
+            startY: event.clientY,
+            originLeft: rect.left,
+            originTop: rect.top
+        };
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch (_err) {
+            // Some hosts reject setPointerCapture.
+        }
+        window.addEventListener('pointermove', this.handleAgentforceFabPointerMove);
+        window.addEventListener('pointerup', this.handleAgentforceFabPointerUp);
+        window.addEventListener('pointercancel', this.handleAgentforceFabPointerUp);
+    };
+
+    handleAgentforceFabPointerMove = (event) => {
+        if (!this._agentforceDrag) {
+            return;
+        }
+        const dx = event.clientX - this._agentforceDrag.startX;
+        const dy = event.clientY - this._agentforceDrag.startY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+            this._agentforceMoved = true;
+        }
+        if (!this._agentforceMoved) {
+            return;
+        }
+        event.preventDefault();
+        const fabWidth = 118;
+        const fabHeight = 56;
+        const maxX = Math.max(8, window.innerWidth - fabWidth - 8);
+        const maxY = Math.max(8, window.innerHeight - fabHeight - 8);
+        this.agentforceFabX = Math.min(maxX, Math.max(8, this._agentforceDrag.originLeft + dx));
+        this.agentforceFabY = Math.min(maxY, Math.max(8, this._agentforceDrag.originTop + dy));
+    };
+
+    handleAgentforceFabPointerUp = () => {
+        window.removeEventListener('pointermove', this.handleAgentforceFabPointerMove);
+        window.removeEventListener('pointerup', this.handleAgentforceFabPointerUp);
+        window.removeEventListener('pointercancel', this.handleAgentforceFabPointerUp);
+        this._agentforceDrag = null;
+    };
+
+    handleCopyTargetDayChange(event) {
+        this.copyTargetDayKey = event.detail.value;
+    }
+
+    async handleCopyDay() {
+        if (this.isCopyDayDisabled) {
+            return;
+        }
+        this.isCopyingDay = true;
+        try {
+            const created = await copyDayVisits({
+                sourceDate: this.mapDayKey,
+                targetDate: this.copyTargetDayKey,
+                contextUserId: this.contextUserId
+            });
+            const count = Array.isArray(created) ? created.length : 0;
+            this.showToast(
+                'Day copied',
+                count
+                    ? `${count} draft visit${count === 1 ? '' : 's'} added. Adjust times on the calendar as needed.`
+                    : 'No visits to copy (already planned, completed, or cancelled).',
+                count ? 'success' : 'info'
+            );
+            await this.loadWeek();
+        } catch (error) {
+            this.showToast('Copy failed', this.reduceError(error), 'error');
+        } finally {
+            this.isCopyingDay = false;
+        }
+    }
+
+    handlePlanRecommendation(event) {
+        if (this.isReadOnlyPlannerView) {
+            return;
+        }
+        const accountId = event.currentTarget.dataset.accountId;
+        if (!accountId) {
+            return;
+        }
+        this.primeVisitAccount(accountId);
+        this.pendingSlotStart = new Date();
+        this.pendingSlotStart.setMinutes(0, 0, 0);
+        this.showVisitModal = true;
+    }
+
+    handlePlannerChatQuestionChange(event) {
+        this.plannerChatQuestion = event.detail.value;
+    }
+
+    async handleAskPlannerQuestion() {
+        const question = (this.plannerChatQuestion || '').trim();
+        if (!question || this.isAskingPlanner) {
+            return;
+        }
+        this.isAskingPlanner = true;
+        const history = [...(this.plannerChatMessages || [])];
+        history.push({
+            key: `q-${Date.now()}`,
+            role: 'user',
+            cssClass: 'planner-chat-user',
+            text: question
+        });
+        this.plannerChatMessages = history;
+        this.plannerChatQuestion = '';
+        try {
+            const result = await askPlannerQuestion({
+                question,
+                weekStart: toApexDate(this.weekStart),
+                contextUserId: this.contextUserId
+            });
+            this.plannerChatMessages = [
+                ...history,
+                {
+                    key: `a-${Date.now()}`,
+                    role: 'assistant',
+                    cssClass: 'planner-chat-bot',
+                    text: result?.answer || 'No answer returned.'
+                }
+            ];
+        } catch (error) {
+            this.plannerChatMessages = [
+                ...history,
+                {
+                    key: `a-${Date.now()}`,
+                    role: 'assistant',
+                    cssClass: 'planner-chat-bot',
+                    text: this.reduceError(error)
+                }
+            ];
+        } finally {
+            this.isAskingPlanner = false;
         }
     }
 
@@ -2757,16 +4436,19 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleShowCalendar() {
+        this.closeCopyPlanMenu();
         this.viewMode = 'calendar';
         this.resetRouteState();
         this.destroyMap();
     }
 
     async handleShowMap() {
+        this.closeCopyPlanMenu();
         this.viewMode = 'map';
         this.initializeRouteVisitOrder();
-        await this.loadMapAccounts();
+        await this.hydrateMapFromCache();
         await this.renderMap();
+        void this.refreshMapCacheInBackground();
     }
 
     handleMapDayChange(event) {
@@ -2777,16 +4459,19 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     async loadMapAccounts() {
-        this.isLoadingMapAccounts = true;
         const cacheUserKey = getUserMapAccountsKey(this.contextUserId || Id);
         try {
-            if (isOfflineMode()) {
-                const cached = await getMapAccountsCache(cacheUserKey);
-                if (cached && cached.length) {
-                    this.mapAccounts = cached;
-                    return;
-                }
+            const cached = await getMapAccountsCache(cacheUserKey);
+            if (cached?.length && !(this.mapAccounts || []).length) {
+                this.mapAccounts = cached;
             }
+            if (isOfflineMode()) {
+                if (cached?.length) {
+                    this.mapAccounts = cached;
+                }
+                return;
+            }
+            this.isLoadingMapAccounts = true;
             this.mapAccounts = await getMapAccounts({ contextUserId: this.contextUserId });
             await putCachedAccounts(this.mapAccounts);
             await putMapAccountsCache(cacheUserKey, this.mapAccounts);
@@ -2794,12 +4479,23 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             const cached = await getMapAccountsCache(cacheUserKey);
             if (cached && cached.length) {
                 this.mapAccounts = cached;
-            } else {
+            } else if (!(this.mapAccounts || []).length) {
                 this.showToast('Map accounts failed', this.reduceError(error), 'error');
                 this.mapAccounts = [];
             }
         } finally {
             this.isLoadingMapAccounts = false;
+        }
+    }
+
+    // Wraps the IndexedDB-backed cache read so a store error (blocked/absent IDB,
+    // as seen in some Lightning webviews) can never reject into the caller.
+    async safeSearchCachedAccounts(searchParams) {
+        try {
+            return await searchCachedAccounts(searchParams);
+        } catch (error) {
+            console.warn('[PlannerDbg] searchCachedAccounts failed', error);
+            return { accounts: [], totalCount: 0, hasMore: false };
         }
     }
 
@@ -2812,60 +4508,130 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.accounts = [];
             this.hasMoreAccounts = false;
             this.totalAccountCount = 0;
+            this._accountAutoFillPages = 0;
+            this._accountFillBlocked = false;
+            this._failedAccountOffset = undefined;
+        } else if (this._failedAccountOffset === this.accountOffset) {
+            return;
         }
 
         this.isLoadingAccounts = true;
-        const searchParams = {
-            searchTerm: this.accountSearch || null,
-            recordTypeDeveloperName: this.accountRecordType,
-            specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
-            classification: this.accountClassification === 'All' ? null : this.accountClassification,
-            brickId: this.accountBrick === 'All' ? null : this.accountBrick,
-            offset: this.accountOffset,
-            pageSize: ACCOUNT_PAGE_SIZE,
-            contextUserId: this.contextUserId
-        };
+        let addedAccounts = 0;
+        const searchParams = this.accountSearchParams(this.accountOffset, ACCOUNT_PAGE_SIZE);
+        const apexSearchParams = this.toApexAccountSearchParams(this.accountOffset, ACCOUNT_PAGE_SIZE);
+        console.log('[PlannerDbg] loadAccountsPage', {
+            reset,
+            offlineMode: isOfflineMode(),
+            searchParams: JSON.parse(JSON.stringify(searchParams))
+        });
 
         try {
             if (isOfflineMode()) {
-                const cachedResult = await searchCachedAccounts(searchParams);
-                const pageAccounts = (cachedResult?.accounts || []).map((account) =>
-                    this.decorateAccountForDisplay(account)
-                );
-                this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
-                this.accountOffset = this.accounts.length;
-                this.hasMoreAccounts = cachedResult?.hasMore === true;
-                this.totalAccountCount = cachedResult?.totalCount || 0;
-                return;
+                const cachedResult = await this.safeSearchCachedAccounts(searchParams);
+                console.log('[PlannerDbg] loadAccountsPage OFFLINE branch', {
+                    cachedAccounts: cachedResult?.accounts?.length,
+                    totalCount: cachedResult?.totalCount
+                });
+                if (cachedResult?.accounts?.length) {
+                    addedAccounts = this.applyAccountPage(cachedResult, reset);
+                    return;
+                }
+                // Empty cache while flagged offline — don't show a blank list; try
+                // the server anyway. If we really are offline the Apex call fails
+                // and the catch handles it.
+                console.log('[PlannerDbg] OFFLINE cache empty -> falling through to Apex');
             }
 
-            const result = await searchAccountsPage(searchParams);
+            const result = await searchAccountsPage(apexSearchParams);
+            markOnline();
+            console.log('[PlannerDbg] loadAccountsPage ONLINE result', {
+                rawAccounts: result?.accounts?.length,
+                totalCount: result?.totalCount,
+                hasMore: result?.hasMore
+            });
             const rawAccounts = result?.accounts || [];
-            await putCachedAccounts(rawAccounts);
-
-            const pageAccounts = rawAccounts.map((account) =>
-                this.decorateAccountForDisplay(account)
-            );
-            this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
-            this.accountOffset = this.accounts.length;
-            this.hasMoreAccounts = result?.hasMore === true || (rawAccounts.length === ACCOUNT_PAGE_SIZE && this.accounts.length < (result?.totalCount || 0));
-            this.totalAccountCount = result?.totalCount || 0;
+            if (rawAccounts.length) {
+                await putCachedAccounts(rawAccounts);
+            }
+            addedAccounts = this.applyAccountPage(result, reset);
+            console.log('[PlannerDbg] loadAccountsPage AFTER decorate', {
+                decorated: addedAccounts,
+                accountsInState: this.accounts.length,
+                totalAccountCount: this.totalAccountCount,
+                isCollectionView: this.isCollectionView
+            });
         } catch (error) {
-            const cachedResult = await searchCachedAccounts(searchParams);
-            if (cachedResult && cachedResult.accounts && cachedResult.accounts.length) {
-                const pageAccounts = cachedResult.accounts.map((account) =>
-                    this.decorateAccountForDisplay(account)
-                );
-                this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
-                this.accountOffset = this.accounts.length;
-                this.hasMoreAccounts = cachedResult.hasMore === true;
-                this.totalAccountCount = cachedResult.totalCount || 0;
+            const message = this.reduceError(error);
+            console.error('[PlannerDbg] loadAccountsPage CATCH', message, error);
+            this._accountFillBlocked = true;
+            this._failedAccountOffset = this.accountOffset;
+            if (/could not reach|network|offline|failed to fetch|timeout|session expired/i.test(message)) {
+                markOffline();
+            }
+            const cachedResult = await this.safeSearchCachedAccounts(searchParams);
+            if (cachedResult?.accounts?.length) {
+                addedAccounts = this.applyAccountPage(cachedResult, reset);
+                console.log('[PlannerDbg] loadAccountsPage CATCH used cache', {
+                    cachedAccounts: cachedResult.accounts.length
+                });
             } else {
+                console.warn('[PlannerDbg] loadAccountsPage CATCH no cache -> toast');
                 this.showToast('Account load failed', this.reduceError(error), 'error');
             }
         } finally {
             this.isLoadingAccounts = false;
+            this._pendingAccountListFill =
+                !this._accountFillBlocked && addedAccounts > 0 && this.hasMoreAccounts === true;
         }
+    }
+
+    applyAccountPage(result, reset) {
+        const rawAccounts = result?.accounts || [];
+        const pageAccounts = rawAccounts.map((account) => this.decorateAccountForDisplay(account));
+        this.accounts = reset ? pageAccounts : [...this.accounts, ...pageAccounts];
+        this.accountOffset = this.accounts.length;
+        this.totalAccountCount = result?.totalCount || this.totalAccountCount || 0;
+        const reachedEnd =
+            !rawAccounts.length ||
+            rawAccounts.length < ACCOUNT_PAGE_SIZE ||
+            this.accounts.length >= this.totalAccountCount;
+        this.hasMoreAccounts = reachedEnd
+            ? false
+            : result?.hasMore === true || this.accounts.length < this.totalAccountCount;
+        return pageAccounts.length;
+    }
+
+    fillAccountListIfNeeded() {
+        if (
+            this.isCollectionView ||
+            this.isLoadingAccounts ||
+            !this.hasMoreAccounts ||
+            this._accountFillBlocked
+        ) {
+            return;
+        }
+        const autoFillPages = this._accountAutoFillPages || 0;
+        if (autoFillPages >= ACCOUNT_AUTO_FILL_MAX_PAGES) {
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            if (
+                this.isCollectionView ||
+                this.isLoadingAccounts ||
+                !this.hasMoreAccounts ||
+                this._accountFillBlocked
+            ) {
+                return;
+            }
+            const list = this.template.querySelector('.account-list');
+            if (!list || list.clientHeight < 24) {
+                return;
+            }
+            if (list.scrollHeight <= list.clientHeight + 8) {
+                this._accountAutoFillPages = autoFillPages + 1;
+                this.loadAccountsPage(false);
+            }
+        });
     }
 
     handleRecordTypeChange(event) {
@@ -2902,6 +4668,8 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (this.isCollectionView) {
             return;
         }
+        this._accountFillBlocked = false;
+        this._failedAccountOffset = undefined;
         if (this.hasMoreAccounts && !this.isLoadingAccounts) {
             this.loadAccountsPage(false);
         }
@@ -3036,6 +4804,13 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         const dy = touch.clientY - this.touchDragState.startY;
         if (!this.touchDragState.active) {
             if (Math.hypot(dx, dy) < 12) {
+                return;
+            }
+            if (
+                this.touchDragState.kind === DRAG_TYPE_ACCOUNT &&
+                Math.abs(dy) > Math.abs(dx)
+            ) {
+                this.teardownTouchDragListeners();
                 return;
             }
             this.touchDragState = { ...this.touchDragState, active: true };
@@ -3289,6 +5064,26 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         event.dataTransfer.effectAllowed = 'copy';
     }
 
+    handleMeetingDragStart(event) {
+        if (this.isReadOnlyPlannerView) {
+            event.preventDefault();
+            return;
+        }
+        this.setDragActiveState(true);
+        this.dragPayload = { kind: DRAG_TYPE_MEETING };
+        event.dataTransfer.setData('application/json', JSON.stringify(this.dragPayload));
+        event.dataTransfer.setData('text/plain', DRAG_TYPE_MEETING);
+        event.dataTransfer.effectAllowed = 'copy';
+    }
+
+    handleNewMeetingClick() {
+        if (this.isReadOnlyPlannerView) {
+            return;
+        }
+        this.showPlanningPalettePanel = false;
+        this.openMeetingPanel({});
+    }
+
     handleEventDragStart(event) {
         const eventId = event.currentTarget.dataset.eventId;
         const eventType = event.currentTarget.dataset.eventType;
@@ -3350,12 +5145,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (this.showPlanningPalettePanel) {
             this.showPlanningPalettePanel = false;
         }
-        if (isNonWorkingDay(start)) {
-            this.showToast(
-                'Non-working day',
-                'Visits can only be scheduled Saturday through Wednesday.',
-                'error'
-            );
+        if (this.isBlockedPlannerDay(start) && !(await this.confirmPlannerDay(start, payload.kind))) {
             this.dragPayload = undefined;
             this.setDragActiveState(false);
             this._calendarDropInFlight = false;
@@ -3393,6 +5183,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             } else if (payload.kind === DRAG_TYPE_PROMO) {
                 this.pendingSlotStart = start;
                 await this.openPromoModal();
+            } else if (payload.kind === DRAG_TYPE_MEETING) {
+                this.showPlanningPalettePanel = false;
+                this.openMeetingPanel({ start });
             }
         } finally {
             this.dragPayload = undefined;
@@ -3414,15 +5207,15 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handlePlanChoiceCancel() {
-        this.showPlanChoiceModal = false;
-        this.pendingSlotStart = null;
+        this.closePlannerModal(() => {
+            this.showPlanChoiceModal = false;
+            this.pendingSlotStart = null;
+        });
     }
 
     async handlePlanVisitChoice() {
         this.showPlanChoiceModal = false;
-        this.visitAccountId = '';
-        this.visitAccountSearch = '';
-        await this.loadVisitAccountOptions('');
+        this.clearVisitAccountSelection();
         this.showVisitModal = true;
     }
 
@@ -3441,96 +5234,80 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     async handlePlanMeetingChoice() {
+        const start = this.pendingSlotStart;
         this.showPlanChoiceModal = false;
-        await this.openMeetingModal();
-    }
-
-    async openMeetingModal() {
-        await Promise.all([this.loadMeetingRecordTypeOptions(), this.loadPromoProjectOptions()]);
-        if (!this.meetingRecordType) {
-            this.meetingRecordType = this.meetingRecordTypeOptions[0]?.value || '';
-        }
-        this.meetingTitle = '';
-        // Do not auto-bind a promo project — inaccessible lookups were failing insert as user.
-        this.meetingProjectId = '';
-        this.showMeetingModal = true;
-    }
-
-    async loadMeetingRecordTypeOptions() {
-        try {
-            const options = await getMeetingRecordTypes();
-            this.meetingRecordTypeOptions = (options || []).map((option) => ({
-                label: option.label,
-                value: option.value
-            }));
-            if (
-                this.meetingRecordTypeOptions.length &&
-                !this.meetingRecordTypeOptions.some((option) => option.value === this.meetingRecordType)
-            ) {
-                this.meetingRecordType = this.meetingRecordTypeOptions[0].value;
-            }
-        } catch (error) {
-            this.meetingRecordTypeOptions = [];
-            this.meetingRecordType = '';
-        }
-    }
-
-    handleMeetingRecordTypeChange(event) {
-        this.meetingRecordType = event.detail.value;
-    }
-
-    handleMeetingTitleChange(event) {
-        this.meetingTitle = event.detail.value;
-    }
-
-    handleMeetingProjectChange(event) {
-        this.meetingProjectId = event.detail.value;
-    }
-
-    handleMeetingCancel() {
-        this.showMeetingModal = false;
-        this.meetingTitle = '';
-        this.meetingProjectId = '';
         this.pendingSlotStart = null;
+        if (start && this.isBlockedPlannerDay(start) && !(await this.confirmPlannerDay(start, DRAG_TYPE_MEETING))) {
+            return;
+        }
+        this.openMeetingPanel({ start });
     }
 
-    async handleMeetingSave() {
-        if (!this.meetingRecordType) {
-            this.showToast('Validation', 'Select a meeting type.', 'error');
+    get pendingSlotDayLabel() {
+        return this.pendingSlotStart ? this.pendingSlotStart.toLocaleDateString(undefined, PLAN_SLOT_DAY_FORMAT) : '';
+    }
+
+    get pendingSlotTimeLabel() {
+        return this.pendingSlotStart ? this.pendingSlotStart.toLocaleTimeString(undefined, PLAN_SLOT_TIME_FORMAT) : '';
+    }
+
+    openMeetingPanel({ meetingId = null, start = null }) {
+        if (meetingId) {
+            this.meetingPanelId = meetingId;
+            this.meetingPanelStart = null;
+            this.meetingPanelEnd = null;
+        } else {
+            const begin = start ? new Date(start) : this.nextMeetingSlot();
+            this.meetingPanelId = null;
+            this.meetingPanelStart = begin.toISOString();
+            this.meetingPanelEnd = new Date(begin.getTime() + DEFAULT_MEETING_MINUTES * 60000).toISOString();
+        }
+        this.showMeetingPanel = true;
+    }
+
+    nextMeetingSlot() {
+        const slot = new Date();
+        slot.setDate(slot.getDate() + 1);
+        slot.setHours(18, 0, 0, 0);
+        return slot;
+    }
+
+    handleMeetingPanelShellClick(event) {
+        if (event.target === event.currentTarget) {
+            this.handleMeetingPanelClose();
+        }
+    }
+
+    handleMeetingPanelClose() {
+        this.showMeetingPanel = false;
+        this.meetingPanelId = null;
+        this.meetingPanelStart = null;
+        this.meetingPanelEnd = null;
+        void this.refreshPlannerMeetings();
+    }
+
+    handleMeetingPanelCreated(event) {
+        this.meetingPanelId = event.detail && event.detail.meetingId;
+        void this.refreshPlannerMeetings();
+    }
+
+    handleMeetingPanelChanged() {
+        void this.refreshPlannerMeetings();
+    }
+
+    async refreshPlannerMeetings() {
+        if (isOfflineMode()) {
             return;
         }
-        if (!(this.meetingTitle || '').trim()) {
-            this.showToast('Validation', 'Enter a meeting title.', 'error');
-            return;
-        }
-        if (!this.pendingSlotStart) {
-            this.showToast('Validation', 'Select a calendar time slot.', 'error');
-            return;
-        }
-        const end = new Date(this.pendingSlotStart.getTime() + DEFAULT_MEETING_MINUTES * 60000);
-        this.isSaving = true;
         try {
-            const saved = await createMeeting({
-                recordTypeDeveloperName: this.meetingRecordType,
-                startDateTime: toApexDateTime(this.pendingSlotStart),
-                endDateTime: toApexDateTime(end),
-                title: this.meetingTitle.trim(),
-                pharmaProjectId: this.meetingProjectId || null
-            });
-            const others = (this.meetings || []).filter((item) => item.id !== saved.id);
-            this.meetings = [...others, saved].sort(
-                (a, b) =>
-                    parseSalesforceDateTime(a.startDateTime) - parseSalesforceDateTime(b.startDateTime)
-            );
-            this.showToast('Meeting created', `${saved.title || saved.name} saved as Draft.`, 'success');
-            this.showMeetingModal = false;
-            this.meetingTitle = '';
-            this.meetingProjectId = '';
-            this.pendingSlotStart = null;
+            this.meetings =
+                (await fetchMeetings({
+                    weekStart: toApexDate(this.weekStart),
+                    weekEnd: toApexDate(this.weekEnd),
+                    contextUserId: this.contextUserId
+                })) || [];
         } catch (error) {
-            this.showToast('Save failed', this.reduceError(error), 'error');
-        } finally {
-            this.isSaving = false;
+            // Keep the meetings already on the calendar.
         }
     }
 
@@ -3555,10 +5332,12 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handlePromoCancel() {
-        this.showPromoModal = false;
-        this.promoProjectId = '';
-        this.promoTitle = '';
-        this.pendingSlotStart = null;
+        this.closePlannerModal(() => {
+            this.showPromoModal = false;
+            this.promoProjectId = '';
+            this.promoTitle = '';
+            this.pendingSlotStart = null;
+        });
     }
 
     async handlePromoSave() {
@@ -3589,50 +5368,76 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.pendingSlotStart = null;
     }
 
-    async loadVisitAccountOptions(searchTerm) {
-        try {
-            const result = await searchAccountsPage({
-                searchTerm: searchTerm || null,
-                recordTypeDeveloperName: this.accountRecordType,
-                specialty: this.accountSpecialty === 'All' ? null : this.accountSpecialty,
-                classification: this.accountClassification === 'All' ? null : this.accountClassification,
-                brickId: this.accountBrick === 'All' ? null : this.accountBrick,
-                offset: 0,
-                pageSize: 50,
-                contextUserId: this.contextUserId
-            });
-            this.visitAccountOptions = (result?.accounts || []).map((account) => ({
-                label: account.recordTypeName
-                    ? `${account.name} (${account.recordTypeName})`
-                    : account.name,
-                value: account.id
-            }));
-        } catch (error) {
-            this.showToast('Account search failed', this.reduceError(error), 'error');
+    get visitAccountSuggestions() {
+        return (this.accounts || []).slice(0, 8).map((account) => ({
+            accountId: account.id,
+            accountName: account.name,
+            recordTypeLabel: account.recordTypeName || '',
+            iconName: this.iconForVisitAccount(account)
+        }));
+    }
+
+    iconForVisitAccount(account) {
+        const key = account?.recordTypeDeveloperName || '';
+        if (
+            key === 'PersonAccount' ||
+            key === 'SDO_PersonAccounts' ||
+            key === 'Medical_Professional_HCP'
+        ) {
+            return 'standard:person_account';
+        }
+        if (key === 'Pharmacy') {
+            return 'standard:household';
+        }
+        if (key === 'Business_Contact') {
+            return 'standard:contact';
+        }
+        return 'standard:account';
+    }
+
+    clearVisitAccountSelection() {
+        this.visitAccountId = '';
+        this.visitAccountName = '';
+        this.visitAccountIconName = '';
+        this.visitAccountRecordTypeLabel = '';
+        this.visitAccountInvalid = false;
+    }
+
+    primeVisitAccount(accountId, hint) {
+        const account = this.resolveAccountById(accountId, hint) || hint || null;
+        this.visitAccountId = accountId || '';
+        this.visitAccountName =
+            account?.name || account?.accountName || hint?.accountName || '';
+        this.visitAccountRecordTypeLabel =
+            account?.recordTypeName || account?.recordTypeLabel || hint?.recordTypeLabel || '';
+        this.visitAccountIconName = this.iconForVisitAccount(account || hint);
+        this.visitAccountInvalid = false;
+    }
+
+    handleVisitAccountLookupChange(event) {
+        const detail = event.detail || {};
+        this.visitAccountId = detail.accountId || '';
+        this.visitAccountName = detail.accountName || '';
+        this.visitAccountIconName = detail.iconName || '';
+        this.visitAccountRecordTypeLabel = detail.recordTypeLabel || '';
+        if (this.visitAccountId) {
+            this.visitAccountInvalid = false;
         }
     }
 
-    handleVisitAccountSearch(event) {
-        this.visitAccountSearch = event.detail.value;
-        window.clearTimeout(this.searchDebounceTimer);
-        this.searchDebounceTimer = window.setTimeout(() => {
-            this.loadVisitAccountOptions(this.visitAccountSearch);
-        }, SEARCH_DEBOUNCE_MS);
-    }
-
-    handleVisitAccountChange(event) {
-        this.visitAccountId = event.detail.value;
-    }
-
     handleVisitCancel() {
-        this.showVisitModal = false;
-        this.visitAccountId = '';
-        this.pendingSlotStart = null;
+        this.closePlannerModal(() => {
+            this.showVisitModal = false;
+            this.clearVisitAccountSelection();
+            this.pendingSlotStart = null;
+        });
     }
 
     async handleVisitSave() {
         if (!this.visitAccountId) {
+            this.visitAccountInvalid = true;
             this.showToast('Validation', 'Select an HCP or HCO for the visit.', 'error');
+            this.template.querySelector('c-field-account-lookup')?.focus();
             return;
         }
         if (!this.pendingSlotStart) {
@@ -3647,7 +5452,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             status: VISIT_STATUS_DRAFT
         });
         this.showVisitModal = false;
-        this.visitAccountId = '';
+        this.clearVisitAccountSelection();
         this.pendingSlotStart = null;
     }
 
@@ -3773,9 +5578,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleTotCancel() {
-        this.showTotModal = false;
-        this.pendingTotStart = null;
-        this.resetTotForm();
+        this.closePlannerModal(() => {
+            this.showTotModal = false;
+            this.pendingTotStart = null;
+            this.resetTotForm();
+        });
     }
 
     resetTotForm() {
@@ -3886,6 +5693,62 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         await this.saveTot('Submitted for Approval');
     }
 
+    totWindowFromForm(form, startDateTime) {
+        const startDateObj = new Date(startDateTime);
+        let endDateObj;
+        if (form.spanType === 'Full_Day') {
+            startDateObj.setHours(9, 0, 0, 0);
+            endDateObj = new Date(startDateObj);
+            endDateObj.setHours(17, 0, 0, 0);
+        } else {
+            const hours = Number(form.durationHours || 2);
+            endDateObj = new Date(startDateObj.getTime() + hours * 3600 * 1000);
+        }
+        return { startDateObj, endDateObj };
+    }
+
+    shouldQueueTot(error) {
+        const status = Number(error?.status || error?.statusCode || 0);
+        const msg = String(error?.body?.message || error?.message || error || '');
+        return (
+            status === 0 ||
+            status === 404 ||
+            status >= 500 ||
+            /LimitException|Aura context|failed to fetch|networkerror|load failed|offline|HTTP 5|Unknown POST path|not found/i.test(
+                msg
+            )
+        );
+    }
+
+    async queueCreateTimeOff(form, startDateTime, stage) {
+        const { startDateObj, endDateObj } = this.totWindowFromForm(form, startDateTime);
+        const isoStart = startDateObj.toISOString();
+        const isoEnd = endDateObj.toISOString();
+        const newKey = newClientKey('tot');
+        await queueOfflineAction({
+            actionType: 'CREATE_TIME_OFF',
+            clientActionKey: newKey,
+            payloadJson: JSON.stringify({
+                typeValue: form.typeValue,
+                spanType: form.spanType,
+                durationHours: form.spanType === 'Hours' ? form.durationHours : null,
+                startDateTime: isoStart,
+                comments: form.comments,
+                stage
+            })
+        });
+        return {
+            id: newKey,
+            name: form.typeValue,
+            typeLabel: form.typeValue,
+            typeValue: form.typeValue,
+            startDateTime: isoStart,
+            endDateTime: isoEnd,
+            spanType: form.spanType,
+            stage
+        };
+    }
+
     async saveTot(stage) {
         if (this.isReadOnlyPlannerView) {
             this.showToast('Read-only', 'You cannot edit another rep\'s planner.', 'error');
@@ -3907,42 +5770,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.isSaving = true;
         try {
             let created;
+            let queued = false;
             if (isOfflineMode()) {
-                const startDateObj = new Date(startDateTime);
-                let endDateObj;
-                if (form.spanType === 'Full_Day') {
-                    startDateObj.setHours(9, 0, 0, 0);
-                    endDateObj = new Date(startDateObj);
-                    endDateObj.setHours(17, 0, 0, 0);
-                } else {
-                    const hours = Number(form.durationHours || 2);
-                    endDateObj = new Date(startDateObj.getTime() + hours * 3600 * 1000);
-                }
-                const newKey = newClientKey('tot');
-                const isoStart = startDateObj.toISOString();
-                const isoEnd = endDateObj.toISOString();
-                await queueOfflineAction({
-                    actionType: 'CREATE_TIME_OFF',
-                    clientActionKey: newKey,
-                    payloadJson: JSON.stringify({
-                        typeValue: form.typeValue,
-                        spanType: form.spanType,
-                        durationHours: form.spanType === 'Hours' ? form.durationHours : null,
-                        startDateTime: isoStart,
-                        comments: form.comments,
-                        stage
-                    })
-                });
-                created = {
-                    id: newKey,
-                    name: form.typeValue,
-                    typeLabel: form.typeValue,
-                    typeValue: form.typeValue,
-                    startDateTime: isoStart,
-                    endDateTime: isoEnd,
-                    spanType: form.spanType,
-                    stage
-                };
+                created = await this.queueCreateTimeOff(form, startDateTime, stage);
+                queued = true;
             } else {
                 try {
                     created = await createTimeOff({
@@ -3954,59 +5785,11 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                         stage
                     });
                 } catch (networkError) {
-                    const msg = String(networkError?.body?.message || networkError?.message || '');
-                    const shouldQueue =
-                        /LimitException|Aura context|failed to fetch|networkerror|load failed|offline|HTTP 5/i.test(
-                            msg
-                        );
-                    if (!shouldQueue) {
+                    if (!this.shouldQueueTot(networkError)) {
                         throw networkError;
                     }
-                    // PWA with no Aura context / flaky network: queue like visits.
-                    const startDateObj = new Date(startDateTime);
-                    let endDateObj;
-                    if (form.spanType === 'Full_Day') {
-                        startDateObj.setHours(9, 0, 0, 0);
-                        endDateObj = new Date(startDateObj);
-                        endDateObj.setHours(17, 0, 0, 0);
-                    } else {
-                        const hours = Number(form.durationHours || 2);
-                        endDateObj = new Date(startDateObj.getTime() + hours * 3600 * 1000);
-                    }
-                    const newKey = newClientKey('tot');
-                    await queueOfflineAction({
-                        actionType: 'CREATE_TIME_OFF',
-                        clientActionKey: newKey,
-                        payloadJson: JSON.stringify({
-                            typeValue: form.typeValue,
-                            spanType: form.spanType,
-                            durationHours: form.spanType === 'Hours' ? form.durationHours : null,
-                            startDateTime: startDateObj.toISOString(),
-                            comments: form.comments,
-                            stage
-                        })
-                    });
-                    created = {
-                        id: newKey,
-                        name: form.typeValue,
-                        typeLabel: form.typeValue,
-                        typeValue: form.typeValue,
-                        startDateTime: startDateObj.toISOString(),
-                        endDateTime: endDateObj.toISOString(),
-                        spanType: form.spanType,
-                        stage
-                    };
-                    this.showTotModal = false;
-                    this.pendingTotStart = null;
-                    this.resetTotForm();
-                    this.mergeCreatedTot(created);
-                    this.showToast(
-                        'Queued offline',
-                        `${created.typeLabel} will sync when you reconnect.`,
-                        'success'
-                    );
-                    void this.loadWeek();
-                    return;
+                    created = await this.queueCreateTimeOff(form, startDateTime, stage);
+                    queued = true;
                 }
             }
             if (created && !created.endDateTime) {
@@ -4021,13 +5804,16 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.pendingTotStart = null;
             this.resetTotForm();
             this.mergeCreatedTot(created);
+            await this.cacheCurrentWeek();
             this.showToast(
-                isOfflineMode()
+                queued || isOfflineMode()
                     ? 'Queued offline'
                     : stage === 'Draft'
                       ? 'TOT saved'
                       : 'TOT submitted',
-                `${created.typeLabel} request created.`,
+                queued || isOfflineMode()
+                    ? `${created.typeLabel} will sync when you reconnect.`
+                    : `${created.typeLabel} request created.`,
                 'success'
             );
             void this.loadWeek();
@@ -4055,22 +5841,65 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         event.stopPropagation();
         event.preventDefault();
         const eventId = event.currentTarget.dataset.eventId;
-        const visit = this.visits.find((item) => item.id === eventId);
-        if (!visit) {
-            return;
+        const eventType = event.currentTarget.dataset.eventType || 'visit';
+        if (eventType === 'tot') {
+            const tot = (this.timeOffBlocks || []).find((item) => String(item.id) === String(eventId));
+            if (!tot) {
+                return;
+            }
+            this.resizingEventId = eventId;
+            this.resizingEventType = 'tot';
+            this.resizeStartY = event.clientY;
+            this.resizeOriginalEnd = parseSalesforceDateTime(
+                tot.endDateTime || tot.End_Date_Time__c || tot.endDate
+            );
+        } else {
+            const visit = this.visits.find((item) => item.id === eventId);
+            if (!visit) {
+                return;
+            }
+            this.resizingEventId = eventId;
+            this.resizingEventType = 'visit';
+            this.resizeStartY = event.clientY;
+            this.resizeOriginalEnd = parseSalesforceDateTime(visit.endDateTime);
         }
-        this.resizingEventId = eventId;
-        this.resizeStartY = event.clientY;
-        this.resizeOriginalEnd = parseSalesforceDateTime(visit.endDateTime);
-        window.addEventListener('mousemove', this.handleResizeMove);
-        window.addEventListener('mouseup', this.handleResizeEnd);
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch (_err) {
+            // ignore
+        }
+        window.addEventListener('pointermove', this.handleResizeMove);
+        window.addEventListener('pointerup', this.handleResizeEnd);
+        window.addEventListener('pointercancel', this.handleResizeEnd);
     };
 
     handleResizeMove = (event) => {
         if (!this.resizingEventId) {
             return;
         }
-        const deltaMinutes = Math.round((event.clientY - this.resizeStartY) / PX_PER_MINUTE / SLOT_MINUTES) * SLOT_MINUTES;
+        event.preventDefault();
+        const deltaMinutes =
+            Math.round((event.clientY - this.resizeStartY) / PX_PER_MINUTE / SLOT_MINUTES) *
+            SLOT_MINUTES;
+        if (this.resizingEventType === 'tot') {
+            const tot = (this.timeOffBlocks || []).find(
+                (item) => String(item.id) === String(this.resizingEventId)
+            );
+            if (!tot) {
+                return;
+            }
+            const start = parseSalesforceDateTime(
+                tot.startDateTime || tot.Start_Date_Time__c || tot.startDate
+            );
+            const newEnd = new Date(this.resizeOriginalEnd.getTime() + deltaMinutes * 60000);
+            const minEnd = new Date(start.getTime() + SLOT_MINUTES * 60000);
+            if (newEnd < minEnd) {
+                return;
+            }
+            tot.endDateTime = toApexDateTime(newEnd);
+            this.timeOffBlocks = [...this.timeOffBlocks];
+            return;
+        }
         const visit = this.visits.find((item) => item.id === this.resizingEventId);
         if (!visit) {
             return;
@@ -4086,13 +5915,40 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     };
 
     handleResizeEnd = async () => {
-        window.removeEventListener('mousemove', this.handleResizeMove);
-        window.removeEventListener('mouseup', this.handleResizeEnd);
+        window.removeEventListener('pointermove', this.handleResizeMove);
+        window.removeEventListener('pointerup', this.handleResizeEnd);
+        window.removeEventListener('pointercancel', this.handleResizeEnd);
         if (!this.resizingEventId) {
             return;
         }
-        const visit = this.visits.find((item) => item.id === this.resizingEventId);
+        const eventId = this.resizingEventId;
+        const eventType = this.resizingEventType;
         this.resizingEventId = undefined;
+        this.resizingEventType = undefined;
+        if (eventType === 'tot') {
+            const tot = (this.timeOffBlocks || []).find((item) => String(item.id) === String(eventId));
+            if (!tot) {
+                return;
+            }
+            const start = parseSalesforceDateTime(
+                tot.startDateTime || tot.Start_Date_Time__c || tot.startDate
+            );
+            const end = parseSalesforceDateTime(tot.endDateTime || tot.End_Date_Time__c);
+            try {
+                await updateTimeOff({
+                    timeOffId: tot.id,
+                    endDateTime: end
+                });
+                const hours = Math.max(0.25, (end - start) / 3600000);
+                tot.durationHours = String(Math.round(hours * 4) / 4);
+                this.showToast('TOT updated', 'Duration saved.', 'success');
+            } catch (error) {
+                this.showToast('TOT resize failed', this.reduceError(error), 'error');
+                void this.loadWeek();
+            }
+            return;
+        }
+        const visit = this.visits.find((item) => item.id === eventId);
         if (!visit) {
             return;
         }
@@ -4120,11 +5976,163 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         } else if (eventType === 'tot') {
             const tot = (this.timeOffBlocks || []).find((item) => String(item.id) === String(recordId));
             const label = tot?.typeLabel || tot?.typeValue || tot?.name || 'Time Off';
-            const stage = tot?.stage || 'Submitted';
-            this.showToast('Time Off (TOT)', `${label} (${stage})`, 'info');
+            const stage = tot?.stage || '';
+            if (this.canManageTeamPlans && stage === TOT_STAGE_SUBMITTED) {
+                this.openPlanApprovalModal('tot', recordId, `TOT — ${label}`);
+                return;
+            }
+            this.showToast('Time Off (TOT)', `${label} (${stage || 'Submitted'})`, 'info');
             this.navigateToRecord(recordId, 'Time_Off_Request__c');
         } else if (eventType === 'meeting') {
-            this.navigateToRecord(recordId, 'Meeting__c');
+            const meeting = (this.meetings || []).find((item) => String(item.id) === String(recordId));
+            if (meeting && meeting.department) {
+                this.openMeetingPanel({ meetingId: recordId });
+                return;
+            }
+            if (this.canManageTeamPlans && meeting && MEETING_PENDING_STATUSES.has(meeting.status)) {
+                const typeLabel = meeting.recordTypeLabel || 'Meeting';
+                const meetingTitle = meeting.title || meeting.name || typeLabel;
+                this.openPlanApprovalModal('meeting', recordId, `${typeLabel} — ${meetingTitle}`);
+                return;
+            }
+            if (this.meetingExpensesEnabled && meeting) {
+                this.meetingExpenseId = recordId;
+                this.meetingExpenseTitle = meeting.title || meeting.name || 'Meeting';
+                this.showMeetingExpenseModal = true;
+                return;
+            }
+            this.openMeetingPanel({ meetingId: recordId });
+        }
+    }
+
+    openPlanApprovalModal(kind, recordId, title) {
+        this.planApprovalKind = kind;
+        this.planApprovalRecordId = recordId;
+        this.planApprovalTitle = title;
+        this.planApprovalRejectionReason = '';
+        this.showPlanApprovalModal = true;
+    }
+
+    handlePlanApprovalRejectionChange(event) {
+        this.planApprovalRejectionReason = event.detail.value;
+    }
+
+    handleManagerPlanRejectionChange(event) {
+        this.managerPlanRejectionReason = event.detail.value;
+    }
+
+    handlePlanApprovalCancel() {
+        this.closePlannerModal(() => {
+            this.showPlanApprovalModal = false;
+            this.planApprovalKind = '';
+            this.planApprovalRecordId = '';
+            this.planApprovalTitle = '';
+            this.planApprovalRejectionReason = '';
+        });
+    }
+
+    async handlePlanApprovalApprove() {
+        if (!this.planApprovalRecordId) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            if (this.planApprovalKind === 'tot') {
+                await approveTotRequest({ requestId: this.planApprovalRecordId });
+                this.showToast('Approved', 'Time off request approved.', 'success');
+            } else if (this.planApprovalKind === 'meeting') {
+                await approveMeetingPlan({ meetingId: this.planApprovalRecordId });
+                this.showToast('Approved', 'Meeting approved.', 'success');
+            }
+            this.adjustSelectedViewerPendingCount(-1);
+            this.showPlanApprovalModal = false;
+            await this.loadWeek();
+        } catch (error) {
+            this.showToast('Approve failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    async handlePlanApprovalReject() {
+        const rejectionReason = (this.planApprovalRejectionReason || '').trim();
+        if (!rejectionReason) {
+            this.showToast('Rejection reason required', 'Enter a reason before rejecting.', 'error');
+            return;
+        }
+        if (!this.planApprovalRecordId) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            if (this.planApprovalKind === 'tot') {
+                await rejectTotRequest({
+                    requestId: this.planApprovalRecordId,
+                    rejectionReason
+                });
+                this.showToast('Rejected', 'Time off returned to the rep.', 'success');
+            } else if (this.planApprovalKind === 'meeting') {
+                await rejectMeetingPlan({
+                    meetingId: this.planApprovalRecordId,
+                    rejectionReason
+                });
+                this.showToast('Rejected', 'Meeting rejected.', 'success');
+            }
+            this.adjustSelectedViewerPendingCount(-1);
+            this.showPlanApprovalModal = false;
+            await this.loadWeek();
+        } catch (error) {
+            this.showToast('Reject failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    async handleManagerApproveVisit() {
+        const visitId = this.visitDetailId;
+        if (!visitId) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            const saved = await approvePlanVisit({ visitId });
+            this.replaceVisit(saved);
+            this.adjustSelectedViewerPendingCount(-1);
+            await this.loadWeek();
+            this.showToast('Approved', 'Visit is now scheduled.', 'success');
+            this.showVisitDetailModal = false;
+            this.visitDetailId = '';
+            this.managerPlanRejectionReason = '';
+        } catch (error) {
+            this.showToast('Approve failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    async handleManagerRejectVisit() {
+        const visitId = this.visitDetailId;
+        const rejectionReason = (this.managerPlanRejectionReason || '').trim();
+        if (!rejectionReason) {
+            this.showToast('Rejection reason required', 'Enter a reason before rejecting.', 'error');
+            return;
+        }
+        if (!visitId) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            await rejectPlanVisit({ visitId, rejectionReason });
+            this.adjustSelectedViewerPendingCount(-1);
+            await this.loadWeek();
+            this.showToast('Rejected', 'Visit returned to Draft for the rep.', 'success');
+            this.showVisitDetailModal = false;
+            this.visitDetailId = '';
+            this.managerPlanRejectionReason = '';
+        } catch (error) {
+            this.showToast('Reject failed', this.reduceError(error), 'error');
+        } finally {
+            this.isSaving = false;
         }
     }
 
@@ -4318,10 +6326,36 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         this.visitDetailStatus = visit.status || VISIT_STATUS_DRAFT;
         this.visitDetailOriginalStatus = visit.status || VISIT_STATUS_DRAFT;
         this.visitDetailCancellationReason = visit.cancellationReason || '';
-        this.visitDetailStartLabel = start ? `${formatDateLabel(start)} ${formatTime(start)}` : '';
-        this.visitDetailEndLabel = end ? formatTime(end) : '';
+        this.visitDetailStartDateTime = start ? toSalesforceDateTimeLocal(start) : '';
+        this.visitDetailEndDateTime = end ? toSalesforceDateTimeLocal(end) : '';
+        this.managerPlanRejectionReason = '';
         this.showVisitMoreMenu = false;
         this.showVisitDetailModal = true;
+    }
+
+    parseVisitDetailSchedule() {
+        const startIso = normalizeLocalDateTimeString(this.visitDetailStartDateTime);
+        const endIso = normalizeLocalDateTimeString(this.visitDetailEndDateTime);
+        if (!startIso || !endIso) {
+            return { error: 'Visit start and end date/time are required.' };
+        }
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return { error: 'Enter valid start and end date/time values.' };
+        }
+        if (end <= start) {
+            return { error: 'End time must be after start time.' };
+        }
+        return { start, end, startIso };
+    }
+
+    handleVisitDetailStartChange(event) {
+        this.visitDetailStartDateTime = event.detail.value;
+    }
+
+    handleVisitDetailEndChange(event) {
+        this.visitDetailEndDateTime = event.detail.value;
     }
 
     handleVisitDetailStatusChange(event) {
@@ -4336,14 +6370,28 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
     }
 
     handleVisitDetailCancel() {
-        this.showVisitMoreMenu = false;
-        this.showVisitDetailModal = false;
-        this.visitDetailId = '';
+        this.closePlannerModal(() => {
+            this.showVisitMoreMenu = false;
+            this.showVisitDetailModal = false;
+            this.visitDetailId = '';
+        });
     }
 
     handleToggleVisitMoreMenu(event) {
         event?.stopPropagation?.();
         this.showVisitMoreMenu = !this.showVisitMoreMenu;
+    }
+
+    handleStartCoaching() {
+        const visitId = this.visitDetailId;
+        if (visitId) {
+            try {
+                sessionStorage.setItem('zeta.pwa.openVisitCoaching', visitId);
+            } catch (_error) {
+                /* ignore */
+            }
+        }
+        this.handleViewVisit();
     }
 
     handleViewVisit() {
@@ -4362,17 +6410,21 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         if (!visit) {
             return;
         }
+        const schedule = this.parseVisitDetailSchedule();
+        if (schedule.error) {
+            this.showToast('Validation', schedule.error, 'error');
+            return;
+        }
         const validationMessage = validateVisitStatusChange(
             this.visitDetailStatus,
-            visit.startDateTime,
+            schedule.startIso,
             this.visitDetailCancellationReason
         );
         if (validationMessage) {
             this.showToast('Validation', validationMessage, 'error');
             return;
         }
-        const start = parseSalesforceDateTime(visit.startDateTime);
-        const end = parseSalesforceDateTime(visit.endDateTime);
+        const { start, end } = schedule;
         await this.persistVisit({
             id: visit.id,
             accountId: visit.accountId,
@@ -4402,6 +6454,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 this.replaceVisit(saved);
                 await this.cacheCurrentWeek();
                 this.showToast('Submitted', 'Visit plan sent to your manager for approval.', 'success');
+                this.notifyVisitSubmitted();
             }
             this.showVisitDetailModal = false;
             this.visitDetailId = '';
@@ -4409,6 +6462,14 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             this.showToast('Submit failed', this.reduceError(error), 'error');
         } finally {
             this.isSaving = false;
+        }
+    }
+
+    notifyVisitSubmitted() {
+        try {
+            window.dispatchEvent(new CustomEvent('zeta-visit-submitted'));
+        } catch (_err) {
+            /* ignore */
         }
     }
 
@@ -4427,10 +6488,14 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             return;
         }
         const drafts = this.draftPlannedVisits;
+        let message = `Submit ${drafts.length} draft visit${drafts.length === 1 ? '' : 's'} for manager approval?`;
+        if (this.showWeeklyTargetGap) {
+            message += `\n\n${this.weeklyTargetGapLabel}`;
+        }
         const confirmed = await LightningConfirm.open({
-            message: `Submit ${drafts.length} draft visit${drafts.length === 1 ? '' : 's'} for manager approval?`,
+            message,
             label: 'Submit week',
-            theme: 'info'
+            theme: this.showWeeklyTargetGap ? 'warning' : 'info'
         });
         if (!confirmed) {
             return;
@@ -4475,6 +6540,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                     `${submitted} visit${submitted === 1 ? '' : 's'} sent to your manager for approval.`,
                     'success'
                 );
+                this.notifyVisitSubmitted();
             }
         } catch (error) {
             this.showToast('Submit failed', this.reduceError(error), 'error');
@@ -4512,7 +6578,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                     cancellationReason
                 });
             } else {
-                saved = await upsertVisit({
+                saved = await this.upsertVisitWithWarnAck({
                     visitId: id || null,
                     accountId: accountId || null,
                     startDateTime: toApexDateTime(startDateTime),
@@ -4523,6 +6589,9 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                     zetaProjectId: zetaProjectId || null,
                     visitObjective: visitObjective || null
                 });
+            }
+            if (!saved) {
+                return;
             }
             const others = this.visits.filter((visit) => visit.id !== saved.id);
             this.visits = [...others, saved].sort(
@@ -4620,7 +6689,10 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
             actionType: 'SUBMIT_VISIT',
             visitId: isLocal ? null : visitId,
             clientVisitKey: existing.clientVisitKey || visitId,
-            clientActionKey: newClientKey('submit')
+            clientActionKey: newClientKey('submit'),
+            payloadJson: JSON.stringify({
+                visitId: isLocal ? null : visitId
+            })
         });
         return {
             ...existing,
@@ -4843,6 +6915,7 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
                 this.initializeRouteVisitOrder();
             }
             this.currentLocation = await getCurrentPosition();
+            await putCachedMapLocation(this.currentLocation);
             const routes = await fetchOsrmRoute(
                 buildCoordPath(this.getRouteCoordinatePoints(visitStops)),
                 true
@@ -5027,20 +7100,75 @@ export default class FieldRepPlanner extends NavigationMixin(LightningElement) {
         });
     }
 
+    async upsertVisitWithWarnAck(payload, acknowledgeWarnings = false) {
+        try {
+            return await upsertVisit({
+                ...payload,
+                acknowledgeWarnings
+            });
+        } catch (error) {
+            const message = this.reduceError(error);
+            if (!acknowledgeWarnings && /^WARN:\s*/i.test(message)) {
+                const confirmed = window.confirm(
+                    `${message.replace(/^WARN:\s*/i, '')}\n\nSave anyway?`
+                );
+                if (confirmed) {
+                    return this.upsertVisitWithWarnAck(payload, true);
+                }
+                return null;
+            }
+            throw error;
+        }
+    }
+
     showToast(title, message, variant) {
         this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
 
     reduceError(error) {
+        let raw = '';
         if (Array.isArray(error?.body)) {
-            return error.body.map((item) => item.message).join(', ');
+            raw = error.body.map((item) => item.message).join(', ');
+        } else if (error?.body?.output?.errors?.length) {
+            raw = error.body.output.errors.map((item) => item.message).join(', ');
+        } else if (error?.body?.pageErrors?.length) {
+            raw = error.body.pageErrors.map((item) => item.message).join(', ');
+        } else {
+            raw = error?.body?.message || error?.message || '';
         }
-        if (error?.body?.output?.errors?.length) {
-            return error.body.output.errors.map((item) => item.message).join(', ');
+        return this.sanitizePlannerMessage(raw);
+    }
+
+    sanitizePlannerMessage(raw) {
+        let message = String(raw || '').trim();
+        if (!message) {
+            return 'Something went wrong. Please try again.';
         }
-        if (error?.body?.pageErrors?.length) {
-            return error.body.pageErrors.map((item) => item.message).join(', ');
+        if (/script-thrown exception/i.test(message)) {
+            return 'Something went wrong. Please try again.';
         }
-        return error?.body?.message || error?.message || 'Unexpected error';
+        if (/failed to fetch|networkerror|cors|network error|load failed|aborterror|timed out|timeout/i.test(message)) {
+            return 'Could not reach Salesforce. Check your connection and try again.';
+        }
+        if (/offline/i.test(message) && /cache|cached/i.test(message)) {
+            return 'Planner data is not available offline yet. Open the planner while online first.';
+        }
+        if (/session expired|unauthorized|401|invalid.?session/i.test(message)) {
+            return 'Your session expired. Sign in again to continue.';
+        }
+        message = message
+            .replace(/^Network error\s*-\s*possible CORS issue:\s*/i, '')
+            .replace(/FIELD_CUSTOM_VALIDATION_EXCEPTION[,:]\s*/gi, '')
+            .replace(/REQUIRED_FIELD_MISSING[,:]\s*/gi, '')
+            .replace(/DUPLICATE_VALUE[,:]\s*/gi, '')
+            .replace(/^HTTP\s+\d+\s*-?\s*/i, '')
+            .trim();
+        if (message.endsWith(': []') || message.endsWith(':[]')) {
+            message = message.slice(0, message.lastIndexOf(':')).trim();
+        }
+        if (!message || /script-thrown exception/i.test(message)) {
+            return 'Something went wrong. Please try again.';
+        }
+        return message.length > 280 ? `${message.slice(0, 277)}...` : message;
     }
 }

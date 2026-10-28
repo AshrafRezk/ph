@@ -1,0 +1,84 @@
+<template>
+    <section class="rule-panel">
+        <p class="rule-lead">
+            Monthly target calls start from the account class frequency. Once counted time off reaches the
+            days below, each target is pro-rated to the working days left, and call rate is measured against
+            that single target. It is recalculated when time off is approved.
+        </p>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading call target rule" size="small"></lightning-spinner>
+        </template>
+
+        <template if:false={loading}>
+            <div class="rule-grid">
+                <lightning-input
+                    type="toggle"
+                    label="Apply the adjustment"
+                    checked={enabled}
+                    onchange={handleEnabled}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Counted days before pro-rating"
+                    value={thresholdDays}
+                    min="0"
+                    step="1"
+                    onchange={handleThreshold}
+                ></lightning-input>
+                <!-- "Calls to subtract" is retired: kept in Apex for old data, no longer shown. -->
+                <lightning-input
+                    type="number"
+                    label="Lowest target"
+                    value={minimumTarget}
+                    min="0"
+                    step="1"
+                    onchange={handleMinimum}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Long leave days"
+                    value={longTermDays}
+                    min="0"
+                    step="1"
+                    onchange={handleLongTerm}
+                ></lightning-input>
+                <lightning-input
+                    type="toggle"
+                    label="Drop to the lowest target on long leave"
+                    checked={zeroOnLongTerm}
+                    field-level-help="Off keeps the pro-rated target however long the leave is."
+                    onchange={handleZero}
+                ></lightning-input>
+            </div>
+
+            <h3 class="type-heading">Time off that counts</h3>
+            <p class="type-note">
+                Leave every type selected to count all approved time off, including office work and meetings.
+            </p>
+            <div class="type-list">
+                <template for:each={typeChoices} for:item="typeChoice">
+                    <lightning-input
+                        key={typeChoice.value}
+                        type="checkbox"
+                        label={typeChoice.value}
+                        checked={typeChoice.checked}
+                        data-value={typeChoice.value}
+                        onchange={handleType}
+                    ></lightning-input>
+                </template>
+            </div>
+
+            <p class="preview">{previewText}</p>
+
+            <div class="actions">
+                <lightning-button
+                    variant="brand"
+                    label="Save rule"
+                    disabled={saving}
+                    onclick={handleSave}
+                ></lightning-button>
+            </div>
+        </template>
+    </section>
+</template>

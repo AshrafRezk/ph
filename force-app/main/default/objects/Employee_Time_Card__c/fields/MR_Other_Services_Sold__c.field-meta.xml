@@ -3,6 +3,7 @@
     <fullName>MR_Other_Services_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Other Services Sold</description>
+    <externalId>false</externalId>
     <label>Other Services Sold</label>
     <precision>16</precision>
     <required>false</required>

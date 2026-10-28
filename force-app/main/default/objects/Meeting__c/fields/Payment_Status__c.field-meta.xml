@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Payment_Status__c</fullName>
+    <label>Payment Status</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Not Started</fullName>
+                <default>true</default>
+                <label>Not Started</label>
+            </value>
+            <value>
+                <fullName>Actual Cost Entered</fullName>
+                <default>false</default>
+                <label>Actual Cost Entered</label>
+            </value>
+            <value>
+                <fullName>In Accounting</fullName>
+                <default>false</default>
+                <label>In Accounting</label>
+            </value>
+            <value>
+                <fullName>Returned to Business</fullName>
+                <default>false</default>
+                <label>Returned to Business</label>
+            </value>
+            <value>
+                <fullName>Partial Paid</fullName>
+                <default>false</default>
+                <label>Partial Paid</label>
+            </value>
+            <value>
+                <fullName>Paid</fullName>
+                <default>false</default>
+                <label>Paid</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

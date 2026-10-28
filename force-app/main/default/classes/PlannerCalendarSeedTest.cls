@@ -10,5 +10,6 @@ private class PlannerCalendarSeedTest {
         System.assertNotEquals(null, result.message);
         System.assertNotEquals(null, result.weekStart);
         System.assertNotEquals(null, result.weekEnd);
+        System.assert(PlannerCalendarSeed.linkPresentationsToTrainingTerritories() >= 0);
     }
 }

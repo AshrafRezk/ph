@@ -1,102 +1,166 @@
 <template>
-    <section class="clm-player" role="dialog" aria-modal="true" aria-label="CLM Presentation Player">
-        <header class="player-header">
-            <button class="player-icon-btn" title="Close" onclick={handleCancel}>
-                <lightning-icon icon-name="utility:close" size="small"></lightning-icon>
-            </button>
-            <div class="player-title-block">
-                <h2 class="player-title">{presentationName}</h2>
-                <p class="player-counter">{slideCounterLabel}</p>
-            </div>
-            <div class="player-header-actions">
-                <button class="tracking-toggle" onclick={toggleTracking} disabled={isSessionLoading} title="Toggle tracking">
-                    <lightning-icon
-                        icon-name={trackingIconName}
-                        size="x-small"
-                        class="tracking-toggle-icon"
-                    ></lightning-icon>
-                    <span>{trackingToggleLabel}</span>
-                </button>
-            </div>
-        </header>
-
-        <template if:true={showOfflineBanner}>
-            <div class="offline-banner" role="status">
-                <lightning-icon icon-name="utility:offline" size="xx-small"></lightning-icon>
-                <span>Offline — metrics will sync when connected</span>
-            </div>
-        </template>
-
+    <section class={playerClass} role="dialog" aria-modal="true" aria-label="CLM Presentation Player">
         <div class="player-stage">
-            <template if:true={showStageSpinner}>
-                <div class="stage-loading">
-                    <div class="stage-loading-card">
-                        <div class="stage-loading-spinner" role="status" aria-label={stageLoadingLabel}></div>
-                        <p class="stage-loading-label">{stageLoadingLabel}</p>
-                    </div>
+            <template if:true={showOfflineBanner}>
+                <div class="offline-banner" role="status">
+                    <lightning-icon icon-name="utility:offline" size="xx-small"></lightning-icon>
+                    <span>Offline — metrics will sync when connected</span>
                 </div>
             </template>
-            <template if:true={showPauseOverlay}>
-                <div class="pause-overlay">
-                    <div class="pause-overlay-card">
-                        <lightning-icon icon-name="utility:pause" size="small"></lightning-icon>
-                        <span>Tracking Paused</span>
+
+            <div class="stage-viewport">
+                <template if:true={showStageSpinner}>
+                    <div class="stage-loading">
+                        <div class="stage-loading-card">
+                            <div class="stage-loading-spinner" role="status" aria-label={stageLoadingLabel}></div>
+                            <p class="stage-loading-label">{stageLoadingLabel}</p>
+                        </div>
                     </div>
-                </div>
-            </template>
-            <template if:true={pdfLoadError}>
-                <article class="slide-error" role="alert">
-                    <lightning-icon icon-name="utility:error" size="small" class="slide-error-icon"></lightning-icon>
-                    <h3>Unable to load slide</h3>
-                    <p>{pdfLoadError}</p>
-                    <lightning-button
-                        label="Retry"
-                        variant="brand"
-                        onclick={handleRetryPdfLoad}
-                    ></lightning-button>
-                </article>
-            </template>
-            <div class="slide-frame">
-                <template if:true={currentSlideUrl}>
-                    <img
-                        class="slide-image"
-                        class:slide-image-hidden={showStageSpinner}
-                        src={currentSlideUrl}
-                        alt={currentSequence.sequenceName}
-                        onload={handleSlideImageLoad}
-                        onerror={handleSlideImageError}
-                    />
                 </template>
-                <template if:true={showPdfViewer}>
-                    <canvas
-                        class="slide-pdf-canvas"
-                        class:slide-pdf-canvas-hidden={showStageSpinner}
-                        aria-label={currentSequence.sequenceName}
-                    ></canvas>
+                <template if:true={showPauseOverlay}>
+                    <div class="pause-overlay">
+                        <div class="pause-overlay-card">
+                            <lightning-icon icon-name="utility:pause" size="small"></lightning-icon>
+                            <span>Tracking Paused</span>
+                        </div>
+                    </div>
                 </template>
-                <template if:true={showPlaceholder}>
-                    <article class="slide-placeholder">
-                        <h3>{currentSequence.sequenceName}</h3>
-                        <template if:true={currentSequence.messageNames}>
-                            <p class="slide-meta">Messages: {currentSequence.messageNames}</p>
-                        </template>
-                        <template if:true={currentSequence.productNames}>
-                            <p class="slide-meta">Products: {currentSequence.productNames}</p>
-                        </template>
+                <template if:true={pdfLoadError}>
+                    <article class="slide-error" role="alert">
+                        <lightning-icon icon-name="utility:error" size="small" class="slide-error-icon"></lightning-icon>
+                        <h3>Unable to load slide</h3>
+                        <p>{pdfLoadError}</p>
+                        <lightning-button
+                            label="Retry"
+                            variant="brand"
+                            onclick={handleRetryPdfLoad}
+                        ></lightning-button>
                     </article>
                 </template>
-                <template if:true={hasSlideMessages}>
-                    <button
-                        class={slideMessageButtonClass}
-                        type="button"
-                        onclick={handleOpenMessageCapture}
-                        title={slideMessageButtonLabel}
-                    >
-                        <lightning-icon icon-name="utility:comments" size="x-small"></lightning-icon>
-                        <span>{slideMessageButtonLabel}</span>
-                    </button>
+                <template if:true={htmlLoadError}>
+                    <article class="slide-error" role="alert">
+                        <lightning-icon icon-name="utility:error" size="small" class="slide-error-icon"></lightning-icon>
+                        <h3>Unable to load HTML presentation</h3>
+                        <p>{htmlLoadError}</p>
+                        <lightning-button
+                            label="Retry"
+                            variant="brand"
+                            onclick={handleRetryHtmlLoad}
+                        ></lightning-button>
+                    </article>
                 </template>
+
+                <div class={stageBoxClass} style={stageBoxStyle}>
+                    <template if:true={currentSlideUrl}>
+                        <img
+                            class={slideImageClass}
+                            src={currentSlideUrl}
+                            alt={currentSequence.sequenceName}
+                            onload={handleSlideImageLoad}
+                            onerror={handleSlideImageError}
+                        />
+                    </template>
+                    <template if:true={showPdfViewer}>
+                        <canvas
+                            class={pdfCanvasClass}
+                            aria-label={currentSequence.sequenceName}
+                        ></canvas>
+                    </template>
+                    <template if:true={showHtmlViewer}>
+                        <div class="slide-html-host" lwc:dom="manual"></div>
+                    </template>
+                    <template if:true={showPdfNativeFrame}>
+                        <iframe
+                            class="slide-html-frame slide-pdf-frame"
+                            title={currentSequence.sequenceName}
+                            src={pdfNativeFrameUrl}
+                            onload={handlePdfNativeFrameLoad}
+                        ></iframe>
+                    </template>
+                    <template if:true={showPlaceholder}>
+                        <article class="slide-placeholder">
+                            <h3>{currentSequence.sequenceName}</h3>
+                            <template if:true={currentSequence.messageNames}>
+                                <p class="slide-meta">Messages: {currentSequence.messageNames}</p>
+                            </template>
+                            <template if:true={currentSequence.productNames}>
+                                <p class="slide-meta">Products: {currentSequence.productNames}</p>
+                            </template>
+                        </article>
+                    </template>
+                    <template if:true={hasSlideMessages}>
+                        <button
+                            class={slideMessageButtonClass}
+                            type="button"
+                            onclick={handleOpenMessageCapture}
+                            title={slideMessageButtonLabel}
+                        >
+                            <lightning-icon icon-name="utility:comments" size="x-small"></lightning-icon>
+                            <span>{slideMessageButtonLabel}</span>
+                        </button>
+                    </template>
+                </div>
             </div>
+
+            <div class="stage-dock" role="toolbar" aria-label="Presentation controls">
+                <button class="dock-btn dock-btn-accent" type="button" title="Hide or show tray" onclick={toggleChrome}>
+                    <lightning-icon icon-name={chromeToggleIcon} size="x-small"></lightning-icon>
+                </button>
+                <div class="dock-cluster">
+                    <button
+                        class="dock-btn dock-btn-accent"
+                        type="button"
+                        title="Previous page"
+                        onclick={handlePrevious}
+                        disabled={isPreviousDisabled}
+                    >
+                        <lightning-icon icon-name="utility:chevronleft" size="x-small"></lightning-icon>
+                    </button>
+                    <button
+                        class={trackingDockClass}
+                        type="button"
+                        title={trackingToggleLabel}
+                        onclick={toggleTracking}
+                        disabled={isSessionLoading}
+                    >
+                        <lightning-icon icon-name={trackingIconName} size="x-small"></lightning-icon>
+                    </button>
+                    <button
+                        class="dock-btn dock-btn-accent"
+                        type="button"
+                        title="Pages"
+                        onclick={showPagesTray}
+                    >
+                        <lightning-icon icon-name="utility:screen" size="x-small"></lightning-icon>
+                    </button>
+                    <button
+                        class="dock-btn dock-btn-accent"
+                        type="button"
+                        title="Presentations"
+                        onclick={showPresentationsTray}
+                    >
+                        <lightning-icon icon-name="utility:apps" size="x-small"></lightning-icon>
+                    </button>
+                    <button
+                        class="dock-btn dock-btn-light"
+                        type="button"
+                        title="Next page"
+                        onclick={handleNext}
+                        disabled={isNextDisabled}
+                    >
+                        <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
+                    </button>
+                </div>
+                <button
+                    class="dock-complete"
+                    type="button"
+                    onclick={handleComplete}
+                    disabled={isCompleteDisabled}
+                >
+                    Complete
+                </button>
+            </div>
+
             <template if:true={showMessageOverlay}>
                 <div class="message-overlay-backdrop">
                     <article class="message-overlay" role="dialog" aria-modal="true" aria-label="Capture message response">
@@ -144,50 +208,147 @@
             </template>
         </div>
 
-        <footer class="player-footer">
-            <div class="thumb-strip" role="tablist" aria-label="Slide thumbnails">
-                <template for:each={thumbnailItems} for:item="thumb">
-                    <button
-                        key={thumb.key}
-                        class={thumb.className}
-                        data-index={thumb.index}
-                        onclick={handleThumbClick}
-                        title={thumb.label}
-                        disabled={isSessionLoading}
-                        role="tab"
-                        aria-selected={thumb.isActive}
-                    >
-                        <template if:true={thumb.url}>
-                            <img src={thumb.url} alt={thumb.label} loading="lazy" />
+        <template if:false={chromeCollapsed}>
+            <footer class="player-chrome">
+                <div class="chrome-toolbar">
+                    <div class="chrome-left">
+                        <div class="segmented" role="tablist" aria-label="Tray view">
+                            <button
+                                class={presentationsTabClass}
+                                type="button"
+                                role="tab"
+                                aria-selected={isPresentationsTab}
+                                onclick={showPresentationsTray}
+                            >
+                                Presentations
+                            </button>
+                            <button
+                                class={pagesTabClass}
+                                type="button"
+                                role="tab"
+                                aria-selected={isPagesTab}
+                                onclick={showPagesTray}
+                            >
+                                Pages
+                            </button>
+                        </div>
+                        <button
+                            class={filterButtonClass}
+                            type="button"
+                            title="Show mandatory pages only"
+                            onclick={toggleMandatoryFilter}
+                        >
+                            <lightning-icon icon-name="utility:filter" size="xx-small"></lightning-icon>
+                        </button>
+                        <label class={ratingsSwitchClass}>
+                            <span>Ratings</span>
+                            <button
+                                class="switch"
+                                type="button"
+                                role="switch"
+                                aria-checked={ratingsOn}
+                                onclick={toggleRatings}
+                            >
+                                <span class="switch-knob"></span>
+                            </button>
+                        </label>
+                        <button class="round-btn" type="button" title="Capture message" onclick={handleOpenMessageCapture}>
+                            <lightning-icon icon-name="utility:edit" size="xx-small"></lightning-icon>
+                        </button>
+                        <button
+                            class="round-btn"
+                            type="button"
+                            title={trackingToggleLabel}
+                            onclick={toggleTracking}
+                            disabled={isSessionLoading}
+                        >
+                            <lightning-icon icon-name={trackingIconName} size="xx-small"></lightning-icon>
+                        </button>
+                    </div>
+
+                    <div class="chrome-center">
+                        <p class="chrome-title">{presentationName}</p>
+                        <p class="chrome-counter">{slideCounterLabel}</p>
+                        <label class={personalizedSwitchClass}>
+                            <button
+                                class="switch switch-on-blue"
+                                type="button"
+                                role="switch"
+                                aria-checked={personalizedOn}
+                                onclick={togglePersonalized}
+                            >
+                                <span class="switch-knob"></span>
+                            </button>
+                            <span>Personalized</span>
+                        </label>
+                    </div>
+
+                    <div class="chrome-right">
+                        <div class="stage-dims" role="group" aria-label="Slide dimensions">
+                            <button class="dim-btn" type="button" title="Fit mode" onclick={cycleFitMode}>{fitModeLabel}</button>
+                            <button class="dim-btn" type="button" title="Aspect ratio" onclick={cycleAspect}>{aspectLabel}</button>
+                            <button class="dim-btn" type="button" title="Zoom out" onclick={zoomOut}>−</button>
+                            <button class="dim-btn dim-zoom" type="button" title="Reset zoom" onclick={resetZoom}>{zoomLabel}</button>
+                            <button class="dim-btn" type="button" title="Zoom in" onclick={zoomIn}>+</button>
+                        </div>
+                        <button class="round-btn round-btn-accent" type="button" title="Messages" onclick={handleOpenMessageCapture}>
+                            <lightning-icon icon-name="utility:email" size="xx-small"></lightning-icon>
+                        </button>
+                        <button class="visit-btn" type="button" onclick={handleCancel}>Visit</button>
+                    </div>
+                </div>
+
+                <template if:true={isPagesTab}>
+                    <div class="thumb-strip" role="tablist" aria-label="Slide thumbnails">
+                        <template for:each={thumbnailItems} for:item="thumb">
+                            <button
+                                key={thumb.key}
+                                class={thumb.className}
+                                data-index={thumb.index}
+                                onclick={handleThumbClick}
+                                title={thumb.label}
+                                disabled={isSessionLoading}
+                                role="tab"
+                                aria-selected={thumb.isActive}
+                            >
+                                <span class="thumb-frame">
+                                    <template if:true={thumb.url}>
+                                        <img src={thumb.url} alt={thumb.label} />
+                                    </template>
+                                    <template if:false={thumb.url}>
+                                        <span class="thumb-page-label">{thumb.pageLabel}</span>
+                                    </template>
+                                </span>
+                                <span class="thumb-caption">{thumb.label}</span>
+                            </button>
                         </template>
-                        <template if:false={thumb.url}>
-                            <span class="thumb-page-label">{thumb.pageLabel}</span>
-                        </template>
-                    </button>
+                    </div>
                 </template>
-            </div>
-            <div class="player-controls">
-                <lightning-button
-                    label="Previous"
-                    icon-name="utility:chevronleft"
-                    onclick={handlePrevious}
-                    disabled={isPreviousDisabled}
-                ></lightning-button>
-                <lightning-button
-                    label="Next"
-                    icon-name="utility:chevronright"
-                    icon-position="right"
-                    onclick={handleNext}
-                    disabled={isNextDisabled}
-                ></lightning-button>
-                <lightning-button
-                    label="Complete"
-                    variant="brand"
-                    onclick={handleComplete}
-                    disabled={isCompleteDisabled}
-                ></lightning-button>
-                <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
-            </div>
-        </footer>
+                <template if:true={isPresentationsTab}>
+                    <div class="thumb-strip" role="list" aria-label="Cached presentations">
+                        <template for:each={libraryItems} for:item="item">
+                            <button
+                                key={item.key}
+                                class={item.className}
+                                data-id={item.id}
+                                data-name={item.name}
+                                onclick={handleLibrarySelect}
+                                title={item.name}
+                            >
+                                <span class="thumb-frame">
+                                    <template if:true={item.imageUrl}>
+                                        <img src={item.imageUrl} alt={item.name} />
+                                    </template>
+                                    <template if:false={item.imageUrl}>
+                                        <span class="thumb-page-label">{item.formatLabel}</span>
+                                    </template>
+                                </span>
+                                <span class="thumb-caption">{item.name}</span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+            </footer>
+        </template>
     </section>
 </template>

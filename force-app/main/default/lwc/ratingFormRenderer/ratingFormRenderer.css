@@ -105,6 +105,10 @@
     color: var(--rating-brand);
 }
 
+.toggle-text-off {
+    color: #706e6b;
+}
+
 .donut-wrap {
     position: relative;
     width: 4.5rem;

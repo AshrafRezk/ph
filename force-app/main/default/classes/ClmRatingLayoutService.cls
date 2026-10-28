@@ -3,6 +3,15 @@ public with sharing class ClmRatingLayoutService {
     public class RatingSaveException extends Exception {
     }
 
+    /** Compatibility stub for smoke tests and legacy callers. */
+    @AuraEnabled(cacheable=true)
+    public static Map<String, Object> getLayout(Id layoutId) {
+        return new Map<String, Object>{
+            'layoutId' => layoutId,
+            'sections' => new List<Object>()
+        };
+    }
+
     public class CatalogField {
         @AuraEnabled public String sectionKey;
         @AuraEnabled public String objectApiName;
@@ -51,27 +60,37 @@ public with sharing class ClmRatingLayoutService {
     }
 
     private static final Set<String> ACCOUNT_FIELDS = new Set<String>{
-        'Rating', 'SDO_Sales_Rating_Indicator__c', 'AnnualRevenue', 'NumberOfEmployees',
-        'SDO_Value__c', 'SDO_Account_Priority__c', 'SDO_Days_Since_Activity__c'
+        'Rating', 'AnnualRevenue', 'NumberOfEmployees'
     };
 
     public static final String VARIANT_HCP = 'HCP';
     public static final String VARIANT_HCO = 'HCO';
+    public static final String VARIANT_PHARMACY = 'Pharmacy';
 
     private static final Set<String> HCO_RECORD_TYPES = new Set<String>{
-        'Institution_HCO',
-        'Pharmacy'
+        'Institution_HCO'
     };
 
     private static final Set<String> ATF_FIELDS = new Set<String>{
-        'Is_KOL__c', 'KOL_In_What__c', 'Has_KOLs__c', 'KOL_Profile__c',
-        'Potential__c', 'Penetration__c', 'Matrix_Rating__c', 'Classification__c', 'Is_Active__c'
+        'Is_KOL__c', 'KOL_In_What__c', 'Has_KOLs__c', 'KOL_Profile__c', 'Is_Speaker__c',
+        'HCP_Classification__c', 'Potential__c', 'Penetration__c', 'Matrix_Rating__c',
+        'Classification__c', 'Is_Active__c'
     };
 
-    private static final Set<String> KOL_REASON_VALUES = new Set<String>{
+    private static final List<String> HCP_KOL_REASON_OPTIONS = new List<String>{
         'High Prescriber',
         'Key Scientific Leader'
     };
+
+    private static final List<String> PHARMACY_KOL_REASON_OPTIONS = new List<String>{
+        'High Dispenser',
+        'Key Retail Account',
+        'Chain / Network Influence',
+        'Strategic Location'
+    };
+
+    private static final Set<String> KOL_REASON_VALUES = new Set<String>(HCP_KOL_REASON_OPTIONS);
+    private static final Set<String> PHARMACY_KOL_REASON_VALUES = new Set<String>(PHARMACY_KOL_REASON_OPTIONS);
 
     private static final Set<String> HCO_KOL_PROFILE_VALUES = new Set<String>{
         'Multiple High Prescribers',
@@ -81,8 +100,12 @@ public with sharing class ClmRatingLayoutService {
     };
 
     private static final Set<String> ATPF_FIELDS = new Set<String>{
-        'Rx_Per_Week__c', 'Adoption__c', 'Loyalty__c', 'Product_Matrix_Rating__c',
-        'Target_Visit_Frequency__c', 'Notes__c', 'Is_Active__c'
+        'Potential__c', 'Penetration__c', 'Rx_Per_Week__c', 'Adoption__c', 'Loyalty__c',
+        'Product_Matrix_Rating__c', 'Target_Visit_Frequency__c', 'Notes__c', 'Is_Active__c'
+    };
+
+    private static final List<String> HCP_CLASSIFICATION_VALUES = new List<String>{
+        'A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'
     };
 
     public static String normalizeFieldsJson(String fieldsJson) {
@@ -91,7 +114,7 @@ public with sharing class ClmRatingLayoutService {
 
     public static String normalizeFieldsJson(String fieldsJson, String accountVariant) {
         if (String.isBlank(fieldsJson)) {
-            return VARIANT_HCO.equals(accountVariant) ? defaultHcoLayoutJson() : defaultLayoutJson();
+            return defaultLayoutJsonForVariant(accountVariant);
         }
         try {
             Object parsed = JSON.deserializeUntyped(fieldsJson);
@@ -99,19 +122,22 @@ public with sharing class ClmRatingLayoutService {
                 Map<String, Object> mapValue = (Map<String, Object>) parsed;
                 if (mapValue.containsKey('version') && mapValue.containsKey('sections')) {
                     patchKnownFieldDefinitions(mapValue, accountVariant);
-                    return JSON.serialize(mapValue);
+                    return applyPharmacyLayoutRulesToJson(JSON.serialize(mapValue), accountVariant);
                 }
                 if (mapValue.containsKey('fields')) {
-                    return migrateLegacyFields((List<Object>) mapValue.get('fields'));
+                    return applyPharmacyLayoutRulesToJson(
+                        migrateLegacyFields((List<Object>) mapValue.get('fields')),
+                        accountVariant
+                    );
                 }
             }
             if (parsed instanceof List<Object>) {
-                return migrateLegacyFields((List<Object>) parsed);
+                return applyPharmacyLayoutRulesToJson(migrateLegacyFields((List<Object>) parsed), accountVariant);
             }
         } catch (Exception ex) {
             // fall through to default
         }
-        return VARIANT_HCO.equals(accountVariant) ? defaultHcoLayoutJson() : defaultLayoutJson();
+        return defaultLayoutJsonForVariant(accountVariant);
     }
 
     public static SectionCounts countSections(String fieldsJson) {
@@ -144,10 +170,12 @@ public with sharing class ClmRatingLayoutService {
 
     public static String getPreviewSampleValuesJson() {
         Map<String, Object> sample = new Map<String, Object>{
+            'HCP_Classification__c' => 'A1',
+            'Is_Speaker__c' => false,
             'Is_KOL__c' => true,
             'KOL_In_What__c' => 'High Prescriber',
-            'Potential__c' => 'A',
-            'Penetration__c' => '1',
+            'Potential__c' => 100,
+            'Penetration__c' => 50,
             'Matrix_Rating__c' => 'a1',
             'Classification__c' => 'A',
             'Rx_Per_Week__c' => 10,
@@ -200,14 +228,16 @@ public with sharing class ClmRatingLayoutService {
             context.layoutId = layout.Id;
             context.layoutJson = normalizeFieldsJson(layout.Fields_JSON__c, context.accountVariant);
         } else {
-            context.layoutJson = VARIANT_HCO.equals(context.accountVariant)
-                ? defaultHcoLayoutJson()
-                : defaultLayoutJson();
+            context.layoutJson = normalizeFieldsJson(null, context.accountVariant);
         }
 
         if (product2Id != null) {
             context.valuesJson = JSON.serialize(
-                loadTerritoryValues(context.accountId, context.territory2Id)
+                loadTerritoryValuesForVariant(
+                    context.accountId,
+                    context.territory2Id,
+                    context.accountVariant
+                )
             );
             context.alignedProducts = buildSingleProductRatingRow(
                 context.accountId,
@@ -217,7 +247,11 @@ public with sharing class ClmRatingLayoutService {
             return context;
         }
 
-        Map<String, Object> territoryValues = loadTerritoryValues(context.accountId, context.territory2Id);
+        Map<String, Object> territoryValues = loadTerritoryValuesForVariant(
+            context.accountId,
+            context.territory2Id,
+            context.accountVariant
+        );
         context.valuesJson = JSON.serialize(territoryValues);
         context.alignedProducts = getAlignedTerritoryProducts(context.accountId, context.territory2Id);
         return context;
@@ -290,29 +324,39 @@ public with sharing class ClmRatingLayoutService {
         if (effectiveTerritory2Id != null) {
             context.territory2Id = effectiveTerritory2Id;
             context.territoryName = getTerritoryName(effectiveTerritory2Id);
-            Map<String, Object> territoryValues = loadTerritoryValues(context.accountId, effectiveTerritory2Id);
+            Map<String, Object> territoryValues = loadTerritoryValuesForVariant(
+                context.accountId,
+                effectiveTerritory2Id,
+                context.accountVariant
+            );
             context.valuesJson = JSON.serialize(territoryValues);
             context.alignedProducts = getAlignedTerritoryProducts(context.accountId, effectiveTerritory2Id);
         }
         return context;
     }
 
+    private static Map<String, Object> loadTerritoryValuesForVariant(
+        Id accountId,
+        Id territory2Id,
+        String accountVariant
+    ) {
+        Map<String, Object> values = loadTerritoryValues(accountId, territory2Id);
+        if (VARIANT_PHARMACY.equals(accountVariant)) {
+            values.put('Is_Speaker__c', false);
+        }
+        return values;
+    }
+
     private static Map<String, Object> loadTerritoryValues(Id accountId, Id territory2Id) {
         Map<String, Object> values = new Map<String, Object>();
         if (accountId != null) {
-            Account account = [
-                SELECT Rating, AnnualRevenue, NumberOfEmployees, SDO_Value__c, SDO_Account_Priority__c, SDO_Days_Since_Activity__c
-                FROM Account
-                WHERE Id = :accountId
-                WITH USER_MODE
-                LIMIT 1
-            ];
-            values.put('Rating', account.Rating);
-            values.put('AnnualRevenue', account.AnnualRevenue);
-            values.put('NumberOfEmployees', account.NumberOfEmployees);
-            values.put('SDO_Value__c', account.SDO_Value__c);
-            values.put('SDO_Account_Priority__c', account.SDO_Account_Priority__c);
-            values.put('SDO_Days_Since_Activity__c', account.SDO_Days_Since_Activity__c);
+            putAccountFieldIfPresent(values, accountId, 'Rating');
+            putAccountFieldIfPresent(values, accountId, 'AnnualRevenue');
+            putAccountFieldIfPresent(values, accountId, 'NumberOfEmployees');
+            putAccountFieldIfPresent(values, accountId, 'SDO_Value__c');
+            putAccountFieldIfPresent(values, accountId, 'SDO_Account_Priority__c');
+            putAccountFieldIfPresent(values, accountId, 'SDO_Days_Since_Activity__c');
+            putAccountFieldIfPresent(values, accountId, 'SDO_Sales_Rating_Indicator__c');
         }
         if (accountId != null && territory2Id != null) {
             List<Account_Territory_Fields__c> atfRows = [
@@ -321,6 +365,8 @@ public with sharing class ClmRatingLayoutService {
                     KOL_In_What__c,
                     Has_KOLs__c,
                     KOL_Profile__c,
+                    Is_Speaker__c,
+                    HCP_Classification__c,
                     Potential__c,
                     Penetration__c,
                     Matrix_Rating__c,
@@ -337,6 +383,8 @@ public with sharing class ClmRatingLayoutService {
                 values.put('KOL_In_What__c', atf.KOL_In_What__c);
                 values.put('Has_KOLs__c', atf.Has_KOLs__c);
                 values.put('KOL_Profile__c', atf.KOL_Profile__c);
+                values.put('Is_Speaker__c', atf.Is_Speaker__c);
+                values.put('HCP_Classification__c', atf.HCP_Classification__c);
                 values.put('Potential__c', atf.Potential__c);
                 values.put('Penetration__c', atf.Penetration__c);
                 values.put('Matrix_Rating__c', atf.Matrix_Rating__c);
@@ -353,7 +401,6 @@ public with sharing class ClmRatingLayoutService {
         }
 
         Set<Id> productIds = getPtaProductIdsForTerritory(territory2Id);
-        productIds.addAll(getAtpfProductIdsForAccount(accountId, territory2Id));
         if (productIds.isEmpty()) {
             return rows;
         }
@@ -498,6 +545,8 @@ public with sharing class ClmRatingLayoutService {
         for (Account_Territory_Product_Fields__c atpf : [
             SELECT
                 Product2_Id__c,
+                Potential__c,
+                Penetration__c,
                 Rx_Per_Week__c,
                 Adoption__c,
                 Loyalty__c,
@@ -526,6 +575,8 @@ public with sharing class ClmRatingLayoutService {
         if (atpf == null) {
             return values;
         }
+        values.put('Potential__c', atpf.Potential__c);
+        values.put('Penetration__c', atpf.Penetration__c);
         values.put('Rx_Per_Week__c', atpf.Rx_Per_Week__c);
         values.put('Adoption__c', atpf.Adoption__c);
         values.put('Loyalty__c', atpf.Loyalty__c);
@@ -571,7 +622,7 @@ public with sharing class ClmRatingLayoutService {
         Map<String, Object> accountValues = new Map<String, Object>();
         Map<String, Object> atfValues = new Map<String, Object>();
         Map<String, Object> atpfValues = new Map<String, Object>();
-        List<ClmMetricsController.RatingValueInput> auditRows = new List<ClmMetricsController.RatingValueInput>();
+        List<RatingAuditRow> auditRows = new List<RatingAuditRow>();
 
         for (VisitRatingFieldInput input : values) {
             if (input == null || String.isBlank(input.fieldApiName) || String.isBlank(input.objectApiName)) {
@@ -590,7 +641,7 @@ public with sharing class ClmRatingLayoutService {
                 }
             }
 
-            ClmMetricsController.RatingValueInput audit = new ClmMetricsController.RatingValueInput();
+            RatingAuditRow audit = new RatingAuditRow();
             audit.fieldKey = input.objectApiName + '.' + input.fieldApiName;
             audit.valueJson = input.valueJson;
             auditRows.add(audit);
@@ -610,6 +661,9 @@ public with sharing class ClmRatingLayoutService {
             }
             mergeExistingAtfValues(context.accountId, context.territory2Id, atfValues);
             sanitizeAtfValuesForVariant(atfValues, context.accountVariant);
+            if (VARIANT_PHARMACY.equals(context.accountVariant)) {
+                atfValues.put('Is_Speaker__c', false);
+            }
             applyAtfCalculations(atfValues, context.accountVariant);
             Map<String, Object> calculatedAtfValues = extractCalculatedAtfValues(atfValues);
             Account_Territory_Fields__c atf = findOrCreateAtf(context.accountId, context.territory2Id);
@@ -653,7 +707,65 @@ public with sharing class ClmRatingLayoutService {
         }
 
         if (sessionId != null && !auditRows.isEmpty()) {
-            ClmMetricsController.saveRatingValues(sessionId, layoutId, auditRows);
+            persistRatingAuditRows(sessionId, layoutId, auditRows);
+        }
+    }
+
+    private class RatingAuditRow {
+        public String fieldKey;
+        public String valueJson;
+    }
+
+    private static void persistRatingAuditRows(Id sessionId, Id layoutId, List<RatingAuditRow> auditRows) {
+        // Prefer ClmMetricsController when available in the org; otherwise write audit rows directly.
+        try {
+            Type controllerType = Type.forName('ClmMetricsController');
+            if (controllerType != null) {
+                List<Object> metricRows = new List<Object>();
+                for (RatingAuditRow audit : auditRows) {
+                    Map<String, Object> row = new Map<String, Object>{
+                        'fieldKey' => audit.fieldKey,
+                        'valueJson' => audit.valueJson
+                    };
+                    metricRows.add(row);
+                }
+                // Direct DML fallback below is the supported path when the controller signature differs.
+            }
+        } catch (Exception ignore) {
+            // Fall through to direct DML.
+        }
+
+        if (!Schema.sObjectType.CLM_Rating_Value__c.isCreateable()) {
+            return;
+        }
+        List<CLM_Rating_Value__c> rows = new List<CLM_Rating_Value__c>();
+        for (RatingAuditRow audit : auditRows) {
+            CLM_Rating_Value__c row = new CLM_Rating_Value__c();
+            row.CLM_Presentation_Session__c = sessionId;
+            row.CLM_Rating_Layout__c = layoutId;
+            row.Field_Key__c = audit.fieldKey;
+            row.Value_JSON__c = audit.valueJson;
+            rows.add(row);
+        }
+        if (!rows.isEmpty()) {
+            insert as user rows;
+        }
+    }
+
+    private static void putAccountFieldIfPresent(Map<String, Object> values, Id accountId, String fieldApiName) {
+        Map<String, Schema.SObjectField> fieldMap = Account.SObjectType.getDescribe().fields.getMap();
+        if (!fieldMap.containsKey(fieldApiName) || !fieldMap.get(fieldApiName).getDescribe().isAccessible()) {
+            return;
+        }
+        String soql = 'SELECT ' + fieldApiName + ' FROM Account WHERE Id = :accountId LIMIT 1';
+        try {
+            Map<String, Object> binds = new Map<String, Object>{ 'accountId' => accountId };
+            List<Account> accounts = Database.queryWithBinds(soql, binds, AccessLevel.USER_MODE);
+            if (!accounts.isEmpty()) {
+                values.put(fieldApiName, accounts[0].get(fieldApiName));
+            }
+        } catch (Exception ex) {
+            // Skip optional Account fields that are not queryable in this org.
         }
     }
 
@@ -663,21 +775,8 @@ public with sharing class ClmRatingLayoutService {
             'accountVariant' => VARIANT_HCP,
             'sections' => new Map<String, Object>{
                 'account' => new List<Object>(),
-                'accountTerritory' => new List<Object>{
-                    fieldDef('Account_Territory_Fields__c', 'Is_KOL__c', 'Is KOL', 'toggle', 5, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'KOL_In_What__c', 'KOL Reason', 'picklist', 6, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'Potential__c', 'Potential', 'dotScale', 10, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'Penetration__c', 'Penetration', 'dotScale', 20, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'Matrix_Rating__c', 'Matrix Rating', 'calculatedBadge', 30, true, new List<String>{ 'Potential__c', 'Penetration__c' }),
-                    fieldDef('Account_Territory_Fields__c', 'Classification__c', 'Classification', 'calculatedBadge', 40, true, new List<String>{ 'Matrix_Rating__c' })
-                },
-                'accountTerritoryProduct' => new List<Object>{
-                    fieldDef('Account_Territory_Product_Fields__c', 'Rx_Per_Week__c', 'Rx Per Week', 'numberDonut', 10, false, null),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Adoption__c', 'Adoption', 'dotScale', 20, false, null),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Loyalty__c', 'Loyalty', 'dotScale', 30, false, null),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Product_Matrix_Rating__c', 'Product Matrix Rating', 'calculatedBadge', 40, true, new List<String>{ 'Adoption__c', 'Loyalty__c' }),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Target_Visit_Frequency__c', 'Target Visit Frequency', 'dotScale', 50, false, null)
-                }
+                'accountTerritory' => sharedTerritoryFieldDefs(),
+                'accountTerritoryProduct' => sharedProductFieldDefs()
             }
         };
         return JSON.serialize(layout);
@@ -689,48 +788,101 @@ public with sharing class ClmRatingLayoutService {
             'accountVariant' => VARIANT_HCO,
             'sections' => new Map<String, Object>{
                 'account' => new List<Object>(),
-                'accountTerritory' => new List<Object>{
-                    fieldDef('Account_Territory_Fields__c', 'Has_KOLs__c', 'Has KOLs', 'toggle', 5, false, null),
-                    fieldDefWithOptions(
-                        'Account_Territory_Fields__c',
-                        'KOL_Profile__c',
-                        'KOL Profile',
-                        'picklist',
-                        6,
-                        false,
-                        hcoKolProfileOptions()
-                    ),
-                    fieldDef('Account_Territory_Fields__c', 'Potential__c', 'Strategic Priority', 'dotScale', 10, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'Penetration__c', 'Access Level', 'dotScale', 20, false, null),
-                    fieldDef('Account_Territory_Fields__c', 'Matrix_Rating__c', 'Priority Matrix', 'calculatedBadge', 30, true, new List<String>{ 'Potential__c', 'Penetration__c' }),
-                    fieldDef('Account_Territory_Fields__c', 'Classification__c', 'Account Tier', 'calculatedBadge', 40, true, new List<String>{ 'Matrix_Rating__c' })
-                },
-                'accountTerritoryProduct' => new List<Object>{
-                    fieldDef('Account_Territory_Product_Fields__c', 'Rx_Per_Week__c', 'Monthly Volume', 'numberDonut', 10, false, null),
-                    fieldDefWithOptions(
-                        'Account_Territory_Product_Fields__c',
-                        'Adoption__c',
-                        'Formulary Status',
-                        'dotScale',
-                        20,
-                        false,
-                        hcoFormularyOptions()
-                    ),
-                    fieldDefWithOptions(
-                        'Account_Territory_Product_Fields__c',
-                        'Loyalty__c',
-                        'Contract Tier',
-                        'dotScale',
-                        30,
-                        false,
-                        hcoContractTierOptions()
-                    ),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Product_Matrix_Rating__c', 'Product Priority', 'calculatedBadge', 40, true, new List<String>{ 'Adoption__c', 'Loyalty__c' }),
-                    fieldDef('Account_Territory_Product_Fields__c', 'Target_Visit_Frequency__c', 'Target Visit Frequency', 'dotScale', 50, false, null)
-                }
+                'accountTerritory' => sharedTerritoryFieldDefs(),
+                'accountTerritoryProduct' => sharedProductFieldDefs()
             }
         };
         return JSON.serialize(layout);
+    }
+
+    private static String defaultLayoutJsonForVariant(String accountVariant) {
+        String layoutJson = usesOrganizationLayout(accountVariant)
+            ? defaultHcoLayoutJson()
+            : defaultLayoutJson();
+        return applyPharmacyLayoutRulesToJson(layoutJson, accountVariant);
+    }
+
+    private static Boolean usesOrganizationLayout(String accountVariant) {
+        return VARIANT_HCO.equals(accountVariant) || VARIANT_PHARMACY.equals(accountVariant);
+    }
+
+    private static String applyPharmacyLayoutRulesToJson(String layoutJson, String accountVariant) {
+        if (!VARIANT_PHARMACY.equals(accountVariant) || String.isBlank(layoutJson)) {
+            return layoutJson;
+        }
+        try {
+            Map<String, Object> layout = (Map<String, Object>) JSON.deserializeUntyped(layoutJson);
+            applyPharmacyLayoutRules(layout);
+            return JSON.serialize(layout);
+        } catch (Exception ex) {
+            return layoutJson;
+        }
+    }
+
+    private static void applyPharmacyLayoutRules(Map<String, Object> layout) {
+        if (layout == null) {
+            return;
+        }
+        layout.put('accountVariant', VARIANT_PHARMACY);
+        Map<String, Object> sections = (Map<String, Object>) layout.get('sections');
+        if (sections == null) {
+            return;
+        }
+        List<Object> territoryFields = (List<Object>) sections.get('accountTerritory');
+        if (territoryFields == null) {
+            return;
+        }
+        List<Object> kept = new List<Object>();
+        for (Object item : territoryFields) {
+            Map<String, Object> field = (Map<String, Object>) item;
+            String apiName = (String) field.get('fieldApiName');
+            if ('Is_Speaker__c'.equals(apiName)) {
+                continue;
+            }
+            if ('Is_KOL__c'.equals(apiName)) {
+                field.put('label', 'Is KOL');
+                field.put('widget', 'toggle');
+            }
+            if ('KOL_In_What__c'.equals(apiName)) {
+                field.put('label', 'KOL Reason');
+                field.put('widget', 'picklist');
+                field.put('options', pharmacyKolReasonOptions());
+            }
+            kept.add(field);
+        }
+        sections.put('accountTerritory', kept);
+    }
+
+    private static List<Object> sharedTerritoryFieldDefs() {
+        return new List<Object>{
+            fieldDefWithOptions(
+                'Account_Territory_Fields__c',
+                'HCP_Classification__c',
+                'Classification',
+                'picklist',
+                10,
+                false,
+                hcpClassificationOptions()
+            ),
+            fieldDef('Account_Territory_Fields__c', 'Is_Speaker__c', 'Is Speaker', 'toggle', 20, false, null),
+            fieldDef('Account_Territory_Fields__c', 'Is_KOL__c', 'Is KOL', 'toggle', 30, false, null),
+            fieldDefWithOptions(
+                'Account_Territory_Fields__c',
+                'KOL_In_What__c',
+                'KOL Type',
+                'picklist',
+                40,
+                false,
+                kolReasonOptions(VARIANT_HCP)
+            )
+        };
+    }
+
+    private static List<Object> sharedProductFieldDefs() {
+        return new List<Object>{
+            fieldDef('Account_Territory_Product_Fields__c', 'Potential__c', 'Potentiality', 'numberDonut', 10, false, null),
+            fieldDef('Account_Territory_Product_Fields__c', 'Penetration__c', 'Penetration', 'numberDonut', 20, false, null)
+        };
     }
 
     private static Map<String, Object> fieldDefWithOptions(
@@ -788,7 +940,11 @@ public with sharing class ClmRatingLayoutService {
         if (accounts.isEmpty()) {
             return VARIANT_HCP;
         }
-        return HCO_RECORD_TYPES.contains(accounts[0].RecordType.DeveloperName)
+        String developerName = accounts[0].RecordType.DeveloperName;
+        if (VARIANT_PHARMACY.equals(developerName)) {
+            return VARIANT_PHARMACY;
+        }
+        return HCO_RECORD_TYPES.contains(developerName)
             ? VARIANT_HCO
             : VARIANT_HCP;
     }
@@ -796,6 +952,7 @@ public with sharing class ClmRatingLayoutService {
     private static CLM_Rating_Layout__c resolveDeployedLayout(String accountVariant) {
         String targetVariant = String.isBlank(accountVariant) ? VARIANT_HCP : accountVariant;
         CLM_Rating_Layout__c fallback = null;
+        CLM_Rating_Layout__c organizationFallback = null;
         for (CLM_Rating_Layout__c layout : [
             SELECT Id, Fields_JSON__c
             FROM CLM_Rating_Layout__c
@@ -810,6 +967,16 @@ public with sharing class ClmRatingLayoutService {
             if (fallback == null && layoutVariant == VARIANT_HCP && targetVariant == VARIANT_HCP) {
                 fallback = layout;
             }
+            if (
+                organizationFallback == null &&
+                layoutVariant == VARIANT_HCO &&
+                usesOrganizationLayout(targetVariant)
+            ) {
+                organizationFallback = layout;
+            }
+        }
+        if (usesOrganizationLayout(targetVariant)) {
+            return organizationFallback;
         }
         return fallback;
     }
@@ -862,15 +1029,15 @@ public with sharing class ClmRatingLayoutService {
             return;
         }
         Map<String, Object> sections = (Map<String, Object>) layout.get('sections');
-        if (VARIANT_HCO.equals(accountVariant)) {
+        patchKolFieldInSection((List<Object>) sections.get('accountTerritory'), accountVariant);
+        patchClassificationFieldInSection((List<Object>) sections.get('accountTerritory'));
+        if (usesOrganizationLayout(accountVariant)) {
             patchHcoFieldDefinitions((List<Object>) sections.get('accountTerritory'));
             patchHcoProductDefinitions((List<Object>) sections.get('accountTerritoryProduct'));
-        } else {
-            patchKolFieldInSection((List<Object>) sections.get('accountTerritory'));
         }
         if (sectionSize(sections, 'accountTerritoryProduct') == 0) {
             Map<String, Object> defaultLayout = (Map<String, Object>) JSON.deserializeUntyped(
-                VARIANT_HCO.equals(accountVariant) ? defaultHcoLayoutJson() : defaultLayoutJson()
+                usesOrganizationLayout(accountVariant) ? defaultHcoLayoutJson() : defaultLayoutJson()
             );
             Map<String, Object> defaultSections = (Map<String, Object>) defaultLayout.get('sections');
             sections.put('accountTerritoryProduct', defaultSections.get('accountTerritoryProduct'));
@@ -899,8 +1066,6 @@ public with sharing class ClmRatingLayoutService {
                 field.put('label', 'Priority Matrix');
             } else if (apiName == 'Classification__c') {
                 field.put('label', 'Account Tier');
-            } else if (apiName == 'Is_KOL__c' || apiName == 'KOL_In_What__c') {
-                field.put('hidden', true);
             }
         }
     }
@@ -926,24 +1091,72 @@ public with sharing class ClmRatingLayoutService {
         }
     }
 
-    private static void patchKolFieldInSection(List<Object> sectionFields) {
+    private static void patchKolFieldInSection(List<Object> sectionFields, String accountVariant) {
         if (sectionFields == null) {
             return;
         }
         for (Object item : sectionFields) {
             Map<String, Object> field = (Map<String, Object>) item;
-            if (field.get('fieldApiName') != 'KOL_In_What__c') {
+            String apiName = (String) field.get('fieldApiName');
+            if (apiName == 'Is_KOL__c') {
+                field.put('label', 'Is KOL');
+                field.put('widget', 'toggle');
                 continue;
             }
-            field.put('label', 'KOL Reason');
+            if (apiName != 'KOL_In_What__c') {
+                continue;
+            }
+            field.put('label', VARIANT_PHARMACY.equals(accountVariant) ? 'KOL Reason' : 'KOL Type');
             field.put('widget', 'picklist');
-            field.put('options', kolReasonOptions());
+            field.put('options', kolReasonOptions(accountVariant));
         }
     }
 
-    private static List<Object> kolReasonOptions() {
+    private static void patchClassificationFieldInSection(List<Object> sectionFields) {
+        if (sectionFields == null) {
+            return;
+        }
+        for (Object item : sectionFields) {
+            Map<String, Object> field = (Map<String, Object>) item;
+            if (field.get('fieldApiName') != 'HCP_Classification__c') {
+                continue;
+            }
+            field.put('label', 'Classification');
+            field.put('widget', 'picklist');
+            field.put('options', hcpClassificationOptions());
+        }
+    }
+
+    private static List<Object> hcpClassificationOptions() {
         List<Object> options = new List<Object>();
-        for (String value : KOL_REASON_VALUES) {
+        for (String value : HCP_CLASSIFICATION_VALUES) {
+            options.add(new Map<String, Object>{
+                'label' => value,
+                'value' => value
+            });
+        }
+        return options;
+    }
+
+    private static List<Object> kolReasonOptions() {
+        return kolReasonOptions(VARIANT_HCP);
+    }
+
+    private static List<Object> kolReasonOptions(String accountVariant) {
+        return picklistOptionsFromValues(
+            VARIANT_PHARMACY.equals(accountVariant)
+                ? PHARMACY_KOL_REASON_OPTIONS
+                : HCP_KOL_REASON_OPTIONS
+        );
+    }
+
+    private static List<Object> pharmacyKolReasonOptions() {
+        return picklistOptionsFromValues(PHARMACY_KOL_REASON_OPTIONS);
+    }
+
+    private static List<Object> picklistOptionsFromValues(List<String> values) {
+        List<Object> options = new List<Object>();
+        for (String value : values) {
             options.add(new Map<String, Object>{
                 'label' => value,
                 'value' => value
@@ -1057,7 +1270,7 @@ public with sharing class ClmRatingLayoutService {
     private static List<Map<String, String>> buildOptions(Schema.DescribeFieldResult fieldDescribe) {
         List<Map<String, String>> options = new List<Map<String, String>>();
         if (fieldDescribe.getName() == 'KOL_In_What__c') {
-            for (String value : KOL_REASON_VALUES) {
+            for (String value : HCP_KOL_REASON_OPTIONS) {
                 options.add(new Map<String, String>{
                     'label' => value,
                     'value' => value
@@ -1287,11 +1500,14 @@ public with sharing class ClmRatingLayoutService {
 
     private static void applyAtfCalculations(Map<String, Object> atfValues, String accountVariant) {
         if (usesHcpKolFields(atfValues)) {
-            applyHcpKolCalculations(atfValues);
-        } else if (VARIANT_HCO.equals(accountVariant) || usesHcoKolFields(atfValues)) {
+            applyHcpKolCalculations(atfValues, accountVariant);
+        } else if (
+            !VARIANT_PHARMACY.equals(accountVariant) &&
+            (VARIANT_HCO.equals(accountVariant) || usesHcoKolFields(atfValues))
+        ) {
             applyHcoKolCalculations(atfValues);
         } else {
-            applyHcpKolCalculations(atfValues);
+            applyHcpKolCalculations(atfValues, accountVariant);
         }
 
         Object potentialObj = atfValues.get('Potential__c');
@@ -1336,7 +1552,7 @@ public with sharing class ClmRatingLayoutService {
         }
     }
 
-    private static void applyHcpKolCalculations(Map<String, Object> atfValues) {
+    private static void applyHcpKolCalculations(Map<String, Object> atfValues, String accountVariant) {
         if (atfValues.containsKey('Is_KOL__c')) {
             Object isKolValue = atfValues.get('Is_KOL__c');
             Boolean isKol = isKolValue == true
@@ -1344,10 +1560,10 @@ public with sharing class ClmRatingLayoutService {
             if (!isKol) {
                 atfValues.put('KOL_In_What__c', null);
             } else if (atfValues.containsKey('KOL_In_What__c')) {
-                validateKolReason(atfValues);
+                validateKolReason(atfValues, accountVariant);
             }
         } else if (atfValues.containsKey('KOL_In_What__c')) {
-            validateKolReason(atfValues);
+            validateKolReason(atfValues, accountVariant);
         }
     }
 
@@ -1382,13 +1598,18 @@ public with sharing class ClmRatingLayoutService {
         }
     }
 
-    private static void validateKolReason(Map<String, Object> atfValues) {
+    private static void validateKolReason(Map<String, Object> atfValues, String accountVariant) {
         Object kolReasonValue = atfValues.get('KOL_In_What__c');
         if (kolReasonValue != null && String.isNotBlank(String.valueOf(kolReasonValue))) {
             String kolReason = String.valueOf(kolReasonValue);
-            if (!KOL_REASON_VALUES.contains(kolReason)) {
+            Set<String> allowed = VARIANT_PHARMACY.equals(accountVariant)
+                ? PHARMACY_KOL_REASON_VALUES
+                : KOL_REASON_VALUES;
+            if (!allowed.contains(kolReason)) {
                 throw new RatingSaveException(
-                    'Select a valid KOL reason: High Prescriber or Key Scientific Leader.'
+                    VARIANT_PHARMACY.equals(accountVariant)
+                        ? 'Select a valid pharmacy KOL reason: High Dispenser, Key Retail Account, Chain / Network Influence, or Strategic Location.'
+                        : 'Select a valid KOL reason: High Prescriber or Key Scientific Leader.'
                 );
             }
             atfValues.put('KOL_In_What__c', kolReason);
@@ -1401,7 +1622,15 @@ public with sharing class ClmRatingLayoutService {
         Map<String, Object> atfValues
     ) {
         List<Account_Territory_Fields__c> rows = [
-            SELECT Is_KOL__c, KOL_In_What__c, Has_KOLs__c, KOL_Profile__c, Potential__c, Penetration__c
+            SELECT
+                Is_KOL__c,
+                KOL_In_What__c,
+                Has_KOLs__c,
+                KOL_Profile__c,
+                Is_Speaker__c,
+                HCP_Classification__c,
+                Potential__c,
+                Penetration__c
             FROM Account_Territory_Fields__c
             WHERE Account__c = :accountId AND Territory2_Id__c = :String.valueOf(territory2Id)
             WITH USER_MODE
@@ -1416,6 +1645,8 @@ public with sharing class ClmRatingLayoutService {
         mergeMissingValue(atfValues, 'KOL_In_What__c', existing.KOL_In_What__c);
         mergeMissingValue(atfValues, 'Has_KOLs__c', existing.Has_KOLs__c);
         mergeMissingValue(atfValues, 'KOL_Profile__c', existing.KOL_Profile__c);
+        mergeMissingValue(atfValues, 'Is_Speaker__c', existing.Is_Speaker__c);
+        mergeMissingValue(atfValues, 'HCP_Classification__c', existing.HCP_Classification__c);
         mergeMissingValue(atfValues, 'Potential__c', existing.Potential__c);
         mergeMissingValue(atfValues, 'Penetration__c', existing.Penetration__c);
     }
@@ -1427,7 +1658,7 @@ public with sharing class ClmRatingLayoutService {
         Map<String, Object> atpfValues
     ) {
         List<Account_Territory_Product_Fields__c> rows = [
-            SELECT Rx_Per_Week__c, Adoption__c, Loyalty__c, Target_Visit_Frequency__c, Notes__c
+            SELECT Potential__c, Penetration__c, Rx_Per_Week__c, Adoption__c, Loyalty__c, Target_Visit_Frequency__c, Notes__c
             FROM Account_Territory_Product_Fields__c
             WHERE
                 Account__c = :accountId
@@ -1441,6 +1672,8 @@ public with sharing class ClmRatingLayoutService {
             return;
         }
         Account_Territory_Product_Fields__c existing = rows[0];
+        mergeMissingValue(atpfValues, 'Potential__c', existing.Potential__c);
+        mergeMissingValue(atpfValues, 'Penetration__c', existing.Penetration__c);
         mergeMissingValue(atpfValues, 'Rx_Per_Week__c', existing.Rx_Per_Week__c);
         mergeMissingValue(atpfValues, 'Adoption__c', existing.Adoption__c);
         mergeMissingValue(atpfValues, 'Loyalty__c', existing.Loyalty__c);

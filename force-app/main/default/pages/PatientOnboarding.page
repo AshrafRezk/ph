@@ -1,0 +1,143 @@
+<apex:page controller="PatientOnboardingController" showHeader="false" sidebar="false" standardStylesheets="false" docType="html-5.0" applyHtmlTag="false" applyBodyTag="false" cache="false">
+    <html lang="en">
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <meta name="robots" content="noindex, nofollow" />
+            <title>Patient history</title>
+            <style>
+                :root { color-scheme: light; }
+                * { box-sizing: border-box; }
+                body { margin: 0; font-family: "Salesforce Sans", Arial, sans-serif; background: #f4f7f8; color: #181818; }
+                .wrap { max-width: 40rem; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; }
+                header { margin-bottom: 1rem; }
+                .mark { display: inline-block; background: #0f7c8c; color: #fff; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px; }
+                h1 { margin: 0.6rem 0 0.25rem; font-size: 1.6rem; color: #032d60; }
+                .ar { margin: 0; color: #3e3e3c; }
+                .lede { color: #706e6b; margin: 0.35rem 0 0; }
+                .card { background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 0.85rem; padding: 1rem 1rem 1.15rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+                .note { background: #e3f4f6; color: #0f7c8c; border-radius: 0.5rem; padding: 0.55rem 0.7rem; font-size: 0.85rem; margin-bottom: 0.8rem; }
+                .error { background: #fde7e9; color: #8e030f; border-radius: 0.5rem; padding: 0.55rem 0.7rem; margin-bottom: 0.8rem; }
+                fieldset { border: 0; margin: 0 0 0.9rem; padding: 0; }
+                legend { font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: #032d60; margin-bottom: 0.45rem; }
+                label { display: block; font-size: 0.78rem; font-weight: 700; margin: 0.55rem 0 0.2rem; }
+                input, textarea { width: 100%; font: inherit; font-size: 1rem; padding: 0.55rem 0.65rem; border: 1px solid #c9c9c9; border-radius: 0.45rem; background: #fff; }
+                textarea { min-height: 5.5rem; resize: vertical; }
+                .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+                .check { display: flex; gap: 0.55rem; align-items: flex-start; margin: 0.4rem 0 0.8rem; font-size: 0.92rem; }
+                .check input { width: auto; margin-top: 0.2rem; }
+                button { width: 100%; border: 0; background: #0f7c8c; color: #fff; font: inherit; font-weight: 800; font-size: 1rem; padding: 0.75rem 1rem; border-radius: 999px; cursor: pointer; }
+                .thanks { text-align: center; padding: 1.5rem 0.5rem; }
+                .thanks h1 { font-size: 1.4rem; }
+                @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+            </style>
+        </head>
+        <body>
+            <div class="wrap">
+                <apex:form >
+                    <apex:outputPanel rendered="{!invalid}">
+                        <header>
+                            <span class="mark">Patient support</span>
+                            <h1>This link is not valid</h1>
+                            <p class="lede">Ask your care coach to send the form again.</p>
+                        </header>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!AND(NOT(invalid), submitted)}">
+                        <section class="card thanks">
+                            <span class="mark">Patient support</span>
+                            <h1>Thank you</h1>
+                            <p class="ar">شكراً. استلمنا تاريخك الطبي.</p>
+                            <p class="lede">Your care coach can see what you sent. You can close this page.</p>
+                        </section>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!AND(NOT(invalid), NOT(submitted))}">
+                        <header>
+                            <span class="mark">Patient support</span>
+                            <h1>Hello {!form.firstName}</h1>
+                            <p class="ar">من فضلك املأ تاريخك الطبي حتى يستطيع فريق الدعم مساعدتك.</p>
+                            <p class="lede">This form is only for you. Tell us about your health so your care coach can support your treatment.</p>
+                        </header>
+                        <section class="card">
+                            <apex:outputPanel rendered="{!form.alreadyCompleted}">
+                                <div class="note">You already sent this form. Saving again updates what your coach sees.</div>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!NOT(ISBLANK(message))}">
+                                <div class="error">{!message}</div>
+                            </apex:outputPanel>
+
+                            <fieldset>
+                                <legend>How we reach you</legend>
+                                <div class="row">
+                                    <div>
+                                        <label for="mobile">Mobile</label>
+                                        <apex:input id="mobile" value="{!form.mobile}" html-autocomplete="tel" />
+                                    </div>
+                                    <div>
+                                        <label for="email">Email</label>
+                                        <apex:input id="email" type="email" value="{!form.email}" />
+                                    </div>
+                                </div>
+                                <label for="city">City</label>
+                                <apex:input id="city" value="{!form.city}" />
+                                <label for="address">Address</label>
+                                <apex:inputTextarea id="address" value="{!form.address}" rows="2" />
+                                <label for="dob">Date of birth</label>
+                                <apex:input id="dob" type="date" value="{!form.birthdate}" />
+                            </fieldset>
+
+                            <fieldset>
+                                <legend>Your treatment</legend>
+                                <label for="diagnosis">Diagnosis</label>
+                                <apex:input id="diagnosis" value="{!form.diagnosis}" />
+                                <div class="row">
+                                    <div>
+                                        <label for="ddate">Diagnosis date</label>
+                                        <apex:input id="ddate" type="date" value="{!form.diagnosisDate}" />
+                                    </div>
+                                    <div>
+                                        <label for="occupation">Occupation</label>
+                                        <apex:input id="occupation" value="{!form.occupation}" />
+                                    </div>
+                                </div>
+                                <label for="physician">Physician</label>
+                                <apex:input id="physician" value="{!form.physician}" />
+                                <label for="hospital">Hospital or clinic</label>
+                                <apex:input id="hospital" value="{!form.hospital}" />
+                            </fieldset>
+
+                            <fieldset>
+                                <legend>Medical history</legend>
+                                <label for="allergies">Allergies</label>
+                                <apex:inputTextarea id="allergies" value="{!form.allergies}" rows="3" />
+                                <label for="meds">Medicines you take now</label>
+                                <apex:inputTextarea id="meds" value="{!form.medications}" rows="3" />
+                                <label for="conditions">Other conditions</label>
+                                <apex:inputTextarea id="conditions" value="{!form.conditions}" rows="3" />
+                            </fieldset>
+
+                            <fieldset>
+                                <legend>Emergency contact</legend>
+                                <div class="row">
+                                    <div>
+                                        <label for="ename">Name</label>
+                                        <apex:input id="ename" value="{!form.emergencyName}" />
+                                    </div>
+                                    <div>
+                                        <label for="ephone">Phone</label>
+                                        <apex:input id="ephone" value="{!form.emergencyPhone}" />
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <label class="check">
+                                <apex:inputCheckbox value="{!form.consent}" />
+                                <span>This information is mine, and the patient support programme may keep it to support my treatment.</span>
+                            </label>
+                            <apex:commandButton value="Send my history" action="{!save}" />
+                        </section>
+                    </apex:outputPanel>
+                </apex:form>
+            </div>
+        </body>
+    </html>
+</apex:page>

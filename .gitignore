@@ -43,6 +43,8 @@ $RECYCLE.BIN/
 .env
 .env.*
 !.env.example
+docs/mendix-meetings-api/AUTH_CREDENTIALS.local.md
+docs/mendix-meetings-api/*.secret.env
 
 # Python Salesforce Functions
 **/__pycache__/
@@ -73,3 +75,4 @@ BRD/**/Training videos/
 # Zeta PWA build output
 offline/dist/
 offline/node_modules/
+Plan/Salesforce Pharmaceuticals Complete Guide.pptx

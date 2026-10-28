@@ -1,0 +1,38 @@
+{
+  "territoriesNonTraining": {
+    "Head_Office": 1,
+    "Business_Unit": 4,
+    "Line": 19,
+    "District": 138,
+    "Position": 815
+  },
+  "trainingTerritories": 20,
+  "bricks": {
+    "70": 70,
+    "148": 148,
+    "702": 702
+  },
+  "activeAlignments": 12605,
+  "retiredAlignments": 1215,
+  "roster": {
+    "rows": 845,
+    "codes": 801,
+    "users": 666,
+    "missingUsers": 135,
+    "seatsExpected": 703,
+    "seatsFound": 703,
+    "territories": 795
+  },
+  "employeeExceptions": [
+    {
+      "code": "2273",
+      "name": "Elaria Ayman Bedier Nagib AbdelMalak",
+      "detail": "Login username is now elaria.ayman@zeta-pharma.com. The Email field stayed alaria.ayman@zeta-pharma.com; a direct update returned success and Salesforce kept the previous address."
+    },
+    {
+      "code": "506",
+      "name": "Hassan Mohamed Mokhtar Gaballah",
+      "detail": "Manager code 1048 is not a Salesforce user, so the manager was left blank. The line value 0 was cleared."
+    }
+  ]
+}

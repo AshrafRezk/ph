@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Request_Type__c</fullName>
+    <label>Request Type</label>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>false</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Efficacy</fullName>
+                <default>false</default>
+                <label>Efficacy</label>
+            </value>
+            <value>
+                <fullName>Safety</fullName>
+                <default>false</default>
+                <label>Safety</label>
+            </value>
+            <value>
+                <fullName>Dosing</fullName>
+                <default>false</default>
+                <label>Dosing</label>
+            </value>
+            <value>
+                <fullName>Adverse Event</fullName>
+                <default>false</default>
+                <label>Adverse Event</label>
+            </value>
+            <value>
+                <fullName>Administration</fullName>
+                <default>false</default>
+                <label>Administration</label>
+            </value>
+            <value>
+                <fullName>Contraindications</fullName>
+                <default>false</default>
+                <label>Contraindications</label>
+            </value>
+            <value>
+                <fullName>Drug Interactions</fullName>
+                <default>false</default>
+                <label>Drug Interactions</label>
+            </value>
+            <value>
+                <fullName>Pregnancy/Lactation</fullName>
+                <default>false</default>
+                <label>Pregnancy/Lactation</label>
+            </value>
+            <value>
+                <fullName>Off-label</fullName>
+                <default>false</default>
+                <label>Off-label</label>
+            </value>
+            <value>
+                <fullName>Device</fullName>
+                <default>true</default>
+                <label>Device</label>
+            </value>
+            <value>
+                <fullName>Scientific Material</fullName>
+                <default>false</default>
+                <label>Scientific Material</label>
+            </value>
+            <value>
+                <fullName>Follow-up</fullName>
+                <default>false</default>
+                <label>Follow-up</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+            <value>
+                <fullName>Sample</fullName>
+                <default>false</default>
+                <label>Sample</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

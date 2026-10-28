@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_702_Matches_148</fullName>
+    <active>true</active>
+    <description>702 brick must roll up to the selected 148 brick.</description>
+    <errorConditionFormula>AND(
+  NOT(ISBLANK(Brick_702__c)),
+  NOT(ISBLANK(Brick_148__c)),
+  Brick_702__r.Parent_Brick__c &lt;&gt; Brick_148__c
+)</errorConditionFormula>
+    <errorDisplayField>Brick_702__c</errorDisplayField>
+    <errorMessage>The 702 brick must belong to the selected 148 brick.</errorMessage>
+</ValidationRule>

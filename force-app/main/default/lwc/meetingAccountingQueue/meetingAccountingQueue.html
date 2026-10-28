@@ -1,0 +1,80 @@
+<template>
+    <div class="mx-root">
+        <template lwc:if={showHero}>
+            <header class="mx-card desk__hero">
+                <div class="mx-eyebrow">Accounting</div>
+                <h1 class="mx-h1">Meeting payments</h1>
+                <p class="mx-sub">Pay deposits and actual costs, record partial payments, or send a request back to the business.</p>
+            </header>
+        </template>
+
+        <div class="mx-kpis">
+            <template for:each={kpis} for:item="k">
+                <div key={k.key} class="mx-kpi">
+                    <div class="mx-kpi__value">{k.value}</div>
+                    <div class="mx-kpi__label">{k.label}</div>
+                </div>
+            </template>
+        </div>
+
+        <div class="mx-row toolbar">
+            <div class="mx-chips">
+                <template for:each={filters} for:item="f">
+                    <button key={f.value} class={f.cls} data-value={f.value} onclick={handleFilter}>
+                        {f.label}<span class="mx-chip__count">{f.count}</span>
+                    </button>
+                </template>
+            </div>
+            <div class="mx-search">
+                <svg class="mx-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                <input class="mx-input" type="search" placeholder="Search meeting, requester, department" oninput={handleSearch} />
+            </div>
+        </div>
+
+        <template lwc:if={showSpinner}><div class="mx-spinner"></div></template>
+        <template lwc:if={error}><div class="mx-banner mx-banner_bad">{error}</div></template>
+
+        <template lwc:if={hasRows}>
+            <ul class="desk__list">
+                <template for:each={visibleRows} for:item="r">
+                    <li key={r.key} class="mx-card desk__row">
+                        <div class="date-tile">
+                            <span class="date-tile__day">{r.day}</span>
+                            <span class="date-tile__month">{r.month}</span>
+                        </div>
+                        <div class="desk__main">
+                            <div class="mx-row">
+                                <span class="mx-strong mx-truncate desk__title">{r.title}</span>
+                                <span class={r.pill}>{r.paymentStatus}</span>
+                            </div>
+                            <div class="mx-small mx-muted">
+                                {r.ownerName} · {r.department} · {r.activityType} · {r.dateText}
+                            </div>
+                            <div class="desk__money">
+                                <div><span class="mx-label">{r.dueLabel}</span><div class="mx-strong">{r.dueText}</div></div>
+                                <div><span class="mx-label">Paid</span><div>{r.paidText}</div></div>
+                                <div><span class="mx-label">Remaining</span><div class="mx-strong desk__remaining">{r.remainingText}</div></div>
+                            </div>
+                            <div class="mx-progress"><div class="mx-progress__bar" style={r.barStyle}></div></div>
+                        </div>
+                        <button class="mx-btn mx-btn_primary" data-id={r.id} onclick={handleOpen}>Review</button>
+                    </li>
+                </template>
+            </ul>
+        </template>
+        <template lwc:if={showEmpty}>
+            <div class="mx-card mx-empty">
+                <div class="mx-empty__title">Nothing here</div>
+                Meetings appear here when a requester sends a deposit or actual cost with an invoice.
+            </div>
+        </template>
+
+        <template lwc:if={isOpen}>
+            <div class="drawer">
+                <div class="drawer__panel">
+                    <c-meeting-workspace meeting-id={openId} embedded onclose={handleClose} onchanged={handleChanged}></c-meeting-workspace>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

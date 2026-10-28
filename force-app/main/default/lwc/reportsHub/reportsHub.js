@@ -2,11 +2,13 @@ import { LightningElement, track, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getTileTargets from '@salesforce/apex/ReportsHubController.getTileTargets';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
 
 export default class ReportsHub extends NavigationMixin(LightningElement) {
     @track searchTerm = '';
     @track tileTargets = {};
     @track loadState = 'loading';
+    featureEnabled = true;
 
     reportCards = [
         {
@@ -24,13 +26,20 @@ export default class ReportsHub extends NavigationMixin(LightningElement) {
             icon: 'utility:chart'
         },
         {
-            id: 'pharmacy-sales',
+            id: 'processed-sales',
             accent: 'green',
-            title: 'Pharmacy Sales',
-            description: 'Sell-out withdrawals and revenue by product, brick, and data source.',
-            icon: 'utility:product'
+            title: 'Processed Sales Sheet',
+            description:
+                'After distributors are digested, open Admin Console → Export month for the consolidated month (product + revenue).',
+            icon: 'utility:download'
         }
     ];
+
+    connectedCallback() {
+        void loadFieldFeatures().then(() => {
+            this.featureEnabled = isFieldFeatureEnabled('home.reports');
+        });
+    }
 
     @wire(getTileTargets)
     wiredTileTargets({ data, error }) {
@@ -43,19 +52,28 @@ export default class ReportsHub extends NavigationMixin(LightningElement) {
         }
     }
 
+    get visibleReportCards() {
+        return this.reportCards.filter((card) => {
+            if (!card.managerOnly) {
+                return true;
+            }
+            return this.tileTargets[card.id]?.accessible === true;
+        });
+    }
+
     get moduleCount() {
-        return this.reportCards.length;
+        return this.visibleReportCards.length;
     }
 
     get cardsView() {
         const term = (this.searchTerm || '').trim().toLowerCase();
         const filtered = term
-            ? this.reportCards.filter(
+            ? this.visibleReportCards.filter(
                   (card) =>
                       card.title.toLowerCase().includes(term) ||
                       card.description.toLowerCase().includes(term)
               )
-            : this.reportCards;
+            : this.visibleReportCards;
 
         return filtered.map((card) => {
             const target = this.tileTargets[card.id];
@@ -113,6 +131,21 @@ export default class ReportsHub extends NavigationMixin(LightningElement) {
         }
 
         if (target.objectApiName === 'Tab' && target.apiName) {
+            if (target.apiName === 'KAM_Management_Dashboard') {
+                this[NavigationMixin.Navigate]({
+                    type: 'standard__app',
+                    attributes: {
+                        appTarget: 'Pharma_Management',
+                        pageRef: {
+                            type: 'standard__navItemPage',
+                            attributes: {
+                                apiName: 'KAM_Management_Dashboard'
+                            }
+                        }
+                    }
+                });
+                return;
+            }
             this[NavigationMixin.Navigate]({
                 type: 'standard__navItemPage',
                 attributes: {

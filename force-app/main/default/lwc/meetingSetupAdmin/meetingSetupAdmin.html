@@ -1,0 +1,304 @@
+<template>
+    <template lwc:if={loading}>
+        <div class="slds-is-relative slds-p-around_xx-large"><lightning-spinner alternative-text="Loading"></lightning-spinner></div>
+    </template>
+    <template lwc:elseif={error}>
+        <div class="slds-notify slds-notify_alert slds-alert_error">{error}</div>
+    </template>
+    <template lwc:else>
+        <template lwc:if={readOnly}>
+            <div class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small">
+                You can view Meetings Setup. Changes need the Manage Meeting Workflows permission.
+            </div>
+        </template>
+        <lightning-tabset variant="scoped">
+            <!-- ============================================================ types -->
+            <lightning-tab label="Meeting types">
+                <template lwc:if={hasUnconfigured}>
+                    <div class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small setup-banner">
+                        <span>
+                            <template lwc:if={isSetUp}>Types marked "Not set up" cannot be planned by anyone. Edit them to open them.</template>
+                            <template lwc:else>Nothing is set up yet, so every type is open to everyone with the built-in rules.</template>
+                        </span>
+                        <template lwc:if={canEdit}>
+                            <lightning-button label="Load BRD defaults" variant="inverse" onclick={handleLoadDefaults} disabled={busy}></lightning-button>
+                        </template>
+                    </div>
+                </template>
+
+                <template lwc:if={editType}>
+                    <article class="slds-card slds-card_boundary slds-m-bottom_medium">
+                        <div class="slds-card__header"><h2 class="slds-text-heading_small">Edit {editTitle}</h2></div>
+                        <div class="slds-card__body slds-card__body_inner">
+                            <div class="slds-grid slds-wrap slds-gutters_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input label="Name shown to users" value={editType.label} data-field="label" onchange={handleTypeField}></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-4">
+                                    <lightning-input label="Activity type (picklist value)" value={editType.activityType} disabled></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-4">
+                                    <lightning-input type="number" label="Sort order" value={editType.sortOrder} data-field="sortOrder" onchange={handleTypeField}></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-combobox label="Meeting record type" value={editType.recordType} options={recordTypeOptions} data-field="recordType" onchange={handleTypeField}></lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 slds-p-top_large">
+                                    <lightning-input type="toggle" label="Active" checked={editType.isActive} data-field="isActive" onchange={handleTypeField} message-toggle-active="Can be planned" message-toggle-inactive="Hidden"></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1">
+                                    <lightning-input label="Description shown when planning" value={editType.description} data-field="description" onchange={handleTypeField} max-length="255"></lightning-input>
+                                </div>
+                            </div>
+
+                            <h3 class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">Who can create it</h3>
+                            <p class="slds-text-body_small slds-m-bottom_x-small">
+                                Restrict by department, job title, permission set, and/or territory tree. Blank title and permission lists mean anyone in the selected departments (and territories) can create.
+                            </p>
+                            <lightning-checkbox-group label="Departments that can raise it" options={departmentOptions} value={editType.departments} data-field="departments" onchange={handleTypeField}></lightning-checkbox-group>
+                            <div class="slds-grid slds-gutters_small slds-m-top_small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-dual-listbox label="Creator titles (blank = anyone)" source-label="Titles" selected-label="Can create" options={titleOptions} value={editType.creatorTitles} data-field="creatorTitles" onchange={handleTypeField} size="5"></lightning-dual-listbox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-dual-listbox label="Or holders of these permission sets" source-label="Permission sets" selected-label="Can create" options={permissionSetOptions} value={editType.creatorPermissionSets} data-field="creatorPermissionSets" onchange={handleTypeField} size="5"></lightning-dual-listbox>
+                                </div>
+                            </div>
+                            <div class="slds-m-top_small">
+                                <lightning-input type="search" label="Territories (blank = all). A territory includes everything under it." placeholder="Filter territories" value={territoryFilter} onchange={handleTerritoryFilter}></lightning-input>
+                                <lightning-dual-listbox source-label="Territories" selected-label="Available in" options={territoryOptions} value={editType.territories} data-field="territories" onchange={handleTypeField} size="6" variant="label-hidden" label="Territories"></lightning-dual-listbox>
+                            </div>
+
+                            <h3 class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">Attendees</h3>
+                            <div class="slds-grid slds-wrap slds-gutters_small">
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="HCPs" checked={editType.allowHcps} data-field="allowHcps" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="HCPs from the target list only" checked={editType.requireTargetHcps} data-field="requireTargetHcps" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="number" label="Minimum HCPs to submit" value={editType.minHcps} data-field="minHcps" onchange={handleTypeField} min="0"></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Colleagues (employees)" checked={editType.allowColleagues} data-field="allowColleagues" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Walk-in guests" checked={editType.allowGuests} data-field="allowGuests" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="number" label="Attendance target % (blank = none)" value={editType.minAttendancePct} data-field="minAttendancePct" onchange={handleTypeField} min="0" max="100"></lightning-input></div>
+                            </div>
+
+                            <h3 class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">Workspace tabs (order: Overview → …)</h3>
+                            <p class="slds-text-body_small slds-m-bottom_x-small">Choose which tabs this meeting type shows. Overview and History stay available as anchors when selected.</p>
+                            <div class="slds-grid slds-wrap slds-gutters_small">
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Overview" checked={tabOverview} data-tab="overview" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Suggestions" checked={tabPlan} data-tab="plan" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="People" checked={tabPeople} data-tab="people" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Services &amp; cost" checked={tabCost} data-tab="cost" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Invitations" checked={tabInvites} data-tab="invites" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="History" checked={tabHistory} data-tab="history" onchange={handleWorkspaceTab}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="HCP APM glance" checked={tabApm} data-tab="apm" onchange={handleWorkspaceTab}></lightning-input></div>
+                            </div>
+                            <h3 class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small">Meeting screen and money</h3>
+                            <div class="slds-grid slds-wrap slds-gutters_small">
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Door scan" checked={editType.allowDoorScan} data-field="allowDoorScan" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Deposit requests" checked={editType.allowDeposit} data-field="allowDeposit" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Invoice required for deposit and actual cost" checked={editType.requireInvoice} data-field="requireInvoice" onchange={handleTypeField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-3"><lightning-input type="checkbox" label="Brand required" checked={editType.requireBrand} data-field="requireBrand" onchange={handleTypeField}></lightning-input></div>
+                            </div>
+                        </div>
+                        <footer class="slds-card__footer slds-text-align_right">
+                            <lightning-button label="Cancel" onclick={handleCancelType}></lightning-button>
+                            <lightning-button class="slds-m-left_x-small" variant="brand" label="Save type" onclick={handleSaveType} disabled={busy}></lightning-button>
+                        </footer>
+                    </article>
+                </template>
+
+                <table class="slds-table slds-table_bordered slds-table_cell-buffer slds-table_fixed-layout setup-table">
+                    <thead>
+                        <tr class="slds-line-height_reset">
+                            <th class="col-type">Type</th>
+                            <th>Departments</th>
+                            <th>Territories</th>
+                            <th>Who can create</th>
+                            <th class="col-wide">Meeting screen</th>
+                            <th class="col-action"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={typeRows} for:item="t">
+                            <tr key={t.key}>
+                                <td class="slds-cell-wrap">
+                                    <div class="slds-text-title_bold">{t.name}</div>
+                                    <span class={t.stateCls}>{t.stateLabel}</span>
+                                </td>
+                                <td class="slds-cell-wrap">{t.departmentsText}</td>
+                                <td class="slds-cell-wrap">{t.territoriesText}</td>
+                                <td class="slds-cell-wrap">{t.creatorsText}</td>
+                                <td class="slds-cell-wrap">
+                                    <template for:each={t.sections} for:item="s">
+                                        <span key={s.key} class="slds-badge slds-badge_lightest slds-m-bottom_xx-small">{s.label}</span>
+                                    </template>
+                                </td>
+                                <td>
+                                    <template lwc:if={canEdit}>
+                                        <lightning-button-icon icon-name="utility:edit" alternative-text="Edit" data-type={t.activityType} onclick={handleEditType}></lightning-button-icon>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </lightning-tab>
+
+            <!-- ============================================================ approvals -->
+            <lightning-tab label="Approval sequence">
+                <div class="slds-notify slds-notify_alert slds-alert_offline slds-m-bottom_small" role="status">
+                    Spend requests stay on Meeting__c. Department chains apply first; a step with a minimum amount (e.g. CEO at 250,000) joins only when planned cost reaches it.
+                    After the meeting is held, actual cost more than about 10% over the approved plan restarts approval. Invoice is required when the meeting type says so — do not approve live finance in training.
+                </div>
+                <template lwc:if={setup.usesMetadataRules}>
+                    <div class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small">
+                        Showing the deployed default chain. Your first change copies it here, and from then on this screen is the source.
+                    </div>
+                </template>
+                <div class="slds-grid slds-grid_vertical-align-end slds-gutters_small slds-m-bottom_small">
+                    <div class="slds-col slds-grow-none">
+                        <lightning-button-group>
+                            <template for:each={departmentTabs} for:item="d">
+                                <lightning-button key={d.value} label={d.label} variant={d.variant} data-value={d.value} onclick={handleDepartment}></lightning-button>
+                            </template>
+                        </lightning-button-group>
+                    </div>
+                    <div class="slds-col slds-size_1-of-3">
+                        <lightning-combobox label="Chain for" value={chainFor} options={chainOptions} onchange={handleChainFor}></lightning-combobox>
+                    </div>
+                    <div class="slds-col slds-grow-none">
+                        <template lwc:if={canEdit}>
+                            <lightning-button label="Add step" icon-name="utility:add" onclick={handleAddLevel}></lightning-button>
+                        </template>
+                    </div>
+                </div>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">{chainCaption}</p>
+
+                <template lwc:if={editLevel}>
+                    <article class="slds-card slds-card_boundary slds-m-bottom_medium">
+                        <div class="slds-card__body slds-card__body_inner slds-p-top_small">
+                            <div class="slds-grid slds-wrap slds-gutters_small">
+                                <div class="slds-col slds-size_1-of-6"><lightning-input type="number" label="Step" value={editLevel.stepOrder} data-field="stepOrder" onchange={handleLevelField}></lightning-input></div>
+                                <div class="slds-col slds-size_2-of-6"><lightning-input label="Role shown on the path" value={editLevel.roleLabel} data-field="roleLabel" onchange={handleLevelField}></lightning-input></div>
+                                <div class="slds-col slds-size_3-of-6"><lightning-combobox label="Approver is" value={editLevel.approverSource} options={sourceOptions} data-field="approverSource" onchange={handleLevelField} field-level-help={sourceHelp}></lightning-combobox></div>
+                                <template lwc:if={isSpecificUser}>
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-record-picker label="Approver" object-api-name="User" value={editLevel.approverId} onchange={handleApproverPick}></lightning-record-picker>
+                                    </div>
+                                </template>
+                                <template lwc:else>
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-input label="Titles or territory roles (semicolon separated)" value={editLevel.roleValues} data-field="roleValues" onchange={handleLevelField} placeholder="e.g. District Manager;DM"></lightning-input>
+                                    </div>
+                                </template>
+                                <div class="slds-col slds-size_1-of-6"><lightning-input type="number" label="From amount" value={editLevel.minAmount} data-field="minAmount" onchange={handleLevelField} step="0.01"></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-6 slds-p-top_large"><lightning-input type="checkbox" label="Above, not equal" checked={editLevel.strictlyGreater} data-field="strictlyGreater" onchange={handleLevelField}></lightning-input></div>
+                                <div class="slds-col slds-size_1-of-6 slds-p-top_large"><lightning-input type="checkbox" label="Active" checked={editLevel.isActive} data-field="isActive" onchange={handleLevelField}></lightning-input></div>
+                            </div>
+                        </div>
+                        <footer class="slds-card__footer slds-text-align_right">
+                            <lightning-button label="Cancel" onclick={handleCancelLevel}></lightning-button>
+                            <lightning-button class="slds-m-left_x-small" variant="brand" label="Save step" onclick={handleSaveLevel} disabled={busy}></lightning-button>
+                        </footer>
+                    </article>
+                </template>
+
+                <template lwc:if={hasLevelRows}>
+                    <table class="slds-table slds-table_bordered slds-table_cell-buffer setup-table">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th class="col-step">Step</th>
+                                <th>Role</th>
+                                <th>Approver</th>
+                                <th>Applies</th>
+                                <th class="col-action"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={levelRows} for:item="l">
+                                <tr key={l.key}>
+                                    <td>{l.stepOrder}</td>
+                                    <td class="slds-cell-wrap">
+                                        <span class="slds-text-title_bold">{l.roleLabel}</span>
+                                        <template lwc:if={l.inactive}> <span class="slds-badge slds-theme_warning">Off</span></template>
+                                    </td>
+                                    <td class="slds-cell-wrap">{l.who}</td>
+                                    <td>{l.whenText}</td>
+                                    <td>
+                                        <template lwc:if={l.editable}>
+                                            <lightning-button-icon icon-name="utility:edit" alternative-text="Edit" data-id={l.id} onclick={handleEditLevel}></lightning-button-icon>
+                                            <lightning-button-icon class="slds-m-left_xx-small" icon-name="utility:delete" alternative-text="Remove" data-id={l.id} onclick={handleDeleteLevel}></lightning-button-icon>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <template lwc:else>
+                    <p class="slds-p-around_medium slds-text-color_weak">No steps. Meetings fall back to the requester's line manager.</p>
+                </template>
+            </lightning-tab>
+
+            <!-- ============================================================ preview -->
+            <lightning-tab label="Preview as user">
+                <div class="slds-grid slds-wrap slds-gutters_small slds-grid_vertical-align-end">
+                    <div class="slds-col slds-size_1-of-3">
+                        <lightning-record-picker label="User" object-api-name="User" onchange={handlePreviewUser}></lightning-record-picker>
+                    </div>
+                    <div class="slds-col slds-size_1-of-6">
+                        <lightning-combobox label="Department" value={previewDepartment} options={departmentOptions} data-field="previewDepartment" onchange={handlePreviewField}></lightning-combobox>
+                    </div>
+                    <div class="slds-col slds-size_1-of-6">
+                        <lightning-combobox label="Type" value={previewType} options={previewTypeOptions} data-field="previewType" onchange={handlePreviewField}></lightning-combobox>
+                    </div>
+                    <div class="slds-col slds-size_1-of-6">
+                        <lightning-input type="number" label="Planned cost" value={previewAmount} data-field="previewAmount" onchange={handlePreviewField}></lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-6">
+                        <lightning-button variant="brand" label="Preview" onclick={handlePreview} disabled={previewDisabled}></lightning-button>
+                    </div>
+                </div>
+
+                <template lwc:if={previewResult}>
+                    <div class="slds-box slds-theme_shade slds-m-top_medium">
+                        <div class="slds-text-title_bold">{previewUserLine}</div>
+                        <div class="slds-text-body_small slds-text-color_weak">{previewPath}</div>
+                    </div>
+                    <div class="slds-grid slds-gutters slds-m-top_medium">
+                        <div class="slds-col slds-size_1-of-2">
+                            <h3 class="slds-text-title_caps slds-m-bottom_x-small">Meeting types</h3>
+                            <ul class="slds-has-dividers_bottom-space">
+                                <template for:each={previewTypes} for:item="t">
+                                    <li key={t.key} class="slds-item preview-row">
+                                        <lightning-icon icon-name={t.icon} variant={t.variant} size="x-small"></lightning-icon>
+                                        <div>
+                                            <div class="slds-text-title_bold">{t.name}</div>
+                                            <div class="slds-text-body_small slds-text-color_weak">{t.reason}</div>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <h3 class="slds-text-title_caps slds-m-bottom_x-small">Approval path</h3>
+                            <template lwc:if={previewResult.chainError}>
+                                <div class="slds-notify slds-notify_alert slds-alert_error">{previewResult.chainError}</div>
+                            </template>
+                            <template lwc:if={hasPreviewSteps}>
+                                <ol class="slds-has-dividers_bottom-space">
+                                    <template for:each={previewSteps} for:item="s">
+                                        <li key={s.key} class={s.cls}>
+                                            <div class="slds-item">
+                                                <div class="slds-text-title_bold">{s.stepNumber}. {s.role} · {s.who}</div>
+                                                <div class="slds-text-body_small slds-text-color_weak">{s.status}<template lwc:if={s.note}> · {s.note}</template></div>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ol>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </lightning-tab>
+        </lightning-tabset>
+    </template>
+</template>

@@ -2,7 +2,7 @@ import { LightningElement, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import FORM_FACTOR from '@salesforce/client/formFactor';
 import getFilterOptions from '@salesforce/apex/PharmacySalesAnalyticsController.getFilterOptions';
-import getDashboardData from '@salesforce/apex/PharmacySalesAnalyticsController.getDashboardData';
+import getDashboardPage from '@salesforce/apex/PharmacySalesAnalyticsController.getDashboardPage';
 
 const FILTER_DEBOUNCE_MS = 300;
 const PRESET_MONTHS = [
@@ -37,6 +37,10 @@ function formatNumber(value) {
         return `${(num / 1000).toFixed(1)}K`;
     }
     return num.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function formatCount(value) {
+    return Number(value || 0).toLocaleString();
 }
 
 function formatCurrency(value) {
@@ -87,6 +91,8 @@ export default class PharmacySalesDashboard extends LightningElement {
     startMonthValue;
     endMonthValue;
     dataSource = 'All';
+    // Blank until the user picks one: the server then applies the Sales Policy default.
+    tenderMode = '';
     therapyArea = 'All';
     productFamily = 'All';
     brickId = 'All';
@@ -94,6 +100,8 @@ export default class PharmacySalesDashboard extends LightningElement {
     activePreset = '6';
 
     debounceTimer;
+    requestSeq = 0;
+    loadProgress = '';
 
     detailColumns = [
         { label: 'Month', fieldName: 'monthLabel', type: 'text' },
@@ -103,6 +111,7 @@ export default class PharmacySalesDashboard extends LightningElement {
         { label: 'Family', fieldName: 'productFamily', type: 'text' },
         { label: 'Therapy Area', fieldName: 'therapyArea', type: 'text' },
         { label: 'Source', fieldName: 'dataSource', type: 'text' },
+        { label: 'Tender', fieldName: 'tenderLabel', type: 'text', initialWidth: 90 },
         { label: 'Qty', fieldName: 'quantity', type: 'number', cellAttributes: { alignment: 'right' } },
         { label: 'Unit Price', fieldName: 'unitPrice', type: 'currency', typeAttributes: { currencyCode: 'EGP' } },
         { label: 'Revenue', fieldName: 'revenue', type: 'currency', typeAttributes: { currencyCode: 'EGP' } }
@@ -157,6 +166,18 @@ export default class PharmacySalesDashboard extends LightningElement {
         return this.filterOptions?.pharmacies || [{ label: 'All', value: 'All' }];
     }
 
+    get tenderModeOptions() {
+        return this.filterOptions?.tenderModes || [
+            { label: 'Exclude tender sales', value: 'Exclude' },
+            { label: 'Tender sales only', value: 'Only' },
+            { label: 'All sales (incl. tender)', value: 'All' }
+        ];
+    }
+
+    get tenderModeValue() {
+        return this.tenderMode || this.filterOptions?.defaultTenderMode || 'Exclude';
+    }
+
     get dataSourceOptions() {
         return this.filterOptions?.dataSources || [
             { label: 'All', value: 'All' },
@@ -172,6 +193,7 @@ export default class PharmacySalesDashboard extends LightningElement {
             startMonth: startDate ? this.toApexDate(startDate) : null,
             endMonth: endDate ? this.toApexDate(endDate) : null,
             dataSource: this.dataSource,
+            tenderMode: this.tenderMode || null,
             therapyArea: this.therapyArea,
             productFamily: this.productFamily,
             brickId: this.brickId,
@@ -266,6 +288,15 @@ export default class PharmacySalesDashboard extends LightningElement {
         return this.detailRows.length > 0;
     }
 
+    get detailCapNote() {
+        const total = this.dashboardData?.detailTotal || 0;
+        const shown = this.dashboardData?.detailRows?.length || 0;
+        if (total <= shown) {
+            return '';
+        }
+        return `Showing the first ${formatCount(shown)} of ${formatCount(total)} lines. Click a brick and month in the table above to see its lines.`;
+    }
+
     handleFiltersToggle() {
         this.filtersExpanded = !this.filtersExpanded;
     }
@@ -295,6 +326,8 @@ export default class PharmacySalesDashboard extends LightningElement {
         const value = event.detail.value;
         if (field === 'dataSource') {
             this.dataSource = value;
+        } else if (field === 'tenderMode') {
+            this.tenderMode = value;
         } else if (field === 'therapyArea') {
             this.therapyArea = value;
         } else if (field === 'productFamily') {
@@ -354,29 +387,56 @@ export default class PharmacySalesDashboard extends LightningElement {
 
     async refreshDashboard(extraFilters = {}) {
         this.isLoading = true;
+        this.loadProgress = '';
+        const requestId = ++this.requestSeq;
         try {
             const startDate = parseMonthInput(this.startMonthValue);
             const endDate = parseMonthInput(this.endMonthValue);
-            this.dashboardData = await getDashboardData({
+            const filters = {
                 startMonth: startDate ? this.toApexDate(startDate) : null,
                 endMonth: endDate ? this.toApexDate(endDate) : null,
                 dataSource: this.dataSource,
+                tenderMode: this.tenderMode || null,
                 therapyArea: this.therapyArea,
                 productFamily: this.productFamily,
                 brickId: this.brickId !== 'All' ? this.brickId : null,
                 pharmacyIds: this.pharmacyId !== 'All' ? [this.pharmacyId] : null,
                 matrixBrickId: extraFilters.matrixBrickId || null,
                 matrixMonthKey: extraFilters.matrixMonthKey || null
-            });
+            };
+            // A month of distributor files is 100k+ lines, more than one server call may read,
+            // so the totals are built page by page and the last page carries the dashboard.
+            let cursor = null;
+            let state = null;
+            let page;
+            do {
+                // eslint-disable-next-line no-await-in-loop
+                page = await getDashboardPage({ filters, cursor, state });
+                if (requestId !== this.requestSeq) {
+                    return;
+                }
+                cursor = page?.nextCursor || null;
+                state = page?.state || null;
+                if (!page?.done && page?.rowsTotal) {
+                    this.loadProgress = `Reading sales lines… ${formatCount(page.rowsRead)} of ${formatCount(page.rowsTotal)}`;
+                }
+            } while (page && !page.done && cursor);
+            this.dashboardData = page?.payload || null;
             if (this.expandedFamilies.size === 0 && this.dashboardData?.familyBreakdown?.length) {
                 this.expandedFamilies = new Set([this.dashboardData.familyBreakdown[0].family]);
             }
             this.refs.agentInsights?.refreshFromParent?.(this.filterStateForInsights);
         } catch (error) {
+            if (requestId !== this.requestSeq) {
+                return;
+            }
             this.dashboardData = null;
             this.toast('Dashboard error', this.reduceError(error), 'error');
         } finally {
-            this.isLoading = false;
+            if (requestId === this.requestSeq) {
+                this.isLoading = false;
+                this.loadProgress = '';
+            }
         }
     }
 

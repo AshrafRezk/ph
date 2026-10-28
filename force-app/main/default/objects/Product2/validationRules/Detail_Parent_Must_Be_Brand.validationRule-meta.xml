@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Detail_Parent_Must_Be_Brand</fullName>
+    <active>true</active>
+    <description>Detail products must roll up to a Brand parent. Fires only on create or when Parent Product / Product Type changes, so legacy rows can still be edited.</description>
+    <errorConditionFormula>AND(
+  OR(
+    ISNEW(),
+    ISCHANGED(Parent_Product__c),
+    ISCHANGED(Product_Type__c)
+  ),
+  ISPICKVAL(Product_Type__c, &quot;Detail&quot;),
+  NOT(ISBLANK(Parent_Product__c)),
+  TEXT(Parent_Product__r.Product_Type__c) &lt;&gt; &quot;Brand&quot;
+)</errorConditionFormula>
+    <errorDisplayField>Parent_Product__c</errorDisplayField>
+    <errorMessage>Detail products must have a Brand parent.</errorMessage>
+</ValidationRule>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Use_Public_Price_For_Non_Tender__c</fullName>
+    <defaultValue>true</defaultValue>
+    <label>Use Public Price For Non-Tender</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Skip_Full_Approval__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>True when total quantity is 10 or lower — full cycle not required, stakeholders still notified.</description>
+    <label>Skip Full Approval</label>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

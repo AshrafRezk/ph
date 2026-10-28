@@ -623,6 +623,7 @@ global with sharing class OsrMetadataService {
                 out.add('c/fieldRepHomeNextBestCustomer');
                 out.add('c/fieldRepHomeClmPrefetch');
                 out.add('c/homeOfficeMessages');
+                out.add('c/stayInTheKnow');
                 out.add('c/repLocationPublisher');
                 out.add('c/reportsHub');
             }
@@ -1819,6 +1820,10 @@ global with sharing class OsrMetadataService {
                                 new Map<String, Object>{
                                     'type' => 'c/homeOfficeMessages',
                                     'attributes' => new Map<String, Object>{ 'label' => 'Office Messages' }
+                                },
+                                new Map<String, Object>{
+                                    'type' => 'c/stayInTheKnow',
+                                    'attributes' => new Map<String, Object>{ 'label' => 'Be in the Know' }
                                 },
                                 new Map<String, Object>{
                                     'type' => 'c/fieldRepHomeNextBestCustomer',

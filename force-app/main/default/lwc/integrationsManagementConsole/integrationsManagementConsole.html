@@ -5,9 +5,13 @@
                 <h2 class="integrations-title">Integrations Management</h2>
                 <p class="integrations-subtitle">
                     Monitor external data sources, master data providers, and platform connectors used across Pharma.
+                    Status reflects credentials and linked data in this org — not planned or placeholder syncs.
                 </p>
             </div>
         </header>
+        <template if:true={loadError}>
+            <div class="integrations-error" role="alert">{loadError}</div>
+        </template>
 
         <section class="integrations-section">
             <h3 class="section-label">Core Integrations</h3>
@@ -28,9 +32,12 @@
                         <p class="integration-category">{item.category}</p>
                         <h4 class="integration-name">{item.name}</h4>
                         <p class="integration-desc">{item.description}</p>
+                        <template if:true={item.detail}>
+                            <p class="integration-detail">{item.detail}</p>
+                        </template>
                         <div class="integration-meta">
-                            <span class="integration-sync-label">Last sync</span>
-                            <span class="integration-sync-value">{item.lastSync}</span>
+                            <span class="integration-sync-label">{item.metaLabel}</span>
+                            <span class="integration-sync-value">{item.metaValue}</span>
                         </div>
                         <template if:true={item.actionLabel}>
                             <lightning-button
@@ -60,6 +67,9 @@
                         </div>
                         <h4 class="integration-name">{item.name}</h4>
                         <p class="integration-desc">{item.description}</p>
+                        <template if:true={item.detail}>
+                            <p class="integration-detail">{item.detail}</p>
+                        </template>
                         <template if:true={item.actionLabel}>
                             <lightning-button
                                 label={item.actionLabel}

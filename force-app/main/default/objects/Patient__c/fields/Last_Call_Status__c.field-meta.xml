@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last_Call_Status__c</fullName>
+    <label>Last Call Status</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Planned</fullName>
+                <default>false</default>
+                <label>Planned</label>
+            </value>
+            <value>
+                <fullName>New</fullName>
+                <default>false</default>
+                <label>New</label>
+            </value>
+            <value>
+                <fullName>Reached</fullName>
+                <default>false</default>
+                <label>Reached</label>
+            </value>
+            <value>
+                <fullName>Unreached (No Answer)</fullName>
+                <default>false</default>
+                <label>Unreached (No Answer)</label>
+            </value>
+            <value>
+                <fullName>Unreached (Switched Off)</fullName>
+                <default>false</default>
+                <label>Unreached (Switched Off)</label>
+            </value>
+            <value>
+                <fullName>Call back</fullName>
+                <default>false</default>
+                <label>Call back</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

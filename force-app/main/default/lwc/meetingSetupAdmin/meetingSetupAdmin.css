@@ -1,0 +1,26 @@
+.setup-banner {
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.setup-table .col-type {
+    width: 13rem;
+}
+
+.setup-table .col-wide {
+    width: 30%;
+}
+
+.setup-table .col-step {
+    width: 4rem;
+}
+
+.setup-table .col-action {
+    width: 6rem;
+}
+
+.preview-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+}

@@ -1,18 +1,31 @@
+:host {
+    display: block;
+    max-width: 100%;
+}
+
 .video-frame {
-    position: relative;
     width: 100%;
-    padding-top: 56.25%;
+    max-width: 100%;
     background: #0b3d5c;
     border-radius: 12px;
     overflow: hidden;
 }
 
 .video-frame iframe {
-    position: absolute;
-    inset: 0;
+    display: block;
     width: 100%;
-    height: 100%;
+    height: 360px;
     border: 0;
+    background: #000;
+}
+
+.video-frame-html5 video {
+    display: block;
+    width: 100%;
+    max-height: 360px;
+    height: auto;
+    border: 0;
+    background: #000;
 }
 
 .link-panel {
@@ -20,4 +33,36 @@
     border: 1px dashed #c9d7e3;
     border-radius: 12px;
     background: #f7fafc;
+}
+
+.pdf-url {
+    margin: 0 0 1rem;
+    color: #54698d;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    word-break: break-all;
+}
+
+.lesson-body {
+    margin-top: 0.75rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    background: #fff;
+    color: #181818;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+.watch-progress {
+    margin: 0.75rem 0 0;
+    color: #54698d;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 767px) {
+    .video-frame iframe {
+        height: 220px;
+    }
 }

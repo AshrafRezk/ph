@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0176d3" />
-    <title>Visits — Pharma Field PWA</title>
+    <title data-brand-screen="Visits">Visits — Salesforce</title>
+    <script src="/shell-brand.js"></script>
     <link rel="stylesheet" href="shell.css" />
     <link rel="stylesheet" href="visits.css" />
 </head>
@@ -40,6 +41,7 @@
     <div id="visit-detail-view" style="display:none">
         <div class="visit-hero">
             <div class="visit-hero-top">
+                <img id="visit-type-icon" class="visit-type-icon" alt="" hidden />
                 <span id="visit-account-badge" class="account-badge">—</span>
                 <span id="visit-status-badge" class="status-badge">—</span>
             </div>

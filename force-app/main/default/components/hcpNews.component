@@ -1,0 +1,62 @@
+<apex:component>
+    <style>
+        .ncard { display: block; width: 100%; border: 1px solid var(--line); background: #fff; border-radius: 1.2rem; padding: 0; overflow: hidden; text-align: left; cursor: pointer; box-shadow: 0 6px 18px rgba(3,45,96,0.06); transition: transform 0.15s ease; }
+        .ncard + .ncard { margin-top: 0.8rem; }
+        .ncard:active { transform: scale(0.98); }
+        .ncard__img { display: grid; place-items: center; aspect-ratio: 16 / 8; background: linear-gradient(135deg, #e7f0fa, #f6f9fd); overflow: hidden; }
+        .ncard__img img { display: block; width: auto; height: auto; max-width: 80%; max-height: 8rem; object-fit: contain; }
+        .ncard__body { display: block; padding: 0.85rem 1rem 1rem; }
+        .ncard__meta { display: block; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brand); }
+        .ncard__title { display: block; margin-top: 0.3rem; font-size: 1.02rem; font-weight: 800; color: var(--brand-deep); line-height: 1.3; }
+        .ncard__sum { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.3rem; font-size: 0.86rem; color: #4b5563; line-height: 1.45; }
+        .nd__img { margin: 0.4rem 0 1rem; border-radius: 1rem; background: linear-gradient(135deg, #e7f0fa, #f6f9fd); display: grid; place-items: center; height: 11rem; clear: both; }
+        .nd__img img { display: block; width: auto; height: auto; max-width: 85%; max-height: 9.5rem; object-fit: contain; }
+        .nd h2 { margin: 0.3rem 0 0.8rem; color: var(--brand-deep); font-size: 1.3rem; line-height: 1.3; }
+        .nd__text { color: #374151; font-size: 0.95rem; line-height: 1.6; }
+        .nd__text p { margin: 0 0 0.8rem; }
+    </style>
+
+    <section class="tab" id="tab-news" data-tab="news" hidden="hidden">
+        <div class="tab__head">
+            <h1 class="title">News</h1>
+            <p class="sub">What is new at Zeta Pharma</p>
+        </div>
+        <div id="newsList"></div>
+        <p class="empty" id="newsEmpty" hidden="hidden">No news yet. Check back soon.</p>
+    </section>
+
+    <script>
+    window.Zeta.tabs.news = (function () {
+        var Z = window.Zeta;
+        function meta(n) { return [n.category, n.date].filter(Boolean).join(' · '); }
+        function card(n) {
+            return '<button type="button" class="ncard" data-news="' + Z.esc(n.id) + '">'
+                + (n.image ? '<span class="ncard__img"><img loading="lazy" alt="" src="' + Z.esc(n.image) + '"/></span>' : '')
+                + '<span class="ncard__body"><span class="ncard__meta">' + Z.esc(meta(n)) + '</span>'
+                + '<span class="ncard__title">' + Z.esc(n.title) + '</span>'
+                + (n.summary ? '<span class="ncard__sum">' + Z.esc(n.summary) + '</span>' : '')
+                + '</span></button>';
+        }
+        function open(id) {
+            var n = Z.data.news.filter(function (x) { return x.id === id; })[0];
+            if (!n) return;
+            Z.sheet('<article class="nd">'
+                + (n.image ? '<div class="nd__img"><img alt="" src="' + Z.esc(n.image) + '"/></div>' : '<div style="clear:both"></div>')
+                + '<span class="ncard__meta">' + Z.esc(meta(n)) + '</span>'
+                + '<h2>' + Z.esc(n.title) + '</h2>'
+                + '<div class="nd__text">' + Z.paragraphs(n.body || n.summary) + '</div>'
+                + (n.link && /^https?:/i.test(n.link) ? '<a class="btn btn--soft btn--block" target="_blank" rel="noopener" href="' + Z.esc(n.link) + '">Read more</a>' : '')
+                + '</article>');
+        }
+        function render() {
+            document.getElementById('newsList').innerHTML = Z.data.news.map(card).join('');
+            document.getElementById('newsEmpty').hidden = Z.data.news.length > 0;
+            document.addEventListener('click', function (e) {
+                var tile = e.target.closest('[data-news]');
+                if (tile) open(tile.getAttribute('data-news'));
+            });
+        }
+        return { render: render, card: card, open: open };
+    })();
+    </script>
+</apex:component>

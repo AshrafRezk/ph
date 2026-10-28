@@ -1,0 +1,44 @@
+<template>
+    <template if:true={featureEnabled}>
+        <div class="wrap">
+            <header class="head">
+                <h2 class="title">Order approvals</h2>
+                <lightning-button label="Refresh" onclick={refresh}></lightning-button>
+            </header>
+
+            <div class="tabs" role="tablist">
+                <button class="tab" type="button" aria-pressed={isPendingTab} data-tab="pending" onclick={handleTab}>Pending</button>
+                <button class="tab" type="button" aria-pressed={isMineTab} data-tab="mine" onclick={handleTab}>My queue</button>
+                <button class="tab" type="button" aria-pressed={isFinanceTab} data-tab="finance" onclick={handleTab}>Finance</button>
+            </div>
+
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+            <template if:true={errorMessage}><p class="error" role="alert">{errorMessage}</p></template>
+
+            <template if:true={hasRows}>
+                <template for:each={rows} for:item="row">
+                    <article key={row.id} class="card">
+                        <div class="name">{row.name} · {row.accountName}</div>
+                        <div class="meta">{row.orderType} · qty {row.totalQuantity} · {row.approvalStage}</div>
+                        <div class="meta">Rep: {row.createdByName}</div>
+                        <div class="actions">
+                            <template if:true={row.canApprove}>
+                                <lightning-button label="Approve" variant="brand" data-id={row.id} onclick={handleApprove}></lightning-button>
+                                <lightning-button label="Reject" data-id={row.id} onclick={handleReject}></lightning-button>
+                            </template>
+                            <template if:true={row.canFinance}>
+                                <lightning-button label="Mark paid" data-id={row.id} onclick={handlePaid}></lightning-button>
+                                <lightning-button label="Settle" data-id={row.id} onclick={handleSettle}></lightning-button>
+                            </template>
+                        </div>
+                    </article>
+                </template>
+            </template>
+            <template if:false={hasRows}>
+                <template if:false={isLoading}><p class="empty">Nothing in this queue.</p></template>
+            </template>
+        </div>
+    </template>
+</template>

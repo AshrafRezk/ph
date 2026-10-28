@@ -1,0 +1,57 @@
+.kpi-shell {
+    padding: 1rem;
+    max-width: 64rem;
+}
+.kpi-header {
+    margin-bottom: 1rem;
+}
+.kpi-header h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: #032d60;
+}
+.kpi-header p {
+    margin: 0.25rem 0 0;
+    color: #706e6b;
+}
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.85rem;
+}
+.kpi-card {
+    border: 1px solid #dddbda;
+    border-radius: 0.5rem;
+    padding: 0.85rem 1rem;
+    background: #fff;
+}
+.kpi-card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 0.9rem;
+}
+.kpi-actual {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #032d60;
+}
+.kpi-target {
+    font-size: 0.8rem;
+    color: #706e6b;
+}
+.kpi-detail {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #54698d;
+}
+.status-good {
+    border-left: 4px solid #2e844a;
+}
+.status-warn {
+    border-left: 4px solid #fe9339;
+}
+.status-low {
+    border-left: 4px solid #ea001e;
+}
+.status-pending {
+    border-left: 4px solid #706e6b;
+}

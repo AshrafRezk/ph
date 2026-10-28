@@ -1,0 +1,528 @@
+<template>
+    <div class="p360">
+        <div class="topline">
+            <lightning-button variant="base" label="Back to patients" icon-name="utility:back" onclick={handleBack}></lightning-button>
+        </div>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+        <template lwc:if={isLoading}>
+            <div class="loading"><lightning-spinner alternative-text="Loading patient" size="medium"></lightning-spinner></div>
+        </template>
+
+        <template lwc:if={data}>
+            <template lwc:if={masked}>
+                <div class="cc-banner-masked slds-m-bottom_small">
+                    <lightning-icon icon-name="utility:hide" size="x-small"></lightning-icon>
+                    <span>De-identified view: contact details are hidden and phone numbers in notes and transcripts are redacted.</span>
+                </div>
+            </template>
+
+            <!-- Header -->
+            <section class="cc-card hero">
+                <div class="hero-main">
+                    <span class={avatarClass}>{avatar}</span>
+                    <div class="hero-id">
+                        <div class="hero-name-row">
+                            <h1 class="hero-name">{core.displayName}</h1>
+                            <span class="cc-status" style={statusStyle}>{core.status}</span>
+                            <template lwc:if={core.adherence}>
+                                <span class={adherenceClass}>{core.adherence}</span>
+                            </template>
+                        </div>
+                        <div class="hero-sub">{core.patientNumber} · {demographics}</div>
+                        <div class="hero-sub">{core.productName} · {core.therapyArea} · Coach: {core.coachName}</div>
+                    </div>
+                    <div class="gauge" style={riskGaugeStyle} title="Latest AI adherence-risk score">
+                        <div class="gauge-inner">
+                            <span class="gauge-value">{riskScoreLabel}</span>
+                            <span class="gauge-label">AI risk</span>
+                        </div>
+                    </div>
+                </div>
+                <template lwc:if={canEdit}>
+                    <div class="hero-actions">
+                        <template lwc:if={canCall}>
+                            <lightning-button variant="brand" label="Call" icon-name="utility:call" onclick={openDialer}></lightning-button>
+                        </template>
+                        <lightning-button label="Log call" icon-name="utility:note" onclick={openCall}></lightning-button>
+                        <lightning-button label="New order" icon-name="utility:cart" onclick={openOrder}></lightning-button>
+                        <lightning-button label="Change status" icon-name="utility:change_record_type" onclick={openStatus}></lightning-button>
+                        <lightning-button label="Email form" icon-name="utility:email" onclick={sendOnboardingEmail} disabled={emailFormDisabled}></lightning-button>
+                        <lightning-button label="WhatsApp form" icon-name="utility:chat" onclick={sendOnboardingWhatsApp} disabled={whatsappFormDisabled}></lightning-button>
+                    </div>
+                    <p class="onboarding-status">{onboardingStatus}</p>
+                </template>
+                <div class="hero-stats">
+                    <template for:each={headerStats} for:item="s">
+                        <div key={s.key} class="hero-stat">
+                            <span class="hero-stat-value">{s.value}</span>
+                            <span class="hero-stat-label">{s.label}</span>
+                        </div>
+                    </template>
+                </div>
+                <template lwc:if={hasContacts}>
+                    <div class="contact-strip">
+                        <template for:each={contactItems} for:item="c">
+                            <div key={c.key} class="contact">
+                                <lightning-icon icon-name={c.icon} size="x-small"></lightning-icon>
+                                <div>
+                                    <div class="contact-label">{c.label}</div>
+                                    <div class="contact-value">{c.value}</div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </section>
+
+            <div class="layout">
+                <!-- Left column -->
+                <div class="col-left">
+                    <section class="cc-card">
+                        <div class="cc-card-header"><h2 class="cc-card-title">Patient profile</h2></div>
+                        <div class="cc-card-body">
+                            <dl class="profile">
+                                <template for:each={profileItems} for:item="i">
+                                    <div key={i.key} class="profile-item">
+                                        <dt>{i.label}</dt>
+                                        <dd>{i.value}</dd>
+                                    </div>
+                                </template>
+                            </dl>
+                        </div>
+                    </section>
+                    <section class="cc-card">
+                        <div class="cc-card-header"><h2 class="cc-card-title">Therapy &amp; devices</h2></div>
+                        <div class="cc-card-body">
+                            <template lwc:if={hasTherapies}>
+                                <template for:each={therapies} for:item="t">
+                                    <div key={t.id} class="therapy">
+                                        <div class="therapy-head">
+                                            <strong>{t.productName}</strong>
+                                            <span class={t.statusClass}>{t.status}</span>
+                                        </div>
+                                        <div class="cc-muted">{t.period}</div>
+                                        <div class="therapy-details">{t.details}</div>
+                                        <template lwc:if={t.deviceSerial}>
+                                            <div class="cc-muted">Device serial: {t.deviceSerial}</div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </template>
+                            <template lwc:else><div class="cc-empty">No therapy records.</div></template>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Right column -->
+                <section class="cc-card col-right">
+                    <div class="tabs" role="tablist">
+                        <template for:each={tabs} for:item="t">
+                            <button key={t.key} type="button" role="tab" class={t.cls} data-key={t.key} onclick={handleTab}>{t.label}</button>
+                        </template>
+                    </div>
+
+                    <template lwc:if={isTimeline}>
+                        <div class="timeline">
+                            <template lwc:if={hasInteractions}>
+                                <template for:each={interactions} for:item="i">
+                                    <article key={i.id} class="tl-item">
+                                        <span class="tl-dot" style={i.dotStyle}></span>
+                                        <div class="tl-card">
+                                            <button type="button" class="tl-head" data-id={i.id} onclick={toggleInteraction}>
+                                                <lightning-icon icon-name={i.chevron} size="xx-small" class="tl-chevron"></lightning-icon>
+                                                <lightning-icon icon-name={i.dirIcon} size="x-small"></lightning-icon>
+                                                <div class="tl-title">
+                                                    <div class="tl-subject">{i.subject}</div>
+                                                    <div class="cc-muted">{i.when} · {i.meta}</div>
+                                                </div>
+                                                <div class="tl-badges">
+                                                    <span class="cc-pill">{i.statusLabel}</span>
+                                                    <template lwc:if={i.hasAi}>
+                                                        <span class={i.riskClass}>{i.riskLabel}</span>
+                                                    </template>
+                                                    <template lwc:if={i.adverseEvent}>
+                                                        <span class="cc-pill cc-pill_negative">AE reported</span>
+                                                    </template>
+                                                </div>
+                                            </button>
+                                            <template lwc:if={i.open}>
+                                                <div class="tl-body">
+                                                    <div class="tl-tools">
+                                                        <template lwc:if={i.languageLabel}>
+                                                            <span class="cc-pill cc-pill_accent">{i.languageLabel}</span>
+                                                        </template>
+                                                        <template lwc:if={i.scriptTitle}>
+                                                            <span class="cc-pill">Knowledge · {i.scriptTitle}</span>
+                                                        </template>
+                                                        <lightning-button
+                                                            variant="base"
+                                                            label="Open"
+                                                            icon-name="utility:edit"
+                                                            data-id={i.id}
+                                                            onclick={openInteraction}
+                                                        ></lightning-button>
+                                                    </div>
+                                                    <template lwc:if={i.hasAi}>
+                                                        <div class="ai-panel">
+                                                            <div class="ai-head">
+                                                                <span class="ai-title">
+                                                                    <lightning-icon icon-name="utility:einstein" size="x-small"></lightning-icon>
+                                                                    AI call analysis
+                                                                </span>
+                                                                <span class="cc-muted">{i.aiAnalyzedLabel}</span>
+                                                            </div>
+                                                            <p class="ai-summary">{i.aiSummary}</p>
+                                                            <div class="ai-grid">
+                                                                <div>
+                                                                    <div class="ai-label">Sentiment</div>
+                                                                    <span class={i.sentimentClass}>{i.aiSentiment}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="ai-label">Adherence risk</div>
+                                                                    <span class={i.riskClass}>{i.riskLabel}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="ai-label">Side effects flagged</div>
+                                                                    <div class="ai-value">{i.aiSideEffects}</div>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="ai-label">Topics</div>
+                                                                    <div class="ai-value">{i.aiTopics}</div>
+                                                                </div>
+                                                            </div>
+                                                            <template lwc:if={i.aiNextBestAction}>
+                                                                <div class="nba">
+                                                                    <lightning-icon icon-name="utility:target" size="x-small"></lightning-icon>
+                                                                    <div>
+                                                                        <div class="ai-label">Next best action</div>
+                                                                        <div>{i.aiNextBestAction}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    <template lwc:if={i.notes}>
+                                                        <div class="notes"><span class="ai-label">Coach notes</span>{i.notes}</div>
+                                                    </template>
+                                                    <template lwc:if={i.showSentimentBlock}>
+                                                        <div class="senti">
+                                                            <div class="ai-head">
+                                                                <span class="ai-title">
+                                                                    <lightning-icon icon-name="utility:like" size="x-small"></lightning-icon>
+                                                                    Sentiment · Azure AI Language
+                                                                </span>
+                                                                <template lwc:if={i.sentimentScoreLabel}>
+                                                                    <span class={i.sentimentClass}>{i.aiSentiment} {i.sentimentScoreLabel}</span>
+                                                                </template>
+                                                            </div>
+                                                            <template lwc:if={i.sentimentPending}>
+                                                                <p class="cc-muted senti-pending">Analysing sentiment and key phrases…</p>
+                                                            </template>
+                                                            <template lwc:if={i.sentimentError}>
+                                                                <p class="senti-error">Sentiment analysis failed: {i.sentimentError}</p>
+                                                            </template>
+                                                            <template lwc:if={i.hasSentiment}>
+                                                                <div class="senti-speakers">
+                                                                    <template for:each={i.sentimentSpeakers} for:item="sp">
+                                                                        <div key={sp.key} class="senti-speaker">
+                                                                            <div class="senti-speaker-head">
+                                                                                <span class="ai-label">{sp.label}</span>
+                                                                                <span class={sp.cls}>{sp.sentiment} {sp.scoreLabel}</span>
+                                                                            </div>
+                                                                            <div class="senti-bar" style={sp.barStyle}>
+                                                                                <span class="senti-pos"></span><span class="senti-neu"></span><span class="senti-neg"></span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
+                                                                <template lwc:if={i.hasHighlights}>
+                                                                    <div class="ai-label">What the patient said</div>
+                                                                    <ul class="hl-list">
+                                                                        <template for:each={i.sentimentHighlights} for:item="h">
+                                                                            <li key={h.key} class={h.cls}>{h.text}</li>
+                                                                        </template>
+                                                                    </ul>
+                                                                </template>
+                                                                <template lwc:if={i.hasOpinions}>
+                                                                    <div class="ai-label">Opinions</div>
+                                                                    <div class="chips">
+                                                                        <template for:each={i.sentimentOpinions} for:item="o">
+                                                                            <span key={o.key} class={o.cls}>{o.label}</span>
+                                                                        </template>
+                                                                    </div>
+                                                                </template>
+                                                            </template>
+                                                            <template lwc:if={i.hasKeyPhrases}>
+                                                                <div class="ai-label">Key phrases</div>
+                                                                <div class="chips">
+                                                                    <template for:each={i.keyPhrases} for:item="k">
+                                                                        <span key={k.key} class="cc-pill cc-pill_accent">{k.label}</span>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                    <template lwc:if={i.hasTranscript}>
+                                                        <div class="transcript">
+                                                            <div class="transcript-head">
+                                                                <span class="ai-label">Call transcript</span>
+                                                                <div class="transcript-actions">
+                                                                    <template lwc:if={i.canPlay}>
+                                                                        <lightning-button
+                                                                            variant="base"
+                                                                            label="Play recording"
+                                                                            icon-name="utility:play"
+                                                                            data-id={i.id}
+                                                                            data-play="1"
+                                                                            onclick={handleRecording}
+                                                                        ></lightning-button>
+                                                                    </template>
+                                                                    <template lwc:if={i.canRunSentiment}>
+                                                                        <lightning-button
+                                                                            variant="base"
+                                                                            label={i.runSentimentLabel}
+                                                                            icon-name="utility:like"
+                                                                            data-id={i.id}
+                                                                            onclick={handleRunSentiment}
+                                                                        ></lightning-button>
+                                                                    </template>
+                                                                    <template lwc:if={i.canAnalyze}>
+                                                                        <lightning-button
+                                                                            variant="base"
+                                                                            label="Re-run AI analysis"
+                                                                            icon-name="utility:einstein"
+                                                                            data-id={i.id}
+                                                                            disabled={i.analyzing}
+                                                                            onclick={handleAnalyze}
+                                                                        ></lightning-button>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                            <div class="transcript-body">
+                                                                <template for:each={i.transcriptLines} for:item="line">
+                                                                    <div key={line.key} class={line.cls}>
+                                                                        <template lwc:if={line.speaker}><span class="speaker">{line.speaker}</span></template>
+                                                                        <span class="bubble">{line.text}</span>
+                                                                    </div>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </article>
+                                </template>
+                            </template>
+                            <template lwc:else><div class="cc-empty">No interactions yet.</div></template>
+                        </div>
+                    </template>
+
+                    <template lwc:if={isOrders}>
+                        <template lwc:if={hasOrders}>
+                            <table class="cc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order</th>
+                                        <th>Product</th>
+                                        <th>Qty</th>
+                                        <th>Status</th>
+                                        <th>Ordered</th>
+                                        <th>Delivered</th>
+                                        <th>Channel</th>
+                                        <th>Pharmacy / site</th>
+                                        <template lwc:if={showAddressColumn}><th>Delivery address</th></template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={orders} for:item="o">
+                                        <tr key={o.id}>
+                                            <td><strong>{o.orderNumber}</strong></td>
+                                            <td>{o.productName}</td>
+                                            <td>{o.quantity}</td>
+                                            <td><span class={o.statusClass}>{o.status}</span></td>
+                                            <td>{o.ordered}</td>
+                                            <td>{o.delivered}</td>
+                                            <td>{o.channel}</td>
+                                            <td>{o.pharmacy}</td>
+                                            <template lwc:if={showAddressColumn}><td>{o.deliveryAddress}</td></template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template lwc:else><div class="cc-empty">No orders yet.</div></template>
+                    </template>
+
+                    <template lwc:if={isHistory}>
+                        <template lwc:if={hasHistory}>
+                            <ul class="history">
+                                <template for:each={history} for:item="h">
+                                    <li key={h.key} class="history-item">
+                                        <div class="history-when">{h.when}</div>
+                                        <div>
+                                            <strong>{h.field}</strong>
+                                            <span class="cc-muted"> changed from </span>
+                                            <span class="cc-pill">{h.oldValue}</span>
+                                            <span class="cc-muted"> to </span>
+                                            <span class="cc-pill cc-pill_accent">{h.newValue}</span>
+                                        </div>
+                                        <div class="cc-muted">by {h.changedBy}</div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else><div class="cc-empty">No tracked changes yet.</div></template>
+                    </template>
+                </section>
+            </div>
+        </template>
+
+        <!-- Open interaction -->
+        <template lwc:if={showInteraction}>
+            <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_medium" aria-modal="true" aria-label="Interaction">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-modal__title">{selectedInteraction.subject}</h2>
+                        <p class="cc-muted ix-sub">{selectedInteraction.when} · {selectedInteraction.meta}</p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template lwc:if={selectedInteraction.canPlay}>
+                            <div class="player">
+                                <div class="player-label">
+                                    <lightning-icon icon-name="utility:play" size="xx-small"></lightning-icon>
+                                    Recording
+                                </div>
+                                <audio class="call-audio" controls preload="none"></audio>
+                                <template lwc:if={audioLoading}><p class="cc-muted">Loading the recording…</p></template>
+                                <template lwc:if={audioError}><p class="senti-error">{audioError}</p></template>
+                            </div>
+                        </template>
+                        <template lwc:if={selectedInteraction.hasTranscript}>
+                            <div class="transcript ix-transcript">
+                                <div class="transcript-head"><span class="ai-label">Call transcript</span></div>
+                                <div class="transcript-body">
+                                    <template for:each={selectedInteraction.transcriptLines} for:item="line">
+                                        <div key={line.key} class={line.cls}>
+                                            <template lwc:if={line.speaker}><span class="speaker">{line.speaker}</span></template>
+                                            <span class="bubble">{line.text}</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template lwc:if={canEdit}>
+                            <div class="cc-modal-grid ix-form">
+                                <lightning-combobox label="Outcome" data-field="status" value={interactionForm.status} options={outcomeOptions} onchange={handleInteractionField}></lightning-combobox>
+                                <lightning-combobox label="Reason" data-field="reason" value={interactionForm.reason} options={reasonOptions} onchange={handleInteractionField}></lightning-combobox>
+                                <lightning-combobox label="Language" data-field="language" value={interactionForm.language} options={languageOptions} onchange={handleInteractionField}></lightning-combobox>
+                                <lightning-combobox label="Knowledge article" data-field="scriptId" value={interactionForm.scriptId} options={knowledgeOptions} onchange={handleInteractionField}></lightning-combobox>
+                                <lightning-input type="date" label="Follow-up date" data-field="followUpDate" value={interactionForm.followUpDate} onchange={handleInteractionField}></lightning-input>
+                                <lightning-input type="number" label="Duration (min)" data-field="durationMinutes" value={interactionForm.durationMinutes} onchange={handleInteractionField}></lightning-input>
+                                <lightning-textarea class="cc-span-2" label="Coach notes" data-field="notes" value={interactionForm.notes} onchange={handleInteractionField}></lightning-textarea>
+                                <lightning-input type="toggle" label="Adverse event reported" data-field="adverseEvent" checked={interactionForm.adverseEvent} onchange={handleInteractionField}></lightning-input>
+                            </div>
+                        </template>
+                        <template lwc:elseif={selectedInteraction.scriptTitle}>
+                            <p class="cc-muted">Knowledge · {selectedInteraction.scriptTitle}</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Close" onclick={closeInteraction}></lightning-button>
+                        <template lwc:if={canEdit}>
+                            <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" onclick={saveInteraction} disabled={saving}></lightning-button>
+                        </template>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <!-- Log call -->
+        <template lwc:if={showCallModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_medium" aria-modal="true" aria-label="Log call">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-modal__title">Log call · {core.displayName}</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <div class="cc-modal-grid">
+                            <lightning-combobox label="Outcome" data-field="status" value={callForm.status} options={outcomeOptions} onchange={handleCallField} required></lightning-combobox>
+                            <lightning-combobox label="Reason" data-field="reason" value={callForm.reason} options={reasonOptions} onchange={handleCallField}></lightning-combobox>
+                            <lightning-combobox label="Direction" data-field="direction" value={callForm.direction} options={directionOptions} onchange={handleCallField}></lightning-combobox>
+                            <lightning-input type="datetime" label="Call time" data-field="startTime" value={callForm.startTime} onchange={handleCallField}></lightning-input>
+                            <lightning-input type="number" label="Duration (min)" data-field="durationMinutes" value={callForm.durationMinutes} onchange={handleCallField}></lightning-input>
+                            <lightning-input type="date" label="Follow-up date" data-field="followUpDate" value={callForm.followUpDate} onchange={handleCallField}></lightning-input>
+                            <lightning-textarea class="cc-span-2" label="Coach notes" data-field="notes" value={callForm.notes} onchange={handleCallField}></lightning-textarea>
+                            <lightning-textarea
+                                class="cc-span-2 transcript-input"
+                                label="Transcript (paste from the call recording). Use 'Coach:' / 'Patient:' prefixes for the best AI analysis."
+                                data-field="transcript"
+                                value={callForm.transcript}
+                                onchange={handleCallField}
+                            ></lightning-textarea>
+                            <lightning-input type="toggle" label="Adverse event reported" data-field="adverseEvent" checked={callForm.adverseEvent} onchange={handleCallField}></lightning-input>
+                            <lightning-input type="toggle" label="Patient consented to recording" data-field="recordingConsent" checked={callForm.recordingConsent} onchange={handleCallField}></lightning-input>
+                            <template lwc:if={recordingHint}>
+                                <p class="cc-span-2 cc-muted recording-hint">{recordingHint}</p>
+                            </template>
+                        </div>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" variant="brand" label="Save &amp; analyse" onclick={saveCall} disabled={saving}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <!-- New order -->
+        <template lwc:if={showOrderModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open" aria-modal="true" aria-label="New order">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header"><h2 class="slds-modal__title">New order · {core.displayName}</h2></header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <div class="cc-modal-grid">
+                            <lightning-combobox class="cc-span-2" label="Product" data-field="productId" value={orderForm.productId} options={products} onchange={handleOrderField} required></lightning-combobox>
+                            <lightning-input type="number" label="Quantity (packs)" min="1" data-field="quantity" value={orderForm.quantity} onchange={handleOrderField}></lightning-input>
+                            <lightning-combobox label="Channel" data-field="channel" value={orderForm.channel} options={channelOptions} onchange={handleOrderField}></lightning-combobox>
+                            <lightning-textarea class="cc-span-2" label="Notes" data-field="notes" value={orderForm.notes} onchange={handleOrderField}></lightning-textarea>
+                        </div>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" variant="brand" label="Create order" onclick={saveOrder} disabled={saving}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <!-- Status -->
+        <template lwc:if={showStatusModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_small" aria-modal="true" aria-label="Change status">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header"><h2 class="slds-modal__title">Change patient status</h2></header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <lightning-combobox label="Status" data-field="status" value={statusForm.status} options={statusOptions} onchange={handleStatusField}></lightning-combobox>
+                        <template lwc:if={statusNeedsReason}>
+                            <lightning-combobox class="slds-m-top_small" label="Drop reason" data-field="dropReason" value={statusForm.dropReason} options={dropReasonOptions} onchange={handleStatusField} required></lightning-combobox>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" onclick={saveStatus} disabled={saving}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </div>
+    <template lwc:if={showDialer}>
+        <c-care-coach-dialer patient-name={core.displayName} phone={dialPhone} onclose={closeDialer} oncallcomplete={handleCallComplete}></c-care-coach-dialer>
+    </template>
+</template>

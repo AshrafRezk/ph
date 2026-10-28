@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account__c</fullName>
+    <deleteConstraint>Cascade</deleteConstraint>
+    <description>HCP account that received the engagement spend.</description>
+    <label>Account</label>
+    <referenceTo>Account</referenceTo>
+    <relationshipLabel>HCP Engagement Spend</relationshipLabel>
+    <relationshipName>HCP_Engagement_Spend</relationshipName>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

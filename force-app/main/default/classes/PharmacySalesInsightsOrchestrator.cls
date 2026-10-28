@@ -22,6 +22,11 @@ public with sharing class PharmacySalesInsightsOrchestrator {
             outcome.payload = basePayload;
             outcome.source = 'Analytics';
         }
+        try {
+            BrickSalesAlertService.notifyRepsForGrowingBricks();
+        } catch (Exception ignore) {
+            // Brick push notifications are best-effort alongside insights generation.
+        }
         return outcome;
     }
 }

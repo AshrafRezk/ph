@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-hidden="true">
+  <path d="M46 78 L32 118 L60 100 Z" fill="#b71c1c"/>
+  <path d="M82 78 L96 118 L68 100 Z" fill="#d32f2f"/>
+  <circle cx="64" cy="54" r="34" fill="#e53935"/>
+  <circle cx="64" cy="54" r="26" fill="none" stroke="#fff" stroke-width="3.4"/>
+  <text x="64" y="66" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700" fill="#fff">5</text>
+</svg>

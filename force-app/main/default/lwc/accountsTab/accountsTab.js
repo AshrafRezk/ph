@@ -1,29 +1,36 @@
 import { LightningElement, track, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import LightningConfirm from 'lightning/confirm';
 import { MessageContext } from 'lightning/messageService';
 import FORM_FACTOR from '@salesforce/client/formFactor';
 import USER_ID from '@salesforce/user/Id';
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
 import getAccountsTabPage from '@salesforce/apex/AccountsTabController.getAccountsTabPage';
+import getBookMode from '@salesforce/apex/FieldBookAccess.getBookMode';
 import getAccountsTabMapPoints from '@salesforce/apex/AccountsTabController.getAccountsTabMapPoints';
 import getAccountsTabRecordTypeOptions from '@salesforce/apex/AccountsTabController.getAccountsTabRecordTypeOptions';
 import getCreateableAccountRecordTypes from '@salesforce/apex/AccountsTabController.getCreateableAccountRecordTypes';
 import searchMasterListWithFilters from '@salesforce/apex/AccountsTabController.searchMasterListWithFilters';
 import searchMapPlaces from '@salesforce/apex/AccountsTabController.searchMapPlaces';
+import searchVezeetaDoctors from '@salesforce/apex/VezeetaDoctorService.searchVezeetaDoctors';
+import getVezeetaDoctor from '@salesforce/apex/VezeetaDoctorService.getVezeetaDoctor';
+import saveVezeetaProfileUrl from '@salesforce/apex/VezeetaDoctorService.saveVezeetaProfileUrl';
 import createAccountFromWizard from '@salesforce/apex/AccountsTabController.createAccountFromWizard';
 import getWizardCreateOptions from '@salesforce/apex/AccountsTabController.getWizardCreateOptions';
 import setAccountKol from '@salesforce/apex/AccountsTabController.setAccountKol';
-import exportAccountsCsv from '@salesforce/apex/AccountsTabController.exportAccountsCsv';
+import exportAccountsCsvChunk from '@salesforce/apex/AccountsTabController.exportAccountsCsvChunk';
+import approveAccountSubmissionApex from '@salesforce/apex/AccountsTabController.approveAccountSubmission';
+import getAccountNurtureSummary from '@salesforce/apex/AccountsTabController.getAccountNurtureSummary';
+import isAccountApprovalManager from '@salesforce/apex/AccountsTabController.isAccountApprovalManager';
+import rejectAccountSubmissionApex from '@salesforce/apex/AccountsTabController.rejectAccountSubmission';
 import getPlannerAccountFilterOptions from '@salesforce/apex/FieldPlannerController.getPlannerAccountFilterOptions';
 import { getCurrentPosition } from 'c/plannerMapUtils';
 import {
     addOsmTileLayer,
-    ensureLeaflet,
-    HCO_PIN_SVG,
-    HCP_PIN_SVG,
-    resolveAccountPinKind
+    ensureLeaflet
 } from 'c/plannerMapPins';
+import { accountTypeIconUrl, resolveAccountThemeKind } from 'c/accountTypeTheme';
 import {
     loadAccountCollections,
     getCollectionAccountIds
@@ -33,12 +40,18 @@ import {
     unsubscribeTerritoryContext
 } from 'c/territoryContextClient';
 
+// Matches AccountsTabController.DUPLICATE_WARNING_PREFIX.
+const DUPLICATE_WARNING_PREFIX = 'Possible duplicate: ';
+
 const FILTER_ALL = 'All';
 const SCOPE_BOTH = 'both';
 const SCOPE_IN = 'in';
 const SCOPE_OUT = 'out';
 const LIST_MODE_ALL = 'all';
 const LIST_MODE_COLLECTION = 'collection';
+const LIST_MODE_NURTURING = 'nurturing';
+const APPROVAL_SCOPE_NURTURING = 'nurturing';
+const NURTURE_LANE_ALL = 'all';
 const SORT_AGENTFORCE = 'agentforceScore';
 const SORT_CLASSIFICATION = 'classification';
 const SORT_NAME = 'name';
@@ -47,9 +60,24 @@ const SORT_GAP = 'gap';
 const SORT_VISITS = 'visits';
 const SORT_LAST_VISIT = 'lastVisit';
 const PAGE_SIZE = 10;
-const MAP_PAGE_SIZE = 5;
+const NURTURE_ACTION_PAGE_SIZE = 50;
+const MAP_PAGE_SIZE = 50;
+const ACCOUNTS_MAP_CHROME_CSS = `
+.acct-map-pin{background:transparent!important;border:none!important;}
+.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 12px 32px rgba(3,45,96,.18);padding:0;}
+.leaflet-popup-content{margin:0.75rem 0.85rem;min-width:11.5rem;}
+.leaflet-popup-tip{box-shadow:none;}
+.acct-popup-name{font-weight:700;font-size:0.9rem;color:#181818;line-height:1.3;}
+.acct-popup-place{margin-top:0.15rem;color:#706e6b;font-size:0.75rem;}
+.acct-popup-row{display:flex;gap:0.4rem;align-items:center;margin-top:0.45rem;flex-wrap:wrap;}
+.acct-popup-chip{background:#eef4ff;color:#014486;border-radius:999px;padding:0.05rem 0.45rem;font-size:0.65rem;font-weight:700;}
+.acct-popup-risk{font-size:0.65rem;font-weight:700;}
+.acct-popup-meta{margin-top:0.4rem;font-size:0.75rem;color:#444;line-height:1.45;}
+.acct-popup-open{margin-top:0.6rem;border:0;background:#0176d3;color:#fff;border-radius:0.45rem;padding:0.32rem 0.65rem;font-size:0.75rem;font-weight:700;cursor:pointer;}
+.acct-popup-open:hover{background:#014486;}
+`;
 const SEARCH_DEBOUNCE_MS = 350;
-const COMPACT_BREAKPOINT_PX = 1024;
+const COMPACT_BREAKPOINT_PX = 1200;
 
 const SCOPE_OPTIONS = [
     { label: 'All Accounts', value: SCOPE_BOTH },
@@ -80,16 +108,14 @@ const RISK_DOT_CLASS = {
 
 const MAP_INTELLIGENCE_LABEL = 'Cloudastick Map Intelligence';
 const PLACE_KIND_META = {
-  doctor: { label: 'Doctor', iconName: 'utility:user', color: '#0176d3' },
-  pharmacy: { label: 'Pharmacy', iconName: 'utility:store', color: '#2e844a' },
-  hco: { label: 'HCO', iconName: 'utility:home', color: '#6a1b9a' },
+  doctor: { label: 'Doctor', iconName: 'utility:user', color: '#3f7de5', themeKind: 'hcp' },
+  pharmacy: { label: 'Pharmacy', iconName: 'utility:store', color: '#176935', themeKind: 'pharmacy' },
+  hco: { label: 'HCO', iconName: 'utility:home', color: '#fdbf29', themeKind: 'hco' },
   company: { label: 'Company', iconName: 'utility:company', color: '#032d60' },
   unknown: { label: 'Unknown', iconName: 'utility:help', color: '#706e6b' }
 };
 const COMPANY_PIN_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M4 20V8h6V4h10v16H4zm2-2h4v-4H6v4zm0-6h4V10H6v2zm6 6h6v-2h-6v2zm0-4h6v-2h-6v2zm0-4h6V8h-6v2zM12 6v2h6V6h-6z"/></svg>';
-const PHARMACY_PIN_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M10.5 4h3v6.5H20v3h-6.5V20h-3v-6.5H4v-3h6.5V4z"/></svg>';
 const UNKNOWN_PIN_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M11 18h2v2h-2v-2zm1-16C9.2 2 7 4.2 7 7h2c0-1.7 1.3-3 3-3s3 1.3 3 3c0 1.5-.8 2.2-2.1 3.5L12 11.3c-1.2 1.2-1.9 2.2-1.9 3.7h2c0-.9.4-1.6 1.3-2.5l.9-.9C15.9 10.1 17 8.9 17 7c0-2.8-2.2-5-5-5z"/></svg>';
 const EGYPT_MAP_CENTER = [26.8, 30.8];
@@ -103,6 +129,14 @@ const HCP_CREATE_TYPES = new Set([
   'Medical_Professional_HCP',
   'Business_Contact'
 ]);
+
+function escapeMapHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function phoneDigits(raw) {
   if (!raw) {
@@ -275,6 +309,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   @track recordTypeCounts = [];
 
   isLoading = true;
+  isExporting = false;
   errorMessage;
   viewMode = 'list';
   scope = SCOPE_BOTH;
@@ -291,8 +326,19 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   isNarrowViewport = false;
   sidebarOpen = true;
   sidebarPanel = 'lists';
+  _viewportReady = false;
   listViewMode = LIST_MODE_ALL;
   selectedCollectionId = null;
+  isAccountManager = false;
+  nurtureNeedsYou = 0;
+  nurtureWithManager = 0;
+  nurtureWithSfe = 0;
+  nurtureLane = NURTURE_LANE_ALL;
+  approvalSelectedById = {};
+  showMassRejectModal = false;
+  massRejectMissing = false;
+  isSavingApproval = false;
+  rejectionReasonByAccountId = {};
   accountCollections = [];
   showNewAccountModal = false;
   selectedCreateRecordTypeId;
@@ -319,6 +365,14 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   isMapSearching = false;
   mapSearchRan = false;
   selectedMapPlaceId;
+  lookupSource = 'maps';
+  vezeetaSearchTerm = '';
+  @track vezeetaResults = [];
+  vezeetaSearchRan = false;
+  isVezeetaSearching = false;
+  isVezeetaLoading = false;
+  selectedVezeetaUrl;
+  vezeetaSearchDebounce;
   @track createForm = {};
   isGettingCurrentLocation = false;
   currentLocationError = null;
@@ -373,27 +427,93 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.subscribeTerritoryContext();
   }
 
+  fullBookOpen = false;
+  canOpenFullBook = false;
+
   connectedCallback() {
     this.updateViewportMode();
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.handleResize);
+      window.addEventListener('keydown', this.handleDrawerKeydown);
     }
     this.subscribeTerritoryContext();
     this.loadPlannerCollections();
     this.loadFilterOptions();
+    void this.loadApprovalContext();
+    void this.loadBookMode();
     this.reloadData(true);
   }
 
+  async loadBookMode() {
+    try {
+      const mode = await getBookMode();
+      // SFE already gets the whole book from Apex; label it so and drop the toggle.
+      if (mode?.fullBookByDefault === true) {
+        this.fullBookOpen = true;
+        this.canOpenFullBook = false;
+        return;
+      }
+      this.canOpenFullBook = mode?.canOpenFullBook === true;
+    } catch (e) {
+      this.canOpenFullBook = false;
+    }
+  }
+
+  handleToggleFullBook() {
+    this.fullBookOpen = !this.fullBookOpen;
+    this.reloadData(true);
+  }
+
+  get bookToggleLabel() {
+    return this.fullBookOpen ? 'Show my book only' : 'Open full book';
+  }
+
+  get bookScopeLabel() {
+    return this.fullBookOpen
+      ? 'Full book is open.'
+      : 'Showing this user’s territory book only.';
+  }
+
+  async loadApprovalContext() {
+    try {
+      this.isAccountManager = (await isAccountApprovalManager()) === true;
+      if (this.isAccountManager) {
+        const summary = await getAccountNurtureSummary();
+        this.nurtureNeedsYou = summary?.needsYou || 0;
+        this.nurtureWithManager = summary?.withManager || 0;
+        this.nurtureWithSfe = summary?.withSfe || 0;
+      } else {
+        this.nurtureNeedsYou = 0;
+        this.nurtureWithManager = 0;
+        this.nurtureWithSfe = 0;
+      }
+    } catch (e) {
+      this.isAccountManager = false;
+      this.nurtureNeedsYou = 0;
+      this.nurtureWithManager = 0;
+      this.nurtureWithSfe = 0;
+    }
+  }
+
   subscribeTerritoryContext() {
-    if (this.territoryContextSubscription || !this._messageContext) {
+    if (this.territoryContextSubscription) {
       return;
     }
+    // Subscribe even when LMS MessageContext is missing (PWA stub / LWS); window + BroadcastChannel still fire.
     this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
       this.reloadData(true);
     });
   }
 
   renderedCallback() {
+    if (this._scrollMapAccountId && this.isMapView) {
+      const accountId = this._scrollMapAccountId;
+      this._scrollMapAccountId = null;
+      const listItem = this.template.querySelector(
+        `.map-account-item[data-account-id="${accountId}"]`
+      );
+      listItem?.scrollIntoView({ block: 'nearest' });
+    }
     if (!this.showNewAccountModal) {
       if (this.wizardMapInstance) {
         this.destroyWizardMap();
@@ -405,7 +525,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.destroyWizardMap();
     }
     this._wizardMapStep = this.newAccountStep;
-    if (this.isMapSearchStep) {
+    if (this.isMapSearchStep && this.isMapLookup) {
       this.ensureWizardSearchMap();
     } else if (this.isCreateFormStep) {
       this.ensureWizardCreateMap();
@@ -420,6 +540,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.handleResize);
+      window.removeEventListener('keydown', this.handleDrawerKeydown);
     }
     if (this.territoryContextSubscription) {
       unsubscribeTerritoryContext(this.territoryContextSubscription);
@@ -438,8 +559,29 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     if (typeof window === 'undefined') {
       return;
     }
+    const wasCompact = this.isCompactView;
     this.isNarrowViewport = window.innerWidth <= COMPACT_BREAKPOINT_PX;
-    if (this.isCompactView && FORM_FACTOR === 'Small') {
+    const nowCompact = this.isCompactView;
+    if (!this._viewportReady) {
+      this.sidebarOpen = !nowCompact;
+      this._viewportReady = true;
+      return;
+    }
+    if (nowCompact && !wasCompact) {
+      this.sidebarOpen = false;
+    } else if (!nowCompact && wasCompact) {
+      this.sidebarOpen = true;
+    }
+  }
+
+  handleDrawerKeydown = (event) => {
+    if (event.key === 'Escape' && this.sidebarOpen && this.isCompactView) {
+      this.sidebarOpen = false;
+    }
+  };
+
+  closeOverlayDrawer() {
+    if (this.isCompactView) {
       this.sidebarOpen = false;
     }
   }
@@ -468,12 +610,28 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return this.isMapView ? 'brand' : 'neutral';
   }
 
+  get listViewLabel() {
+    return this.isCompactView ? 'List' : 'List View';
+  }
+
+  get mapViewLabel() {
+    return this.isCompactView ? 'Map' : 'Map View';
+  }
+
+  get shellClass() {
+    return `accounts-shell${this.isCompactView ? ' accounts-shell-compact' : ''}`;
+  }
+
   get toolbarClass() {
     return `accounts-toolbar${this.isCompactView ? ' accounts-toolbar-compact' : ''}`;
   }
 
-  get summaryCardsClass() {
-    return `summary-cards${this.isCompactView ? ' summary-cards-compact' : ''}`;
+  get filterButtonClass() {
+    return this.isCompactView && this.sidebarOpen ? 'toolbar-funnel toolbar-funnel-open' : 'toolbar-funnel';
+  }
+
+  get oceShellClass() {
+    return `oce-shell${this.isCompactView ? ' oce-shell-overlay' : ''}`;
   }
 
   get sidebarClass() {
@@ -481,7 +639,26 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     if (this.sidebarOpen) {
       classes.push('oce-sidebar-open');
     }
+    if (this.isCompactView) {
+      classes.push('oce-sidebar-overlay');
+    }
     return classes.join(' ');
+  }
+
+  get showSidebarBackdrop() {
+    return this.isCompactView && this.sidebarOpen && this.isListView;
+  }
+
+  get sidebarRole() {
+    return this.isCompactView ? 'dialog' : 'complementary';
+  }
+
+  get sidebarAriaModal() {
+    return this.isCompactView && this.sidebarOpen ? 'true' : 'false';
+  }
+
+  get sidebarAriaHidden() {
+    return this.isCompactView && !this.sidebarOpen ? 'true' : 'false';
   }
 
   get isListsPanel() {
@@ -526,6 +703,135 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     ];
   }
 
+  get showApprovalsSidebar() {
+    return this.isAccountManager === true;
+  }
+
+  get isNurturingList() {
+    return this.listViewMode === LIST_MODE_NURTURING;
+  }
+
+  get nurtureTotal() {
+    return (this.nurtureNeedsYou || 0) + (this.nurtureWithManager || 0) + (this.nurtureWithSfe || 0);
+  }
+
+  get pendingApprovalNavClass() {
+    const classes = [this.navButtonClass(this.isNurturingList)];
+    if ((this.nurtureNeedsYou || 0) > 0) {
+      classes.push('oce-nav-btn-alert');
+    }
+    return classes.join(' ');
+  }
+
+  get pendingApprovalNavLabel() {
+    const needsYou = this.nurtureNeedsYou || 0;
+    if (needsYou === 1) {
+      return '1 needs you';
+    }
+    if (needsYou > 1) {
+      return `${needsYou} need you`;
+    }
+    const waiting = (this.nurtureWithManager || 0) + (this.nurtureWithSfe || 0);
+    if (waiting === 1) {
+      return '1 waiting';
+    }
+    if (waiting > 1) {
+      return `${waiting} waiting`;
+    }
+    return 'None in progress';
+  }
+
+  get nurtureNavTitle() {
+    return `${this.nurtureNeedsYou || 0} need your approval · ${this.nurtureWithManager || 0} with your manager · ${this.nurtureWithSfe || 0} with SFE`;
+  }
+
+  get nurtureHelp() {
+    return 'Accounts still moving through approval, grouped by who has to act next.';
+  }
+
+  get nurtureChips() {
+    const lane = this.nurtureLane || NURTURE_LANE_ALL;
+    const chips = [
+      { value: NURTURE_LANE_ALL, label: `All (${this.nurtureTotal})` },
+      {
+        value: 'needsYou',
+        label: `Needs you (${this.nurtureNeedsYou || 0})`,
+        alert: (this.nurtureNeedsYou || 0) > 0
+      },
+      { value: 'withManager', label: `With your manager (${this.nurtureWithManager || 0})` },
+      { value: 'withSfe', label: `With SFE (${this.nurtureWithSfe || 0})` }
+    ];
+    return chips.map((chip) => {
+      const classes = ['nurture-chip'];
+      const selected = lane === chip.value;
+      if (selected) {
+        classes.push('nurture-chip-active');
+      }
+      if (chip.alert && !selected) {
+        classes.push('nurture-chip-alert');
+      }
+      return {
+        ...chip,
+        className: classes.join(' '),
+        ariaSelected: selected ? 'true' : 'false'
+      };
+    });
+  }
+
+  get actionableRows() {
+    return (this.rows || []).filter((row) => row.showApprovalActions);
+  }
+
+  get selectedActionableIds() {
+    return this.actionableRows
+      .filter((row) => this.approvalSelectedById[row.accountId])
+      .map((row) => row.accountId);
+  }
+
+  get showMassApproval() {
+    return this.isNurturingList && this.actionableRows.length > 0;
+  }
+
+  get massSelectionLabel() {
+    const selected = this.selectedActionableIds.length;
+    const total = this.actionableRows.length;
+    if (!selected) {
+      return total === 1 ? '1 account needs you' : `${total} accounts need you`;
+    }
+    return selected === 1 ? '1 selected' : `${selected} selected`;
+  }
+
+  get massDisabled() {
+    return this.isSavingApproval || this.selectedActionableIds.length === 0;
+  }
+
+  get massApproveLabel() {
+    const count = this.selectedActionableIds.length;
+    return count ? `Approve selected (${count})` : 'Approve selected';
+  }
+
+  get massRejectLabel() {
+    const count = this.selectedActionableIds.length;
+    return count ? `Reject selected (${count})` : 'Reject selected';
+  }
+
+  get massRejectHelp() {
+    const count = this.selectedActionableIds.length;
+    return count === 1
+      ? 'This reason is saved on the selected account.'
+      : `This reason is saved on ${count} selected accounts that do not already have one.`;
+  }
+
+  get emptyStateMessage() {
+    if (!this.isNurturingList) {
+      return 'No accounts match the current filters.';
+    }
+    if ((this.nurtureLane || NURTURE_LANE_ALL) === NURTURE_LANE_ALL) {
+      return 'No accounts are moving through approval.';
+    }
+    return 'No accounts in this status.';
+  }
+
   get hasPlannerCollections() {
     return (this.accountCollections || []).length > 0;
   }
@@ -558,6 +864,10 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   get countLabel() {
+    if (this.listViewMode === LIST_MODE_NURTURING) {
+      const total = this.summary.totalCount || 0;
+      return `${total} in Account nurturing`;
+    }
     if (this.listViewMode === LIST_MODE_COLLECTION) {
       const collection = (this.accountCollections || []).find(
         (item) => item.id === this.selectedCollectionId
@@ -589,35 +899,57 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
 
   get mapListItems() {
     return (this.mapRows || []).map((row) => {
-      const pinKind = resolveAccountPinKind(
+      const themeKind = resolveAccountThemeKind(
         row.recordTypeDeveloperName,
         row.recordTypeName
       );
+      const pinKind = themeKind === 'account' ? 'hcp' : themeKind;
+      const typeLabels = { pharmacy: 'Pharmacy', hco: 'HCO', hcp: 'HCP' };
       const isSelected = row.accountId === this.selectedAccountId;
+      const risk = row.agentforceRisk || 'Low';
+      const riskKey = String(risk).toLowerCase();
       return {
         ...row,
         pinKind,
-        typeLabel: pinKind === 'hco' ? 'HCO' : 'HCP',
-        riskDotClass: RISK_DOT_CLASS[row.agentforceRisk] || RISK_DOT_CLASS.Low,
+        selected: isSelected,
+        typeIconUrl: accountTypeIconUrl(pinKind),
+        typeLabel: typeLabels[pinKind] || 'HCP',
+        classification: row.classification || '—',
+        riskLabel: `${risk} pace`,
+        riskChipClass: `map-risk-chip map-risk-chip-${riskKey}`,
+        riskDotClass: RISK_DOT_CLASS[risk] || RISK_DOT_CLASS.Low,
+        avatarClass: `map-account-avatar map-account-avatar-${pinKind}${isSelected ? ' is-selected' : ''}`,
+        visitsLabel: row.targetVisits != null ? `Visits ${row.callPlanLabel}` : 'No visit target',
         itemClass: `map-account-item${isSelected ? ' map-account-item-selected' : ''}`,
         subtitle: [row.accountSubtype || row.recordTypeName, row.city].filter(Boolean).join(' · ') || '—'
       };
     });
   }
 
+  get mapListBodyClass() {
+    return `map-list-body${this.isLoading && this.hasMapListItems ? ' is-loading' : ''}`;
+  }
+
+  get showMapListSpinner() {
+    return this.isLoading && !this.hasMapListItems;
+  }
+
+  get showMapEmptyOverlay() {
+    return !this.isLoading && !this.hasMapListItems;
+  }
+
   get mapListCountLabel() {
     const geocoded = this.mapEligibleCount || 0;
     const matched = this.summary.totalCount || 0;
     if (geocoded === 0) {
-      return matched > 0 ? `0 on map (${matched} matched)` : '0 on map';
+      return matched > 0 ? `None of ${matched} located` : 'None located';
+    }
+    if (geocoded <= MAP_PAGE_SIZE) {
+      return `${geocoded} located`;
     }
     const start = (this.mapCurrentPage - 1) * MAP_PAGE_SIZE + 1;
     const end = Math.min(this.mapCurrentPage * MAP_PAGE_SIZE, geocoded);
-    let label = `Showing ${start}–${end} of ${geocoded}`;
-    if (geocoded < matched) {
-      label += ` (${matched} matched)`;
-    }
-    return label;
+    return `${start}–${end} of ${geocoded}`;
   }
 
   get showMapPagination() {
@@ -644,16 +976,6 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return !this.mapHasNextPage || this.isLoading;
   }
 
-  get mapRangeLabel() {
-    const total = this.mapEligibleCount || 0;
-    if (total === 0) {
-      return '';
-    }
-    const start = (this.mapCurrentPage - 1) * MAP_PAGE_SIZE + 1;
-    const end = Math.min(this.mapCurrentPage * MAP_PAGE_SIZE, total);
-    return `Showing ${start}–${end} of ${total}`;
-  }
-
   get mapPageLabel() {
     return `Page ${this.mapCurrentPage} of ${this.mapTotalPages}`;
   }
@@ -666,12 +988,16 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return `oce-nav-btn${isActive ? ' oce-nav-btn-active' : ''}`;
   }
 
+  get listPageSize() {
+    return this.isNurturingList && this.nurtureLane === 'needsYou' ? NURTURE_ACTION_PAGE_SIZE : PAGE_SIZE;
+  }
+
   get showPagination() {
-    return this.isListView && (this.summary.totalCount || 0) > PAGE_SIZE;
+    return this.isListView && (this.summary.totalCount || 0) > this.listPageSize;
   }
 
   get totalPages() {
-    return Math.max(1, Math.ceil((this.summary.totalCount || 0) / PAGE_SIZE));
+    return Math.max(1, Math.ceil((this.summary.totalCount || 0) / this.listPageSize));
   }
 
   get hasPreviousPage() {
@@ -695,8 +1021,8 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     if (total === 0) {
       return '';
     }
-    const start = (this.currentPage - 1) * PAGE_SIZE + 1;
-    const end = Math.min(this.currentPage * PAGE_SIZE, total);
+    const start = (this.currentPage - 1) * this.listPageSize + 1;
+    const end = Math.min(this.currentPage * this.listPageSize, total);
     return `Showing ${start}–${end} of ${total}`;
   }
 
@@ -730,6 +1056,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return !this.selectedMasterAccountId;
     }
     if (this.newAccountStep === 'mapSearch') {
+      if (this.isVezeetaLookup) {
+        return !this.selectedVezeetaUrl || this.isVezeetaLoading;
+      }
       return !this.selectedMapPlaceId;
     }
     return this.isSavingAccount || this.isCreateFormInvalid;
@@ -989,6 +1318,55 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return this.newAccountStep === 'mapSearch';
   }
 
+  get isVezeetaLookup() {
+    return this.isPersonCreateType && this.lookupSource === 'vezeeta';
+  }
+
+  get isMapLookup() {
+    return !this.isVezeetaLookup;
+  }
+
+  get showVezeetaSourceToggle() {
+    return this.isPersonCreateType;
+  }
+
+  get mapSourceClass() {
+    return this.isVezeetaLookup ? 'wizard-source-btn' : 'wizard-source-btn wizard-source-btn-active';
+  }
+
+  get vezeetaSourceClass() {
+    return this.isVezeetaLookup ? 'wizard-source-btn wizard-source-btn-active' : 'wizard-source-btn';
+  }
+
+  get notFoundSearchLabel() {
+    return this.isPersonCreateType ? 'Not found — search maps or Google Search' : 'Not found — search maps';
+  }
+
+  get hasVezeetaResults() {
+    return (this.vezeetaResults || []).length > 0;
+  }
+
+  get showVezeetaEmpty() {
+    return this.vezeetaSearchRan && !this.isVezeetaSearching && !this.hasVezeetaResults;
+  }
+
+  get showVezeetaHint() {
+    return !this.vezeetaSearchRan && !this.isVezeetaSearching && !this.hasVezeetaResults;
+  }
+
+  get vezeetaResultCards() {
+    return this.decorateWizardResults(this.vezeetaResults, this.selectedVezeetaUrl, 'urlName').map((row) => {
+      const bits = [row.specialty, row.area, row.city].filter(Boolean);
+      return {
+        ...row,
+        locationLine: [row.address, bits.join(' · ')].filter(Boolean).join(' — '),
+        metaLine: row.clinicName || '',
+        sourceLabel: 'Google Search',
+        sourceClass: 'wizard-source-pill wizard-source-pill-vezeeta'
+      };
+    });
+  }
+
   get isCreateFormStep() {
     return this.newAccountStep === 'createForm';
   }
@@ -1001,6 +1379,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return 'Search by name, number, phone, specialty, city, or brick. Filter by 148/702 brick and specialty. Results show brick and location.';
     }
     if (this.isMapSearchStep) {
+      if (this.isVezeetaLookup) {
+        return 'Search Google by doctor name, or by a specialty such as جلدية. Choosing a doctor fills the profile, clinic, and map pin.';
+      }
       return 'Search companies, doctors, or HCOs by name or phone. Icons show the place type; stars show KOLness and map rating.';
     }
     return 'Complete required fields, confirm the pin, and watch the data quality score.';
@@ -1014,7 +1395,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return 'Step 2 of 4 — Search Master List';
     }
     if (this.isMapSearchStep) {
-      return 'Step 3 of 4 — Search maps';
+      return this.isVezeetaLookup ? 'Step 3 of 4 — Google Search' : 'Step 3 of 4 — Search maps';
     }
     return 'Step 4 of 4 — Review and save';
   }
@@ -1027,6 +1408,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return 'Use selected account';
     }
     if (this.isMapSearchStep) {
+      if (this.isVezeetaLookup) {
+        return this.isVezeetaLoading ? 'Loading profile…' : 'Use Google Search doctor';
+      }
       return 'Use map place';
     }
     return this.isSavingAccount ? 'Saving…' : 'Save account';
@@ -1081,11 +1465,19 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   get masterResultCards() {
-    return this.decorateWizardResults(this.masterSearchResults, this.selectedMasterAccountId, 'accountId');
+    return this.withSource(
+      this.decorateWizardResults(this.masterSearchResults, this.selectedMasterAccountId, 'accountId'),
+      'Master list',
+      'master'
+    );
   }
 
   get cognitiveResultCards() {
-    return this.decorateWizardResults(this.cognitiveResults, this.selectedMasterAccountId, 'accountId');
+    return this.withSource(
+      this.decorateWizardResults(this.cognitiveResults, this.selectedMasterAccountId, 'accountId'),
+      'Master list',
+      'master'
+    );
   }
 
   get mapResultCards() {
@@ -1100,6 +1492,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
           placeKind,
           placeKindLabel: row.placeKindLabel || kindMeta.label,
           kindIcon: kindMeta.iconName,
+          kindIconUrl: accountTypeIconUrl(kindMeta.themeKind),
           kindClass: `wizard-kind-chip wizard-kind-${placeKind}`,
           isKol,
           starCount,
@@ -1110,6 +1503,8 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
               ? `${starCount} of 5 map stars`
               : 'No map rating yet',
           provider: MAP_INTELLIGENCE_LABEL,
+          sourceLabel: 'Maps',
+          sourceClass: 'wizard-source-pill wizard-source-pill-maps',
           cardClass: [row.cardClass || 'wizard-result-card', isKol ? 'wizard-result-card-kol' : '']
             .filter(Boolean)
             .join(' ')
@@ -1149,6 +1544,15 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     return stars;
   }
 
+  withSource(rows, label, kind) {
+    const sourceClass = `wizard-source-pill wizard-source-pill-${kind}`;
+    return (rows || []).map((row) => ({
+      ...row,
+      sourceLabel: label,
+      sourceClass
+    }));
+  }
+
   decorateWizardResults(rows, selectedId, idField) {
     const selected = selectedId ? String(selectedId) : '';
     return (rows || []).map((row, index) => {
@@ -1175,17 +1579,25 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.createRecordTypeOptions = Array.isArray(createTypes) ? createTypes : [];
       this.classificationOptions = [
         { label: 'All Classifications', value: FILTER_ALL },
-        { label: 'A', value: 'A' },
-        { label: 'B', value: 'B' },
-        { label: 'C', value: 'C' }
+        { label: 'A1', value: 'A1' },
+        { label: 'A2', value: 'A2' },
+        { label: 'A3', value: 'A3' },
+        { label: 'B1', value: 'B1' },
+        { label: 'B2', value: 'B2' },
+        { label: 'B3', value: 'B3' },
+        { label: 'C1', value: 'C1' },
+        { label: 'C2', value: 'C2' },
+        { label: 'C3', value: 'C3' }
       ];
+      // The planner lists already start with their own "All" entry; keep only ours.
+      const withoutAll = (options) => (options || []).filter((option) => option.value !== FILTER_ALL);
       this.specialtyOptions = [
         { label: 'All Specialties', value: FILTER_ALL },
-        ...(plannerOpts?.specialtyOptions || [])
+        ...withoutAll(plannerOpts?.specialtyOptions)
       ];
       this.brickOptions = [
         { label: 'All Bricks', value: FILTER_ALL },
-        ...(plannerOpts?.brickOptions || [])
+        ...withoutAll(plannerOpts?.brickOptions)
       ];
       this.wizardCreateOptions = wizardOpts || {};
     } catch (error) {
@@ -1230,7 +1642,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   buildApexParams(mapMode = false) {
     const accountIds = this.selectedCollectionAccountIds;
     const trimmedSearch = (this.searchTerm || '').trim();
-    const pageSize = mapMode ? MAP_PAGE_SIZE : PAGE_SIZE;
+    const pageSize = mapMode ? MAP_PAGE_SIZE : this.listPageSize;
     const page = mapMode ? this.mapCurrentPage : this.currentPage;
     return {
       scope: this.scope,
@@ -1246,91 +1658,70 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       contextUserId: null,
       accountIds: accountIds.length ? accountIds : null,
       brickId: this.brickId === FILTER_ALL ? null : this.brickId,
-      specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
+      specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter,
+      approvalScope: this.listViewMode === LIST_MODE_NURTURING ? APPROVAL_SCOPE_NURTURING : null,
+      nurtureLane:
+        this.listViewMode === LIST_MODE_NURTURING && this.nurtureLane && this.nurtureLane !== NURTURE_LANE_ALL
+          ? this.nurtureLane
+          : null,
+      repBookOnly: this.fullBookOpen ? false : true
     };
   }
 
   async handleExportCsv() {
+    if (this.isExporting) {
+      return;
+    }
+    this.isExporting = true;
+    this.errorMessage = null;
     try {
-      let csv = null;
-      try {
-        csv = await exportAccountsCsv({
+      // The full book comes back in chunks; a territory book comes back in one.
+      const parts = [];
+      let afterId = null;
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const chunk = await exportAccountsCsvChunk({
           scope: this.scope,
           searchTerm: (this.searchTerm || '').trim() || null,
           recordTypeDeveloperName: this.recordType,
           classification: this.classification === FILTER_ALL ? null : this.classification,
-          sortBy: this.sortBy,
-          sortDirection: this.sortDirection,
-          monthStart: null,
           contextUserId: null,
           brickId: this.brickId === FILTER_ALL ? null : this.brickId,
-          specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter
+          specialtyFilter: this.specialtyFilter === FILTER_ALL ? null : this.specialtyFilter,
+          fullBook: this.fullBookOpen,
+          afterId
         });
-      } catch (_apexError) {
-        csv = null;
+        if (chunk?.csv) {
+          parts.push(chunk.csv);
+        }
+        if (!chunk || chunk.done !== false || !chunk.nextAfterId) {
+          break;
+        }
+        afterId = chunk.nextAfterId;
       }
+      const csv = parts.join('\n');
       if (!csv || csv === 'null' || String(csv).trim() === '') {
-        csv = this.buildClientCsv(this.rows || []);
-      }
-      if (!csv) {
-        this.errorMessage = 'Nothing to export for the current filters.';
+        this.errorMessage = 'Nothing to export for the current territory.';
         return;
       }
+      // Lightning Web Security rejects text/csv and MIME parameters, so the file goes out as
+      // text/plain with a .csv name; the BOM keeps Arabic names readable in Excel.
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = 'accounts_export.csv';
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      // eslint-disable-next-line @lwc/lwc/no-async-operation
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
       this.errorMessage = this.reduceError(error);
+    } finally {
+      this.isExporting = false;
     }
-  }
-
-  buildClientCsv(rows) {
-    const list = Array.isArray(rows) ? rows : [];
-    const headers = [
-      'Account Name',
-      'Record Type',
-      'Classification',
-      'Specialty',
-      'Brick',
-      'City',
-      'Plan',
-      'Health',
-      'Score',
-      'Account Id'
-    ];
-    const escape = (value) => {
-      const text = value == null ? '' : String(value);
-      if (/[",\n]/.test(text)) {
-        return `"${text.replace(/"/g, '""')}"`;
-      }
-      return text;
-    };
-    const lines = [headers.join(',')];
-    list.forEach((row) => {
-      lines.push(
-        [
-          row.accountName,
-          row.recordTypeLabel || row.typeLabel,
-          row.classification,
-          row.specialtyDisplay || row.specialty,
-          row.brickName,
-          row.city,
-          row.planLabel || row.inPlanLabel,
-          row.healthLabel,
-          row.scoreDisplay || row.healthScore,
-          row.accountId
-        ]
-          .map(escape)
-          .join(',')
-      );
-    });
-    return lines.join('\n');
   }
 
   handleColumnSort(event) {
@@ -1372,9 +1763,14 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     };
     this.recordTypeCounts = result?.recordTypeCounts || [];
     this.mapEligibleCount = result?.mapEligibleCount ?? this.mapEligibleCount;
+    if (this.listViewMode === LIST_MODE_NURTURING && result) {
+      this.nurtureNeedsYou = result.nurtureNeedsYouCount || 0;
+      this.nurtureWithManager = result.nurtureWithManagerCount || 0;
+      this.nurtureWithSfe = result.nurtureWithSfeCount || 0;
+    }
     const maxPage = Math.max(
       1,
-      Math.ceil((this.summary.totalCount || 0) / PAGE_SIZE)
+      Math.ceil((this.summary.totalCount || 0) / this.listPageSize)
     );
     if (this.currentPage > maxPage) {
       this.currentPage = maxPage;
@@ -1418,6 +1814,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       if (token === this.loadRequestToken) {
         this.isLoading = false;
       }
+      void this.loadApprovalContext();
     }
   }
 
@@ -1604,6 +2001,10 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return;
     }
     if (this.newAccountStep === 'mapSearch') {
+      if (this.isVezeetaLookup) {
+        this.applySelectedVezeetaDoctor();
+        return;
+      }
       this.applySelectedMapPlace();
       return;
     }
@@ -1896,9 +2297,114 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.newAccountStep = 'createForm';
   }
 
+  handleLookupSourceChange(event) {
+    const source = event.currentTarget?.dataset?.source;
+    if (source !== 'maps' && source !== 'vezeeta') {
+      return;
+    }
+    if (source === this.lookupSource) {
+      return;
+    }
+    this.lookupSource = source;
+    if (source === 'vezeeta') {
+      this.destroyWizardMap();
+      if (!(this.vezeetaSearchTerm || '').trim() && (this.mapSearchTerm || '').trim()) {
+        this.vezeetaSearchTerm = this.mapSearchTerm;
+      }
+      if ((this.vezeetaSearchTerm || '').trim().length >= 2) {
+        this.runVezeetaSearch();
+      }
+      return;
+    }
+    if ((this.mapSearchTerm || '').trim().length >= 2) {
+      this.runMapSearch();
+    }
+  }
+
+  handleVezeetaSearchChange(event) {
+    this.vezeetaSearchTerm = this.readInputValue(event);
+    this.scheduleVezeetaSearch();
+  }
+
+  scheduleVezeetaSearch() {
+    if (this.vezeetaSearchDebounce) {
+      clearTimeout(this.vezeetaSearchDebounce);
+    }
+    this.vezeetaSearchDebounce = setTimeout(() => {
+      this.vezeetaSearchDebounce = null;
+      this.runVezeetaSearch();
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  async runVezeetaSearch() {
+    const term = (this.vezeetaSearchTerm || '').trim();
+    this.selectedVezeetaUrl = null;
+    if (term.length < 2) {
+      this.vezeetaResults = [];
+      this.vezeetaSearchRan = false;
+      return;
+    }
+    this.isVezeetaSearching = true;
+    this.vezeetaSearchRan = true;
+    try {
+      const rows = await searchVezeetaDoctors({ searchTerm: term });
+      this.vezeetaResults = Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      this.vezeetaResults = [];
+      this.toast('Google Search failed', this.errorMessageFrom(error), 'error');
+    } finally {
+      this.isVezeetaSearching = false;
+    }
+  }
+
+  handleSelectVezeetaDoctor(event) {
+    this.selectedVezeetaUrl = event.currentTarget.dataset.urlName;
+  }
+
+  async applySelectedVezeetaDoctor() {
+    const hit = (this.vezeetaResults || []).find(
+      (row) => String(row.urlName) === String(this.selectedVezeetaUrl)
+    );
+    if (!hit?.urlName || this.isVezeetaLoading) {
+      return;
+    }
+    this.isVezeetaLoading = true;
+    try {
+      const doctor = await getVezeetaDoctor({ profileUrl: hit.urlName });
+      const name = hit.name || doctor?.name || '';
+      this.prefillCreateForm({
+        name,
+        address: doctor?.street || hit.address || '',
+        city: doctor?.city || hit.city || '',
+        governorate: doctor?.governorate || '',
+        landmark: doctor?.landmark || doctor?.clinicName || hit.clinicName || '',
+        phone: '',
+        latitude: doctor?.latitude ?? null,
+        longitude: doctor?.longitude ?? null,
+        brickId: doctor?.brick702Id || doctor?.brickId || null,
+        brick148Id: doctor?.brick148Id || null,
+        brick702Id: doctor?.brick702Id || null,
+        brickName: doctor?.brickName || '',
+        placeId: null,
+        specialty1: doctor?.specialty1 || '',
+        specialty2: doctor?.specialty2 || '',
+        specialty3: doctor?.specialty3 || ''
+      });
+      this.createForm = {
+        ...this.createForm,
+        pinConfirmed: false
+      };
+      this.newAccountStep = 'createForm';
+    } catch (error) {
+      this.toast('Google Search profile failed', this.errorMessageFrom(error), 'error');
+    } finally {
+      this.isVezeetaLoading = false;
+    }
+  }
+
   handleCreateBlankAccount() {
     this.prefillCreateForm({
-      name: this.masterSearchTerm || this.mapSearchTerm || '',
+      name: this.masterSearchTerm || this.vezeetaSearchTerm || this.mapSearchTerm || '',
       address: '',
       phone: '',
       latitude: null,
@@ -1913,7 +2419,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   prefillCreateForm(place) {
     const name = place?.name || this.masterSearchTerm || '';
     const address = place?.address || '';
-    const city = this.cityFromAddress(address);
+    const city = place?.city || this.cityFromAddress(address);
     const phone = place?.phone || '';
     const form = {
       name,
@@ -1923,17 +2429,19 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       whatsappNumber: '',
       clinicPhone: '',
       email: '',
-      specialty1: '',
-      specialty2: '',
-      specialty3: '',
+      specialty1: place?.specialty1 || '',
+      specialty2: place?.specialty2 || '',
+      specialty3: place?.specialty3 || '',
       pharmacyType: '',
       institutionType: '',
       street: address,
       city,
       country: 'Egypt',
       building: '',
-      governorate: this.governorateFromAddress(address),
-      landmark: '',
+      governorate: place?.governorate || this.governorateFromAddress(address),
+      landmark: place?.landmark || '',
+      website: place?.profileUrl || '',
+      vezeetaFee: place?.fees || '',
       latitude: place?.latitude ?? null,
       longitude: place?.longitude ?? null,
       brickId: place?.brickId || '',
@@ -2360,13 +2868,15 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.syncCreatePinMarker();
   }
 
-  async saveWizardAccount() {
+  async saveWizardAccount(allowDuplicate = false) {
     if (this.isCreateFormInvalid || this.isSavingAccount) {
       return;
     }
     this.isSavingAccount = true;
     this.createError = null;
+    let retryAsDuplicate = false;
     try {
+      const vezeetaProfileUrl = this.createForm.website;
       const result = await createAccountFromWizard({
         input: {
           recordTypeId: this.selectedCreateRecordTypeId,
@@ -2393,20 +2903,48 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
           brickId: this.createForm.brick702Id || this.createForm.brickId || null,
           brick148Id: this.createForm.brick148Id || null,
           brick702Id: this.createForm.brick702Id || null,
-          placeId: this.createForm.placeId
+          placeId: this.createForm.placeId,
+          website: this.createForm.website,
+          allowDuplicate: allowDuplicate === true
         }
       });
       const accountId = result?.accountId;
+      if (accountId && vezeetaProfileUrl) {
+        try {
+          await saveVezeetaProfileUrl({ accountId, profileUrl: vezeetaProfileUrl });
+        } catch (stampError) {
+          // The account is already saved. The profile link is also sent on the create input.
+        }
+      }
       this.handleCloseNewAccountModal();
-      this.toast('Account created', 'Saved the new account from the wizard.', 'success');
+      this.toast(
+        'Submitted for approval',
+        result?.message || 'Account submitted for manager approval.',
+        'success'
+      );
       if (accountId) {
         this.navigateToAccount(accountId);
       }
       this.reloadData(true);
     } catch (error) {
-      this.createError = this.errorMessageFrom(error);
+      const message = this.errorMessageFrom(error);
+      if (allowDuplicate !== true && String(message || '').startsWith(DUPLICATE_WARNING_PREFIX)) {
+        retryAsDuplicate = await LightningConfirm.open({
+          label: 'Possible duplicate account',
+          message,
+          theme: 'warning'
+        });
+        if (!retryAsDuplicate) {
+          this.createError = message;
+        }
+      } else {
+        this.createError = message;
+      }
     } finally {
       this.isSavingAccount = false;
+    }
+    if (retryAsDuplicate) {
+      await this.saveWizardAccount(true);
     }
   }
 
@@ -2434,6 +2972,17 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.isMapSearching = false;
     this.mapSearchRan = false;
     this.selectedMapPlaceId = null;
+    this.lookupSource = 'maps';
+    this.vezeetaSearchTerm = '';
+    this.vezeetaResults = [];
+    this.vezeetaSearchRan = false;
+    this.isVezeetaSearching = false;
+    this.isVezeetaLoading = false;
+    this.selectedVezeetaUrl = null;
+    if (this.vezeetaSearchDebounce) {
+      clearTimeout(this.vezeetaSearchDebounce);
+      this.vezeetaSearchDebounce = null;
+    }
     this.destroyWizardMap();
 
     if (this.createAddressLookupDebounce) {
@@ -2494,6 +3043,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.listViewMode = LIST_MODE_ALL;
     this.selectedCollectionId = null;
     this.reloadData(true);
+    this.closeOverlayDrawer();
   }
 
   handleSelectCollection(event) {
@@ -2506,6 +3056,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.selectedCollectionId = collectionId;
     this.listViewMode = LIST_MODE_COLLECTION;
     this.reloadData(true);
+    this.closeOverlayDrawer();
   }
 
   handlePreviousPage() {
@@ -2541,16 +3092,42 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   handleToggleFilters() {
-    if (this.sidebarOpen && this.sidebarPanel === 'filters') {
+    if (!this.isListView) {
+      this.viewMode = 'list';
+      this.sidebarOpen = true;
+      return;
+    }
+    if (this.isCompactView) {
+      this.sidebarOpen = !this.sidebarOpen;
+      return;
+    }
+    this.sidebarPanel = this.sidebarPanel === 'filters' ? 'lists' : 'filters';
+    this.sidebarOpen = true;
+  }
+
+  handleToggleLists() {
+    if (!this.isListView) {
+      this.viewMode = 'list';
+      this.loadPlannerCollections();
+      this.sidebarPanel = 'lists';
+      this.sidebarOpen = true;
+      return;
+    }
+    if (this.isCompactView && this.sidebarOpen && this.sidebarPanel === 'lists') {
       this.sidebarOpen = false;
       return;
     }
-    this.sidebarPanel = 'filters';
+    this.loadPlannerCollections();
+    this.sidebarPanel = 'lists';
     this.sidebarOpen = true;
   }
 
   handleToggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
+  }
+
+  handleCloseSidebar() {
+    this.sidebarOpen = false;
   }
 
   handleShowListsPanel() {
@@ -2569,11 +3146,210 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     this.selectedCollectionId = null;
     this.scope = event.currentTarget.dataset.value;
     this.reloadData(true);
+    this.closeOverlayDrawer();
+  }
+
+  handlePendingApprovalNav() {
+    this.listViewMode = LIST_MODE_NURTURING;
+    this.nurtureLane = NURTURE_LANE_ALL;
+    this.approvalSelectedById = {};
+    this.selectedCollectionId = null;
+    this.scope = SCOPE_BOTH;
+    this.reloadData(true);
+    this.closeOverlayDrawer();
+  }
+
+  handleNurtureLane(event) {
+    const lane = event.currentTarget?.dataset?.lane;
+    if (!lane || lane === this.nurtureLane) {
+      return;
+    }
+    this.nurtureLane = lane;
+    this.approvalSelectedById = {};
+    this.reloadData(true);
+  }
+
+  handleApprovalSelectionChange(event) {
+    const detail = event.detail || {};
+    if (detail.all) {
+      const next = {};
+      if (detail.selected) {
+        this.actionableRows.forEach((row) => {
+          next[row.accountId] = true;
+        });
+      }
+      this.approvalSelectedById = next;
+      return;
+    }
+    const accountId = detail.accountId;
+    if (!accountId) {
+      return;
+    }
+    const next = { ...this.approvalSelectedById };
+    if (detail.selected) {
+      next[accountId] = true;
+    } else {
+      delete next[accountId];
+    }
+    this.approvalSelectedById = next;
+  }
+
+  handleMassApprove() {
+    void this.commitMassApprove(this.selectedActionableIds);
+  }
+
+  handleMassReject() {
+    const accountIds = this.selectedActionableIds;
+    if (!accountIds.length || this.isSavingApproval) {
+      return;
+    }
+    const missing = accountIds.filter((accountId) => !(this.rejectionReasonByAccountId[accountId] || '').trim());
+    if (!missing.length) {
+      void this.commitMassReject(
+        accountIds.map((accountId) => ({
+          accountId,
+          rejectionReason: this.rejectionReasonByAccountId[accountId].trim()
+        }))
+      );
+      return;
+    }
+    this.massRejectMissing = false;
+    this.showMassRejectModal = true;
+  }
+
+  handleMassRejectInput() {
+    if (this.massRejectMissing) {
+      this.massRejectMissing = false;
+    }
+  }
+
+  handleCloseMassReject() {
+    if (this.isSavingApproval) {
+      return;
+    }
+    this.showMassRejectModal = false;
+    this.massRejectMissing = false;
+  }
+
+  stopMassRejectClick(event) {
+    event.stopPropagation();
+  }
+
+  handleConfirmMassReject() {
+    const field = this.template.querySelector('[data-mass-reject-reason]');
+    const reason = (field?.value || '').trim();
+    const accountIds = this.selectedActionableIds;
+    const jobs = accountIds.map((accountId) => ({
+      accountId,
+      rejectionReason: (this.rejectionReasonByAccountId[accountId] || '').trim() || reason
+    }));
+    if (jobs.some((job) => !job.rejectionReason)) {
+      this.massRejectMissing = true;
+      field?.focus();
+      return;
+    }
+    void this.commitMassReject(jobs);
+  }
+
+  async commitMassApprove(accountIds) {
+    const ids = [...accountIds];
+    if (!ids.length || this.isSavingApproval) {
+      return;
+    }
+    this.isSavingApproval = true;
+    let done = 0;
+    try {
+      for (const accountId of ids) {
+        // eslint-disable-next-line no-await-in-loop
+        await approveAccountSubmissionApex({ accountId });
+        done += 1;
+        this.clearApprovalSelection(accountId);
+      }
+      this.toast(
+        'Sent to SFE',
+        done === 1
+          ? 'You approved this account. It is waiting on SFE.'
+          : `${done} accounts are waiting on SFE.`,
+        'success'
+      );
+      this.reloadData(false);
+    } catch (error) {
+      this.toast('Approve failed', this.errorMessageFrom(error), 'error');
+      if (done) {
+        this.reloadData(false);
+      }
+    } finally {
+      this.isSavingApproval = false;
+    }
+  }
+
+  async commitMassReject(jobs) {
+    const queue = [...jobs];
+    if (!queue.length || this.isSavingApproval) {
+      return;
+    }
+    this.isSavingApproval = true;
+    let done = 0;
+    try {
+      for (const job of queue) {
+        // eslint-disable-next-line no-await-in-loop
+        await rejectAccountSubmissionApex({
+          accountId: job.accountId,
+          rejectionReason: job.rejectionReason
+        });
+        done += 1;
+        this.clearApprovalSelection(job.accountId);
+      }
+      this.showMassRejectModal = false;
+      this.massRejectMissing = false;
+      this.toast(
+        'Rejected',
+        done === 1
+          ? 'Account returned to Draft for the rep.'
+          : `${done} accounts returned to Draft for the rep.`,
+        'success'
+      );
+      this.reloadData(false);
+    } catch (error) {
+      this.toast('Reject failed', this.errorMessageFrom(error), 'error');
+      if (done) {
+        this.reloadData(false);
+      }
+    } finally {
+      this.isSavingApproval = false;
+    }
+  }
+
+  clearApprovalSelection(accountId) {
+    if (!this.approvalSelectedById[accountId]) {
+      return;
+    }
+    const next = { ...this.approvalSelectedById };
+    delete next[accountId];
+    this.approvalSelectedById = next;
+    if (this.rejectionReasonByAccountId[accountId]) {
+      const reasons = { ...this.rejectionReasonByAccountId };
+      delete reasons[accountId];
+      this.rejectionReasonByAccountId = reasons;
+    }
+  }
+
+  handleApprovalRejectionChange(event) {
+    const accountId = event.detail?.accountId || event.target?.dataset?.accountId;
+    const value = event.detail?.value ?? event.detail?.value;
+    if (!accountId) {
+      return;
+    }
+    this.rejectionReasonByAccountId = {
+      ...this.rejectionReasonByAccountId,
+      [accountId]: value
+    };
   }
 
   handleTypeNavSelect(event) {
     this.recordType = event.currentTarget.dataset.value;
     this.reloadData(true);
+    this.closeOverlayDrawer();
   }
 
   handleMapListSelect(event) {
@@ -2582,10 +3358,12 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       return;
     }
     this.selectedAccountId = accountId;
+    this.applyPinSelection();
     const row = (this.mapRows || []).find((item) => item.accountId === accountId);
     if (row?.latitude != null && row?.longitude != null) {
       this.flyToAccount(row.latitude, row.longitude, accountId);
     }
+    this.scrollMapListItemIntoView(accountId);
   }
 
   handleMapListViewAccount(event) {
@@ -2594,6 +3372,10 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     if (accountId) {
       this.navigateToAccount(accountId);
     }
+  }
+
+  handleDuplicateChange() {
+    this.reloadData(true);
   }
 
   handleOceRowAction(event) {
@@ -2615,8 +3397,53 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       this.toggleKol(accountId);
       return;
     }
+    if (action === 'approve') {
+      if (this.isSavingApproval) {
+        return;
+      }
+      void this.handleApproveAccountRow(accountId);
+      return;
+    }
+    if (action === 'reject') {
+      if (this.isSavingApproval) {
+        return;
+      }
+      void this.handleRejectAccountRow(accountId);
+      return;
+    }
     if (accountId) {
       this.navigateToAccount(accountId);
+    }
+  }
+
+  async handleApproveAccountRow(accountId) {
+    if (!accountId) {
+      return;
+    }
+    try {
+      await approveAccountSubmissionApex({ accountId });
+      this.toast('Sent to SFE', 'You approved this account. It is waiting on SFE.', 'success');
+      this.reloadData(true);
+    } catch (error) {
+      this.toast('Approve failed', this.errorMessageFrom(error), 'error');
+    }
+  }
+
+  async handleRejectAccountRow(accountId) {
+    if (!accountId) {
+      return;
+    }
+    const rejectionReason = (this.rejectionReasonByAccountId[accountId] || '').trim();
+    if (!rejectionReason) {
+      this.toast('Rejection reason required', 'Enter a reason before rejecting.', 'error');
+      return;
+    }
+    try {
+      await rejectAccountSubmissionApex({ accountId, rejectionReason });
+      this.toast('Rejected', 'Account returned to Draft for the rep.', 'success');
+      this.reloadData(true);
+    } catch (error) {
+      this.toast('Reject failed', this.errorMessageFrom(error), 'error');
     }
   }
 
@@ -2688,6 +3515,12 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     if (!container || token !== this.mapRenderToken) {
       return null;
     }
+    this._leaflet = leaflet;
+    const live = this.mapInstance?.getContainer?.();
+    if (live && container.contains(live)) {
+      this.injectAccountsMapChrome(this.mapInstance);
+      return this.mapInstance;
+    }
     if (this.mapInstance) {
       this.destroyMap();
     }
@@ -2696,32 +3529,67 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     mapDiv.style.height = '100%';
     mapDiv.style.width = '100%';
     container.appendChild(mapDiv);
-    const map = leaflet.map(mapDiv, { zoomControl: true });
+    const map = leaflet.map(mapDiv, { zoomControl: true, scrollWheelZoom: true });
     addOsmTileLayer(map, leaflet);
     this.mapInstance = map;
+    this.injectAccountsMapChrome(map);
+    this.observeAccountsMap(map);
     return map;
   }
 
+  observeAccountsMap(map) {
+    const pane = map?.getContainer?.();
+    if (!pane || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    if (!this._mapResizeObserver) {
+      this._mapResizeObserver = new ResizeObserver(() => {
+        this.mapInstance?.invalidateSize();
+      });
+    }
+    this._mapResizeObserver.observe(pane);
+  }
+
+  injectAccountsMapChrome(map) {
+    const pane = map?.getContainer?.();
+    if (!pane || pane.querySelector('style[data-accounts-map-chrome]')) {
+      return;
+    }
+    const style = document.createElement('style');
+    style.setAttribute('data-accounts-map-chrome', 'true');
+    style.textContent = ACCOUNTS_MAP_CHROME_CSS;
+    pane.appendChild(style);
+  }
+
   buildRiskPinIcon(leaflet, row) {
-    const pinKind = resolveAccountPinKind(
+    const themeKind = resolveAccountThemeKind(
       row.recordTypeDeveloperName,
       row.recordTypeName
     );
-    const svg = (pinKind === 'hco' ? HCO_PIN_SVG : HCP_PIN_SVG).replace(
-      '<svg ',
-      '<svg style="width:16px;height:16px;" '
-    );
-    const color = RISK_PIN_COLORS[row.agentforceRisk] || RISK_PIN_COLORS.Low;
-    const safeName = String(row.accountName || '')
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;');
+    const pinKind = themeKind === 'account' ? 'hcp' : themeKind;
+    const themeColors = { pharmacy: '#176935', hco: '#e0a800', hcp: '#3f7de5' };
+    const border = themeColors[pinKind] || themeColors.hcp;
+    const glyph = accountTypeIconUrl(pinKind);
+    const risk = RISK_PIN_COLORS[row.agentforceRisk] || RISK_PIN_COLORS.Low;
+    const selected = row.accountId === this.selectedAccountId;
+    const safeName = escapeMapHtml(row.accountName || '');
+    const mark = glyph
+      ? `<img src="${glyph}" alt="" style="width:16px;height:16px;object-fit:contain;display:block;" />`
+      : '';
+    const halo = selected
+      ? `0 0 0 4px ${border}33, 0 6px 14px rgba(3,45,96,0.35)`
+      : '0 2px 6px rgba(3,45,96,0.28)';
+    const scale = selected ? 'transform:scale(1.12);' : '';
     return leaflet.divIcon({
-      className: 'map-pin-icon-shell',
-      html: `<div style="width:30px;height:30px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;" title="${safeName}">${svg}</div>`,
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      popupAnchor: [0, -16]
+      className: 'acct-map-pin',
+      html:
+        `<div style="position:relative;width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid ${border};box-shadow:${halo};display:flex;align-items:center;justify-content:center;${scale}" title="${safeName}">` +
+        mark +
+        `<span style="position:absolute;right:-2px;bottom:-2px;width:11px;height:11px;border-radius:50%;background:${risk};border:2px solid #fff;box-sizing:border-box;"></span>` +
+        '</div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -18]
     });
   }
 
@@ -2745,23 +3613,47 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       bounds.push(latLng);
       const icon = this.buildRiskPinIcon(leaflet, row);
       const marker = leaflet
-        .marker(latLng, { icon })
+        .marker(latLng, { icon, riseOnHover: true })
         .addTo(map)
-        .bindPopup(this.buildPopupHtml(row));
+        .bindPopup(this.buildPopupHtml(row), { closeButton: true, autoPanPadding: [24, 24] });
       marker.on('click', () => {
         this.selectedAccountId = row.accountId;
+        this.applyPinSelection();
         this.scrollMapListItemIntoView(row.accountId);
-        marker.openPopup();
+      });
+      marker.on('popupopen', (event) => {
+        const button = event.popup?.getElement()?.querySelector('.acct-popup-open');
+        if (!button || button.dataset.bound === '1') {
+          return;
+        }
+        button.dataset.bound = '1';
+        button.addEventListener('click', () => this.navigateToAccount(row.accountId));
       });
       this.mapMarkers.push(marker);
       this.markersByAccountId[row.accountId] = marker;
     });
-    if (bounds.length) {
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 14);
+    } else if (bounds.length) {
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14 });
     } else {
       map.setView([30.0444, 31.2357], 6);
     }
-    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 80);
+  }
+
+  applyPinSelection() {
+    const leaflet = this._leaflet;
+    if (!leaflet || !this.markersByAccountId) {
+      return;
+    }
+    Object.keys(this.markersByAccountId).forEach((accountId) => {
+      const row = (this.mapRows || []).find((item) => item.accountId === accountId);
+      const marker = this.markersByAccountId[accountId];
+      if (row && marker) {
+        marker.setIcon(this.buildRiskPinIcon(leaflet, row));
+      }
+    });
   }
 
   flyToAccount(latitude, longitude, accountId) {
@@ -2778,8 +3670,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   scrollMapListItemIntoView(accountId) {
+    this._scrollMapAccountId = accountId;
     const listItem = this.template.querySelector(
-      `[data-account-id="${accountId}"]`
+      `.map-account-item[data-account-id="${accountId}"]`
     );
     if (listItem) {
       listItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2787,13 +3680,27 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   }
 
   buildPopupHtml(row) {
-    const projected =
-      row.projectedPercent != null ? `${Math.round(Number(row.projectedPercent))}%` : 'N/A';
     const hasTarget = row.targetVisits != null;
-    return `<strong>${row.accountName}</strong><br/>
-      ${row.classification || '—'} · ${row.planCycleLabel}<br/>
-      Visits: ${hasTarget ? `${row.actualVisits || 0}/${row.targetVisits}` : `${row.actualVisits || 0} (no target)`}<br/>
-      Pace: ${row.paceStatusLabel || 'N/A'} · Score: ${Number(row.agentforceScore || 0).toFixed(1)}`;
+    const visits = hasTarget
+      ? `${row.actualVisits || 0}/${row.targetVisits}`
+      : `${row.actualVisits || 0} (no target)`;
+    const place = [row.accountSubtype || row.recordTypeName, row.city].filter(Boolean).join(' · ');
+    const plan =
+      row.planCycleLabel === 'In' ? 'In plan' : row.planCycleLabel === 'Out' ? 'Out of plan' : '';
+    const risk = row.agentforceRisk || 'Low';
+    const riskColor = RISK_PIN_COLORS[risk] || RISK_PIN_COLORS.Low;
+    const score =
+      row.agentforceScore != null ? Number(row.agentforceScore).toFixed(1) : '—';
+    return `<div class="acct-popup">
+      <div class="acct-popup-name">${escapeMapHtml(row.accountName || 'Account')}</div>
+      <div class="acct-popup-place">${escapeMapHtml(place || '—')}</div>
+      <div class="acct-popup-row">
+        <span class="acct-popup-chip">${escapeMapHtml(row.classification || '—')}</span>
+        <span class="acct-popup-risk" style="color:${riskColor}">${escapeMapHtml(risk)} pace</span>
+      </div>
+      <div class="acct-popup-meta">${escapeMapHtml(plan)}<br/>Visits ${escapeMapHtml(visits)} · ${escapeMapHtml(row.paceStatusLabel || '—')}<br/>Score ${escapeMapHtml(score)}</div>
+      <button type="button" class="acct-popup-open">Open account</button>
+    </div>`;
   }
 
   navigateToAccount(accountId) {
@@ -2832,8 +3739,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
   get displayRowsWithMatch() {
     const term = (this.searchTerm || '').trim().toLowerCase();
     return (this.rows || []).map((row) => {
+      const approvalSelected = this.approvalSelectedById[row.accountId] === true;
       if (!term) {
-        return { ...row, matchReason: row.matchReason || '' };
+        return { ...row, matchReason: row.matchReason || '', approvalSelected };
       }
       const reasons = [];
       if ((row.accountName || '').toLowerCase().includes(term)) reasons.push('Name');
@@ -2845,6 +3753,7 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
       if ((row.classification || '').toLowerCase().includes(term)) reasons.push('Class');
       return {
         ...row,
+        approvalSelected,
         matchReason: reasons.length ? `Matched: ${reasons.join(' · ')}` : row.matchReason || ''
       };
     });
@@ -2863,6 +3772,9 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
 
   destroyMap() {
     this.clearMarkers();
+    if (this._mapResizeObserver) {
+      this._mapResizeObserver.disconnect();
+    }
     if (this.mapInstance) {
       this.mapInstance.remove();
       this.mapInstance = null;
@@ -3151,29 +4063,26 @@ export default class AccountsTab extends NavigationMixin(LightningElement) {
     const kind = this.normalizePlaceKind(placeKind);
     const meta = PLACE_KIND_META[kind] || PLACE_KIND_META.unknown;
     const size = selected ? 36 : 28;
-    const color = isKol ? '#c39818' : selected ? '#032d60' : meta.color;
+    const color = meta.color;
+    const glyphUrl = accountTypeIconUrl(meta.themeKind);
     const ring = selected
-      ? `0 0 0 3px ${isKol ? 'rgba(195,152,24,0.4)' : 'rgba(1,118,211,0.35)'}, 0 2px 6px rgba(0,0,0,0.35)`
+      ? `0 0 0 3px ${color}55, 0 2px 6px rgba(0,0,0,0.35)`
       : '0 2px 6px rgba(0,0,0,0.35)';
-    const glyph =
-      kind === 'hco'
-        ? HCO_PIN_SVG
-        : kind === 'doctor'
-          ? HCP_PIN_SVG
-          : kind === 'pharmacy'
-            ? PHARMACY_PIN_SVG
-            : kind === 'company'
-              ? COMPANY_PIN_SVG
-              : UNKNOWN_PIN_SVG;
-    const sizedGlyph = String(glyph).replace('<svg ', '<svg width="100%" height="100%" ');
     const star = isKol
       ? '<span style="position:absolute;right:-2px;top:-4px;font-size:11px;line-height:1;color:#ffd76e;text-shadow:0 0 2px #5c4300">★</span>'
       : '';
+    const inner = glyphUrl
+      ? `<img src="${glyphUrl}" alt="" style="width:70%;height:70%;object-fit:contain;" />`
+      : `<span style="display:block;width:70%;height:70%;line-height:0;">${String(
+          kind === 'company' ? COMPANY_PIN_SVG : UNKNOWN_PIN_SVG
+        ).replace('<svg ', '<svg width="100%" height="100%" ')}</span>`;
+    const background = glyphUrl ? '#fff' : color;
+    const border = glyphUrl ? `2px solid ${color}` : '2px solid #fff';
     return leaflet.divIcon({
       className: 'map-pin-icon-shell',
       html:
-        `<div title="${meta.label}${isKol ? ' · KOL' : ''}" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:${ring};display:flex;align-items:center;justify-content:center;padding:5px;box-sizing:border-box;">` +
-        `<span style="display:block;width:70%;height:70%;line-height:0;">${sizedGlyph}</span>` +
+        `<div title="${meta.label}${isKol ? ' · KOL' : ''}" style="position:relative;width:${size}px;height:${size}px;border-radius:50%;background:${background};border:${border};box-shadow:${ring};display:flex;align-items:center;justify-content:center;padding:4px;box-sizing:border-box;">` +
+        inner +
         star +
         '</div>',
       iconSize: [size, size],

@@ -4,9 +4,17 @@
         <application>standard__LightningSales</application>
         <visible>true</visible>
     </applicationVisibilities>
-    <description>Pharma Field app access for medical reps — field workflows only.</description>
+    <description>Field Co-pilot access for medical reps — field workflows only.</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Pharma Field App</label>
+    <label>Field Co-pilot</label>
+    <classAccesses>
+        <apexClass>TerritorySwitcherController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritoryContextService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <tabSettings>
         <tab>Field_Rep_Home_App</tab>
         <visibility>Visible</visibility>

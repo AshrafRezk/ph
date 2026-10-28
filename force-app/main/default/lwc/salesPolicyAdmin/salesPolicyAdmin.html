@@ -1,0 +1,74 @@
+<template>
+    <section class="panel">
+        <p class="lead">
+            Configure the sales distribution algorithm: ceiling, share split, tender exclusion from
+            achievements, public-price math for non-tender, and brand exceptions (Zeta Colest).
+        </p>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+
+        <template if:false={loading}>
+            <div class="grid">
+                <lightning-input
+                    label="Policy name"
+                    value={policy.name}
+                    data-field="name"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Ceiling cap"
+                    value={policy.ceilingCap}
+                    data-field="ceilingCap"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Actual share %"
+                    value={policy.actualSharePct}
+                    data-field="actualSharePct"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    type="number"
+                    label="Target share %"
+                    value={policy.targetSharePct}
+                    data-field="targetSharePct"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    type="toggle"
+                    label="Exclude tender from achievements &amp; bulk share"
+                    checked={policy.excludeTenderFromAchievements}
+                    data-field="excludeTenderFromAchievements"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    type="toggle"
+                    label="Non-tender qty × public sale price (not file price)"
+                    checked={policy.usePublicPriceForNonTender}
+                    data-field="usePublicPriceForNonTender"
+                    onchange={handleField}
+                ></lightning-input>
+                <lightning-input
+                    label="Tender-price exception brands (; separated)"
+                    value={policy.tenderPriceExceptionBrands}
+                    data-field="tenderPriceExceptionBrands"
+                    field-level-help="These brands keep public price even on tender accounts."
+                    onchange={handleField}
+                    class="span-2"
+                ></lightning-input>
+            </div>
+            <div class="actions">
+                <lightning-button
+                    variant="brand"
+                    label="Save sales policy"
+                    onclick={handleSave}
+                    disabled={saving}
+                ></lightning-button>
+            </div>
+        </template>
+    </section>
+</template>

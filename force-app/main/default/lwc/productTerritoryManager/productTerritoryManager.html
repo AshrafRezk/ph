@@ -10,12 +10,20 @@
         <div class="manager-panels">
             <section class="panel panel-products">
                 <div class="panel-heading">
-                    <h3>Product Catalog</h3>
+                    <div class="panel-heading-row">
+                        <h3>Product Catalog</h3>
+                        <lightning-button
+                            label="New product"
+                            variant="brand-outline"
+                            icon-name="utility:add"
+                            onclick={handleNewProduct}
+                        ></lightning-button>
+                    </div>
                     <lightning-input
                         type="search"
                         variant="label-hidden"
                         label="Search products"
-                        placeholder="Search products..."
+                        placeholder="Search name, code, external id..."
                         value={productSearchTerm}
                         onchange={handleProductSearch}
                     ></lightning-input>
@@ -43,10 +51,7 @@
                                         <span class="toggle-spacer"></span>
                                     </template>
 
-                                    <template if:true={row.isFamily}>
-                                        <span class="family-label">{row.label}</span>
-                                    </template>
-                                    <template if:false={row.isFamily}>
+                                    <template if:true={row.productId}>
                                         <button
                                             class="product-select-btn"
                                             data-id={row.productId}
@@ -60,9 +65,20 @@
                                             ></c-product-thumbnail>
                                             <span class="product-text">
                                                 <span class="product-name">{row.label}</span>
-                                                <span class="product-meta">{row.therapyArea}</span>
+                                                <span class="product-meta">{row.metaLine}</span>
                                             </span>
                                         </button>
+                                        <template if:true={row.isSelected}>
+                                            <lightning-button-icon
+                                                class="view-product-row-btn"
+                                                icon-name="utility:new_window"
+                                                alternative-text="View Product"
+                                                title="View Product"
+                                                variant="border-filled"
+                                                size="x-small"
+                                                onclick={handleViewProduct}
+                                            ></lightning-button-icon>
+                                        </template>
                                     </template>
                                 </div>
                             </li>
@@ -72,14 +88,39 @@
 
                 <template if:false={hasProducts}>
                     <div class="empty-state">
-                        <p>No Pharma products found. Run the product catalog seed first.</p>
+                        <template if:true={hasProductSearch}>
+                            <p>No products match “{productSearchTerm}”. Try part of the name or the product code.</p>
+                        </template>
+                        <template if:false={hasProductSearch}>
+                            <p>No Pharma products found. Run the product catalog seed first.</p>
+                        </template>
                     </div>
                 </template>
             </section>
 
             <section class="panel panel-territories">
                 <div class="panel-heading">
-                    <h3>{territoryPaneTitle}</h3>
+                    <div class="panel-heading-row">
+                        <h3>{territoryPaneTitle}</h3>
+                        <lightning-button
+                            class="view-product-btn"
+                            label="Edit product"
+                            variant="neutral"
+                            icon-name="utility:edit"
+                            onclick={handleEditProduct}
+                            disabled={isViewProductDisabled}
+                            title="Change the selected product's details"
+                        ></lightning-button>
+                        <lightning-button
+                            class="view-product-btn"
+                            label="View Product"
+                            variant="neutral"
+                            icon-name="utility:new_window"
+                            onclick={handleViewProduct}
+                            disabled={isViewProductDisabled}
+                            title="Open the selected product record"
+                        ></lightning-button>
+                    </div>
                     <lightning-input
                         type="search"
                         variant="label-hidden"
@@ -149,7 +190,12 @@
 
                         <template if:false={hasTerritories}>
                             <div class="empty-state">
-                                <p>No territories found. Run territory seeding to populate the hierarchy.</p>
+                                <template if:true={hasTerritorySearch}>
+                                    <p>No territories match “{territorySearchTerm}”.</p>
+                                </template>
+                                <template if:false={hasTerritorySearch}>
+                                    <p>No territories found. Run territory seeding to populate the hierarchy.</p>
+                                </template>
                             </div>
                         </template>
                     </template>
@@ -162,6 +208,179 @@
                 </template>
             </section>
         </div>
+
+        <template if:true={showEditor}>
+            <section class="slds-modal slds-fade-in-open" role="dialog" aria-modal="true" aria-labelledby="product-editor-title">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 id="product-editor-title" class="slds-modal__title">{editorTitle}</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template if:true={isEditorLoading}>
+                            <lightning-spinner alternative-text="Loading product" size="small"></lightning-spinner>
+                        </template>
+                        <template if:false={isEditorLoading}>
+                            <p class="editor-help">
+                                Brand → Detail (the item you promote and sell) → Sample or Brand Reminder.
+                                The product code can't change after saving, because sales imports match on it.
+                            </p>
+                            <div class="editor-grid">
+                                <lightning-combobox
+                                    label="Product type"
+                                    required
+                                    options={productTypeOptions}
+                                    value={draft.productType}
+                                    data-field="productType"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <lightning-input
+                                    label="Product name"
+                                    required
+                                    value={draft.name}
+                                    data-field="name"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <template if:true={needsParent}>
+                                    <lightning-combobox
+                                        class="editor-wide"
+                                        label={parentLabel}
+                                        required
+                                        options={parentOptions}
+                                        value={draft.parentId}
+                                        placeholder="Choose…"
+                                        data-field="parentId"
+                                        onchange={handleDraftChange}
+                                    ></lightning-combobox>
+                                </template>
+                                <lightning-input
+                                    label="Product code"
+                                    required
+                                    value={draft.productCode}
+                                    disabled={isEditing}
+                                    field-level-help="Used by sales imports and distributor mapping. Fixed after saving."
+                                    data-field="productCode"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    label="External ID"
+                                    value={draft.externalId}
+                                    disabled={isEditing}
+                                    placeholder="Same as product code"
+                                    field-level-help="Leave blank to use the product code. Fixed after saving."
+                                    data-field="externalId"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <lightning-combobox
+                                    label="Sales line"
+                                    options={salesLineOptions}
+                                    value={draft.salesLine}
+                                    placeholder="None"
+                                    data-field="salesLine"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <lightning-input
+                                    label="Therapy area"
+                                    value={draft.therapyArea}
+                                    data-field="therapyArea"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <template if:true={showPackFields}>
+                                    <lightning-input
+                                        label="Strength"
+                                        placeholder="e.g. 20 MG"
+                                        value={draft.strength}
+                                        data-field="strength"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Form"
+                                        placeholder="e.g. Tablet, Syrup"
+                                        value={draft.form}
+                                        data-field="form"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Sales unit"
+                                        placeholder="e.g. GIT, CLUSTER"
+                                        value={draft.salesUnit}
+                                        data-field="salesUnit"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        type="number"
+                                        label="Box quantity"
+                                        min="0"
+                                        value={draft.boxQuantity}
+                                        data-field="boxQuantity"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        type="number"
+                                        label="Public price (EGP)"
+                                        min="0"
+                                        step="0.01"
+                                        value={draft.publicPrice}
+                                        field-level-help="Saved in the standard price book. Sales policy uses it for non-tender value."
+                                        data-field="publicPrice"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                </template>
+                                <template if:true={isReminder}>
+                                    <lightning-combobox
+                                        label="Reminder kind"
+                                        options={reminderKindOptions}
+                                        value={draft.reminderKind}
+                                        data-field="reminderKind"
+                                        onchange={handleDraftChange}
+                                    ></lightning-combobox>
+                                </template>
+                                <lightning-input
+                                    class="editor-wide"
+                                    type="url"
+                                    label="Image URL"
+                                    value={draft.imageUrl}
+                                    data-field="imageUrl"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <lightning-textarea
+                                    class="editor-wide"
+                                    label="Description"
+                                    value={draft.description}
+                                    data-field="description"
+                                    onchange={handleDraftChange}
+                                ></lightning-textarea>
+                                <lightning-input
+                                    type="checkbox"
+                                    label="Show in HCP app"
+                                    checked={draft.showInHcpApp}
+                                    data-field="showInHcpApp"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    type="checkbox"
+                                    label="Active"
+                                    checked={draft.isActive}
+                                    field-level-help="Inactive products disappear from visits and orders, and show greyed as Inactive in this catalog. History stays."
+                                    data-field="isActive"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                            </div>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={handleCloseEditor}></lightning-button>
+                        <lightning-button
+                            class="slds-m-left_x-small"
+                            label="Save product"
+                            variant="brand"
+                            disabled={isEditorSaveDisabled}
+                            onclick={handleSaveProduct}
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
 
         <footer class="manager-footer">
             <lightning-button

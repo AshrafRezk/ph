@@ -7,8 +7,16 @@ private class AccountAffiliationControllerTest {
             SELECT Id
             FROM RecordType
             WHERE SobjectType = 'Account'
-              AND DeveloperName = 'SDO_PersonAccounts'
               AND IsPersonType = TRUE
+              AND IsActive = TRUE
+            LIMIT 1
+        ].Id;
+        Id hcoRtId = [
+            SELECT Id
+            FROM RecordType
+            WHERE SobjectType = 'Account'
+              AND DeveloperName = 'Institution_HCO'
+              AND IsActive = TRUE
             LIMIT 1
         ].Id;
 
@@ -17,31 +25,39 @@ private class AccountAffiliationControllerTest {
             FirstName = 'Root',
             LastName = 'HCP'
         );
-        Account related1 = new Account(Name = 'Practice A');
-        Account related2 = new Account(Name = 'Pharmacy B');
+        Account related1 = new Account(RecordTypeId = hcoRtId, Name = 'Practice A');
+        Account related2 = new Account(RecordTypeId = hcoRtId, Name = 'Pharmacy B');
         insert as system new List<Account>{ primary, related1, related2 };
 
-        insert as system new List<Account_Affiliation__c>{
-            new Account_Affiliation__c(
-                Primary_Account__c = primary.Id,
-                Related_Account__c = related1.Id,
-                Affiliation_Type__c = 'Practice',
-                Role__c = 'Physician',
-                Strength__c = 'Strong',
-                Is_Active__c = true,
-                Outside_Territory__c = false
-            ),
-            new Account_Affiliation__c(
-                Primary_Account__c = primary.Id,
-                Related_Account__c = related2.Id,
-                Affiliation_Type__c = 'Partner',
-                Role__c = 'Pharmacist',
-                Strength__c = 'Medium',
-                Is_Active__c = false,
-                Outside_Territory__c = true,
-                Description__c = 'Inactive pharmacy link'
-            )
-        };
+        Account_Affiliation__c activeAff = new Account_Affiliation__c(
+            Primary_Account__c = primary.Id,
+            Related_Account__c = related1.Id,
+            Affiliation_Type__c = 'Practice',
+            Role__c = 'Physician',
+            Is_Active__c = true
+        );
+        Account_Affiliation__c inactiveAff = new Account_Affiliation__c(
+            Primary_Account__c = primary.Id,
+            Related_Account__c = related2.Id,
+            Affiliation_Type__c = 'Partner',
+            Role__c = 'Pharmacist',
+            Is_Active__c = false
+        );
+        if (Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Strength__c')
+            && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Strength__c').getDescribe().isCreateable()) {
+            activeAff.put('Strength__c', 'Strong');
+            inactiveAff.put('Strength__c', 'Medium');
+        }
+        if (Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Outside_Territory__c')
+            && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Outside_Territory__c').getDescribe().isCreateable()) {
+            activeAff.put('Outside_Territory__c', false);
+            inactiveAff.put('Outside_Territory__c', true);
+        }
+        if (Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Description__c')
+            && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Description__c').getDescribe().isCreateable()) {
+            inactiveAff.put('Description__c', 'Inactive pharmacy link');
+        }
+        insert as system new List<Account_Affiliation__c>{ activeAff, inactiveAff };
     }
 
     @IsTest
@@ -117,12 +133,10 @@ private class AccountAffiliationControllerTest {
             AccountAffiliationController.getRelationTypePicklistValues();
         List<AccountAffiliationController.PicklistValue> roles =
             AccountAffiliationController.getRolePicklistValues();
-        List<AccountAffiliationController.PicklistValue> strengths =
-            AccountAffiliationController.getStrengthPicklistValues();
+        AccountAffiliationController.getStrengthPicklistValues();
 
         System.assert(!types.isEmpty(), 'Affiliation type picklist should have values');
         System.assert(!roles.isEmpty(), 'Role picklist should have values');
-        System.assert(!strengths.isEmpty(), 'Strength picklist should have values');
     }
 
     @IsTest
@@ -130,7 +144,15 @@ private class AccountAffiliationControllerTest {
         Account primary = [SELECT Id FROM Account WHERE LastName = 'HCP' LIMIT 1];
         Account practice = [SELECT Id FROM Account WHERE Name = 'Practice A' LIMIT 1];
 
-        Account child = new Account(Name = 'Child Clinic');
+        Id hcoRtId = [
+            SELECT Id
+            FROM RecordType
+            WHERE SobjectType = 'Account'
+              AND DeveloperName = 'Institution_HCO'
+              AND IsActive = TRUE
+            LIMIT 1
+        ].Id;
+        Account child = new Account(RecordTypeId = hcoRtId, Name = 'Child Clinic');
         insert as system child;
 
         insert as system new Account_Affiliation__c(

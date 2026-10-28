@@ -1,4 +1,5 @@
 import { LightningElement, wire } from 'lwc';
+import LightningConfirm from 'lightning/confirm';
 import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getPresentations from '@salesforce/apex/ClmAdminController.getPresentations';
@@ -44,6 +45,14 @@ export default class ClmPresentationManager extends LightningElement {
 
     async handleDeactivate(event) {
         const presentationId = event.currentTarget.dataset.id;
+        const ok = await LightningConfirm.open({
+            message: 'Reps will no longer be able to open this presentation in visits.',
+            label: 'Deactivate this presentation?',
+            theme: 'warning'
+        });
+        if (!ok) {
+            return;
+        }
         try {
             await deactivatePresentation({ presentationId });
             await refreshApex(this.wiredResult);

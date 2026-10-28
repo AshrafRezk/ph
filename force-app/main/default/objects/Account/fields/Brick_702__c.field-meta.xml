@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_702__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>702 IMS micro-brick. Dependent on 148 Brick; Parent_Brick__c must match Brick_148__c. Also copied to Brick__c for territory alignment.</description>
+    <inlineHelpText>Pick the 148 brick first. This list then shows only 702 neighborhoods in that brick.</inlineHelpText>
+    <label>702 Brick</label>
+    <lookupFilter>
+        <active>true</active>
+        <booleanFilter>1 AND 2 AND 3</booleanFilter>
+        <errorMessage>Select a 702 brick that belongs to the chosen 148 brick.</errorMessage>
+        <filterItems>
+            <field>Brick__c.Is_Active__c</field>
+            <operation>equals</operation>
+            <value>True</value>
+        </filterItems>
+        <filterItems>
+            <field>Brick__c.Brick_Level__c</field>
+            <operation>equals</operation>
+            <value>702</value>
+        </filterItems>
+        <filterItems>
+            <field>Brick__c.Parent_Brick__c</field>
+            <operation>equals</operation>
+            <valueField>$Source.Brick_148__c</valueField>
+        </filterItems>
+        <infoMessage>Choose a 148 brick first. Only matching 702 neighborhoods are listed.</infoMessage>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Brick__c</referenceTo>
+    <relationshipLabel>Accounts (702 Brick)</relationshipLabel>
+    <relationshipName>Accounts_Brick_702</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Lookup</type>
+</CustomField>

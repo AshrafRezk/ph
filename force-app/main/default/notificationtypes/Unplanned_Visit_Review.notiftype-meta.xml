@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomNotificationType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customNotifTypeName>Unplanned_Visit_Review</customNotifTypeName>
+    <description>In-app alert to the DM when a rep completes an unplanned visit that needs validation within 24 hours.</description>
+    <desktop>true</desktop>
+    <masterLabel>Unplanned Visit Review</masterLabel>
+    <mobile>true</mobile>
+    <slack>false</slack>
+</CustomNotificationType>

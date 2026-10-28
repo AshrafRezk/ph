@@ -1,0 +1,50 @@
+<template>
+    <section class="approval-section" aria-label="Meeting approvals">
+        <header class="approval-header">
+            <h3 class="approval-title">Meetings pending approval</h3>
+            <p class="approval-subtitle">Approve or reject meetings submitted by your team.</p>
+        </header>
+        <template if:true={hasRows}>
+            <template for:each={rows} for:item="row">
+                <article key={row.meetingId} class="approval-card">
+                    <div class="approval-main">
+                        <div class="approval-line">
+                            <strong>{row.title}</strong>
+                            <span class="approval-meta">{row.ownerName}</span>
+                        </div>
+                        <div class="approval-line">
+                            <span>{row.recordTypeLabel}</span>
+                            <span>{row.startLabel}</span>
+                            <span>{row.status}</span>
+                        </div>
+                    </div>
+                    <div class="approval-actions">
+                        <lightning-textarea
+                            label="Rejection reason"
+                            variant="label-hidden"
+                            placeholder="Required if rejecting"
+                            data-meeting-id={row.meetingId}
+                            onchange={handleRejectionChange}
+                        ></lightning-textarea>
+                        <div class="approval-buttons">
+                            <lightning-button
+                                label="Reject"
+                                data-meeting-id={row.meetingId}
+                                onclick={handleReject}
+                            ></lightning-button>
+                            <lightning-button
+                                variant="brand"
+                                label="Approve"
+                                data-meeting-id={row.meetingId}
+                                onclick={handleApprove}
+                            ></lightning-button>
+                        </div>
+                    </div>
+                </article>
+            </template>
+        </template>
+        <template if:false={hasRows}>
+            <p class="approval-empty">No meetings are waiting for approval.</p>
+        </template>
+    </section>
+</template>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Survivor_Account__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <label>Survivor Account</label>
+    <referenceTo>Account</referenceTo>
+    <relationshipLabel>Quality Survivor Proposals</relationshipLabel>
+    <relationshipName>Quality_Survivor_Proposals</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

@@ -14,6 +14,10 @@ public with sharing class AccountsTabController {
   private static final String SORT_LAST_VISIT = 'lastVisit';
   private static final Integer DEFAULT_PAGE_SIZE = 10;
   private static final Integer MAX_PAGE_SIZE = 50;
+  private static final Integer EXPORT_ROW_LIMIT = 20000;
+  private static final Integer EXPORT_CHUNK_SIZE = 5000;
+  private static final String EXPORT_CSV_HEADER =
+    'Account Id,Name,Record Type,Specialty,Brick,Brick 148,Brick 702,Address,City,Territory,KOL,Potential Class (A/B/C),Matrix Rating,Potential,Penetration,HCP Class (A1-C3),Call Plan Visits / Month';
   private static final Integer MAX_MAP_POINTS = 2000;
   private static final Integer MAX_SORT_SCAN = 5000;
   private static final String RECORD_TYPE_HCO = 'Institution_HCO';
@@ -211,6 +215,11 @@ public with sharing class AccountsTabController {
     public Id brick702Id;
     @AuraEnabled
     public String placeId;
+    @AuraEnabled
+    public String website;
+    // Set after the rep confirms the duplicate warning and still wants a new record.
+    @AuraEnabled
+    public Boolean allowDuplicate;
   }
 
   public class WizardCreateResult {
@@ -306,7 +315,16 @@ public with sharing class AccountsTabController {
     public Id brickId;
     @AuraEnabled
     public String specialtyFilter;
+    @AuraEnabled
+    public String approvalScope;
+    @AuraEnabled
+    public String nurtureLane;
+    @AuraEnabled
+    public Boolean repBookOnly;
   }
+
+  private static final String APPROVAL_SCOPE_PENDING_DM = 'pendingDm';
+  private static final String APPROVAL_SCOPE_NURTURING = 'nurturing';
 
   public class AccountsTabPage {
     @AuraEnabled
@@ -327,6 +345,12 @@ public with sharing class AccountsTabController {
     public List<FilterCount> recordTypeCounts;
     @AuraEnabled
     public Integer mapEligibleCount;
+    @AuraEnabled
+    public Integer nurtureNeedsYouCount;
+    @AuraEnabled
+    public Integer nurtureWithManagerCount;
+    @AuraEnabled
+    public Integer nurtureWithSfeCount;
   }
 
   public class FilterCount {
@@ -375,6 +399,9 @@ public with sharing class AccountsTabController {
     public String planCycleLabel;
     @AuraEnabled
     public Decimal targetVisits;
+    /** Visits per month from the target list (Account Territory Fields), shown when there is no time-card target. */
+    @AuraEnabled
+    public Decimal callPlanFrequency;
     @AuraEnabled
     public Decimal actualVisits;
     @AuraEnabled
@@ -419,6 +446,18 @@ public with sharing class AccountsTabController {
     public String lastVisitDisplay;
     @AuraEnabled
     public String nextVisitDisplay;
+    @AuraEnabled
+    public String accountStage;
+    @AuraEnabled
+    public String accountStageLabel;
+    @AuraEnabled
+    public String submittedByName;
+    @AuraEnabled
+    public Boolean showApprovalActions;
+    @AuraEnabled
+    public String nurtureLane;
+    @AuraEnabled
+    public String nurtureWaitLabel;
   }
 
   public class HealthVisitHistoryItem {
@@ -903,10 +942,17 @@ public with sharing class AccountsTabController {
     if (String.isNotBlank(input.placeId)) {
       putIfField('Maps_Place_Id__c', acct, input.placeId);
     }
+    if (String.isNotBlank(input.website)) {
+      acct.Website = input.website.left(255);
+    }
     if (String.isNotBlank(primaryPhone)) {
       putIfField('Maps_Phone_Number__c', acct, primaryPhone);
     }
     putIfField('Account_Stage__c', acct, 'Draft');
+
+    if (input.allowDuplicate != true) {
+      assertNoLikelyDuplicate(acct, isPerson ? (String.isBlank(input.firstName) ? '' : input.firstName.trim() + ' ') + acct.LastName : acct.Name);
+    }
 
     try {
       insert acct;
@@ -915,10 +961,34 @@ public with sharing class AccountsTabController {
         String.isBlank(ex.getDmlMessage(0)) ? 'Could not create the account.' : ex.getDmlMessage(0)
       );
     }
+
+    Id creatorId = UserInfo.getUserId();
+    Account_Territory_Fields__c wizardAtf = resolveKolAtf(acct.Id, creatorId);
+    if (wizardAtf != null) {
+      try {
+        if (wizardAtf.Id == null) {
+          Database.insert(wizardAtf, AccessLevel.SYSTEM_MODE);
+        }
+      } catch (DmlException ex) {
+        throw new AuraHandledException(
+          'Account created but territory alignment failed: ' +
+          (String.isBlank(ex.getDmlMessage(0)) ? ex.getMessage() : ex.getDmlMessage(0))
+        );
+      }
+    }
+
+    try {
+      AccountApprovalAccess.submitNewAccountForApproval(acct.Id);
+    } catch (Exception ex) {
+      throw new AuraHandledException(
+        'Account created but could not be submitted for approval: ' + ex.getMessage()
+      );
+    }
+
     WizardCreateResult result = new WizardCreateResult();
     result.accountId = acct.Id;
     result.dataQualityScore = quality.score;
-    result.message = 'Account created.';
+    result.message = 'Account submitted for manager approval.';
     return result;
   }
 
@@ -947,6 +1017,18 @@ public with sharing class AccountsTabController {
     }
   }
 
+  // Sprint 1 MoM: DMs, NAMs and BMs manage the KOL list; reps do not.
+  private static final List<String> KOL_EDITOR_TITLE_KEYWORDS = new List<String>{
+    'manager', 'supervisor', 'brand lead', 'sfe', 'crm', 'ceo'
+  };
+
+  private static Boolean canManageKolList(Id userId) {
+    if (SfeApproverService.isSystemAdministrator()) {
+      return true;
+    }
+    return StageApproverAccess.titleMatches(userId, KOL_EDITOR_TITLE_KEYWORDS);
+  }
+
   @AuraEnabled
   public static KolUpdateResult setAccountKol(Id accountId, Boolean isKol) {
     if (accountId == null) {
@@ -954,6 +1036,9 @@ public with sharing class AccountsTabController {
     }
 
     Id userId = UserInfo.getUserId();
+    if (!canManageKolList(userId)) {
+      throw new AuraHandledException('Only managers (DM, NAM, BM) and SFE can change the KOL list.');
+    }
     Account_Territory_Fields__c atf = resolveKolAtf(accountId, userId);
     if (atf == null) {
       throw new AuraHandledException(
@@ -1013,7 +1098,10 @@ public with sharing class AccountsTabController {
     Id contextUserId,
     List<String> accountIds,
     Id brickId,
-    String specialtyFilter
+    String specialtyFilter,
+    String approvalScope,
+    String nurtureLane,
+    Boolean repBookOnly
   ) {
     AccountsTabQuery query = toQuery(
       scope,
@@ -1030,6 +1118,9 @@ public with sharing class AccountsTabController {
     );
     query.brickId = brickId;
     query.specialtyFilter = specialtyFilter;
+    query.approvalScope = approvalScope;
+    query.nurtureLane = nurtureLane;
+    query.repBookOnly = repBookOnly;
     return buildPage(query, false);
   }
 
@@ -1057,7 +1148,8 @@ public with sharing class AccountsTabController {
     Id contextUserId,
     List<String> accountIds,
     Id brickId,
-    String specialtyFilter
+    String specialtyFilter,
+    Boolean repBookOnly
   ) {
     AccountsTabQuery query = toQuery(
       scope,
@@ -1074,6 +1166,7 @@ public with sharing class AccountsTabController {
     );
     query.brickId = brickId;
     query.specialtyFilter = specialtyFilter;
+    query.repBookOnly = repBookOnly;
     return buildPage(query, true);
   }
 
@@ -1105,6 +1198,37 @@ public with sharing class AccountsTabController {
     return query;
   }
 
+  public static final String DUPLICATE_WARNING_PREFIX = 'Possible duplicate: ';
+
+  // BRD §5.1 search-before-create: warn before a second record for the same HCP is saved.
+  private static void assertNoLikelyDuplicate(Account draft, String displayName) {
+    Account probe = draft.clone(false, true);
+    probe.Name = displayName;
+    List<AccountDuplicateCheckService.MatchRow> matches = AccountDuplicateCheckService.findLikelyDuplicatesForDraft(probe);
+    if (matches.isEmpty()) {
+      return;
+    }
+    List<String> names = new List<String>();
+    for (AccountDuplicateCheckService.MatchRow match : matches) {
+      names.add(match.accountName + (String.isBlank(match.phone) ? '' : ' (' + match.phone + ')') + ', ' + match.percent + '%');
+    }
+    throw new AuraHandledException(
+      DUPLICATE_WARNING_PREFIX + String.join(names, '; ') +
+        '. Use the existing account, or confirm to create a new one anyway.'
+    );
+  }
+
+  // Another user's book may only be opened by someone whose team scope covers them.
+  private static Id resolveBookUserId(Id contextUserId) {
+    if (contextUserId == null || contextUserId == UserInfo.getUserId()) {
+      return UserInfo.getUserId();
+    }
+    if (!FieldPlannerController.canViewBookOf(contextUserId)) {
+      throw new AuraHandledException('You can only open accounts for your own team.');
+    }
+    return contextUserId;
+  }
+
   private static AccountsTabPage buildPage(AccountsTabQuery query, Boolean mapMode) {
     AccountsTabPage result = new AccountsTabPage();
     result.rows = new List<AccountsTabRow>();
@@ -1119,14 +1243,16 @@ public with sharing class AccountsTabController {
       query = new AccountsTabQuery();
     }
 
-    Id userId = query.contextUserId != null ? query.contextUserId : UserInfo.getUserId();
+    Id userId = resolveBookUserId(query.contextUserId);
     Date monthStart = query.monthStart != null
       ? Date.newInstance(query.monthStart.year(), query.monthStart.month(), 1)
       : Date.today().toStartOfMonth();
     Date monthEnd = monthStart.addMonths(1).addDays(-1);
     result.monthLabel = monthStart.format();
 
-    String scope = normalizeScope(query.scope);
+    String scope = APPROVAL_SCOPE_NURTURING.equalsIgnoreCase(query.approvalScope)
+      ? SCOPE_BOTH
+      : normalizeScope(query.scope);
     String sortBy = String.isBlank(query.sortBy) ? SORT_AGENTFORCE : query.sortBy;
     Boolean sortAsc = 'asc'.equalsIgnoreCase(query.sortDirection);
     Integer pageSize = Math.min(
@@ -1141,7 +1267,8 @@ public with sharing class AccountsTabController {
       territoryIdStrings.add(String.valueOf(territoryId));
     }
 
-    if (territoryIds.isEmpty() && !hasFullAccountAccess()) {
+    Boolean nurturingScope = APPROVAL_SCOPE_NURTURING.equalsIgnoreCase(query.approvalScope);
+    if (territoryIds.isEmpty() && !hasFullAccountAccess() && !nurturingScope) {
       return result;
     }
 
@@ -1179,20 +1306,26 @@ public with sharing class AccountsTabController {
     }
 
     // Head Office / admin: page Accounts directly unless the switcher pinned a territory.
+    // A Head Office seat is the whole book, so "my book" means the full book there too;
+    // scoping it by territory would only hit the 20k cap below and show nothing.
+    // SFE always works the whole book, whatever their own territory seats hold.
+    Boolean ownBookIsWholeBook =
+      (territoryAtfCount > 20000 || FieldBookAccess.isSfeUser()) && hasFullAccountAccess();
     Boolean useFullAccountQuery =
+      (query.repBookOnly != true || ownBookIsWholeBook) &&
       !forceTerritoryScope &&
       !TerritoryContextService.hasSelectedTerritory() &&
       userId == UserInfo.getUserId() &&
       hasFullAccountAccess();
 
     Set<Id> scopedAccountIds = null;
-    if (SCOPE_IN.equals(scope)) {
+    if (SCOPE_IN.equals(scope) && !nurturingScope) {
       scopedAccountIds = loadTimeCardTargetAccountIds(timeCardId);
       if (scopedAccountIds.isEmpty()) {
         result.recordTypeCounts = emptyRecordTypeCounts(0);
         return result;
       }
-    } else if (!useFullAccountQuery) {
+    } else if (!useFullAccountQuery && !nurturingScope) {
       if (territoryIdStrings.isEmpty()) {
         result.recordTypeCounts = emptyRecordTypeCounts(0);
         return result;
@@ -1222,6 +1355,41 @@ public with sharing class AccountsTabController {
       }
     }
 
+    AccountApprovalAccess.NurtureIndex nurtureIndex = null;
+    if (nurturingScope || APPROVAL_SCOPE_PENDING_DM.equalsIgnoreCase(query.approvalScope)) {
+      if (!AccountApprovalAccess.isTerritoryManager()) {
+        result.recordTypeCounts = emptyRecordTypeCounts(0);
+        return result;
+      }
+    }
+    if (nurturingScope) {
+      nurtureIndex = AccountApprovalAccess.loadNurtureIndex();
+      result.nurtureNeedsYouCount = nurtureIndex.needsYou.size();
+      result.nurtureWithManagerCount = nurtureIndex.withManager.size();
+      result.nurtureWithSfeCount = nurtureIndex.withSfe.size();
+      scopedAccountIds = nurtureIndex.idsFor(query.nurtureLane);
+      if (scopedAccountIds.isEmpty()) {
+        result.totalCount = 0;
+        result.recordTypeCounts = emptyRecordTypeCounts(0);
+        return result;
+      }
+    } else if (APPROVAL_SCOPE_PENDING_DM.equalsIgnoreCase(query.approvalScope)) {
+      Set<Id> pendingTeamAccountIds = AccountApprovalAccess.loadPendingTeamAccountIds();
+      if (pendingTeamAccountIds.isEmpty()) {
+        result.recordTypeCounts = emptyRecordTypeCounts(0);
+        return result;
+      }
+      if (scopedAccountIds == null) {
+        scopedAccountIds = pendingTeamAccountIds;
+      } else {
+        scopedAccountIds.retainAll(pendingTeamAccountIds);
+      }
+      if (scopedAccountIds.isEmpty()) {
+        result.recordTypeCounts = emptyRecordTypeCounts(0);
+        return result;
+      }
+    }
+
     if (classificationFilter != null && !territoryIdStrings.isEmpty()) {
       Set<Id> classifiedIds = loadClassifiedAccountIds(
         territoryIdStrings,
@@ -1239,7 +1407,8 @@ public with sharing class AccountsTabController {
     Integer fetchOffset = rowOffset;
     Boolean geocodedOnly = mapMode == true;
     Boolean nameSort = SORT_NAME.equals(sortBy);
-    Boolean scanThenPage = mapMode != true && nameSort != true;
+    Boolean nurtureMode = nurtureIndex != null;
+    Boolean scanThenPage = mapMode != true && (nameSort != true || nurtureMode);
     if (scanThenPage) {
       Integer scopedSize = scopedAccountIds == null ? MAX_SORT_SCAN : scopedAccountIds.size();
       fetchLimit = Math.max(pageSize, Math.min(scopedSize, MAX_SORT_SCAN));
@@ -1256,7 +1425,8 @@ public with sharing class AccountsTabController {
       query.brickId,
       query.specialtyFilter,
       nameSort,
-      sortAsc
+      sortAsc,
+      nurtureMode
     );
     result.totalCount = countAccounts(
       recordTypes,
@@ -1264,15 +1434,25 @@ public with sharing class AccountsTabController {
       searchTokens,
       geocodedOnly,
       query.brickId,
-      query.specialtyFilter
+      query.specialtyFilter,
+      nurtureMode
     );
     result.mapEligibleCount = mapMode
       ? result.totalCount
-      : countAccounts(recordTypes, scopedAccountIds, searchTokens, true, query.brickId, query.specialtyFilter);
+      : countAccounts(
+          recordTypes,
+          scopedAccountIds,
+          searchTokens,
+          true,
+          query.brickId,
+          query.specialtyFilter,
+          nurtureMode
+        );
     result.recordTypeCounts = buildRecordTypeCountsAggregate(
       recordTypes,
       scopedAccountIds,
-      searchTokens
+      searchTokens,
+      nurtureMode
     );
 
     // Without a time card, every account is out of plan at the territory level.
@@ -1336,6 +1516,23 @@ public with sharing class AccountsTabController {
     Map<Id, DateTime> lastVisitByAccount = loadLastVisitDates(pageAccountIds, userId);
     Map<Id, DateTime> nextVisitByAccount = loadNextVisitDates(pageAccountIds, userId, monthEnd);
     Map<String, Decimal> targetFrequencyByKey = loadTargetFrequencies(bestAtfByAccount.values());
+    Set<Id> teamRepIds = new Set<Id>();
+    Boolean territoryManager = AccountApprovalAccess.isTerritoryManager();
+    if (territoryManager) {
+      Boolean needsTeamRepIds =
+        APPROVAL_SCOPE_PENDING_DM.equalsIgnoreCase(query.approvalScope);
+      if (!needsTeamRepIds) {
+        for (Account account : pageAccounts) {
+          if (AccountStageService.STAGE_DM.equals(account.Account_Stage__c)) {
+            needsTeamRepIds = true;
+            break;
+          }
+        }
+      }
+      if (needsTeamRepIds) {
+        teamRepIds = AccountApprovalAccess.resolveTeamRepIds();
+      }
+    }
 
     List<AccountsTabRow> pageRows = new List<AccountsTabRow>();
     for (Account account : pageAccounts) {
@@ -1368,13 +1565,24 @@ public with sharing class AccountsTabController {
         workingDays,
         timeCardId != null
       );
+      if (nurtureIndex != null) {
+        applyNurturePresentation(row, account.Id, nurtureIndex);
+      } else {
+        row.showApprovalActions =
+          AccountStageService.STAGE_DM.equals(account.Account_Stage__c) &&
+          teamRepIds.contains(account.CreatedById);
+      }
       pageRows.add(row);
       if (timeCardId != null && (row.paceStatus == 'behind' || row.paceStatus == 'critical')) {
         result.behindPaceCount++;
       }
     }
 
-    sortRows(pageRows, sortBy, sortAsc);
+    if (nurtureMode) {
+      pageRows.sort(new NurtureLaneComparator());
+    } else {
+      sortRows(pageRows, sortBy, sortAsc);
+    }
     result.rows = scanThenPage ? sliceRows(pageRows, rowOffset, pageSize) : pageRows;
     return result;
   }
@@ -1382,8 +1590,12 @@ public with sharing class AccountsTabController {
   private static final String HEAD_OFFICE_EXTERNAL_ID = 'TERR_HEAD_OFFICE';
 
   private static Boolean hasFullAccountAccess() {
-    if (isSystemAdministrator()) {
+    // SFE gets the full book without a Head Office seat.
+    if (FieldBookAccess.isSfeUser()) {
       return true;
+    }
+    if (FieldBookAccess.restrictsToOwnBook()) {
+      return false;
     }
     Id headOfficeId = getHeadOfficeTerritoryId();
     if (headOfficeId == null) {
@@ -1399,17 +1611,6 @@ public with sharing class AccountsTabController {
       return true;
     }
     return false;
-  }
-
-  private static Boolean isSystemAdministrator() {
-    User currentUser = [
-      SELECT Profile.Name
-      FROM User
-      WHERE Id = :UserInfo.getUserId()
-      WITH USER_MODE
-      LIMIT 1
-    ];
-    return currentUser.Profile.Name == 'System Administrator';
   }
 
   private static Id getHeadOfficeTerritoryId() {
@@ -1472,7 +1673,7 @@ public with sharing class AccountsTabController {
     // Never scan the full 92k ATF set — page-safe classification uses a hard cap.
     Integer lim = scopedAccountIds != null ? Math.min(20000, scopedAccountIds.size() + 1) : 20000;
     for (Account_Territory_Fields__c atf : [
-      SELECT Account__c, Matrix_Rating__c, Classification__c, Potential__c
+      SELECT Account__c, Matrix_Rating__c, HCP_Classification__c, Classification__c, Potential__c
       FROM Account_Territory_Fields__c
       WHERE
         Is_Active__c = TRUE
@@ -1502,6 +1703,7 @@ public with sharing class AccountsTabController {
       List<String> ors = nameVariantOrs(AccountCognitiveSearch.expandToken(token));
       String orig = String.escapeSingleQuotes(token);
       ors.add('External_ID__c LIKE \'%' + orig + '%\'');
+      ors.add('Pharmacy_Code__c LIKE \'%' + orig + '%\'');
       ors.add('BillingCity LIKE \'%' + orig + '%\'');
       ors.add('BillingStreet LIKE \'%' + orig + '%\'');
       ors.add('Specialty_1__c LIKE \'%' + orig + '%\'');
@@ -1605,6 +1807,7 @@ public with sharing class AccountsTabController {
       'Brick__r.Name LIKE \'%' + esc + '%\'',
       'Brick__r.Brick_Code__c LIKE \'%' + esc + '%\''
     };
+    addLikeIfField(clauses, 'Pharmacy_Code__c', esc);
     addLikeIfField(clauses, 'PersonMobilePhone', esc);
     addLikeIfField(clauses, 'WhatsApp_Number__c', esc);
     addLikeIfField(clauses, 'Clinic_Phone__c', esc);
@@ -1999,10 +2202,12 @@ public with sharing class AccountsTabController {
     Id brickId,
     String specialtyFilter,
     Boolean nameSort,
-    Boolean sortAsc
+    Boolean sortAsc,
+    Boolean systemRead
   ) {
     String soql =
       'SELECT Id, Name, Specialty_1__c, Institution_Type__c, BillingStreet, BillingCity, BillingLatitude, BillingLongitude, ' +
+      'Account_Stage__c, CreatedById, CreatedBy.Name, ' +
       'Brick__c, Brick__r.Name, Brick__r.Brick_Code__c, ' +
       'RecordType.Name, RecordType.DeveloperName FROM Account ' +
       'WHERE RecordType.DeveloperName IN :recordTypes ';
@@ -2021,7 +2226,8 @@ public with sharing class AccountsTabController {
     }
     String direction = nameSort == true && sortAsc != true ? 'DESC' : 'ASC';
     soql += 'ORDER BY Name ' + direction + ' LIMIT :lim OFFSET :rowOffset';
-    return Database.query(soql, AccessLevel.USER_MODE);
+    AccessLevel level = systemRead == true ? AccessLevel.SYSTEM_MODE : AccessLevel.USER_MODE;
+    return Database.query(soql, level);
   }
 
   private static Integer countAccounts(
@@ -2030,7 +2236,8 @@ public with sharing class AccountsTabController {
     List<String> searchTokens,
     Boolean geocodedOnly,
     Id brickId,
-    String specialtyFilter
+    String specialtyFilter,
+    Boolean systemRead
   ) {
     String soql = 'SELECT COUNT() FROM Account WHERE RecordType.DeveloperName IN :recordTypes ';
     if (scopedAccountIds != null) {
@@ -2046,7 +2253,8 @@ public with sharing class AccountsTabController {
     if (geocodedOnly == true) {
       soql += 'AND BillingLatitude != NULL AND BillingLongitude != NULL ';
     }
-    return Database.countQuery(soql, AccessLevel.USER_MODE);
+    AccessLevel level = systemRead == true ? AccessLevel.SYSTEM_MODE : AccessLevel.USER_MODE;
+    return Database.countQuery(soql, level);
   }
 
   private static Map<Id, Account_Territory_Fields__c> loadAtfForAccounts(
@@ -2063,10 +2271,12 @@ public with sharing class AccountsTabController {
           Id,
           Account__c,
           Classification__c,
+          HCP_Classification__c,
           Matrix_Rating__c,
           Potential__c,
           Penetration__c,
           Is_KOL__c,
+          Call_Plan_Visits_Per_Month__c,
           Territory2_Id__c
         FROM Account_Territory_Fields__c
         WHERE Is_Active__c = TRUE AND Account__c IN :accountIds
@@ -2078,10 +2288,12 @@ public with sharing class AccountsTabController {
           Id,
           Account__c,
           Classification__c,
+          HCP_Classification__c,
           Matrix_Rating__c,
           Potential__c,
           Penetration__c,
           Is_KOL__c,
+          Call_Plan_Visits_Per_Month__c,
           Territory2_Id__c
         FROM Account_Territory_Fields__c
         WHERE
@@ -2174,7 +2386,8 @@ public with sharing class AccountsTabController {
   private static List<FilterCount> buildRecordTypeCountsAggregate(
     Set<String> recordTypes,
     Set<Id> scopedAccountIds,
-    List<String> searchTokens
+    List<String> searchTokens,
+    Boolean systemRead
   ) {
     String soql =
       'SELECT RecordType.DeveloperName developerName, COUNT(Id) cnt FROM Account ' +
@@ -2187,7 +2400,8 @@ public with sharing class AccountsTabController {
 
     Map<String, Integer> countsByKey = new Map<String, Integer>();
     Integer total = 0;
-    for (AggregateResult agg : Database.query(soql, AccessLevel.USER_MODE)) {
+    AccessLevel level = systemRead == true ? AccessLevel.SYSTEM_MODE : AccessLevel.USER_MODE;
+    for (AggregateResult agg : Database.query(soql, level)) {
       String developerName = (String) agg.get('developerName');
       Integer cnt = Integer.valueOf(agg.get('cnt'));
       String key = canonicalRecordTypeFilterKey(developerName);
@@ -2225,6 +2439,10 @@ public with sharing class AccountsTabController {
     row.accountId = account.Id;
     row.accountName = account.Name;
     row.accountUrl = '/' + String.valueOf(account.Id);
+    row.accountStage = account.Account_Stage__c;
+    row.accountStageLabel = accountStageLabel(account.Account_Stage__c);
+    row.submittedByName = account.CreatedBy?.Name;
+    row.showApprovalActions = false;
     row.specialty = MedicalSpecialtyPicklist.getLabel(account.Specialty_1__c);
     row.city = account.BillingCity;
     row.addressLine = buildAddressLine(account.BillingStreet, account.BillingCity);
@@ -2239,13 +2457,15 @@ public with sharing class AccountsTabController {
     row.accountSubtype = account.Institution_Type__c;
     row.latitude = account.BillingLatitude;
     row.longitude = account.BillingLongitude;
-    row.classification = String.isNotBlank(atf.Classification__c)
-      ? atf.Classification__c
-      : resolvePotentiality(atf);
+    // Always show letter+number (A1–C3). Never surface bare A/B/C in the Class column.
+    row.classification = resolveDisplayClassification(atf);
     row.matrixRating = atf.Matrix_Rating__c;
     row.potential = atf.Potential__c;
     row.penetration = atf.Penetration__c;
     row.isKol = atf.Is_KOL__c == true;
+    row.callPlanFrequency = atf.isSet('Call_Plan_Visits_Per_Month__c')
+      ? atf.Call_Plan_Visits_Per_Month__c
+      : null;
     row.inPlanCycle = inPlan;
     row.planCycleLabel = inPlan ? 'In' : 'Out';
     row.classificationRank = classificationRank(row.classification);
@@ -2586,6 +2806,12 @@ public with sharing class AccountsTabController {
     Date monthEnd
   ) {
     Map<Id, Integer> counts = new Map<Id, Integer>();
+    Set<String> plannedStatuses = new Set<String>{
+      VisitStatusHelper.STATUS_DRAFT,
+      VisitStatusHelper.STATUS_SUBMITTED,
+      VisitStatusHelper.STATUS_SCHEDULED,
+      'Rescheduled'
+    };
     for (AggregateResult agg : [
       SELECT Account__c accountId, COUNT(Id) visitCount
       FROM Visit__c
@@ -2594,7 +2820,7 @@ public with sharing class AccountsTabController {
         AND Assigned_To__c = :userId
         AND Start_Date__c >= :DateTime.newInstance(Date.today(), Time.newInstance(0, 0, 0, 0))
         AND Start_Date__c <= :DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0))
-        AND Status__c IN ('Draft', 'Scheduled', 'Rescheduled')
+        AND Status__c IN :plannedStatuses
       WITH USER_MODE
       GROUP BY Account__c
     ]) {
@@ -2603,6 +2829,7 @@ public with sharing class AccountsTabController {
     return counts;
   }
 
+  @TestVisible
   private static Map<Id, Integer> loadCompletedVisitCounts(
     Set<Id> accountIds,
     Id userId,
@@ -2610,19 +2837,33 @@ public with sharing class AccountsTabController {
     Date monthEnd
   ) {
     Map<Id, Integer> counts = new Map<Id, Integer>();
-    for (AggregateResult agg : [
-      SELECT Account__c accountId, COUNT(Id) visitCount
+    if (accountIds == null || accountIds.isEmpty() || userId == null) {
+      return counts;
+    }
+    DateTime rangeStart = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+    for (Visit__c visit : [
+      SELECT Account__c, Visit_Date__c, Start_Date__c
       FROM Visit__c
       WHERE
         Account__c IN :accountIds
         AND Assigned_To__c = :userId
-        AND Start_Date__c >= :DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0))
-        AND Start_Date__c <= :DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0))
-        AND Status__c = 'Completed'
+        AND Status__c = :VisitStatusHelper.STATUS_COMPLETED
+        AND (
+          (Visit_Date__c != NULL AND Visit_Date__c >= :rangeStart AND Visit_Date__c <= :rangeEnd)
+          OR (
+            Visit_Date__c = NULL
+            AND Start_Date__c >= :rangeStart
+            AND Start_Date__c <= :rangeEnd
+          )
+        )
       WITH USER_MODE
-      GROUP BY Account__c
     ]) {
-      counts.put((Id) agg.get('accountId'), (Integer) agg.get('visitCount'));
+      if (visit.Account__c == null) {
+        continue;
+      }
+      Integer current = counts.containsKey(visit.Account__c) ? counts.get(visit.Account__c) : 0;
+      counts.put(visit.Account__c, current + 1);
     }
     return counts;
   }
@@ -2681,45 +2922,341 @@ public with sharing class AccountsTabController {
     Id brickId,
     String specialtyFilter
   ) {
-    AccountsTabQuery query = toQuery(
-      scope,
-      searchTerm,
-      recordTypeDeveloperName,
-      classification,
-      sortBy,
-      sortDirection,
-      0,
-      MAX_PAGE_SIZE,
-      monthStart,
-      contextUserId,
-      null
-    );
-    query.brickId = brickId;
-    query.specialtyFilter = specialtyFilter;
-    query.pageSize = MAX_PAGE_SIZE;
-    query.offset = 0;
+    Id userId = resolveBookUserId(contextUserId);
+    Date resolvedMonthStart = monthStart != null
+      ? Date.newInstance(monthStart.year(), monthStart.month(), 1)
+      : Date.today().toStartOfMonth();
+    String resolvedScope = normalizeScope(scope);
+    Set<String> recordTypes = resolveRecordTypeFilter(recordTypeDeveloperName);
+    String classificationFilter = resolveClassificationFilter(classification);
+    String resolvedSearch = String.isBlank(searchTerm) ? null : searchTerm.trim();
 
-    AccountsTabPage page = buildPage(query, false);
-    List<String> lines = new List<String>{
-      'Account,Class,Plan,Actual Visits,Target Visits,Gap,Health,Last Visit,Next Visit,Specialty,Address,Brick'
-    };
-    for (AccountsTabRow row : page.rows) {
-      lines.add(
-        csvEscape(row.accountName) + ',' +
-        csvEscape(row.classification) + ',' +
-        csvEscape(row.planCycleLabel) + ',' +
-        csvEscape(String.valueOf(row.actualVisits)) + ',' +
-        csvEscape(String.valueOf(row.targetVisits)) + ',' +
-        csvEscape(String.valueOf(row.visitGap)) + ',' +
-        csvEscape(row.healthStatus) + ',' +
-        csvEscape(row.lastVisitDisplay) + ',' +
-        csvEscape(row.nextVisitDisplay) + ',' +
-        csvEscape(row.specialty) + ',' +
-        csvEscape(row.addressLine) + ',' +
-        csvEscape(row.brickName)
+    Set<Id> territoryIds = expandTerritoryHierarchy(getUserTerritoryIds(userId));
+    Set<String> territoryIdStrings = new Set<String>();
+    for (Id territoryId : territoryIds) {
+      territoryIdStrings.add(String.valueOf(territoryId));
+    }
+
+    // Sprint 1 MoM: CSV export carries the territory ratings and account fields SFE audits.
+    List<String> lines = new List<String>{ EXPORT_CSV_HEADER };
+    if (territoryIdStrings.isEmpty()) {
+      return lines[0];
+    }
+
+    Integer atfCount = [
+      SELECT COUNT()
+      FROM Account_Territory_Fields__c
+      WHERE
+        Is_Active__c = TRUE
+        AND Territory2_Id__c IN :territoryIdStrings
+        AND Account__c != NULL
+      WITH SYSTEM_MODE
+    ];
+    if (atfCount > EXPORT_ROW_LIMIT) {
+      throw new AuraHandledException(
+        'This territory has too many accounts to export at once. Narrow the territory and try again.'
       );
     }
+
+    Map<Id, Account_Territory_Fields__c> bestAtfByAccount = pickBestAtfPerAccount([
+      SELECT
+        Account__c,
+        Classification__c,
+        Matrix_Rating__c,
+        Potential__c,
+        Penetration__c,
+        HCP_Classification__c,
+        Call_Plan_Visits_Per_Month__c,
+        Is_KOL__c,
+        Territory2_Id__c
+      FROM Account_Territory_Fields__c
+      WHERE
+        Is_Active__c = TRUE
+        AND Territory2_Id__c IN :territoryIdStrings
+        AND Account__c != NULL
+      WITH SYSTEM_MODE
+      LIMIT :EXPORT_ROW_LIMIT
+    ]);
+    Map<String, String> territoryNames = new Map<String, String>();
+    for (Territory2 territory : [
+      SELECT Id, Name
+      FROM Territory2
+      WHERE Id IN :territoryIds
+      WITH SYSTEM_MODE
+    ]) {
+      territoryNames.put(String.valueOf(territory.Id), territory.Name);
+    }
+
+    Set<Id> inPlanIds = null;
+    if (!SCOPE_BOTH.equals(resolvedScope)) {
+      List<Employee_Time_Card__c> cards = [
+        SELECT Id
+        FROM Employee_Time_Card__c
+        WHERE Employee__c = :userId AND Time_Card_Month_Start_Date__c = :resolvedMonthStart
+        WITH USER_MODE
+        LIMIT 1
+      ];
+      Id timeCardId = cards.isEmpty() ? null : cards[0].Id;
+      inPlanIds = loadTimeCardTargetAccountIds(timeCardId);
+    }
+
+    Set<Id> exportAccountIds = new Set<Id>();
+    for (Id accountId : bestAtfByAccount.keySet()) {
+      Account_Territory_Fields__c atf = bestAtfByAccount.get(accountId);
+      if (classificationFilter != null && !matchesClassification(atf, classificationFilter)) {
+        continue;
+      }
+      if (inPlanIds != null) {
+        Boolean inPlan = inPlanIds.contains(accountId);
+        if (SCOPE_IN.equals(resolvedScope) && !inPlan) {
+          continue;
+        }
+        if (SCOPE_OUT.equals(resolvedScope) && inPlan) {
+          continue;
+        }
+      }
+      exportAccountIds.add(accountId);
+    }
+
+    Map<Id, Account> accountsById = queryAccountsForExport(exportAccountIds, recordTypes);
+    List<ExportCsvLine> exportLines = new List<ExportCsvLine>();
+    for (Id accountId : exportAccountIds) {
+      Account account = accountsById.get(accountId);
+      if (account == null) {
+        continue;
+      }
+      if (brickId != null && account.Brick__c != brickId) {
+        continue;
+      }
+      if (
+        String.isNotBlank(specialtyFilter) &&
+        !FILTER_ALL.equals(specialtyFilter) &&
+        account.Specialty_1__c != specialtyFilter
+      ) {
+        continue;
+      }
+      Account_Territory_Fields__c atf = bestAtfByAccount.get(accountId);
+      if (String.isNotBlank(resolvedSearch) && !matchesSearch(account, atf, resolvedSearch)) {
+        continue;
+      }
+      ExportCsvLine exportLine = new ExportCsvLine();
+      exportLine.sortName = account.Name;
+      exportLine.line = exportCsvLine(account, atf, territoryNames);
+      exportLines.add(exportLine);
+    }
+    exportLines.sort();
+    for (ExportCsvLine exportLine : exportLines) {
+      lines.add(exportLine.line);
+    }
     return String.join(lines, '\n');
+  }
+
+  public class ExportChunk {
+    @AuraEnabled public String csv;
+    @AuraEnabled public String nextAfterId;
+    @AuraEnabled public Boolean done;
+  }
+
+  /**
+   * CSV export in pages of EXPORT_CHUNK_SIZE accounts, ordered by Id. The full book
+   * (SFE, or anyone with full access who opened it) is too big for one transaction,
+   * so the page calls this until done. A territory book still exports in one call.
+   * afterId is the last Id of the previous chunk; null starts at the header.
+   */
+  @AuraEnabled
+  public static ExportChunk exportAccountsCsvChunk(
+    String scope,
+    String searchTerm,
+    String recordTypeDeveloperName,
+    String classification,
+    Id contextUserId,
+    Id brickId,
+    String specialtyFilter,
+    Boolean fullBook,
+    String afterId
+  ) {
+    ExportChunk chunk = new ExportChunk();
+    Id userId = resolveBookUserId(contextUserId);
+    Boolean exportFullBook =
+      (fullBook == true || FieldBookAccess.isSfeUser()) &&
+      userId == UserInfo.getUserId() &&
+      !TerritoryContextService.hasSelectedTerritory() &&
+      hasFullAccountAccess();
+    if (!exportFullBook) {
+      chunk.csv = exportAccountsCsv(
+        scope, searchTerm, recordTypeDeveloperName, classification,
+        null, null, null, contextUserId, brickId, specialtyFilter
+      );
+      chunk.done = true;
+      return chunk;
+    }
+
+    String resolvedScope = normalizeScope(scope);
+    Set<String> recordTypes = resolveRecordTypeFilter(recordTypeDeveloperName);
+    String classificationFilter = resolveClassificationFilter(classification);
+    String resolvedSearch = String.isBlank(searchTerm) ? null : searchTerm.trim();
+    Id afterAccountId = String.isBlank(afterId) ? null : (Id) afterId;
+    Boolean filterSpecialty = String.isNotBlank(specialtyFilter) && !FILTER_ALL.equals(specialtyFilter);
+
+    Map<String, Object> binds = new Map<String, Object>{
+      'recordTypes' => recordTypes,
+      'brickId' => brickId,
+      'specialtyFilter' => specialtyFilter,
+      'afterAccountId' => afterAccountId,
+      'chunkSize' => EXPORT_CHUNK_SIZE
+    };
+    String soql =
+      'SELECT Id, Name, Specialty_1__c, BillingStreet, BillingCity, Brick__c, Brick__r.Name, ' +
+      'Brick__r.Brick_Code__c, Brick_148__r.Name, Brick_702__r.Name, RecordType.Name, RecordType.DeveloperName ' +
+      'FROM Account WHERE RecordType.DeveloperName IN :recordTypes' +
+      (brickId != null ? ' AND Brick__c = :brickId' : '') +
+      (filterSpecialty ? ' AND Specialty_1__c = :specialtyFilter' : '') +
+      (afterAccountId != null ? ' AND Id > :afterAccountId' : '') + ' ';
+    // Search runs in the query, the same as the list: matching 5,000 accounts per chunk in
+    // Apex against every Arabic spelling of an English name ran out of CPU (QA B1-09).
+    soql = appendTokenSearchClauses(soql, tokenizeSearch(resolvedSearch));
+    soql += 'ORDER BY Id LIMIT :chunkSize';
+    List<Account> accounts = Database.queryWithBinds(soql, binds, AccessLevel.USER_MODE);
+
+    Map<Id, Account_Territory_Fields__c> bestAtfByAccount = new Map<Id, Account_Territory_Fields__c>();
+    if (!accounts.isEmpty()) {
+      bestAtfByAccount = pickBestAtfPerAccount([
+        SELECT
+          Account__c,
+          Classification__c,
+          Matrix_Rating__c,
+          Potential__c,
+          Penetration__c,
+          HCP_Classification__c,
+          Call_Plan_Visits_Per_Month__c,
+          Is_KOL__c,
+          Territory2_Id__c
+        FROM Account_Territory_Fields__c
+        WHERE Is_Active__c = TRUE AND Account__c IN :accounts
+        WITH SYSTEM_MODE
+      ]);
+    }
+    Set<String> atfTerritoryIds = new Set<String>();
+    for (Account_Territory_Fields__c atf : bestAtfByAccount.values()) {
+      if (String.isNotBlank(atf.Territory2_Id__c)) {
+        atfTerritoryIds.add(atf.Territory2_Id__c);
+      }
+    }
+    Map<String, String> territoryNames = new Map<String, String>();
+    for (Territory2 territory : [
+      SELECT Id, Name
+      FROM Territory2
+      WHERE Id IN :atfTerritoryIds
+      WITH SYSTEM_MODE
+    ]) {
+      territoryNames.put(String.valueOf(territory.Id), territory.Name);
+    }
+
+    Set<Id> inPlanIds = null;
+    if (!SCOPE_BOTH.equals(resolvedScope)) {
+      List<Employee_Time_Card__c> cards = [
+        SELECT Id
+        FROM Employee_Time_Card__c
+        WHERE Employee__c = :userId AND Time_Card_Month_Start_Date__c = :Date.today().toStartOfMonth()
+        WITH USER_MODE
+        LIMIT 1
+      ];
+      inPlanIds = loadTimeCardTargetAccountIds(cards.isEmpty() ? null : cards[0].Id);
+    }
+
+    List<String> lines = new List<String>();
+    if (afterAccountId == null) {
+      lines.add(EXPORT_CSV_HEADER);
+    }
+    for (Account account : accounts) {
+      // Accounts with no active territory row still export, with blank rating columns.
+      Account_Territory_Fields__c atf = bestAtfByAccount.containsKey(account.Id)
+        ? bestAtfByAccount.get(account.Id)
+        : new Account_Territory_Fields__c();
+      if (classificationFilter != null && !matchesClassification(atf, classificationFilter)) {
+        continue;
+      }
+      if (inPlanIds != null) {
+        Boolean inPlan = inPlanIds.contains(account.Id);
+        if ((SCOPE_IN.equals(resolvedScope) && !inPlan) || (SCOPE_OUT.equals(resolvedScope) && inPlan)) {
+          continue;
+        }
+      }
+      lines.add(exportCsvLine(account, atf, territoryNames));
+    }
+    chunk.csv = String.join(lines, '\n');
+    chunk.done = accounts.size() < EXPORT_CHUNK_SIZE;
+    chunk.nextAfterId = accounts.isEmpty() ? null : String.valueOf(accounts[accounts.size() - 1].Id);
+    return chunk;
+  }
+
+  private static String exportCsvLine(
+    Account account,
+    Account_Territory_Fields__c atf,
+    Map<String, String> territoryNames
+  ) {
+    return String.join(
+      new List<String>{
+        csvEscape(account.Id),
+        csvEscape(account.Name),
+        csvEscape(account.RecordType?.Name),
+        csvEscape(MedicalSpecialtyPicklist.getLabel(account.Specialty_1__c)),
+        csvEscape(account.Brick__r?.Name),
+        csvEscape(account.Brick_148__r?.Name),
+        csvEscape(account.Brick_702__r?.Name),
+        csvEscape(account.BillingStreet),
+        csvEscape(account.BillingCity),
+        csvEscape(territoryNames.get(atf.Territory2_Id__c)),
+        csvEscape(atf.Is_KOL__c == true ? 'Yes' : 'No'),
+        csvEscape(resolvePotentiality(atf)),
+        csvEscape(atf.Matrix_Rating__c),
+        csvEscape(atf.Potential__c),
+        csvEscape(atf.Penetration__c),
+        csvEscape(atf.HCP_Classification__c),
+        atf.Call_Plan_Visits_Per_Month__c == null ? '' : String.valueOf(atf.Call_Plan_Visits_Per_Month__c)
+      },
+      ','
+    );
+  }
+
+  private static Map<Id, Account> queryAccountsForExport(
+    Set<Id> accountIds,
+    Set<String> recordTypes
+  ) {
+    Map<Id, Account> accountsById = new Map<Id, Account>();
+    if (accountIds == null || accountIds.isEmpty()) {
+      return accountsById;
+    }
+    List<Id> ids = new List<Id>(accountIds);
+    Integer chunkSize = 2000;
+    for (Integer start = 0; start < ids.size(); start += chunkSize) {
+      Integer endIdx = Math.min(start + chunkSize, ids.size());
+      List<Id> chunk = new List<Id>();
+      for (Integer index = start; index < endIdx; index++) {
+        chunk.add(ids[index]);
+      }
+      for (Account account : [
+        SELECT
+          Id,
+          Name,
+          Specialty_1__c,
+          BillingStreet,
+          BillingCity,
+          Brick__c,
+          Brick__r.Name,
+          Brick__r.Brick_Code__c,
+          Brick_148__r.Name,
+          Brick_702__r.Name,
+          RecordType.Name,
+          RecordType.DeveloperName
+        FROM Account
+        WHERE Id IN :chunk AND RecordType.DeveloperName IN :recordTypes
+        WITH USER_MODE
+      ]) {
+        accountsById.put(account.Id, account);
+      }
+    }
+    return accountsById;
   }
 
   private static String csvEscape(String value) {
@@ -2920,10 +3457,56 @@ public with sharing class AccountsTabController {
     Account_Territory_Fields__c atf,
     String classification
   ) {
+    if (String.isBlank(classification)) {
+      return true;
+    }
+    String display = resolveDisplayClassification(atf);
     if (classification.length() == 1) {
+      if (String.isNotBlank(display) && display.substring(0, 1).equalsIgnoreCase(classification)) {
+        return true;
+      }
       return classification.equalsIgnoreCase(resolvePotentiality(atf));
     }
-    return classification.equalsIgnoreCase(atf.Matrix_Rating__c);
+    String needle = normalizeLetterNumberClass(classification);
+    if (needle == null) {
+      return false;
+    }
+    return needle.equalsIgnoreCase(display)
+      || needle.equalsIgnoreCase(normalizeLetterNumberClass(atf.Matrix_Rating__c))
+      || needle.equalsIgnoreCase(normalizeLetterNumberClass(atf.HCP_Classification__c));
+  }
+
+  /**
+   * Prefer matrix / HCP class codes (A1–C3). Bare A/B/C from Classification__c is not shown.
+   */
+  private static String resolveDisplayClassification(Account_Territory_Fields__c atf) {
+    if (atf == null) {
+      return null;
+    }
+    String fromMatrix = normalizeLetterNumberClass(atf.Matrix_Rating__c);
+    if (fromMatrix != null) {
+      return fromMatrix;
+    }
+    String fromHcp = normalizeLetterNumberClass(atf.HCP_Classification__c);
+    if (fromHcp != null) {
+      return fromHcp;
+    }
+    return normalizeLetterNumberClass(atf.Classification__c);
+  }
+
+  private static String normalizeLetterNumberClass(String raw) {
+    if (String.isBlank(raw)) {
+      return null;
+    }
+    String key = raw.trim().toUpperCase();
+    if (key.length() == 2) {
+      String letter = key.substring(0, 1);
+      String digit = key.substring(1, 2);
+      if ('ABC'.contains(letter) && '123'.contains(digit)) {
+        return letter + digit;
+      }
+    }
+    return null;
   }
 
   private static Boolean matchesSearch(
@@ -3005,16 +3588,25 @@ public with sharing class AccountsTabController {
   }
 
   private static Integer classificationRank(String classification) {
-    if (classification == 'A') {
-      return 3;
+    if (String.isBlank(classification)) {
+      return 0;
     }
-    if (classification == 'B') {
-      return 2;
+    String key = classification.trim().toUpperCase();
+    Integer letterWeight = 0;
+    if (key.startsWith('A')) {
+      letterWeight = 300;
+    } else if (key.startsWith('B')) {
+      letterWeight = 200;
+    } else if (key.startsWith('C')) {
+      letterWeight = 100;
+    } else {
+      return 0;
     }
-    if (classification == 'C') {
-      return 1;
+    if (key.length() >= 2 && key.substring(1, 2).isNumeric()) {
+      Integer digit = Integer.valueOf(key.substring(1, 2));
+      return letterWeight + (4 - digit);
     }
-    return 0;
+    return letterWeight;
   }
 
   private static String resolvePinKind(String recordTypeDeveloperName, String recordTypeName) {
@@ -3137,6 +3729,18 @@ public with sharing class AccountsTabController {
     return summary;
   }
 
+  private class ExportCsvLine implements Comparable {
+    public String sortName;
+    public String line;
+
+    public Integer compareTo(Object other) {
+      ExportCsvLine that = (ExportCsvLine) other;
+      String left = sortName == null ? '' : sortName.toLowerCase();
+      String right = that.sortName == null ? '' : that.sortName.toLowerCase();
+      return left.compareTo(right);
+    }
+  }
+
   private class NameComparator implements System.Comparator<AccountsTabRow> {
     private Boolean ascending;
 
@@ -3219,6 +3823,57 @@ public with sharing class AccountsTabController {
     }
   }
 
+  private static void applyNurturePresentation(
+    AccountsTabRow row,
+    Id accountId,
+    AccountApprovalAccess.NurtureIndex index
+  ) {
+    String lane = index == null ? null : index.laneOf(accountId);
+    row.nurtureLane = lane;
+    row.showApprovalActions = AccountApprovalAccess.LANE_NEEDS_YOU.equals(lane);
+    if (AccountApprovalAccess.LANE_NEEDS_YOU.equals(lane)) {
+      row.accountStageLabel = 'Needs your approval';
+      return;
+    }
+    if (AccountApprovalAccess.LANE_WITH_MANAGER.equals(lane)) {
+      row.accountStageLabel = 'Waiting on your manager';
+      row.nurtureWaitLabel = 'Your manager still needs to approve this account.';
+      return;
+    }
+    if (AccountApprovalAccess.LANE_WITH_SFE.equals(lane)) {
+      row.accountStageLabel = 'Waiting on SFE';
+      row.nurtureWaitLabel = index.sfeAdvancedByMe.contains(accountId)
+        ? 'You approved this. SFE still needs to sign off.'
+        : 'Your manager approved this. SFE still needs to sign off.';
+    }
+  }
+
+  private class NurtureLaneComparator implements System.Comparator<AccountsTabRow> {
+    public Integer compare(AccountsTabRow left, AccountsTabRow right) {
+      Integer rankLeft = nurtureLaneRank(left == null ? null : left.nurtureLane);
+      Integer rankRight = nurtureLaneRank(right == null ? null : right.nurtureLane);
+      if (rankLeft != rankRight) {
+        return rankLeft < rankRight ? -1 : 1;
+      }
+      String nameLeft = left == null || left.accountName == null ? '' : left.accountName;
+      String nameRight = right == null || right.accountName == null ? '' : right.accountName;
+      return nameLeft.compareTo(nameRight);
+    }
+
+    private Integer nurtureLaneRank(String lane) {
+      if (AccountApprovalAccess.LANE_NEEDS_YOU.equals(lane)) {
+        return 0;
+      }
+      if (AccountApprovalAccess.LANE_WITH_MANAGER.equals(lane)) {
+        return 1;
+      }
+      if (AccountApprovalAccess.LANE_WITH_SFE.equals(lane)) {
+        return 2;
+      }
+      return 3;
+    }
+  }
+
   private class VisitsComparator implements System.Comparator<AccountsTabRow> {
     private Boolean ascending;
     VisitsComparator(Boolean ascending) { this.ascending = ascending == true; }
@@ -3243,5 +3898,54 @@ public with sharing class AccountsTabController {
       }
       return ascending ? (timeA > timeB ? 1 : -1) : (timeA > timeB ? -1 : 1);
     }
+  }
+
+  private static String accountStageLabel(String stage) {
+    if (String.isBlank(stage)) {
+      return 'Draft';
+    }
+    if (AccountStageService.STAGE_DM.equals(stage)) {
+      return 'Pending approval';
+    }
+    if (AccountStageService.STAGE_SFE.equals(stage)) {
+      return 'SFE Approval';
+    }
+    if (AccountStageService.STAGE_ACTIVE.equals(stage)) {
+      return 'Active';
+    }
+    return stage;
+  }
+
+  @AuraEnabled(cacheable=true)
+  public static Boolean isAccountApprovalManager() {
+    return AccountApprovalAccess.isTerritoryManager();
+  }
+
+  @AuraEnabled(cacheable=true)
+  public static Integer getPendingAccountApprovalCount() {
+    return AccountApprovalAccess.getPendingApprovalCount();
+  }
+
+  @AuraEnabled
+  public static AccountApprovalAccess.NurtureSummary getAccountNurtureSummary() {
+    if (!AccountApprovalAccess.isTerritoryManager()) {
+      return new AccountApprovalAccess.NurtureSummary();
+    }
+    return AccountApprovalAccess.summarizeNurture();
+  }
+
+  @AuraEnabled(cacheable=true)
+  public static List<AccountApprovalAccess.ApprovalRow> getPendingAccountApprovals() {
+    return AccountApprovalAccess.getPendingApprovals();
+  }
+
+  @AuraEnabled
+  public static void approveAccountSubmission(Id accountId) {
+    AccountApprovalAccess.approveAccount(accountId);
+  }
+
+  @AuraEnabled
+  public static void rejectAccountSubmission(Id accountId, String rejectionReason) {
+    AccountApprovalAccess.rejectAccount(accountId, rejectionReason);
   }
 }

@@ -3,6 +3,7 @@
     <fullName>MR_Digital_XRay_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Digital X-Ray Sold</description>
+    <externalId>false</externalId>
     <label>Digital X-Ray Sold</label>
     <precision>16</precision>
     <required>false</required>

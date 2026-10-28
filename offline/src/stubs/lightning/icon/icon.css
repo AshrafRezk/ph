@@ -1,0 +1,40 @@
+:host {
+    display: inline-flex;
+    color: inherit;
+    line-height: 0;
+}
+
+.slds-icon-svg {
+    display: inline-flex;
+    color: inherit;
+}
+
+.slds-icon-svg svg {
+    fill: currentColor;
+    display: block;
+}
+
+.slds-icon-xx-small svg {
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+.slds-icon-x-small svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.slds-icon-small svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.slds-icon-medium svg {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.slds-icon-large svg {
+    width: 2rem;
+    height: 2rem;
+}

@@ -5,5 +5,7 @@
     <label>Assigned To</label>
     <referenceTo>User</referenceTo>
     <relationshipName>Pharma_Project_Activities</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

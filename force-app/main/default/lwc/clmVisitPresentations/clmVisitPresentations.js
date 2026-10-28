@@ -6,6 +6,11 @@ import getAvailablePresentations from '@salesforce/apex/ClmMetricsController.get
 import getVisitSessions from '@salesforce/apex/ClmMetricsController.getVisitSessions';
 import { getPresentationList, getUserPresentationListKey } from 'c/clmOfflineStore';
 import { isOfflineMode } from 'c/clmOfflineSync';
+import {
+    isLightningUiHost,
+    OFFLINE_CLM_URL,
+    openOfflineClmApp
+} from 'c/clmLightningGate';
 
 export default class ClmVisitPresentations extends LightningElement {
     @api recordId;
@@ -22,8 +27,10 @@ export default class ClmVisitPresentations extends LightningElement {
     activeSessionId;
     showFeedbackForSession = false;
     usingCachedPresentations = false;
+    redirectToOffline = false;
 
     connectedCallback() {
+        this.redirectToOffline = isLightningUiHost();
         if (isOfflineMode()) {
             this.loadCachedPresentations();
         }
@@ -93,8 +100,29 @@ export default class ClmVisitPresentations extends LightningElement {
         }));
     }
 
+    get offlineAppUrl() {
+        return OFFLINE_CLM_URL;
+    }
+
+    get presentButtonLabel() {
+        return this.redirectToOffline ? 'Open in Offline App' : 'Present';
+    }
+
+    handleOpenOfflineApp() {
+        openOfflineClmApp();
+    }
+
     handleOpenPresentation(event) {
         if (this.isLocked) {
+            return;
+        }
+        if (this.redirectToOffline) {
+            this.showToast(
+                'Open CLM in the Offline App',
+                'Presentations play on salesforceoffline.com — opening it now.',
+                'info'
+            );
+            openOfflineClmApp();
             return;
         }
         const presentationId = event.currentTarget.dataset.id;
@@ -109,6 +137,11 @@ export default class ClmVisitPresentations extends LightningElement {
         this.activePresentationId = null;
         this.activePresentationName = null;
         this.refreshData();
+    }
+
+    handleSwitchPresentation(event) {
+        this.activePresentationId = event.detail?.presentationId || this.activePresentationId;
+        this.activePresentationName = event.detail?.presentationName || this.activePresentationName;
     }
 
     async handleSessionComplete(event) {

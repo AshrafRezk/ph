@@ -8,7 +8,7 @@
         <actionName>TimeOffRequestSubmissionNotifier</actionName>
         <actionType>apex</actionType>
         <connector>
-            <targetReference>Create_Manager_Share</targetReference>
+            <targetReference>Has_Manager_Decision</targetReference>
         </connector>
         <flowTransactionModel>CurrentTransaction</flowTransactionModel>
         <inputParameters>
@@ -21,23 +21,6 @@
         <offset>0</offset>
     </actionCalls>
     <apiVersion>63.0</apiVersion>
-    <assignments>
-        <description>Assigne Manager ID as a recepient ID for the mobile app notifcation</description>
-        <name>Assigne_Manager_ID</name>
-        <label>Assigne Manager ID</label>
-        <locationX>182</locationX>
-        <locationY>431</locationY>
-        <assignmentItems>
-            <assignToReference>varRecepientManager</assignToReference>
-            <operator>Add</operator>
-            <value>
-                <elementReference>Get_Creator_User.Manager.Id</elementReference>
-            </value>
-        </assignmentItems>
-        <connector>
-            <targetReference>Has_Manager_Decision</targetReference>
-        </connector>
-    </assignments>
     <decisions>
         <name>Has_Manager_Decision</name>
         <label>Has Manager</label>
@@ -62,13 +45,12 @@
                 </rightValue>
             </conditions>
             <connector>
-                <targetReference>Notify_Manager_Submission</targetReference>
+                <targetReference>Create_Manager_Share</targetReference>
             </connector>
             <label>Creator Has Manager</label>
         </rules>
     </decisions>
-    <description>When Stage becomes Submitted for Approval: manual read share for the creator&apos;s manager (CreatedBy.ManagerId), email, and custom notification. Manager_Formula__c shows that manager&apos;s name.
-V6: send a mobile notification</description>
+    <description>When Stage becomes Submitted for Approval: notify the district manager, and share the request with the creator&apos;s manager when one is set.</description>
     <environments>Default</environments>
     <interviewLabel>Time Off Request: Set Manager {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Time Off Request: Set Manager</label>
@@ -129,7 +111,7 @@ V6: send a mobile notification</description>
         <locationY>323</locationY>
         <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
         <connector>
-            <targetReference>Assigne_Manager_ID</targetReference>
+            <targetReference>Notify_Manager_Submission</targetReference>
         </connector>
         <filterLogic>and</filterLogic>
         <filters>
@@ -173,11 +155,4 @@ V6: send a mobile notification</description>
         <isViewedAsPlainText>true</isViewedAsPlainText>
         <text>Time off submitted</text>
     </textTemplates>
-    <variables>
-        <name>varRecepientManager</name>
-        <dataType>String</dataType>
-        <isCollection>true</isCollection>
-        <isInput>false</isInput>
-        <isOutput>false</isOutput>
-    </variables>
 </Flow>

@@ -47,7 +47,7 @@ export default async function getRepPresentationManifest() {
         const inPres = presIds.map((idv) => `'${idv}'`).join(',');
         const seqRows = await soql(
             "SELECT Id, CLM_Presentation__c, Sequence_Order__c, Sequence_Name__c, " +
-            "Page_Number__c FROM CLM_Sequence__c " +
+            "Page_Number__c, HTML_Entry_Point__c FROM CLM_Sequence__c " +
             `WHERE CLM_Presentation__c IN (${inPres}) ORDER BY Sequence_Order__c ASC NULLS LAST`
         );
         const byPres = {};
@@ -56,7 +56,8 @@ export default async function getRepPresentationManifest() {
                 id: s.Id,
                 sequenceOrder: s.Sequence_Order__c != null ? Number(s.Sequence_Order__c) : null,
                 sequenceName: s.Sequence_Name__c,
-                pageNumber: s.Page_Number__c != null ? Number(s.Page_Number__c) : null
+                pageNumber: s.Page_Number__c != null ? Number(s.Page_Number__c) : null,
+                htmlEntryPoint: s.HTML_Entry_Point__c || null
             });
         }
         for (const entry of entries) {
@@ -69,7 +70,8 @@ export default async function getRepPresentationManifest() {
                     id: `${entry.id}-p${i + 1}`,
                     sequenceOrder: i + 1,
                     sequenceName: `Slide ${i + 1}`,
-                    pageNumber: i + 1
+                    pageNumber: i + 1,
+                    htmlEntryPoint: null
                 }));
             }
         }

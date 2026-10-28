@@ -33,6 +33,22 @@
                             <lightning-button label="Request Self-Evaluation" onclick={handleRequestSelfEval} class="slds-m-right_x-small"></lightning-button>
                         </template>
                         <lightning-button label="Edit" variant="brand" onclick={handleEdit}></lightning-button>
+                        <template if:true={canApprove}>
+                            <lightning-button
+                                label="Approve"
+                                variant="success"
+                                onclick={handleApprove}
+                                disabled={isSaving}
+                                class="slds-m-left_x-small"
+                            ></lightning-button>
+                            <lightning-button
+                                label="Reject"
+                                variant="destructive"
+                                onclick={handleReject}
+                                disabled={isSaving}
+                                class="slds-m-left_x-small"
+                            ></lightning-button>
+                        </template>
                     </template>
                     <template if:true={isEditMode}>
                         <lightning-button label="Cancel" onclick={handleCancelEdit} class="slds-m-right_x-small"></lightning-button>
@@ -40,6 +56,12 @@
                     </template>
                 </div>
             </div>
+
+            <template if:true={rejectionReason}>
+                <div class="slds-box slds-theme_warning slds-m-bottom_small">
+                    <strong>Rejected — sent back for rework:</strong> {rejectionReason}
+                </div>
+            </template>
 
             <template if:true={hasSections}>
                 <lightning-accordion

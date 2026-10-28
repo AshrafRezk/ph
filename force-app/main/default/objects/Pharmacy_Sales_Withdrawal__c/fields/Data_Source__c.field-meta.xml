@@ -20,6 +20,36 @@
                 <default>false</default>
                 <label>Pharmaoverseas</label>
             </value>
+            <value>
+                <fullName>Sofico</fullName>
+                <default>false</default>
+                <label>Sofico</label>
+            </value>
+            <value>
+                <fullName>Egydrug</fullName>
+                <default>false</default>
+                <label>Egydrug</label>
+            </value>
+            <value>
+                <fullName>POS</fullName>
+                <default>false</default>
+                <label>POS</label>
+            </value>
+            <value>
+                <fullName>Elezaby</fullName>
+                <default>false</default>
+                <label>Elezaby</label>
+            </value>
+            <value>
+                <fullName>Ebda</fullName>
+                <default>false</default>
+                <label>EPDA</label>
+            </value>
+            <value>
+                <fullName>Direct</fullName>
+                <default>false</default>
+                <label>Direct</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

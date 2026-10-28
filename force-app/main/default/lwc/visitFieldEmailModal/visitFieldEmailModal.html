@@ -1,0 +1,27 @@
+<template>
+    <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+        <div class="slds-modal__container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium">Send field email</h2>
+            </header>
+            <div class="slds-modal__content slds-p-around_medium">
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Loading email" size="small"></lightning-spinner>
+                </template>
+                <template if:false={isLoading}>
+                    <template if:true={errorMessage}>
+                        <p class="email-error">{errorMessage}</p>
+                    </template>
+                    <lightning-input type="email" label="To" value={toAddress} onchange={handleTo} required></lightning-input>
+                    <lightning-input class="slds-m-top_small" label="Subject" value={subject} onchange={handleSubject} required></lightning-input>
+                    <lightning-textarea class="slds-m-top_small" label="Message" value={body} onchange={handleBody} required></lightning-textarea>
+                </template>
+            </div>
+            <footer class="slds-modal__footer">
+                <lightning-button label="Cancel" onclick={handleClose}></lightning-button>
+                <lightning-button class="slds-m-left_x-small" label="Send" variant="brand" onclick={handleSend} disabled={sendDisabled}></lightning-button>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open"></div>
+</template>

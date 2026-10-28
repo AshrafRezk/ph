@@ -5,6 +5,25 @@ function escapeSoql(value) {
     return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function soqlDateLiteral(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function mapVisit(v) {
+    return {
+        id: v.Id,
+        name: v.Name,
+        status: v.Status__c,
+        startDateTime: v.Start_Date__c,
+        endDateTime: v.End_Date__c
+    };
+}
+
+const PLANNED_STATUSES = "('Draft','Submitted','Scheduled','Rescheduled')";
+
 export default makeDualApex(async (params = {}) => {
     const accountId = params.accountId;
     if (!accountId) {
@@ -12,6 +31,7 @@ export default makeDualApex(async (params = {}) => {
             hasPlanTarget: false,
             hasGeo: false,
             futureVisits: [],
+            previousVisits: [],
             targetVisits: 0,
             actualVisits: 0,
             visitGap: 0,
@@ -29,46 +49,55 @@ export default makeDualApex(async (params = {}) => {
         const row = acct?.records?.[0];
         const hasGeo = row?.BillingLatitude != null && row?.BillingLongitude != null;
 
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-        const monthEnd = new Date(monthStart);
-        monthEnd.setMonth(monthEnd.getMonth() + 1);
-        const startIso = monthStart.toISOString();
-        const endIso = monthEnd.toISOString();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const todayLit = soqlDateLiteral(today);
+        const monthEndLit = soqlDateLiteral(monthEnd);
 
-        const visits = await plannerApiFetch(
+        const futureResult = await plannerApiFetch(
             `/services/data/v62.0/query?q=${encodeURIComponent(
                 `SELECT Id, Name, Status__c, Start_Date__c, End_Date__c
                  FROM Visit__c
                  WHERE Account__c = '${id}'
-                 AND Start_Date__c >= ${startIso.split('T')[0]}
-                 AND Start_Date__c < ${endIso.split('T')[0]}
+                 AND Start_Date__c >= ${todayLit}T00:00:00Z
+                 AND Start_Date__c <= ${monthEndLit}T23:59:59Z
+                 AND Status__c IN ${PLANNED_STATUSES}
                  ORDER BY Start_Date__c ASC
                  LIMIT 50`
             )}`
         );
-        const futureVisits = (visits?.records || []).map((v) => ({
-            id: v.Id,
-            name: v.Name,
-            status: v.Status__c,
-            startDateTime: v.Start_Date__c,
-            endDateTime: v.End_Date__c
-        }));
-        const actualVisits = futureVisits.filter((v) => /completed/i.test(v.status || '')).length;
+        const futureVisits = (futureResult?.records || []).map(mapVisit);
+
+        const previousResult = await plannerApiFetch(
+            `/services/data/v62.0/query?q=${encodeURIComponent(
+                `SELECT Id, Name, Status__c, Start_Date__c, End_Date__c
+                 FROM Visit__c
+                 WHERE Account__c = '${id}'
+                 AND (Start_Date__c < ${todayLit}T00:00:00Z OR Status__c = 'Completed')
+                 ORDER BY Start_Date__c DESC NULLS LAST
+                 LIMIT 5`
+            )}`
+        );
+        const previousVisits = (previousResult?.records || []).map(mapVisit);
+
+        const actualVisits = previousVisits.filter((v) => /completed/i.test(v.status || '')).length;
+        const hasPlanTarget = futureVisits.length > 0 || previousVisits.length > 0;
 
         return {
             accountName: row?.Name,
-            hasPlanTarget: false,
+            hasPlanTarget,
             hasGeo,
             centerLatitude: row?.BillingLatitude,
             centerLongitude: row?.BillingLongitude,
             futureVisits,
+            previousVisits,
             targetVisits: 0,
             actualVisits,
             visitGap: 0,
-            committedVisits: futureVisits.length,
-            projectedVisits: futureVisits.length,
+            committedVisits: futureVisits.length + actualVisits,
+            projectedVisits: futureVisits.length + actualVisits,
             projectedPercent: 0,
             willMeetTarget: false,
             paceStatus: 'not_applicable',
@@ -81,6 +110,7 @@ export default makeDualApex(async (params = {}) => {
             hasPlanTarget: false,
             hasGeo: false,
             futureVisits: [],
+            previousVisits: [],
             targetVisits: 0,
             actualVisits: 0,
             visitGap: 0,

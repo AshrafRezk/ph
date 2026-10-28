@@ -1,19 +1,49 @@
 <template>
+    <template if:true={featureEnabled}>
     <article class="today-plan-card">
         <header class="today-plan-header">
             <div class="today-plan-heading">
                 <h2 class="today-plan-title">Today’s Plan</h2>
                 <p class="today-plan-subtitle">{planSubtitle}</p>
                 <template if:true={canSwitchView}>
-                    <lightning-combobox
-                        class="today-plan-rep-picker"
-                        label="View plan for"
-                        variant="label-hidden"
-                        placeholder="Select field rep…"
-                        value={selectedContextUserId}
-                        options={viewerOptions}
-                        onchange={handleContextUserChange}
-                    ></lightning-combobox>
+                    <div class="today-plan-rep-picker" onkeydown={handleViewerMenuKeydown}>
+                        <button
+                            type="button"
+                            class={viewerMenuTriggerClass}
+                            aria-haspopup="listbox"
+                            aria-expanded={viewerMenuExpanded}
+                            aria-label="View plan for"
+                            onclick={handleToggleViewerMenu}
+                        >
+                            <span class="today-plan-viewer-label">{selectedViewerLabel}</span>
+                            <template if:true={hasViewerPendingTotal}>
+                                <span class="today-plan-pending" title={viewerPendingTotalTitle}>{viewerPendingTotalLabel}</span>
+                            </template>
+                            <span class="today-plan-viewer-caret" aria-hidden="true"></span>
+                        </button>
+                        <template if:true={showViewerMenu}>
+                            <ul class="today-plan-viewer-menu" role="listbox" aria-label="View plan for">
+                                <template for:each={viewerMenuItems} for:item="item">
+                                    <li
+                                        key={item.key}
+                                        class={item.className}
+                                        role="option"
+                                        tabindex="0"
+                                        aria-selected={item.ariaSelected}
+                                        data-value={item.value}
+                                        data-territory-id={item.territoryId}
+                                        onclick={handleViewerMenuSelect}
+                                        onkeydown={handleViewerOptionKeydown}
+                                    >
+                                        <span class="today-plan-viewer-option-label">{item.label}</span>
+                                        <template if:true={item.hasPending}>
+                                            <span class="today-plan-pending" title={item.pendingTitle}>{item.pendingLabel}</span>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </div>
                 </template>
                 <template if:true={viewingOtherBanner}>
                     <div class="viewing-other-banner">{viewingOtherBanner}</div>
@@ -62,21 +92,29 @@
                                                 <strong>{outlier.accountName}</strong> — {outlier.awayLabel}
                                             </div>
                                             <template if:true={outlier.canAct}>
-                                                <div class="route-stop-actions">
-                                                    <lightning-button
-                                                        variant="neutral"
-                                                        label="Postpone to tomorrow"
+                                                <div class="route-stop-actions" role="group" aria-label="Distant stop actions">
+                                                    <button
+                                                        type="button"
+                                                        class="route-stop-btn"
                                                         data-visit-id={outlier.visitId}
                                                         onclick={handlePostponeVisit}
                                                         disabled={isMutatingVisit}
-                                                    ></lightning-button>
-                                                    <lightning-button
-                                                        variant="destructive-text"
-                                                        label="Remove visit"
+                                                        title="Postpone this visit"
+                                                        aria-label="Postpone visit"
+                                                    >
+                                                        Postpone
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        class="route-stop-btn route-stop-btn-danger"
                                                         data-visit-id={outlier.visitId}
                                                         onclick={handleRemoveVisit}
                                                         disabled={isMutatingVisit}
-                                                    ></lightning-button>
+                                                        title="Remove this visit from today’s plan"
+                                                        aria-label="Remove visit"
+                                                    >
+                                                        Remove
+                                                    </button>
                                                 </div>
                                             </template>
                                         </li>
@@ -97,6 +135,9 @@
                                 >
                                     <span class={v.orderClass}>{v.orderLabel}</span>
                                     <div class="route-stop-body">
+                                        <template if:true={v.typeIconUrl}>
+                                            <img class="visit-type-icon" src={v.typeIconUrl} alt="" />
+                                        </template>
                                         <button
                                             type="button"
                                             class="account-name-link"
@@ -172,6 +213,7 @@
                         <div class="map-legend">
                             <span class="legend-item"><span class="legend-pin legend-pin-hcp"></span>HCP</span>
                             <span class="legend-item"><span class="legend-pin legend-pin-hco"></span>HCO</span>
+                            <span class="legend-item"><span class="legend-pin legend-pin-pharmacy"></span>Pharmacy</span>
                             <template if:true={isViewingSelf}>
                                 <span class="legend-item"><span class="legend-pin legend-pin-you"></span>You</span>
                             </template>
@@ -188,9 +230,9 @@
                     </div>
                 </div>
 
-                <div class="ideas-panel">
-                    <div class="sidebar-section-title">Optimization ideas</div>
-                    <template if:true={hasOptimizationIdeas}>
+                <template if:true={hasOptimizationIdeas}>
+                    <div class="ideas-panel">
+                        <div class="sidebar-section-title">Optimization ideas</div>
                         <ul class="ideas-list">
                             <template for:each={optimizationIdeas} for:item="idea">
                                 <li key={idea.id} class={idea.itemClass}>
@@ -206,14 +248,59 @@
                                 </li>
                             </template>
                         </ul>
-                    </template>
-                    <template if:false={hasOptimizationIdeas}>
-                        <div class="ideas-empty">
-                            Add more geocoded visits or open Planner to see route optimization suggestions.
-                        </div>
-                    </template>
-                </div>
+                    </div>
+                </template>
             </div>
         </template>
+
+        <template if:true={showPostponeModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                class="slds-modal slds-fade-in-open postpone-modal"
+                onclick={handleClosePostponeModal}
+            >
+                <div class="slds-modal__container" onclick={handlePostponeModalContentClick}>
+                    <header class="slds-modal__header">
+                        <h2 class="slds-text-heading_medium">Postpone visit</h2>
+                        <button
+                            type="button"
+                            class="slds-button slds-button_icon slds-modal__close"
+                            onclick={handleClosePostponeModal}
+                            title="Close"
+                        >
+                            <lightning-icon icon-name="utility:close" size="small" alternative-text="Close"></lightning-icon>
+                        </button>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <p class="postpone-modal-copy">Choose a new date and time for {postponeAccountLabel}.</p>
+                        <lightning-input
+                            type="datetime"
+                            label="New start date &amp; time"
+                            value={postponeDateTime}
+                            onchange={handlePostponeDateTimeChange}
+                            required
+                        ></lightning-input>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button
+                            label="Cancel"
+                            variant="neutral"
+                            onclick={handleClosePostponeModal}
+                            disabled={isMutatingVisit}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Postpone"
+                            variant="brand"
+                            onclick={handleConfirmPostpone}
+                            disabled={isMutatingVisit}
+                        ></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
     </article>
+    </template>
 </template>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Duplicate_Of_Not_Self</fullName>
+    <active>true</active>
+    <description>An account cannot be marked as a duplicate of itself.</description>
+    <errorConditionFormula>AND(
+  NOT(ISBLANK(Duplicate_Of__c)),
+  Duplicate_Of__c = Id
+)</errorConditionFormula>
+    <errorDisplayField>Duplicate_Of__c</errorDisplayField>
+    <errorMessage>Select a different account. A record cannot be a duplicate of itself.</errorMessage>
+</ValidationRule>

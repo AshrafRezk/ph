@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#0B4F6C</headerColor>
+        <logo>Force_Copilot_Icon</logo>
+        <logoVersion>1</logoVersion>
+        <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
+    </brand>
+    <description>SFE Co-pilot — admin console for territories, products, plans, ratings, CLM, bricks, distributors, accounts, holidays, and integrations.</description>
+    <formFactors>Small</formFactors>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>SFE Co-pilot</label>
+    <navType>Standard</navType>
+    <tabs>Admin_Console</tabs>
+    <tabs>Accounts_Tab</tabs>
+    <tabs>Class_Engine</tabs>
+    <tabs>Field_Rep_Planner</tabs>
+    <tabs>Reports_Hub</tabs>
+    <tabs>Pharmacy_Sales_Dashboard</tabs>
+    <tabs>Management_Home</tabs>
+    <tabs>Field_Tracking</tabs>
+    <tabs>KAM_Management_Dashboard</tabs>
+    <tabs>My_Team</tabs>
+    <tabs>CLM_Presentations</tabs>
+    <tabs>standard-report</tabs>
+    <tabs>standard-Dashboard</tabs>
+    <uiType>Lightning</uiType>
+    <utilityBar>Pharma_UtilityBar</utilityBar>
+</CustomApplication>

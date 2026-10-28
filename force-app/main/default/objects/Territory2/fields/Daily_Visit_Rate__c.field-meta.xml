@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Daily_Visit_Rate__c</fullName>
+    <description>Target total visits per working day for this territory (Call Rate). Used on field home and Class Engine capacity.</description>
+    <inlineHelpText>How many visits this territory should complete on a working day (e.g. 12).</inlineHelpText>
+    <label>Call Rate</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

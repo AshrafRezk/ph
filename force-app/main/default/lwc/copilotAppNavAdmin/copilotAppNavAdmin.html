@@ -1,0 +1,44 @@
+<template>
+    <section class="nav-admin">
+        <h2 class="nav-admin-title">Co-pilot app tabs</h2>
+        <p class="nav-admin-subtitle">
+            Choose which tabs appear in each Co-pilot app. Meetings is not an app. A speaker is an
+            account with Is Speaker checked. Lifecycle Center stays off except for SFE profiles.
+        </p>
+        <template if:true={isLoading}>
+            <p>Loading apps…</p>
+        </template>
+        <template if:true={errorMessage}>
+            <p class="nav-admin-error">{errorMessage}</p>
+        </template>
+        <template if:false={isLoading}>
+            <lightning-combobox
+                label="App"
+                value={selectedAppKey}
+                options={appOptions}
+                onchange={handleAppChange}
+            ></lightning-combobox>
+            <ul class="nav-admin-list">
+                <template for:each={selectedTabs} for:item="tab">
+                    <li key={tab.key} class="nav-admin-row">
+                        <span>{tab.label}</span>
+                        <lightning-input
+                            type="toggle"
+                            label={tab.label}
+                            variant="label-hidden"
+                            checked={tab.enabled}
+                            data-key={tab.key}
+                            onchange={handleToggle}
+                        ></lightning-input>
+                    </li>
+                </template>
+            </ul>
+            <lightning-button
+                variant="brand"
+                label="Save tabs"
+                onclick={handleSave}
+                disabled={isSaving}
+            ></lightning-button>
+        </template>
+    </section>
+</template>

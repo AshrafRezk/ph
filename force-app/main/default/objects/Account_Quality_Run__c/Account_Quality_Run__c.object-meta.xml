@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>SFE account data quality scan run: duplicate check or Places/Vezeeta nurture.</description>
+    <enableActivities>false</enableActivities>
+    <enableReports>true</enableReports>
+    <label>Account Quality Run</label>
+    <nameField>
+        <displayFormat>AQR-{00000}</displayFormat>
+        <label>Run Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Account Quality Runs</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

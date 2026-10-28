@@ -3,6 +3,7 @@
     <fullName>MR_CT_Scan_Target__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — CT Scan Target</description>
+    <externalId>false</externalId>
     <label>CT Scan Target</label>
     <precision>16</precision>
     <required>false</required>

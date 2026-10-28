@@ -1,0 +1,2 @@
+Unit,Line,primary_brand,Brand,Product_Type,Parent_External_Id,Zeta_Code,Mendix_External_Id,Zeta_Name,Strength,Form,Unit_Of_Measure,Quantity_per_Unit,Box_Quantity,Is_Active,Mirror_Line,Brand_Reminder_Kind
+CHC,CHC,DOZOVA,DOZOVA ASHWAGANDA,Detail,BRAND_DOZOVA,DA60030,,DOZOVA ASHWAGANDA 600 MG 30 CAP,600 MG,Capsule,mg,600,30,Yes,,

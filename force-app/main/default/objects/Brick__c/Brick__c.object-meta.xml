@@ -160,7 +160,18 @@
         <type>Text</type>
     </nameField>
     <pluralLabel>Bricks</pluralLabel>
-    <searchLayouts></searchLayouts>
+    <searchLayouts>
+        <lookupDialogsAdditionalFields>Brick_Code__c</lookupDialogsAdditionalFields>
+        <lookupDialogsAdditionalFields>Brick_Level__c</lookupDialogsAdditionalFields>
+        <lookupDialogsAdditionalFields>Parent_Brick__c</lookupDialogsAdditionalFields>
+        <searchFilterFields>NAME</searchFilterFields>
+        <searchFilterFields>Brick_Code__c</searchFilterFields>
+        <searchFilterFields>Brick_Level__c</searchFilterFields>
+        <searchResultsAdditionalFields>Brick_Code__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>Brick_Level__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>Parent_Brick__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>Is_Active__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
     <visibility>Public</visibility>
 </CustomObject>

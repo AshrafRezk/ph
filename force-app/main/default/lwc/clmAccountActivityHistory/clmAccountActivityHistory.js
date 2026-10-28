@@ -7,7 +7,27 @@ import getAccountVisitInsights from '@salesforce/apex/AccountActivityController.
 const SOURCE_AGENTFORCE = 'Agentforce';
 
 export default class ClmAccountActivityHistory extends NavigationMixin(LightningElement) {
-    @api recordId;
+    _recordId;
+    _accountId;
+    resolvedAccountId;
+
+    @api
+    get recordId() {
+        return this._recordId;
+    }
+    set recordId(value) {
+        this._recordId = value;
+        this.syncResolvedAccountId();
+    }
+
+    @api
+    get accountId() {
+        return this._accountId;
+    }
+    set accountId(value) {
+        this._accountId = value;
+        this.syncResolvedAccountId();
+    }
 
     history = [];
     groupedHistory = [];
@@ -19,7 +39,7 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
     insights;
     insightsError;
 
-    @wire(getAccountActivityTimeline, { accountId: '$recordId', recordLimit: 50 })
+    @wire(getAccountActivityTimeline, { accountId: '$resolvedAccountId', recordLimit: 50 })
     wiredHistory({ data, error }) {
         if (data) {
             this.history = data.map((item, index) => this.decorateItem(item, index));
@@ -36,6 +56,13 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
             this.history = [];
             this.groupedHistory = [];
             this.error = error?.body?.message || 'Unable to load activity history.';
+        }
+    }
+
+    syncResolvedAccountId() {
+        const next = this._accountId || this._recordId;
+        if (next && this.resolvedAccountId !== next) {
+            this.resolvedAccountId = next;
         }
     }
 
@@ -109,7 +136,8 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
             isVisit: item.type === 'visit',
             isPresentation: item.type === 'presentation',
             isEmail: item.type === 'email',
-            isPrimary: item.type === 'visit' || item.type === 'presentation',
+            isMeeting: item.type === 'meeting',
+            isPrimary: item.type === 'visit' || item.type === 'presentation' || item.type === 'meeting',
             linkObjectApiName: this.resolveObjectApiName(item.type),
             isExpanded,
             expandIcon: isExpanded ? 'utility:chevrondown' : 'utility:chevronright',
@@ -127,6 +155,9 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         if (type === 'presentation') {
             return 'standard:screen';
         }
+        if (type === 'meeting') {
+            return 'standard:groups';
+        }
         return 'standard:email';
     }
 
@@ -135,6 +166,8 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         if (type === 'visit') {
             classes.push('slds-timeline__item_event');
         } else if (type === 'presentation') {
+            classes.push('slds-timeline__item_task');
+        } else if (type === 'meeting') {
             classes.push('slds-timeline__item_task');
         } else {
             classes.push('slds-timeline__item_email');
@@ -149,6 +182,9 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         if (type === 'presentation') {
             return 'slds-icon_container slds-icon-standard-screen slds-timeline__icon';
         }
+        if (type === 'meeting') {
+            return 'slds-icon_container slds-icon-standard-groups slds-timeline__icon';
+        }
         return 'slds-icon_container slds-icon-standard-email slds-timeline__icon';
     }
 
@@ -158,6 +194,9 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         }
         if (type === 'presentation') {
             return 'CLM_Presentation_Session__c';
+        }
+        if (type === 'meeting') {
+            return 'Meeting__c';
         }
         if (type === 'email') {
             return 'Task';
@@ -170,6 +209,8 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         if (type === 'visit') {
             classes.push('timeline-card-visit');
         } else if (type === 'presentation') {
+            classes.push('timeline-card-presentation');
+        } else if (type === 'meeting') {
             classes.push('timeline-card-presentation');
         } else {
             classes.push('timeline-card-secondary');
@@ -225,7 +266,7 @@ export default class ClmAccountActivityHistory extends NavigationMixin(Lightning
         this.isInsightsLoading = true;
         this.insightsError = undefined;
         try {
-            this.insights = await getAccountVisitInsights({ accountId: this.recordId });
+            this.insights = await getAccountVisitInsights({ accountId: this.resolvedAccountId });
         } catch (error) {
             this.insights = undefined;
             this.insightsError = error?.body?.message || 'Unable to generate insights.';

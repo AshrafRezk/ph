@@ -1,0 +1,28 @@
+.qr {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.qr__canvas {
+    width: min(16rem, 70vw);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(3, 45, 96, 0.12);
+    background: #fff;
+}
+
+.qr__caption {
+    font-weight: 800;
+    color: #032d60;
+    text-align: center;
+}
+
+.qr__download {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #0b5cab;
+}

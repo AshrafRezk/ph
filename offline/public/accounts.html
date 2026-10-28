@@ -4,9 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0176d3" />
-    <title>Accounts — Pharma Field PWA</title>
+    <title data-brand-screen="Accounts">Accounts — Salesforce</title>
+    <script src="/shell-brand.js"></script>
     <link rel="stylesheet" href="shell.css" />
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="accounts.css" />
+    <script src="/vendor/leaflet/leaflet.js"></script>
 </head>
 <body>
     <header class="accounts-header">
@@ -47,27 +50,37 @@
         </div>
     </div>
 
-    <div id="map-view" class="map-view" style="display:none">
-        <div class="map-list">
+    <div id="map-view" class="map-view">
+        <aside class="map-list" aria-label="Accounts on the map">
             <div class="map-list-header">
-                <span class="map-list-title">Accounts</span>
+                <span class="map-list-title">On the map</span>
                 <span class="map-list-count" id="map-count"></span>
             </div>
-            <ul id="map-account-list" class="map-account-items"></ul>
-            <div id="map-pagination" class="map-pagination" style="display:none">
-                <button id="btn-map-prev" class="page-btn">←</button>
+            <ul id="map-account-list" class="map-account-items" role="listbox" aria-label="Mapped accounts"></ul>
+            <div id="map-pagination" class="map-pagination">
+                <button id="btn-map-prev" class="page-btn map-page-btn" type="button" aria-label="Previous map page">Prev</button>
                 <span id="map-page-label" class="page-label"></span>
-                <button id="btn-map-next" class="page-btn">→</button>
+                <button id="btn-map-next" class="page-btn map-page-btn" type="button" aria-label="Next map page">Next</button>
             </div>
-        </div>
-        <div class="map-panel">
-            <div class="map-legend">
-                <span class="legend-pin legend-pin-high"></span> High
-                <span class="legend-pin legend-pin-med"></span> Med
-                <span class="legend-pin legend-pin-low"></span> Low
-            </div>
+        </aside>
+        <section class="map-panel" aria-label="Account map">
             <div id="accounts-map" class="accounts-map"></div>
-        </div>
+            <div class="map-legend">
+                <div class="legend-group">
+                    <span class="legend-label">Type</span>
+                    <span class="legend-item"><span class="legend-ring legend-ring-hcp"></span>HCP</span>
+                    <span class="legend-item"><span class="legend-ring legend-ring-hco"></span>HCO</span>
+                    <span class="legend-item"><span class="legend-ring legend-ring-pharmacy"></span>Pharmacy</span>
+                </div>
+                <div class="legend-group">
+                    <span class="legend-label">Pace</span>
+                    <span class="legend-item"><span class="legend-pin legend-pin-high"></span>High</span>
+                    <span class="legend-item"><span class="legend-pin legend-pin-med"></span>Med</span>
+                    <span class="legend-item"><span class="legend-pin legend-pin-low"></span>Low</span>
+                </div>
+            </div>
+            <div id="map-empty" class="map-empty-overlay" hidden>No mapped accounts for these filters.</div>
+        </section>
     </div>
 
     <div class="error-banner" id="error-banner" style="display:none" role="alert"></div>

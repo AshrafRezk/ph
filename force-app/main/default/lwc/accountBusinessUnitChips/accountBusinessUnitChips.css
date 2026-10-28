@@ -1,0 +1,40 @@
+.abu-panel {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.5rem;
+    background: #fff;
+}
+
+.abu-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: #181818;
+}
+
+.abu-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.abu-chip {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #1b4f9c;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+
+.abu-empty,
+.abu-error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #5c5c5c;
+}
+
+.abu-error {
+    color: #ba0517;
+}

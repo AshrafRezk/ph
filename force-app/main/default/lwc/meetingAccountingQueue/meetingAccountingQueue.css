@@ -1,0 +1,116 @@
+@import 'c/meetingStyles';
+
+.desk__hero {
+    background: linear-gradient(135deg, #032d60 0%, #0b5cab 100%);
+    color: #fff;
+    border: 0;
+}
+
+.desk__hero .mx-eyebrow,
+.desk__hero .mx-h1,
+.desk__hero .mx-sub {
+    color: #fff;
+}
+
+.desk__hero .mx-sub {
+    opacity: 0.85;
+}
+
+.toolbar {
+    justify-content: space-between;
+}
+
+.desk__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.desk__row {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.desk__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.desk__title {
+    max-width: 100%;
+}
+
+.desk__money {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    font-size: 0.88rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.desk__remaining {
+    color: var(--mx-navy);
+}
+
+.date-tile {
+    flex: none;
+    width: 3.2rem;
+    border-radius: 12px;
+    background: var(--mx-brand-soft);
+    color: var(--mx-brand);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0;
+}
+
+.date-tile__day {
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.date-tile__month {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    background: rgba(3, 20, 45, 0.4);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.drawer__panel {
+    width: min(60rem, 100%);
+    height: 100%;
+    overflow-y: auto;
+    background: var(--mx-surface);
+    padding: 1rem;
+    box-shadow: -12px 0 40px rgba(3, 20, 45, 0.25);
+}
+
+@media (max-width: 720px) {
+    .desk__row {
+        flex-wrap: wrap;
+    }
+
+    .desk__row .mx-btn {
+        width: 100%;
+    }
+
+    .drawer__panel {
+        padding: 0.6rem;
+    }
+}

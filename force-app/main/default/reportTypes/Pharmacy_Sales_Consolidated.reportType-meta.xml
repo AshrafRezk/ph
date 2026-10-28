@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>Pharmacy_Sales_Withdrawal__c</baseObject>
+    <category>other</category>
+    <deployed>true</deployed>
+    <description>Distributor sales by month, pharmacy, brick and product with quantity, unit price and revenue.</description>
+    <label>Consolidated Pharmacy Sales</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Report_Month__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Data_Source__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Pharmacy_Account__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Brick__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Product__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Quantity_Withdrawn__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Unit_Price__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Revenue__c</field>
+            <table>Pharmacy_Sales_Withdrawal__c</table>
+        </columns>
+        <masterLabel>Pharmacy Sales</masterLabel>
+    </sections>
+</ReportType>

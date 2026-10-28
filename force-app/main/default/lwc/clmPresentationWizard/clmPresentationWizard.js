@@ -2,7 +2,7 @@ import { LightningElement, api, wire } from 'lwc';
 import { loadScript } from 'lightning/platformResourceLoader';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import PDFJS from '@salesforce/resourceUrl/pdfjs';
-import createPresentationDraft from '@salesforce/apex/ClmAdminController.createPresentationDraft';
+import createPresentationFromUpload from '@salesforce/apex/ClmAdminController.createPresentationFromUpload';
 import attachSlideImages from '@salesforce/apex/ClmAdminController.attachSlideImages';
 import generateSequencesFromPageCount from '@salesforce/apex/ClmAdminController.generateSequencesFromPageCount';
 import getSequences from '@salesforce/apex/ClmAdminController.getSequences';
@@ -10,12 +10,15 @@ import getPresentationDraft from '@salesforce/apex/ClmAdminController.getPresent
 import saveSequences from '@salesforce/apex/ClmAdminController.saveSequences';
 import finalizePresentation from '@salesforce/apex/ClmAdminController.finalizePresentation';
 import getProductOptions from '@salesforce/apex/ClmAdminController.getProductOptions';
+import JSZIP from '@salesforce/resourceUrl/jszip';
 import {
     countPdfPagesFromBuffer,
-    readFileAsBase64,
+    inspectPdfPageSize,
     renderPdfSlideImages,
     withTimeout
 } from 'c/clmPdfProcessor';
+import { inspectClmHtmlBuffer } from 'c/clmHtmlPackage';
+import { downloadContentBytes } from 'c/clmContentCache';
 
 const SLIDE_IMAGE_BATCH_SIZE = 5;
 const PDF_INIT_TIMEOUT_MS = 30000;
@@ -40,6 +43,8 @@ export default class ClmPresentationWizard extends LightningElement {
     fileName = '';
     formatType = 'PDF';
     pageCount = 1;
+    layoutHint = '';
+    detectedLayout = null;
     sequences = [];
     productOptions = [];
     presentationProductIds = [];
@@ -69,8 +74,7 @@ export default class ClmPresentationWizard extends LightningElement {
 
     formatOptions = [
         { label: 'PDF', value: 'PDF' },
-        { label: 'HTML', value: 'HTML' },
-        { label: 'ZIP', value: 'ZIP' }
+        { label: 'HTML package (ZIP)', value: 'HTML' }
     ];
 
     statusOptions = [
@@ -96,6 +100,12 @@ export default class ClmPresentationWizard extends LightningElement {
 
     get stepLabel() {
         return `Step ${this.currentStep + 1} of ${STEPS.length}`;
+    }
+
+    get uploadPrompt() {
+        return this.formatType === 'PDF'
+            ? 'Select a PDF to upload.'
+            : 'Select an HTML package (.zip) to upload.';
     }
 
     get isUploadStep() {
@@ -159,47 +169,91 @@ export default class ClmPresentationWizard extends LightningElement {
         return JSON.stringify(this.presentationProductIds || []);
     }
 
-    async handleFileChange(event) {
-        const file = event.target.files?.[0];
-        if (!file) {
+    get uploadAccept() {
+        return this.formatType === 'PDF' ? ['.pdf'] : ['.zip'];
+    }
+
+    // The file goes straight to Salesforce Files, so decks of any size upload. Sending it to Apex
+    // as base64 failed above about 3 MB (request and heap limits), i.e. almost every real deck.
+    // The stored copy is read back for the same PDF / HTML inspection as before.
+    async handleUploadFinished(event) {
+        const uploaded = event.detail?.files?.[0];
+        if (!uploaded?.documentId) {
             return;
         }
+        const file = { name: uploaded.name, arrayBuffer: () => downloadContentBytes(uploaded.documentId) };
         this.fileName = file.name;
         this.isUploading = true;
         this.isSaving = true;
         this.uploadProgress = 0;
-        this.uploadStatus = 'Starting upload...';
+        this.uploadStatus = 'File uploaded. Reading it back...';
 
         try {
             let pageCount = 1;
+            let layout = { width: null, height: null, entryPoint: null, scenes: [] };
 
             let pdfBuffer;
             if (this.formatType === 'PDF') {
                 this.uploadProgress = 10;
                 this.uploadStatus = 'Reading PDF...';
-                pdfBuffer = await file.arrayBuffer();
-                pageCount = countPdfPagesFromBuffer(pdfBuffer);
+                try {
+                    pdfBuffer = await file.arrayBuffer();
+                    pageCount = countPdfPagesFromBuffer(pdfBuffer);
+                    const pdfSize = inspectPdfPageSize(pdfBuffer);
+                    layout = {
+                        width: pdfSize.width,
+                        height: pdfSize.height,
+                        entryPoint: null,
+                        scenes: []
+                    };
+                } catch (readError) {
+                    // The file is saved; set the page count by hand on the next step.
+                    pdfBuffer = null;
+                    pageCount = 1;
+                }
                 this.uploadProgress = 25;
                 this.uploadStatus = `Creating ${pageCount} sequence${pageCount === 1 ? '' : 's'}...`;
             } else {
-                this.uploadProgress = 15;
-                this.uploadStatus = 'Uploading presentation file...';
+                this.uploadProgress = 10;
+                this.uploadStatus = 'Reading HTML package...';
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const JSZipLib = await this.ensureJsZip();
+                    layout = await inspectClmHtmlBuffer(buffer, JSZipLib);
+                    pageCount = layout.scenes?.length || 1;
+                } catch (inspectError) {
+                    layout = {
+                        width: 1920,
+                        height: 1080,
+                        entryPoint: file.name,
+                        scenes: []
+                    };
+                    pageCount = 1;
+                }
+                this.uploadProgress = 30;
+                this.uploadStatus = layout.scenes?.length
+                    ? `Detected ${layout.width}×${layout.height} · ${layout.scenes.length} scenes`
+                    : `Detected ${layout.width}×${layout.height}`;
             }
 
-            const base64 = await readFileAsBase64(file);
             this.uploadProgress = 50;
-            this.uploadStatus = 'Uploading presentation file...';
-            const result = await createPresentationDraft({
+            this.uploadStatus = 'Creating presentation...';
+            const result = await createPresentationFromUpload({
+                contentDocumentId: uploaded.documentId,
                 fileName: file.name,
                 formatType: this.formatType,
-                base64Data: base64,
-                pageCount
+                pageCount,
+                layoutJson: JSON.stringify(layout)
             });
 
             this.draftPresentationId = result.presentationId;
             this.sequences = result.sequences || [];
             this.pageCount = result.pageCount || this.sequences.length || 1;
             this.name = file.name.replace(/\.[^.]+$/, '');
+            this.detectedLayout = layout;
+            this.layoutHint = `${layout.width}×${layout.height}${
+                layout.scenes?.length ? ` · ${layout.scenes.length} scenes` : ` · ${this.pageCount} pages`
+            }${layout.entryPoint ? ` · ${layout.entryPoint}` : ''}`;
 
             if (this.formatType === 'PDF' && pdfBuffer) {
                 await this.extractAndAttachSlideImages(pdfBuffer, this.pageCount);
@@ -210,7 +264,9 @@ export default class ClmPresentationWizard extends LightningElement {
             this.currentStep = 1;
             this.toast(
                 'Upload complete',
-                `Created ${this.pageCount} sequence${this.pageCount === 1 ? '' : 's'}.`,
+                this.layoutHint
+                    ? `Created ${this.pageCount} sequence${this.pageCount === 1 ? '' : 's'} at ${this.layoutHint}.`
+                    : `Created ${this.pageCount} sequence${this.pageCount === 1 ? '' : 's'}.`,
                 'success'
             );
         } catch (error) {
@@ -479,6 +535,28 @@ export default class ClmPresentationWizard extends LightningElement {
 
     handleClose() {
         this.dispatchEvent(new CustomEvent('close'));
+    }
+
+    async ensureJsZip() {
+        if (window.JSZip) {
+            return window.JSZip;
+        }
+        const base = JSZIP;
+        const candidates = String(base).endsWith('.js')
+            ? [base]
+            : [`${base}/jszip.min.js`, base];
+        let lastError;
+        for (const src of candidates) {
+            try {
+                await loadScript(this, src);
+                if (window.JSZip) {
+                    return window.JSZip;
+                }
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        throw lastError || new Error('Unable to load ZIP inspector.');
     }
 
     async ensurePdfJs() {

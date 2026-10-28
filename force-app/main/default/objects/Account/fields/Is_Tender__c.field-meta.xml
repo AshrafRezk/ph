@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Tender__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Government / tender accounts: excluded from rep target, achievements, actual sales, and bulk share.</description>
+    <label>Tender Account</label>
+    <type>Checkbox</type>
+</CustomField>

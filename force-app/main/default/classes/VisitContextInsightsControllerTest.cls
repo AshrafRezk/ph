@@ -90,6 +90,31 @@ private class VisitContextInsightsControllerTest {
     }
   }
 
+  @IsTest
+  static void getAccountNeighbouringInsights_returnsNearbyPharmacies() {
+    Account center = [
+      SELECT Id
+      FROM Account
+      WHERE Name = 'Test HCO'
+      LIMIT 1
+    ];
+
+    Test.startTest();
+    VisitContextInsightsController.VisitContextInsights insights = VisitContextInsightsController.getAccountNeighbouringInsights(
+      center.Id
+    );
+    Test.stopTest();
+
+    System.assertEquals(true, insights.hasGeo);
+    System.assertEquals(5, insights.pharmacyPageSize);
+    System.assertEquals(true, insights.territoryPriorVisits.isEmpty());
+    System.assertEquals(true, insights.zetaPriorVisits.isEmpty());
+    if (pharmacyTypesExist()) {
+      System.assert(!insights.neighbouringPharmacies.isEmpty(), 'Expected nearby pharmacy');
+      System.assertEquals('Near Pharmacy', insights.neighbouringPharmacies[0].name);
+    }
+  }
+
   private static Boolean pharmacyTypesExist() {
     return ![
         SELECT Id

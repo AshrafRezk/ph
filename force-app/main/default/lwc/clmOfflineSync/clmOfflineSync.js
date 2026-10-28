@@ -12,7 +12,16 @@ import {
 const MAX_RETRIES = 5;
 const listeners = new Set();
 let syncInFlight = false;
-let forceOffline = false;
+let listenerRegistered = false;
+// Manual override: 'online' | 'offline' | null. Lets an operator force a mode.
+let manualOverride = null;
+// Authoritative online flag. We DO NOT trust navigator.onLine to seed this: in
+// the Salesforce Lightning container / installed PWA it is frequently a false
+// negative (reports offline while the network is fine), which used to force the
+// planner into an empty IndexedDB cache branch. Default online; only real
+// signals (a failed Apex/network call, or the browser 'offline' event) flip it
+// to offline, and any success flips it back.
+let onlineState = true;
 
 function notify(status) {
     listeners.forEach((listener) => {
@@ -27,40 +36,52 @@ function notify(status) {
 
 export function registerOfflineListener(listener) {
     listeners.add(listener);
+    ensureOnlineListener();
     return () => listeners.delete(listener);
 }
 
 export function isOfflineMode() {
-    // Only use manual mode selection - no auto-detection
-    return forceOffline;
-}
-
-export function setForceOffline(forced) {
-    forceOffline = forced;
-    console.log('[OfflineSync] Force offline mode:', forced);
-    // Notify listeners of status change
-    notify({ phase: forced ? 'forced-offline' : 'forced-online', pending: 0 });
-}
-
-export function getForceOffline() {
-    return forceOffline;
-}
-
-// Manual mode change - trigger queue drain when going back online
-export function setForceOfflineAndSync(forced) {
-    const wasOffline = forceOffline;
-    forceOffline = forced;
-    console.log('[OfflineSync] Force offline mode:', forced);
-    // Notify listeners of status change
-    notify({ phase: forced ? 'forced-offline' : 'forced-online', pending: 0 });
-    
-    // When manually switching back online, trigger queue drain
-    if (!forced && wasOffline) {
-        console.log('[OfflineSync] Manual online mode - triggering queue drain');
-        drainQueue().catch((error) => {
-            console.warn('[OfflineSync] Queue drain after mode change failed:', error);
-        });
+    if (manualOverride) {
+        return manualOverride === 'offline';
     }
+    return !onlineState;
+}
+
+// 'online' | 'offline' | null (null clears the override and resumes auto-detection).
+export function setOfflineOverride(mode) {
+    manualOverride = mode === 'online' || mode === 'offline' ? mode : null;
+    notify({ phase: 'override', mode: manualOverride, offline: isOfflineMode() });
+    if (!isOfflineMode()) {
+        drainQueue();
+    }
+}
+
+// Real-signal connectivity reporting. Callers invoke markOnline() after a
+// successful server call and markOffline() after a network failure, so the
+// online flag reflects actual reachability instead of navigator.onLine.
+export function markOnline() {
+    const wasOffline = !onlineState;
+    onlineState = true;
+    if (wasOffline) {
+        notify({ phase: 'online', offline: false });
+        drainQueue();
+    }
+}
+
+export function markOffline() {
+    if (onlineState) {
+        onlineState = false;
+        notify({ phase: 'offline', offline: true });
+    }
+}
+
+function ensureOnlineListener() {
+    if (listenerRegistered || typeof window === 'undefined') {
+        return;
+    }
+    listenerRegistered = true;
+    window.addEventListener('online', markOnline);
+    window.addEventListener('offline', markOffline);
 }
 
 export async function queueOfflineAction(action) {
@@ -68,21 +89,15 @@ export async function queueOfflineAction(action) {
         actionType: action?.actionType,
         clientVisitKey: action?.clientVisitKey,
         clientActionKey: action?.clientActionKey,
-        isOffline: isOfflineMode()
+        online: typeof navigator !== 'undefined' ? navigator.onLine : true
     });
     const id = await enqueueAction(action);
     const pendingCount = await countPendingActions();
     console.log(`[OfflineSync] [Step 2: Saved to IDB Outbox] Action ID: ${id}. Total pending: ${pendingCount}`);
     notify({ phase: 'queued', pending: pendingCount });
-
-    // Only attempt to drain if we're online
     if (!isOfflineMode()) {
-        console.log('[OfflineSync] Online - attempting immediate queue drain...');
-        drainQueue().catch((error) => {
-            console.warn('[OfflineSync] Immediate drain failed, will retry on next online event:', error);
-        });
-    } else {
-        console.log('[OfflineSync] Offline - action queued for later sync');
+        console.log('[OfflineSync] Online status detected; attempting immediate queue drain...');
+        drainQueue();
     }
     return id;
 }
@@ -140,26 +155,28 @@ async function persistKeyMaps(result) {
 }
 
 export async function drainQueue() {
-    // Note: navigator.onLine is unreliable in Capacitor WebView
-    // Always try to sync - let the network failure handle real offline cases
-    if (syncInFlight) {
-        console.log('[OfflineSync] Sync already in flight, skipping drain.');
+    if (syncInFlight || isOfflineMode()) {
+        if (syncInFlight) {
+            console.log('[OfflineSync] Sync already in flight, skipping drain.');
+        } else {
+            console.log('[OfflineSync] Currently offline, holding outbox in IndexedDB.');
+        }
         return { synced: 0 };
     }
+    syncInFlight = true;
+    notify({ phase: 'syncing' });
     let synced = 0;
     try {
         const pending = await getPendingActions();
         console.log(`[OfflineSync] [Step 3: Reconnection / Drain] Found ${pending.length} pending action(s) in outbox.`);
         if (!pending.length) {
-            // No pending actions - don't notify to avoid UI flickering
+            notify({ phase: 'idle', synced: 0, pending: 0 });
             return { synced: 0 };
         }
-        // Only set syncInFlight and notify when there are actual actions to sync
-        syncInFlight = true;
-        notify({ phase: 'syncing' });
         const payload = pending.map(toApexAction);
         console.log('[OfflineSync] [Step 4: Syncing with Salesforce]', payload);
         const result = await syncOfflineActions({ actions: payload });
+        markOnline();
         console.log('[OfflineSync] [Step 5: Salesforce Result Received]', result);
         await persistKeyMaps(result);
 
@@ -194,8 +211,6 @@ export async function drainQueue() {
         return { synced, result, pending: remaining };
     } catch (error) {
         console.error('[OfflineSync] Drain queue error:', error);
-        // In manual mode, we don't auto-detect offline status
-        // The user must manually switch to offline mode if they have connectivity issues
         notify({ phase: 'error', error, pending: await countPendingActions() });
         throw error;
     } finally {
@@ -204,14 +219,12 @@ export async function drainQueue() {
 }
 
 export function startSyncService() {
-    // Only attempt to drain if we're online (manual mode)
+    ensureOnlineListener();
     if (!isOfflineMode()) {
         drainQueue().catch((error) => {
             // eslint-disable-next-line no-console
             console.warn('CLM offline sync failed', error);
         });
-    } else {
-        console.log('[OfflineSync] Offline - skipping initial queue drain');
     }
 }
 

@@ -12,9 +12,16 @@ public with sharing class AccountStageService {
     STAGE_DRAFT,
     STAGE_DM,
     STAGE_SFE,
-    STAGE_BU,
     STAGE_FI,
+    STAGE_BU,
     STAGE_ACTIVE
+  };
+
+  /** Stages where FI and/or BU can be skipped forward to Active (or past FI). */
+  private static final Set<String> OPTIONAL_SKIP_FROM = new Set<String>{
+    STAGE_SFE,
+    STAGE_FI,
+    STAGE_BU
   };
 
   private static final Map<String, String> LABELS = new Map<String, String>{
@@ -41,6 +48,15 @@ public with sharing class AccountStageService {
     public Boolean terminal;
   }
 
+  public class SkipTarget {
+    @AuraEnabled
+    public String apiName;
+    @AuraEnabled
+    public String label;
+    @AuraEnabled
+    public String buttonLabel;
+  }
+
   public class StageView {
     @AuraEnabled
     public String currentApi;
@@ -59,6 +75,10 @@ public with sharing class AccountStageService {
     @AuraEnabled
     public String previousLabel;
     @AuraEnabled
+    public Boolean canSkipOptional;
+    @AuraEnabled
+    public List<SkipTarget> skipTargets;
+    @AuraEnabled
     public String lastMessage;
     @AuraEnabled
     public String history;
@@ -68,10 +88,18 @@ public with sharing class AccountStageService {
     public Id duplicateOfId;
     @AuraEnabled
     public String duplicateOfName;
+    /** SFE approvers for the submitter's line while the account sits at Pending SFE. */
+    @AuraEnabled
+    public String waitingOn;
     @AuraEnabled
     public List<StageOption> steps;
     @AuraEnabled
     public List<StageOption> inactiveReasons;
+    /** Mark inactive and Mark duplicate are for SFE, FI, BU and admins. Reps report a duplicate instead. */
+    @AuraEnabled
+    public Boolean canMarkInactive;
+    @AuraEnabled
+    public Boolean canMarkDuplicate;
   }
 
   @AuraEnabled(cacheable=false)
@@ -84,11 +112,33 @@ public with sharing class AccountStageService {
   public static StageView advance(Id accountId) {
     Account record = queryAccount(accountId);
     String current = normalize(record.Account_Stage__c);
+    assertCanMove(record, current);
     String nextStage = nextForward(current);
     if (nextStage == null) {
       throw error('This account cannot be advanced from ' + labelOf(current) + '.');
     }
     applyStage(record, nextStage, null, null, null, 'Advanced');
+    return toView(queryAccount(accountId));
+  }
+
+  /**
+   * Jump forward past optional FI and/or BU stages. Allowed targets depend on current stage.
+   * From SFE: FI (use advance), BU (skip FI), Active (skip FI+BU).
+   * From FI: BU (use advance), Active (skip BU).
+   * From BU: Active (use advance).
+   */
+  @AuraEnabled
+  public static StageView skipTo(Id accountId, String targetStage) {
+    Account record = queryAccount(accountId);
+    String current = normalize(record.Account_Stage__c);
+    assertCanMove(record, current);
+    String target = normalize(targetStage);
+    if (!isAllowedSkip(current, target)) {
+      throw error(
+        'Cannot skip from ' + labelOf(current) + ' to ' + labelOf(target) + '.'
+      );
+    }
+    applyStage(record, target, null, null, null, 'Skipped to');
     return toView(queryAccount(accountId));
   }
 
@@ -101,6 +151,7 @@ public with sharing class AccountStageService {
 
     Account record = queryAccount(accountId);
     String current = normalize(record.Account_Stage__c);
+    assertCanMove(record, current);
     String previous = previousStage(current);
     if (previous == null) {
       throw error('This account cannot be thrown back from ' + labelOf(current) + '.');
@@ -112,6 +163,9 @@ public with sharing class AccountStageService {
 
   @AuraEnabled
   public static StageView markInactive(Id accountId, String reason) {
+    if (!canCloseOut()) {
+      throw error('Only SFE, Field Intelligence or BU can mark an account inactive. Ask your SFE.');
+    }
     if (String.isBlank(reason)) {
       throw error('Choose an inactive reason.');
     }
@@ -125,6 +179,17 @@ public with sharing class AccountStageService {
 
   @AuraEnabled
   public static StageView markDuplicate(Id accountId, Id duplicateOfId) {
+    if (!canCloseOut()) {
+      throw error('Only SFE, Field Intelligence or BU can mark a duplicate. Report it from the Duplicate Check tab instead.');
+    }
+    return reportDuplicate(accountId, duplicateOfId);
+  }
+
+  /**
+   * A rep's duplicate report (Duplicate Check tab, PWA outbox). Open to anyone who can edit the
+   * account; SFE then merges or reverts it.
+   */
+  public static StageView reportDuplicate(Id accountId, Id duplicateOfId) {
     if (duplicateOfId == null) {
       throw error('Select the original account this record duplicates.');
     }
@@ -159,6 +224,8 @@ public with sharing class AccountStageService {
       SELECT
         Id,
         Name,
+        CreatedById,
+        OwnerId,
         Account_Stage__c,
         Account_Status__c,
         Inactive_Reason__c,
@@ -186,26 +253,30 @@ public with sharing class AccountStageService {
     String actionLabel
   ) {
     String current = normalize(record.Account_Stage__c);
-    record.Account_Stage__c = newStage;
-    record.Account_Status__c = (STAGE_INACTIVE.equals(newStage) || STAGE_DUPLICATE.equals(newStage))
+
+    // Update only stage fields. Updating the queried row would also write Name,
+    // which Person Accounts reject under USER_MODE FLS.
+    Account toUpdate = new Account(Id = record.Id);
+    toUpdate.Account_Stage__c = newStage;
+    toUpdate.Account_Status__c = (STAGE_INACTIVE.equals(newStage) || STAGE_DUPLICATE.equals(newStage))
       ? 'Inactive'
       : (STAGE_ACTIVE.equals(newStage) ? 'Active' : record.Account_Status__c);
 
     if (String.isNotBlank(sendBackMessage)) {
-      record.Stage_Send_Back_Message__c = sendBackMessage;
+      toUpdate.Stage_Send_Back_Message__c = sendBackMessage;
     }
     if (STAGE_INACTIVE.equals(newStage)) {
-      record.Inactive_Reason__c = inactiveReason;
+      toUpdate.Inactive_Reason__c = inactiveReason;
     } else if (!STAGE_INACTIVE.equals(newStage) && STAGE_INACTIVE.equals(current)) {
-      record.Inactive_Reason__c = null;
+      toUpdate.Inactive_Reason__c = null;
     }
     if (STAGE_DUPLICATE.equals(newStage)) {
-      record.Duplicate_Of__c = duplicateOfId;
+      toUpdate.Duplicate_Of__c = duplicateOfId;
     } else if (!STAGE_DUPLICATE.equals(newStage)) {
-      record.Duplicate_Of__c = null;
+      toUpdate.Duplicate_Of__c = null;
     }
 
-    record.Stage_History__c = appendHistory(
+    toUpdate.Stage_History__c = appendHistory(
       record.Stage_History__c,
       current,
       newStage,
@@ -215,7 +286,7 @@ public with sharing class AccountStageService {
     );
 
     try {
-      update record;
+      update as user toUpdate;
     } catch (DmlException dml) {
       throw error(dml.getDmlMessage(0));
     }
@@ -260,6 +331,8 @@ public with sharing class AccountStageService {
     view.previousApi = previousStage(current);
     view.previousLabel = view.previousApi == null ? null : labelOf(view.previousApi);
     view.canSendBack = view.previousApi != null;
+    view.skipTargets = buildSkipTargets(current);
+    view.canSkipOptional = !view.skipTargets.isEmpty();
     view.lastMessage = record.Stage_Send_Back_Message__c;
     view.history = record.Stage_History__c;
     view.inactiveReason = record.Inactive_Reason__c;
@@ -267,7 +340,153 @@ public with sharing class AccountStageService {
     view.duplicateOfName = record.Duplicate_Of__r == null ? null : record.Duplicate_Of__r.Name;
     view.steps = buildSteps(current);
     view.inactiveReasons = inactiveReasonOptions();
+    view.canMarkInactive = canCloseOut();
+    view.canMarkDuplicate = view.canMarkInactive;
+    if (STAGE_DM.equals(current) && !canMoveFromDm(record)) {
+      view.canAdvance = false;
+      view.canSendBack = false;
+    }
+    if (STAGE_SFE.equals(current)) {
+      List<Id> approvers = sfeApproversFor(record);
+      view.waitingOn = SfeApproverService.namesOf(approvers);
+      if (!canMoveFromSfe(approvers)) {
+        view.canAdvance = false;
+        view.canSendBack = false;
+        view.skipTargets = new List<SkipTarget>();
+        view.canSkipOptional = false;
+      }
+    }
+    Boolean blockedAtFi = STAGE_FI.equals(current) && !StageApproverAccess.canActAsFi();
+    Boolean blockedAtBu = STAGE_BU.equals(current) && !StageApproverAccess.canActAsBu();
+    if (blockedAtFi || blockedAtBu) {
+      view.waitingOn = blockedAtFi ? 'Field Intelligence' : 'BU';
+      view.canAdvance = false;
+      view.canSendBack = false;
+      view.skipTargets = new List<SkipTarget>();
+      view.canSkipOptional = false;
+    }
     return view;
+  }
+
+  /**
+   * At Pending DM, only the submitter's territory manager, an SFE approver for the submitter's line,
+   * or a System Administrator moves the account on or back. The submitter never does, whatever the
+   * entry point (Lightning, Apex REST outbox).
+   * At Pending SFE, the SFE approvers for the submitter's line (Admin Console > SFE Approvers)
+   * or a System Administrator move the account on or back. A line with no approver falls back to
+   * any new-account SFE approver. FI and BU need the matching title (StageApproverAccess).
+   */
+  private static void assertCanMove(Account record, String current) {
+    if (STAGE_DM.equals(current)) {
+      assertCanMoveFromDm(record);
+      return;
+    }
+    if (STAGE_FI.equals(current)) {
+      if (!StageApproverAccess.canActAsFi()) {
+        throw error('This account is waiting on Field Intelligence validation.');
+      }
+      return;
+    }
+    if (STAGE_BU.equals(current)) {
+      if (!StageApproverAccess.canActAsBu()) {
+        throw error('This account is waiting on BU approval.');
+      }
+      return;
+    }
+    if (!STAGE_SFE.equals(current)) {
+      return;
+    }
+    List<Id> approvers = sfeApproversFor(record);
+    if (!canMoveFromSfe(approvers)) {
+      String waitingOn = approvers.isEmpty() ? 'an SFE approver' : SfeApproverService.namesOf(approvers);
+      throw error('This account is waiting on SFE approval from ' + waitingOn + '.');
+    }
+  }
+
+  private static void assertCanMoveFromDm(Account record) {
+    if (canMoveFromDm(record)) {
+      return;
+    }
+    throw error('This account is waiting on DM approval. Only the submitter\'s manager can move it on.');
+  }
+
+  private static Boolean canMoveFromDm(Account record) {
+    if (SfeApproverService.isSystemAdministrator()) {
+      return true;
+    }
+    Id userId = UserInfo.getUserId();
+    Id submitterId = AccountApprovalAccess.resolveSubmitterUserId(record);
+    if (submitterId == null || submitterId == userId) {
+      return false;
+    }
+    if (AccountApprovalAccess.isTerritoryManager() && AccountApprovalAccess.resolveTeamRepIds().contains(submitterId)) {
+      return true;
+    }
+    return SfeApproverService.coversUser(userId, submitterId, SfeApproverService.NEW_ACCOUNTS);
+  }
+
+  /** Admins, any new-account SFE approver, Field Intelligence and BU. */
+  private static Boolean canCloseOut() {
+    return SfeApproverService.isSystemAdministrator()
+      || SfeApproverService.isApprover(UserInfo.getUserId(), SfeApproverService.NEW_ACCOUNTS)
+      || StageApproverAccess.canActAsFi()
+      || StageApproverAccess.canActAsBu();
+  }
+
+  private static List<Id> sfeApproversFor(Account record) {
+    return SfeApproverService.approversForUser(
+      AccountApprovalAccess.resolveSubmitterUserId(record),
+      SfeApproverService.NEW_ACCOUNTS
+    );
+  }
+
+  private static Boolean canMoveFromSfe(List<Id> approvers) {
+    Id userId = UserInfo.getUserId();
+    if (SfeApproverService.isSystemAdministrator()) {
+      return true;
+    }
+    // No approver mapped for this line: any new-account SFE approver may act, not anyone.
+    return approvers.isEmpty()
+      ? SfeApproverService.isApprover(userId, SfeApproverService.NEW_ACCOUNTS)
+      : approvers.contains(userId);
+  }
+
+  private static List<SkipTarget> buildSkipTargets(String current) {
+    List<SkipTarget> targets = new List<SkipTarget>();
+    if (!OPTIONAL_SKIP_FROM.contains(current)) {
+      return targets;
+    }
+    Integer currentIndex = FORWARD_CHAIN.indexOf(current);
+    if (currentIndex < 0) {
+      return targets;
+    }
+    // Optional jumps: any later forward stage except the immediate next (that is Advance).
+    for (Integer i = currentIndex + 2; i < FORWARD_CHAIN.size(); i++) {
+      String api = FORWARD_CHAIN[i];
+      SkipTarget target = new SkipTarget();
+      target.apiName = api;
+      target.label = labelOf(api);
+      if (STAGE_ACTIVE.equals(api)) {
+        target.buttonLabel = currentIndex == FORWARD_CHAIN.indexOf(STAGE_SFE)
+          ? 'Activate (skip FI & BU)'
+          : (STAGE_FI.equals(current) ? 'Activate (skip BU)' : 'Activate');
+      } else if (STAGE_BU.equals(api)) {
+        target.buttonLabel = 'Skip FI → BU Approval';
+      } else {
+        target.buttonLabel = 'Skip to ' + target.label;
+      }
+      targets.add(target);
+    }
+    return targets;
+  }
+
+  private static Boolean isAllowedSkip(String current, String target) {
+    for (SkipTarget option : buildSkipTargets(current)) {
+      if (option.apiName.equals(target)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static List<StageOption> buildSteps(String current) {
@@ -275,8 +494,8 @@ public with sharing class AccountStageService {
       STAGE_DRAFT,
       STAGE_DM,
       STAGE_SFE,
-      STAGE_BU,
       STAGE_FI,
+      STAGE_BU,
       STAGE_ACTIVE,
       STAGE_INACTIVE,
       STAGE_DUPLICATE
@@ -340,9 +559,7 @@ public with sharing class AccountStageService {
     return label == null ? apiName : label;
   }
 
-  private static AuraHandledException error(String message) {
-    AuraHandledException ex = new AuraHandledException(message);
-    ex.setMessage(message);
-    return ex;
+  private static Exception error(String message) {
+    return RestSafeError.make(message);
   }
 }

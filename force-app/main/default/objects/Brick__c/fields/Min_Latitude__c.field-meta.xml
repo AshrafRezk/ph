@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Min_Latitude__c</fullName>
+    <description>Southern edge of the brick region bounding box. Calculated when the region is saved and used to find candidate bricks for a location quickly.</description>
+    <externalId>false</externalId>
+    <label>Min Latitude</label>
+    <precision>10</precision>
+    <required>false</required>
+    <scale>7</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

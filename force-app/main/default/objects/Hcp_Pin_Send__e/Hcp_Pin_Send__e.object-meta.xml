@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Carries a one-time PIN to the automated process so the email still sends when the site guest cannot.</description>
+    <eventType>HighVolume</eventType>
+    <label>HCP PIN Send</label>
+    <pluralLabel>HCP PIN Sends</pluralLabel>
+    <publishBehavior>PublishAfterCommit</publishBehavior>
+</CustomObject>

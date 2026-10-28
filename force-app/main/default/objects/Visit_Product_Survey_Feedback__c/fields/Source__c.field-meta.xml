@@ -20,6 +20,11 @@
                 <default>true</default>
                 <label>WhatsApp Survey</label>
             </value>
+            <value>
+                <fullName>In-call Survey</fullName>
+                <default>false</default>
+                <label>In-call Survey</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

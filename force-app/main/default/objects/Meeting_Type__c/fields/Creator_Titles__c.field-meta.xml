@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Creator_Titles__c</fullName>
+    <inlineHelpText>User titles allowed to create this type, separated by semicolons. Blank with no permission sets means anyone.</inlineHelpText>
+    <label>Creator Titles</label>
+    <length>5000</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>4</visibleLines>
+</CustomField>

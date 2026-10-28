@@ -1,0 +1,46 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+:host(.planner-card) .slds-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.slds-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+.slds-card__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.slds-card__body ::slotted(*) {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.slds-card__header {
+    flex-shrink: 0;
+}
+
+.slds-card__footer {
+    display: none;
+}

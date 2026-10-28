@@ -1,38 +1,55 @@
-import { LightningElement } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import { createRecord } from 'lightning/uiRecordApi';
+import createTimeOff from '@salesforce/apex/TimeOffRequestController.createTimeOff';
 import getMyRequests from '@salesforce/apex/TimeOffRequestController.getMyRequests';
-
-import TIME_OFF_OBJECT from '@salesforce/schema/Time_Off_Request__c';
-import TYPE_FIELD from '@salesforce/schema/Time_Off_Request__c.Type__c';
-import SPAN_TYPE_FIELD from '@salesforce/schema/Time_Off_Request__c.Span_Type__c';
-import SPAN_DURATION_SELECT_FIELD from '@salesforce/schema/Time_Off_Request__c.Span_Duration_Select__c';
-import START_DATE_TIME_FIELD from '@salesforce/schema/Time_Off_Request__c.Start_Date_Time__c';
-import COMMENTS_FIELD from '@salesforce/schema/Time_Off_Request__c.Comments__c';
-import STAGE_FIELD from '@salesforce/schema/Time_Off_Request__c.Stage__c';
+import recallRequest from '@salesforce/apex/TimeOffRequestController.recallRequest';
+import { LightningElement, wire } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
+import { refreshApex } from '@salesforce/apex';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 const STAGE_DRAFT = 'Draft';
 const STAGE_SUBMITTED = 'Submitted for Approval';
 const SPAN_FULL_DAY = 'Full_Day';
+const SPAN_HALF_DAY = 'Half_Day';
 const SPAN_HOURS = 'Hours';
+const SPAN_DAYS = 'Days';
 
 const TYPE_OPTIONS = [
-    { label: 'Holiday', value: 'Holiday' },
-    { label: 'Sick Leave', value: 'Sick Leave' },
+    { label: 'Annual Leave', value: 'Annual Leave' },
+    { label: 'Business Trip', value: 'Business Trip' },
+    { label: 'Sick', value: 'Sick' },
     { label: 'Training', value: 'Training' },
-    { label: 'Event', value: 'Event' },
-    { label: 'Travelling', value: 'Travelling' }
+    { label: 'Casual/Emergency', value: 'Casual/Emergency' },
+    { label: 'Health Day', value: 'Health Day' },
+    { label: 'Maternity/Paternity', value: 'Maternity/Paternity' },
+    { label: 'Office Work', value: 'Office Work' },
+    { label: 'Marriage', value: 'Marriage' },
+    { label: 'Cycle Meeting', value: 'Cycle Meeting' },
+    { label: 'Unpaid', value: 'Unpaid' },
+    { label: 'Sales Meeting', value: 'Sales Meeting' },
+    { label: 'Military', value: 'Military' },
+    { label: 'Prospection', value: 'Prospection' },
+    { label: 'Handover', value: 'Handover' },
+    { label: 'Sales Day', value: 'Sales Day' },
+    { label: 'Delegation', value: 'Delegation' },
+    { label: 'RTD', value: 'RTD' },
+    { label: 'Speaker', value: 'Speaker' }
 ];
 
 const SPAN_TYPE_OPTIONS = [
     { label: 'Full Day', value: SPAN_FULL_DAY },
-    { label: 'Partial (Hours)', value: SPAN_HOURS }
+    { label: 'Half Day (0.5)', value: SPAN_HALF_DAY },
+    { label: 'Partial (Hours)', value: SPAN_HOURS },
+    { label: 'Days', value: SPAN_DAYS }
 ];
 
-const DURATION_OPTIONS = Array.from({ length: 8 }, (_, index) => {
+const HOUR_DURATION_OPTIONS = Array.from({ length: 8 }, (_, index) => {
     const value = String(index + 1);
     return { label: `${value} hour${index === 0 ? '' : 's'}`, value };
+});
+
+const DAY_DURATION_OPTIONS = Array.from({ length: 90 }, (_, index) => {
+    const value = String(index + 1);
+    return { label: `${value} day${index === 0 ? '' : 's'}`, value };
 });
 
 const STAGE_VARIANT = {
@@ -40,6 +57,13 @@ const STAGE_VARIANT = {
     'Submitted for Approval': 'warning',
     Approved: 'success',
     Rejected: 'error'
+};
+
+const SPAN_LABELS = {
+    Full_Day: 'Full Day',
+    Half_Day: 'Half Day',
+    Hours: 'Partial (Hours)',
+    Days: 'Days'
 };
 
 export default class TimeOffSubmission extends NavigationMixin(LightningElement) {
@@ -53,25 +77,10 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
 
     typeOptions = TYPE_OPTIONS;
     spanTypeOptions = SPAN_TYPE_OPTIONS;
-    durationOptions = DURATION_OPTIONS;
 
+    wiredRequestsResult;
     myRequests = [];
     requestsError;
-
-    connectedCallback() {
-        this.loadRequests();
-    }
-
-    async loadRequests() {
-        try {
-            const data = await getMyRequests({ limitSize: 10 });
-            this.myRequests = (data || []).map((request) => this.mapRequestRow(request));
-            this.requestsError = undefined;
-        } catch (error) {
-            this.myRequests = [];
-            this.requestsError = this.reduceError(error);
-        }
-    }
 
     columns = [
         { label: 'Request', fieldName: 'recordUrl', type: 'url', typeAttributes: { label: { fieldName: 'name' }, target: '_self' } },
@@ -80,19 +89,58 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
         { label: 'Start', fieldName: 'startDateLabel', type: 'text' },
         { label: 'End', fieldName: 'endDateLabel', type: 'text' },
         { label: 'Days', fieldName: 'workingDays', type: 'number', cellAttributes: { alignment: 'left' } },
-        { label: 'Stage', fieldName: 'stage', type: 'text', cellAttributes: { class: { fieldName: 'stageClass' } } }
+        { label: 'Stage', fieldName: 'stage', type: 'text', cellAttributes: { class: { fieldName: 'stageClass' } } },
+        {
+            type: 'action',
+            typeAttributes: {
+                rowActions: [{ label: 'Recall', name: 'recall' }]
+            }
+        }
     ];
+
+    @wire(getMyRequests, { limitSize: 10 })
+    wiredRequests(result) {
+        this.wiredRequestsResult = result;
+        const { data, error } = result;
+        if (data) {
+            this.myRequests = data.map((request) => this.mapRequestRow(request));
+            this.requestsError = undefined;
+        } else if (error) {
+            this.myRequests = [];
+            this.requestsError = this.reduceError(error);
+        }
+    }
 
     get isHoursSpan() {
         return this.spanTypeValue === SPAN_HOURS;
+    }
+
+    get isDaysSpan() {
+        return this.spanTypeValue === SPAN_DAYS;
     }
 
     get isFullDaySpan() {
         return this.spanTypeValue === SPAN_FULL_DAY;
     }
 
+    get isHalfDaySpan() {
+        return this.spanTypeValue === SPAN_HALF_DAY;
+    }
+
+    get showDateOnly() {
+        return this.isFullDaySpan || this.isHalfDaySpan || this.isDaysSpan;
+    }
+
     get showScheduleFields() {
         return Boolean(this.spanTypeValue);
+    }
+
+    get durationOptions() {
+        return this.isDaysSpan ? DAY_DURATION_OPTIONS : HOUR_DURATION_OPTIONS;
+    }
+
+    get durationLabel() {
+        return this.isDaysSpan ? 'Duration (Days)' : 'Duration (Hours)';
     }
 
     get hasRequests() {
@@ -132,6 +180,25 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
         this.saveRequest(STAGE_SUBMITTED);
     }
 
+    async handleRowAction(event) {
+        const actionName = event.detail.action.name;
+        const row = event.detail.row;
+        if (actionName !== 'recall' || !row?.id) {
+            return;
+        }
+        if (row.stage !== STAGE_SUBMITTED) {
+            this.showToast('Recall unavailable', 'Only submitted requests can be recalled.', 'error');
+            return;
+        }
+        try {
+            await recallRequest({ requestId: row.id });
+            await refreshApex(this.wiredRequestsResult);
+            this.showToast('Recalled', 'Request returned to Draft.', 'success');
+        } catch (error) {
+            this.showToast('Recall failed', this.reduceError(error), 'error');
+        }
+    }
+
     async saveRequest(stage) {
         const validationMessage = this.validateForm();
         if (validationMessage) {
@@ -141,39 +208,24 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
 
         this.isSaving = true;
         try {
-            const fields = {};
-            fields[TYPE_FIELD.fieldApiName] = this.typeValue;
-            fields[SPAN_TYPE_FIELD.fieldApiName] = this.spanTypeValue;
-            fields[START_DATE_TIME_FIELD.fieldApiName] = this.buildStartDateTime();
-            fields[COMMENTS_FIELD.fieldApiName] = this.commentsValue || null;
-            fields[STAGE_FIELD.fieldApiName] = stage;
-
-            if (this.isHoursSpan) {
-                fields[SPAN_DURATION_SELECT_FIELD.fieldApiName] = this.durationValue;
-            }
-
-            const recordInput = {
-                apiName: TIME_OFF_OBJECT.objectApiName,
-                fields
-            };
-
-            const created = await createRecord(recordInput);
+            const startDateTime = this.buildStartDateTime();
+            await createTimeOff({
+                typeValue: this.typeValue,
+                spanType: this.spanTypeValue,
+                durationValue: this.isHoursSpan || this.isDaysSpan ? this.durationValue : null,
+                startDateTime,
+                comments: this.commentsValue || null,
+                stage
+            });
             const successTitle = stage === STAGE_SUBMITTED ? 'Submitted for Approval' : 'Draft Saved';
             const successMessage =
                 stage === STAGE_SUBMITTED
-                    ? 'Your time off request was submitted to your manager.'
+                    ? 'Your time off request was submitted for Mendix/manager approval.'
                     : 'Your time off request was saved as a draft.';
 
             this.resetForm();
-            await this.loadRequests();
+            await refreshApex(this.wiredRequestsResult);
             this.showToast(successTitle, successMessage, 'success');
-            if (created?.id) {
-                try {
-                    this.navigateToRecord(created.id);
-                } catch (_navError) {
-                    // Offline shell has no record pages; list refresh is enough.
-                }
-            }
         } catch (error) {
             this.showToast('Save Failed', this.reduceError(error), 'error');
         } finally {
@@ -196,19 +248,34 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
                 return 'Select a start date and time.';
             }
         }
-        if (this.isFullDaySpan && !this.startDateValue) {
-            return 'Select the date for your full day off.';
+        if (this.isDaysSpan) {
+            if (!this.durationValue) {
+                return 'Select how many days (1–90).';
+            }
+            if (!this.startDateValue) {
+                return 'Select the start date for multi-day time off.';
+            }
+        }
+        if ((this.isFullDaySpan || this.isHalfDaySpan) && !this.startDateValue) {
+            return 'Select the date for your time off.';
         }
         return null;
     }
 
     buildStartDateTime() {
-        if (this.isFullDaySpan) {
-            return `${this.startDateValue}T09:00:00`;
+        // Apex @AuraEnabled DateTime requires ISO-8601 (with timezone), not date-only.
+        if (this.showDateOnly) {
+            return new Date(`${this.startDateValue}T09:00:00`).toISOString();
         }
-        return this.startDateTimeValue.length === 16
-            ? `${this.startDateTimeValue}:00`
-            : this.startDateTimeValue;
+        const raw =
+            this.startDateTimeValue.length === 16
+                ? `${this.startDateTimeValue}:00`
+                : this.startDateTimeValue;
+        const parsed = new Date(raw);
+        if (Number.isNaN(parsed.getTime())) {
+            return raw;
+        }
+        return parsed.toISOString();
     }
 
     resetForm() {
@@ -221,12 +288,11 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
     }
 
     mapRequestRow(request) {
-        const spanTypeLabel = request.spanType === SPAN_FULL_DAY ? 'Full Day' : 'Partial (Hours)';
         const stageKey = request.stage || 'Draft';
         return {
             ...request,
             recordUrl: `/lightning/r/Time_Off_Request__c/${request.id}/view`,
-            spanTypeLabel,
+            spanTypeLabel: SPAN_LABELS[request.spanType] || request.spanType,
             startDateLabel: this.formatDate(request.startDate),
             endDateLabel: this.formatDate(request.endDate),
             stageClass: `slds-text-color_${STAGE_VARIANT[stageKey] || 'default'}`
@@ -238,17 +304,6 @@ export default class TimeOffSubmission extends NavigationMixin(LightningElement)
             return '—';
         }
         return new Date(value).toLocaleDateString();
-    }
-
-    navigateToRecord(recordId) {
-        this[NavigationMixin.Navigate]({
-            type: 'standard__recordPage',
-            attributes: {
-                recordId,
-                objectApiName: TIME_OFF_OBJECT.objectApiName,
-                actionName: 'view'
-            }
-        });
     }
 
     showToast(title, message, variant) {

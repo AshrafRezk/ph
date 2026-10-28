@@ -9,11 +9,24 @@ public with sharing class VisitCallReportService {
   };
 
   private static Boolean productImageUrlReadable;
+  private static Boolean visitDetailSchemaReadyCached;
+  private static Boolean visitDetailSchemaReadyValue;
+  private static Boolean visitMessageSchemaReadyCached;
+  private static Boolean visitMessageSchemaReadyValue;
+  private static Boolean visitSampleSchemaReadyCached;
+  private static Boolean visitSampleSchemaReadyValue;
+  private static Boolean sampleInventorySchemaReadyCached;
+  private static Boolean sampleInventorySchemaReadyValue;
 
   public class TerritoryProductOption {
     @AuraEnabled public Id productId;
     @AuraEnabled public String productName;
     @AuraEnabled public String imageUrl;
+    @AuraEnabled public String productType;
+    @AuraEnabled public Id parentProductId;
+    @AuraEnabled public String brandName;
+    @AuraEnabled public String strength;
+    @AuraEnabled public String form;
     @AuraEnabled public String adoption;
     @AuraEnabled public String loyalty;
     @AuraEnabled public String productMatrixRating;
@@ -54,6 +67,11 @@ public with sharing class VisitCallReportService {
     @AuraEnabled public Id productId;
     @AuraEnabled public String productName;
     @AuraEnabled public String imageUrl;
+    @AuraEnabled public String productType;
+    @AuraEnabled public Id parentProductId;
+    @AuraEnabled public String brandName;
+    @AuraEnabled public String strength;
+    @AuraEnabled public String form;
     @AuraEnabled public Integer displayOrder;
     @AuraEnabled public String detailType;
     @AuraEnabled public String notes;
@@ -95,13 +113,27 @@ public with sharing class VisitCallReportService {
     @AuraEnabled public Integer totalDurationSeconds;
   }
 
+  public class TeamMemberOption {
+    @AuraEnabled public Id userId;
+    @AuraEnabled public String name;
+    @AuraEnabled public String role;
+    @AuraEnabled public String territoryName;
+    @AuraEnabled public Boolean isManager;
+    @AuraEnabled public Boolean isDefault;
+  }
+
   public class VisitHeader {
     @AuraEnabled public Id id;
+    @AuraEnabled public Id visitId;
     @AuraEnabled public String name;
     @AuraEnabled public String status;
     @AuraEnabled public String visitType;
     @AuraEnabled public DateTime startDateTime;
     @AuraEnabled public DateTime endDateTime;
+    // Visit calendar day (yyyy-MM-dd) and zone id in the running user's time zone,
+    // so clients can build start/end from the locked date plus edited times.
+    @AuraEnabled public String visitDateLocal;
+    @AuraEnabled public String userTimeZone;
     @AuraEnabled public String durationLabel;
     @AuraEnabled public Id accountId;
     @AuraEnabled public String accountName;
@@ -109,6 +141,7 @@ public with sharing class VisitCallReportService {
     @AuraEnabled public String accountRecordTypeDeveloperName;
     @AuraEnabled public String accountSpecialty;
     @AuraEnabled public String accountCity;
+    @AuraEnabled public Id assignedToId;
     @AuraEnabled public String assignedToName;
     @AuraEnabled public String visitObjective;
     @AuraEnabled public String visitNotes;
@@ -116,7 +149,13 @@ public with sharing class VisitCallReportService {
     @AuraEnabled public Date nextVisitDate;
     @AuraEnabled public String cancellationReason;
     @AuraEnabled public Boolean isLocked;
+    @AuraEnabled public Boolean canEditSchedule;
+    @AuraEnabled public Boolean canViewServiceRequests;
     @AuraEnabled public Boolean isDoubleVisit;
+    @AuraEnabled public Id doubleVisitWithId;
+    @AuraEnabled public String doubleVisitWithName;
+    @AuraEnabled public Id defaultDoubleVisitWithId;
+    @AuraEnabled public String defaultDoubleVisitWithName;
     @AuraEnabled public Id coachingEventId;
   }
 
@@ -126,17 +165,27 @@ public with sharing class VisitCallReportService {
     @AuraEnabled public List<ProductDetailRow> products;
     @AuraEnabled public List<SampleRow> samples;
     @AuraEnabled public List<ClmSessionRow> clmSessions;
+    @AuraEnabled public List<TeamMemberOption> teamMembers;
     @AuraEnabled public Boolean legacyMigrated;
+    @AuraEnabled public Boolean alignedOnRepTerritory;
+    @AuraEnabled public Boolean hasSubordinateTerritories;
+    @AuraEnabled public List<String> tabKeys;
   }
 
   public class SaveRequest {
     @AuraEnabled public Id visitId;
+    @AuraEnabled public DateTime startDateTime;
+    @AuraEnabled public DateTime endDateTime;
+    // When the rep captured this report on the device (offline saves sync later).
+    @AuraEnabled public DateTime capturedAt;
     @AuraEnabled public String status;
     @AuraEnabled public String visitObjective;
     @AuraEnabled public String visitNotes;
     @AuraEnabled public String clmPresentation;
     @AuraEnabled public Date nextVisitDate;
     @AuraEnabled public String cancellationReason;
+    @AuraEnabled public Boolean isDoubleVisit;
+    @AuraEnabled public Id doubleVisitWithId;
     @AuraEnabled public List<AttendeeRow> attendees;
     @AuraEnabled public List<ProductDetailRow> products;
     @AuraEnabled public List<SampleRow> samples;
@@ -145,17 +194,23 @@ public with sharing class VisitCallReportService {
 
   public static CallReportPayload getCallReportPayload(Id visitId) {
     if (visitId == null) {
-      throw new AuraHandledException('Visit Id is required.');
+      throw RestSafeError.make('Visit Id is required.');
     }
 
     Visit__c visit = queryVisit(visitId);
+    VisitDoubleVisitService.Context teamContext = VisitDoubleVisitService.resolve(visit);
     CallReportPayload payload = new CallReportPayload();
-    payload.visit = mapVisitHeader(visit);
+    payload.visit = mapVisitHeader(visit, teamContext);
     payload.attendees = queryAttendees(visitId);
     payload.products = queryProductDetails(visitId);
     payload.samples = querySamples(visitId);
     payload.clmSessions = queryClmSessions(visitId);
+    payload.teamMembers = teamContext.members;
     payload.legacyMigrated = false;
+    payload.hasSubordinateTerritories = TerritoryContextService.hasSubordinateTerritories(UserInfo.getUserId());
+    payload.alignedOnRepTerritory = payload.hasSubordinateTerritories == true
+      ? false
+      : TerritoryContextService.isAlignedOnRepTerritory();
 
     if (payload.attendees.isEmpty() && visit.Account__c != null) {
       payload.attendees.add(buildPrimaryAttendeeFromVisit(visit));
@@ -165,6 +220,11 @@ public with sharing class VisitCallReportService {
       payload.products = migrateLegacyProducts(visit);
       payload.legacyMigrated = !payload.products.isEmpty();
     }
+
+    payload.tabKeys = VisitTabConfigService.tabsFor(
+      payload.visit == null ? null : payload.visit.accountRecordTypeDeveloperName,
+      payload.visit == null ? null : payload.visit.accountRecordTypeName
+    );
 
     return payload;
   }
@@ -179,8 +239,10 @@ public with sharing class VisitCallReportService {
       scopedIds = ptaProductIds;
     }
     if (scopedIds.isEmpty()) {
-      return fallbackActiveProducts();
+      return new List<TerritoryProductOption>();
     }
+
+    scopedIds.addAll(expandDispenseRelatedProductIds(scopedIds));
 
     Map<Id, Account_Territory_Product_Fields__c> atpfByProduct = getAtpfByProduct(
       visit.Account__c,
@@ -190,10 +252,7 @@ public with sharing class VisitCallReportService {
 
     List<TerritoryProductOption> options = new List<TerritoryProductOption>();
     for (Product2 product : queryProductsByIds(scopedIds)) {
-      TerritoryProductOption option = new TerritoryProductOption();
-      option.productId = product.Id;
-      option.productName = product.Name;
-      option.imageUrl = getProductImageUrl(product);
+      TerritoryProductOption option = mapTerritoryProductOption(product);
       if (atpfByProduct.containsKey(product.Id)) {
         Account_Territory_Product_Fields__c atpf = atpfByProduct.get(product.Id);
         option.adoption = atpf.Adoption__c;
@@ -207,6 +266,56 @@ public with sharing class VisitCallReportService {
     return options;
   }
 
+  private static List<Account_Affiliation__c> queryAffiliationsForAccount(Id accountId) {
+    Boolean filterValidated = Schema.SObjectType.Account_Affiliation__c.fields.getMap()
+      .containsKey('validation_status__c');
+    String validated = filterValidated ? ' AND Validation_Status__c = \'Validated\'' : '';
+    String base =
+      'SELECT Primary_Account__c, Related_Account__c FROM Account_Affiliation__c ' +
+      'WHERE Is_Active__c = TRUE AND Outside_Territory__c = FALSE' +
+      validated;
+    List<Account_Affiliation__c> rows = new List<Account_Affiliation__c>();
+    try {
+      rows.addAll(
+        (List<Account_Affiliation__c>) Database.query(
+          base + ' AND Primary_Account__c = :accountId LIMIT 200'
+        )
+      );
+      rows.addAll(
+        (List<Account_Affiliation__c>) Database.query(
+          base + ' AND Related_Account__c = :accountId LIMIT 200'
+        )
+      );
+    } catch (QueryException ex) {
+      if (filterValidated) {
+        return queryAffiliationsWithoutValidation(accountId);
+      }
+      throw ex;
+    }
+    return rows;
+  }
+
+  private static List<Account_Affiliation__c> queryAffiliationsWithoutValidation(Id accountId) {
+    List<Account_Affiliation__c> rows = new List<Account_Affiliation__c>();
+    rows.addAll([
+      SELECT Primary_Account__c, Related_Account__c
+      FROM Account_Affiliation__c
+      WHERE Primary_Account__c = :accountId
+        AND Is_Active__c = TRUE
+        AND Outside_Territory__c = FALSE
+      LIMIT 200
+    ]);
+    rows.addAll([
+      SELECT Primary_Account__c, Related_Account__c
+      FROM Account_Affiliation__c
+      WHERE Related_Account__c = :accountId
+        AND Is_Active__c = TRUE
+        AND Outside_Territory__c = FALSE
+      LIMIT 200
+    ]);
+    return rows;
+  }
+
   public static List<AttendeeCandidate> searchAttendeeCandidates(
     Id visitId,
     String searchTerm,
@@ -218,19 +327,11 @@ public with sharing class VisitCallReportService {
     Set<Id> candidateIds = new Set<Id>();
     List<AttendeeCandidate> results = new List<AttendeeCandidate>();
 
-    if (visit.Account__c != null) {
-      for (Account_Affiliation__c aff : [
-        SELECT Primary_Account__c, Related_Account__c
-        FROM Account_Affiliation__c
-        WHERE
-          (Primary_Account__c = :visit.Account__c
-          OR Related_Account__c = :visit.Account__c)
-          AND Is_Active__c = TRUE
-          AND Outside_Territory__c = FALSE
-        WITH USER_MODE
-        LIMIT 200
-      ]) {
-        Id relatedId = aff.Primary_Account__c == visit.Account__c
+    Id accountId = visit.Account__c;
+    if (accountId != null) {
+      List<Account_Affiliation__c> affiliations = queryAffiliationsForAccount(accountId);
+      for (Account_Affiliation__c aff : affiliations) {
+        Id relatedId = aff.Primary_Account__c == accountId
           ? aff.Related_Account__c
           : aff.Primary_Account__c;
         if (relatedId != null) {
@@ -242,19 +343,29 @@ public with sharing class VisitCallReportService {
     Set<Id> territoryAccountIds = getTerritoryAccountIds();
     String term = String.isBlank(searchTerm) ? null : '%' + String.escapeSingleQuotes(searchTerm.trim()) + '%';
 
+    // Prefer territory accounts; when the user has no territory memberships,
+    // fall back to affiliation candidates so the picker is not empty.
+    Set<Id> searchScope = !territoryAccountIds.isEmpty()
+      ? territoryAccountIds
+      : candidateIds;
+
     List<Account> accounts;
     if (term != null) {
-      accounts = [
-        SELECT Id, Name, Specialty_1__c, RecordType.DeveloperName, RecordType.Name
-        FROM Account
-        WHERE
-          Id IN :territoryAccountIds
-          AND Name LIKE :term
-        WITH USER_MODE
-        ORDER BY Name ASC
-        LIMIT :ATTENDEE_PAGE_SIZE
-        OFFSET :resolvedOffset
-      ];
+      if (searchScope.isEmpty()) {
+        accounts = new List<Account>();
+      } else {
+        accounts = [
+          SELECT Id, Name, Specialty_1__c, RecordType.DeveloperName, RecordType.Name
+          FROM Account
+          WHERE
+            Id IN :searchScope
+            AND Name LIKE :term
+          WITH USER_MODE
+          ORDER BY Name ASC
+          LIMIT :ATTENDEE_PAGE_SIZE
+          OFFSET :resolvedOffset
+        ];
+      }
     } else if (!candidateIds.isEmpty()) {
       accounts = [
         SELECT Id, Name, Specialty_1__c, RecordType.DeveloperName, RecordType.Name
@@ -265,7 +376,7 @@ public with sharing class VisitCallReportService {
         LIMIT :ATTENDEE_PAGE_SIZE
         OFFSET :resolvedOffset
       ];
-    } else {
+    } else if (!territoryAccountIds.isEmpty()) {
       accounts = [
         SELECT Id, Name, Specialty_1__c, RecordType.DeveloperName, RecordType.Name
         FROM Account
@@ -275,6 +386,8 @@ public with sharing class VisitCallReportService {
         LIMIT :ATTENDEE_PAGE_SIZE
         OFFSET :resolvedOffset
       ];
+    } else {
+      accounts = new List<Account>();
     }
 
     for (Account account : accounts) {
@@ -289,7 +402,7 @@ public with sharing class VisitCallReportService {
 
   public static List<SampleInventoryOption> getSampleInventoryForUser() {
     List<SampleInventoryOption> options = new List<SampleInventoryOption>();
-    if (!canQuerySampleInventory()) {
+    if (!sampleInventorySchemaReady()) {
       return options;
     }
     Id userId = UserInfo.getUserId();
@@ -300,12 +413,16 @@ public with sharing class VisitCallReportService {
     if (hasObjectField(Sample_Inventory__c.SObjectType, 'Expiry_Date__c')) {
       inventoryFields += ', Expiry_Date__c';
     }
+    String typeFilter = hasObjectField(Product2.SObjectType, 'Product_Type__c')
+      ? ' AND Product2__r.Product_Type__c IN (\'Sample\', \'Brand Reminder\') '
+      : ' ';
     for (Sample_Inventory__c inv : Database.query(
       'SELECT Id, Product2__c, Product2__r.Name' +
       productImageSelect +
       ', ' + inventoryFields + ' ' +
       'FROM Sample_Inventory__c ' +
-      'WHERE Owner_User__c = :userId AND Quantity_On_Hand__c > 0 ' +
+      'WHERE Owner_User__c = :userId AND Quantity_On_Hand__c > 0' +
+      typeFilter +
       'WITH USER_MODE ORDER BY Product2__r.Name ASC, Lot_Number__c ASC'
     )) {
       SampleInventoryOption option = new SampleInventoryOption();
@@ -329,11 +446,19 @@ public with sharing class VisitCallReportService {
 
   public static CallReportPayload saveCallReport(SaveRequest request) {
     if (request == null || request.visitId == null) {
-      throw new AuraHandledException('Visit Id is required.');
+      throw RestSafeError.make('Visit Id is required.');
     }
 
     Visit__c visit = [
-      SELECT Id, Status__c, Start_Date__c, Account__c, Products_Discussed__c, Product_Details__c
+      SELECT
+        Id,
+        Status__c,
+        Start_Date__c,
+        End_Date__c,
+        Visit_Date__c,
+        Account__c,
+        Products_Discussed__c,
+        Product_Details__c
       FROM Visit__c
       WHERE Id = :request.visitId
       WITH USER_MODE
@@ -341,10 +466,31 @@ public with sharing class VisitCallReportService {
     ];
 
     if (visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled') {
-      throw new AuraHandledException('Completed or cancelled visits cannot be edited.');
+      throw RestSafeError.make('Completed or cancelled visits cannot be edited.');
     }
 
-    validateSaveRequest(request, visit.Start_Date__c);
+    DateTime effectiveStart = request.startDateTime != null ? request.startDateTime : visit.Start_Date__c;
+    DateTime effectiveEnd = request.endDateTime != null ? request.endDateTime : visit.End_Date__c;
+    if (scheduleChanged(request, visit)) {
+      if (!VisitActorAccess.canEditVisitSchedule()) {
+        throw RestSafeError.make('Only SFE and managers can change visit start and end dates.');
+      }
+      if (effectiveStart == null || effectiveEnd == null) {
+        throw RestSafeError.make('Start and end times are required.');
+      }
+      if (effectiveEnd <= effectiveStart) {
+        throw RestSafeError.make('End time must be after start time.');
+      }
+      assertVisitDateUnchanged(visit, effectiveStart, effectiveEnd);
+      visit.Start_Date__c = effectiveStart;
+      visit.End_Date__c = effectiveEnd;
+      visit.Visit_Date__c = effectiveStart;
+    }
+
+    validateSaveRequest(request, effectiveStart);
+    if ('Completed' == request.status) {
+      VisitStatusHelper.validateCompletionDay(effectiveStart, request.capturedAt);
+    }
 
     visit.Status__c = request.status;
     visit.Visit_Objective__c = request.visitObjective;
@@ -352,6 +498,7 @@ public with sharing class VisitCallReportService {
     visit.CLM_Presentation__c = request.clmPresentation;
     visit.Next_Visit_Date__c = request.nextVisitDate;
     visit.Cancellation_Reason__c = 'Cancelled' == request.status ? request.cancellationReason : null;
+    applyDoubleVisitFields(visit, request);
 
     rollupLegacyProductFields(visit, request.products);
     update as user visit;
@@ -369,6 +516,38 @@ public with sharing class VisitCallReportService {
     return getCallReportPayload(request.visitId);
   }
 
+  /**
+   * The visit calendar day is locked on the call report: only the time of day may change.
+   * Days are compared in the running user's time zone. Moving a visit to another day
+   * happens in the planner (reschedule), which is gated by the Edit_Visit_Date permission.
+   */
+  private static void assertVisitDateUnchanged(
+    Visit__c visit,
+    DateTime effectiveStart,
+    DateTime effectiveEnd
+  ) {
+    DateTime originalStart = visit.Start_Date__c != null ? visit.Start_Date__c : visit.Visit_Date__c;
+    if (originalStart == null) {
+      return;
+    }
+    Date visitDay = originalStart.date();
+    Boolean startMoved = effectiveStart != null && effectiveStart.date() != visitDay;
+    Boolean endMoved = effectiveEnd != null && effectiveEnd.date() != visitDay;
+    if (startMoved || endMoved) {
+      throw RestSafeError.make(
+        'The visit date cannot be changed here. Only the start and end times can be edited. ' +
+        'Use the planner to move the visit to another day.'
+      );
+    }
+  }
+
+  private static Boolean scheduleChanged(SaveRequest request, Visit__c visit) {
+    if (request.startDateTime == null && request.endDateTime == null) {
+      return false;
+    }
+    return request.startDateTime != visit.Start_Date__c || request.endDateTime != visit.End_Date__c;
+  }
+
   private static void validateSaveRequest(SaveRequest request, DateTime visitStartDateTime) {
     VisitStatusHelper.validateStatusChange(
       request.status,
@@ -377,13 +556,24 @@ public with sharing class VisitCallReportService {
     );
     if ('Completed' == request.status) {
       if (request.attendees == null || request.attendees.isEmpty()) {
-        throw new AuraHandledException('Add at least one attendee before completing the visit.');
+        throw RestSafeError.make('Add at least one attendee before completing the visit.');
       }
       if (request.products == null || request.products.isEmpty()) {
-        throw new AuraHandledException('Select at least one product before completing the visit.');
+        throw RestSafeError.make('Select at least one product before completing the visit.');
       }
       validateSamples(request.samples);
     }
+    if (request.isDoubleVisit == true && request.doubleVisitWithId == null) {
+      throw RestSafeError.make('Select the team member who joined this double visit.');
+    }
+  }
+
+  private static void applyDoubleVisitFields(Visit__c visit, SaveRequest request) {
+    if (request.isDoubleVisit == null) {
+      return;
+    }
+    visit.Is_Double_Visit__c = request.isDoubleVisit;
+    visit.Double_Visit_With__c = request.isDoubleVisit == true ? request.doubleVisitWithId : null;
   }
 
   private static void validateSamples(List<SampleRow> samples) {
@@ -392,8 +582,11 @@ public with sharing class VisitCallReportService {
     }
     Set<Id> inventoryIds = new Set<Id>();
     for (SampleRow row : samples) {
+      if (row.productId == null) {
+        throw RestSafeError.make('Select a product for each dispense line.');
+      }
       if (row.quantity == null || row.quantity <= 0) {
-        throw new AuraHandledException('Sample quantity must be greater than zero.');
+        throw RestSafeError.make('Dispense quantity must be greater than zero.');
       }
       if (row.sampleInventoryId != null) {
         inventoryIds.add(row.sampleInventoryId);
@@ -415,10 +608,10 @@ public with sharing class VisitCallReportService {
       }
       Sample_Inventory__c inv = inventoryById.get(row.sampleInventoryId);
       if (inv == null) {
-        throw new AuraHandledException('Sample inventory record not found.');
+        throw RestSafeError.make('Sample inventory record not found.');
       }
       if (inv.Expiry_Date__c != null && inv.Expiry_Date__c < Date.today()) {
-        throw new AuraHandledException('Cannot distribute expired sample lot ' + inv.Lot_Number__c + '.');
+        throw RestSafeError.make('Cannot distribute expired sample lot ' + inv.Lot_Number__c + '.');
       }
       Decimal total = requestedByInventory.containsKey(row.sampleInventoryId)
         ? requestedByInventory.get(row.sampleInventoryId)
@@ -426,7 +619,7 @@ public with sharing class VisitCallReportService {
       total += row.quantity;
       requestedByInventory.put(row.sampleInventoryId, total);
       if (total > inv.Quantity_On_Hand__c) {
-        throw new AuraHandledException('Insufficient sample inventory for lot ' + inv.Lot_Number__c + '.');
+        throw RestSafeError.make('Insufficient sample inventory for lot ' + inv.Lot_Number__c + '.');
       }
     }
   }
@@ -471,7 +664,7 @@ public with sharing class VisitCallReportService {
       ));
     }
     update as user inventoryById.values();
-    insert as user transactions;
+    insert as system transactions;
   }
 
   private static void rollupLegacyProductFields(Visit__c visit, List<ProductDetailRow> products) {
@@ -540,8 +733,9 @@ public with sharing class VisitCallReportService {
         if (row.id != null && existing.containsKey(row.id)) {
           record.Id = row.id;
           keepIds.add(row.id);
+        } else {
+          record.Visit__c = visitId;
         }
-        record.Visit__c = visitId;
         record.Account__c = row.accountId;
         toUpsert.add(record);
         order++;
@@ -579,8 +773,9 @@ public with sharing class VisitCallReportService {
         if (row.id != null && existingDetails.containsKey(row.id)) {
           detail.Id = row.id;
           keepDetailIds.add(row.id);
+        } else {
+          detail.put('Visit__c', visitId);
         }
-        detail.put('Visit__c', visitId);
         detail.put('Product2__c', row.productId);
         detail.put('Display_Order__c', row.displayOrder != null ? row.displayOrder : order);
         detail.put('Detail_Type__c', String.isBlank(row.detailType) ? 'Detail' : row.detailType);
@@ -609,7 +804,11 @@ public with sharing class VisitCallReportService {
 
     Map<Integer, Id> detailIdByOrder = new Map<Integer, Id>();
     for (SObject saved : Database.query(buildProductDetailOrderQuery(visitId))) {
-      detailIdByOrder.put((Integer) saved.get('Display_Order__c'), (Id) saved.get('Id'));
+      Object orderValue = saved.get('Display_Order__c');
+      if (orderValue == null) {
+        continue;
+      }
+      detailIdByOrder.put(Integer.valueOf(String.valueOf(orderValue)), (Id) saved.get('Id'));
     }
 
     Map<Id, Visit_Product_Message__c> existingMessages = new Map<Id, Visit_Product_Message__c>();
@@ -643,8 +842,9 @@ public with sharing class VisitCallReportService {
           if (msgRow.id != null && existingMessages.containsKey(msgRow.id)) {
             msg.Id = msgRow.id;
             keepMessageIds.add(msgRow.id);
+          } else {
+            msg.put('Visit_Product_Detail__c', detailId);
           }
-          msg.put('Visit_Product_Detail__c', detailId);
           msg.put('Topic__c', msgRow.topic);
           msg.put('Sentiment__c', String.isBlank(msgRow.sentiment) ? 'Neutral' : msgRow.sentiment);
           msg.put('Response__c', msgRow.response);
@@ -684,8 +884,9 @@ public with sharing class VisitCallReportService {
         if (row.id != null && existing.containsKey(row.id)) {
           record.Id = row.id;
           keepIds.add(row.id);
+        } else {
+          record.put('Visit__c', visitId);
         }
-        record.put('Visit__c', visitId);
         record.put('Product2__c', row.productId);
         record.put('Visit_Attendee__c', row.visitAttendeeId);
         record.put('Quantity__c', row.quantity);
@@ -718,6 +919,7 @@ public with sharing class VisitCallReportService {
         Visit_Type__c,
         Start_Date__c,
         End_Date__c,
+        Visit_Date__c,
         Visit_Objective__c,
         Visit_Notes__c,
         Products_Discussed__c,
@@ -726,6 +928,8 @@ public with sharing class VisitCallReportService {
         Next_Visit_Date__c,
         Cancellation_Reason__c,
         Is_Double_Visit__c,
+        Double_Visit_With__c,
+        Double_Visit_With__r.Name,
         Coaching_Event__c,
         Account__c,
         Account__r.Name,
@@ -733,26 +937,33 @@ public with sharing class VisitCallReportService {
         Account__r.Specialty_1__c,
         Account__r.RecordType.Name,
         Account__r.RecordType.DeveloperName,
-        Assigned_To__r.Name
+        Assigned_To__c,
+        Assigned_To__r.Name,
+        Assigned_To__r.ManagerId,
+        Assigned_To__r.Manager.Name
       FROM Visit__c
       WHERE Id = :visitId
       WITH USER_MODE
       LIMIT 1
     ];
     if (visits.isEmpty()) {
-      throw new AuraHandledException('Visit not found.');
+      throw RestSafeError.make('Visit not found.');
     }
     return visits[0];
   }
 
-  private static VisitHeader mapVisitHeader(Visit__c visit) {
+  private static VisitHeader mapVisitHeader(Visit__c visit, VisitDoubleVisitService.Context teamContext) {
     VisitHeader header = new VisitHeader();
     header.id = visit.Id;
+    header.visitId = visit.Id;
     header.name = visit.Name;
     header.status = visit.Status__c;
     header.visitType = visit.Visit_Type__c;
     header.startDateTime = visit.Start_Date__c;
     header.endDateTime = visit.End_Date__c;
+    DateTime dayAnchor = visit.Start_Date__c != null ? visit.Start_Date__c : visit.Visit_Date__c;
+    header.visitDateLocal = dayAnchor == null ? null : dayAnchor.format('yyyy-MM-dd');
+    header.userTimeZone = UserInfo.getTimeZone().getID();
     header.durationLabel = formatDurationLabel(visit.Start_Date__c, visit.End_Date__c);
     header.visitObjective = visit.Visit_Objective__c;
     header.visitNotes = visit.Visit_Notes__c;
@@ -760,7 +971,15 @@ public with sharing class VisitCallReportService {
     header.nextVisitDate = visit.Next_Visit_Date__c;
     header.cancellationReason = visit.Cancellation_Reason__c;
     header.isLocked = visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled';
+    header.canEditSchedule = VisitActorAccess.canEditVisitSchedule();
+    header.canViewServiceRequests = VisitActorAccess.canViewServiceRequests();
     header.isDoubleVisit = visit.Is_Double_Visit__c == true;
+    header.doubleVisitWithId = visit.Double_Visit_With__c;
+    header.doubleVisitWithName = visit.Double_Visit_With__r != null
+      ? visit.Double_Visit_With__r.Name
+      : null;
+    header.defaultDoubleVisitWithId = teamContext != null ? teamContext.defaultUserId : null;
+    header.defaultDoubleVisitWithName = teamContext != null ? teamContext.defaultUserName : null;
     header.coachingEventId = visit.Coaching_Event__c;
     header.accountId = visit.Account__c;
     if (visit.Account__r != null) {
@@ -776,6 +995,7 @@ public with sharing class VisitCallReportService {
         ? visit.Account__r.RecordType.DeveloperName
         : null;
     }
+    header.assignedToId = visit.Assigned_To__c;
     header.assignedToName = visit.Assigned_To__r != null ? visit.Assigned_To__r.Name : null;
     return header;
   }
@@ -827,7 +1047,11 @@ public with sharing class VisitCallReportService {
     try {
       detailRecords = Database.query(buildProductDetailQuery(visitId));
     } catch (QueryException e) {
-      return rows;
+      try {
+        detailRecords = Database.query(buildProductDetailQueryWithoutHierarchy(visitId));
+      } catch (QueryException retryEx) {
+        return rows;
+      }
     }
 
     for (SObject detail : detailRecords) {
@@ -837,6 +1061,7 @@ public with sharing class VisitCallReportService {
       SObject product = detail.getSObject('Product2__r');
       row.productName = product != null ? (String) product.get('Name') : null;
       row.imageUrl = product != null ? getProductImageUrl((Product2) product) : null;
+      applyProductHierarchyFields(row, product);
       Object displayOrder = detail.get('Display_Order__c');
       row.displayOrder = displayOrder != null ? Integer.valueOf(String.valueOf(displayOrder)) : null;
       row.detailType = (String) detail.get('Detail_Type__c');
@@ -991,6 +1216,7 @@ public with sharing class VisitCallReportService {
         Product2 matchedProduct = productByName.get(name.toLowerCase());
         row.productId = matchedProduct.Id;
         row.imageUrl = getProductImageUrl(matchedProduct);
+        applyProductHierarchyFields(row, matchedProduct);
       }
       rows.add(row);
       order++;
@@ -1095,18 +1321,6 @@ public with sharing class VisitCallReportService {
     return result;
   }
 
-  private static List<TerritoryProductOption> fallbackActiveProducts() {
-    List<TerritoryProductOption> options = new List<TerritoryProductOption>();
-    for (Product2 product : queryActiveProducts(50)) {
-      TerritoryProductOption option = new TerritoryProductOption();
-      option.productId = product.Id;
-      option.productName = product.Name;
-      option.imageUrl = getProductImageUrl(product);
-      options.add(option);
-    }
-    return options;
-  }
-
   private static Set<Id> getExistingAttendeeAccountIds(Id visitId) {
     Set<Id> ids = new Set<Id>();
     for (Visit_Attendee__c record : [
@@ -1209,8 +1423,11 @@ public with sharing class VisitCallReportService {
       return false;
     }
     Map<String, Schema.SObjectField> fieldMap = token.getDescribe().fields.getMap();
-    return fieldMap.containsKey(fieldApiName) ||
-      fieldMap.containsKey(fieldApiName.toLowerCase());
+    Schema.SObjectField field = fieldMap.get(fieldApiName);
+    if (field == null) {
+      field = fieldMap.get(fieldApiName.toLowerCase());
+    }
+    return field != null && field.getDescribe().isAccessible();
   }
 
   private static Boolean isProductImageUrlReadable() {
@@ -1235,33 +1452,178 @@ public with sharing class VisitCallReportService {
       return new List<Product2>();
     }
     String imageSelect = isProductImageUrlReadable() ? ', Product_Image_URL__c' : '';
-    return Database.query(
+    String hierarchySelect = buildProductHierarchySelect(null);
+    String soql =
       'SELECT Id, Name' +
       imageSelect +
-      ' FROM Product2 WHERE Id IN :productIds AND IsActive = TRUE WITH USER_MODE ORDER BY Name ASC'
-    );
+      hierarchySelect +
+      ' FROM Product2 WHERE Id IN :productIds AND IsActive = TRUE WITH USER_MODE ORDER BY Name ASC';
+    try {
+      return Database.query(soql);
+    } catch (QueryException ex) {
+      return Database.query(
+        'SELECT Id, Name' +
+        imageSelect +
+        ' FROM Product2 WHERE Id IN :productIds AND IsActive = TRUE WITH USER_MODE ORDER BY Name ASC'
+      );
+    }
   }
 
-  private static List<Product2> queryActiveProducts(Integer rowLimit) {
-    Integer resolvedLimit = rowLimit == null || rowLimit <= 0 ? 50 : rowLimit;
-    String imageSelect = isProductImageUrlReadable() ? ', Product_Image_URL__c' : '';
-    return Database.query(
-      'SELECT Id, Name' +
-      imageSelect +
-      ' FROM Product2 WHERE IsActive = TRUE WITH USER_MODE ORDER BY Name ASC LIMIT :resolvedLimit'
-    );
+  private static TerritoryProductOption mapTerritoryProductOption(Product2 product) {
+    TerritoryProductOption option = new TerritoryProductOption();
+    option.productId = product.Id;
+    option.productName = product.Name;
+    option.imageUrl = getProductImageUrl(product);
+    applyProductHierarchyFields(option, product);
+    return option;
+  }
+
+  private static void applyProductHierarchyFields(TerritoryProductOption option, Product2 product) {
+    if (option == null || product == null) {
+      return;
+    }
+    if (hasObjectField(Product2.SObjectType, 'Product_Type__c')) {
+      option.productType = (String) product.get('Product_Type__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Parent_Product__c')) {
+      option.parentProductId = (Id) product.get('Parent_Product__c');
+      SObject parent = product.getSObject('Parent_Product__r');
+      if (parent != null) {
+        option.brandName = (String) parent.get('Name');
+      }
+    }
+    if (String.isBlank(option.brandName) && hasObjectField(Product2.SObjectType, 'Primary_Brand__c')) {
+      option.brandName = (String) product.get('Primary_Brand__c');
+    }
+    if (String.isBlank(option.brandName)) {
+      option.brandName = product.Name;
+    }
+    if (hasObjectField(Product2.SObjectType, 'Strength__c')) {
+      option.strength = (String) product.get('Strength__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Form__c')) {
+      option.form = (String) product.get('Form__c');
+    }
+  }
+
+  private static void applyProductHierarchyFields(ProductDetailRow row, SObject product) {
+    if (row == null || product == null) {
+      return;
+    }
+    if (hasObjectField(Product2.SObjectType, 'Product_Type__c')) {
+      row.productType = (String) product.get('Product_Type__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Parent_Product__c')) {
+      row.parentProductId = (Id) product.get('Parent_Product__c');
+      SObject parent = product.getSObject('Parent_Product__r');
+      if (parent != null) {
+        row.brandName = (String) parent.get('Name');
+      }
+    }
+    if (String.isBlank(row.brandName) && hasObjectField(Product2.SObjectType, 'Primary_Brand__c')) {
+      row.brandName = (String) product.get('Primary_Brand__c');
+    }
+    if (String.isBlank(row.brandName)) {
+      row.brandName = (String) product.get('Name');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Strength__c')) {
+      row.strength = (String) product.get('Strength__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Form__c')) {
+      row.form = (String) product.get('Form__c');
+    }
+  }
+
+  private static String buildProductHierarchySelect(String alias) {
+    String prefix = String.isBlank(alias) ? '' : alias + '.';
+    List<String> fields = new List<String>();
+    if (hasObjectField(Product2.SObjectType, 'Product_Type__c')) {
+      fields.add(prefix + 'Product_Type__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Parent_Product__c')) {
+      fields.add(prefix + 'Parent_Product__c');
+      fields.add(prefix + 'Parent_Product__r.Name');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Primary_Brand__c')) {
+      fields.add(prefix + 'Primary_Brand__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Strength__c')) {
+      fields.add(prefix + 'Strength__c');
+    }
+    if (hasObjectField(Product2.SObjectType, 'Form__c')) {
+      fields.add(prefix + 'Form__c');
+    }
+    return fields.isEmpty() ? '' : ', ' + String.join(fields, ', ');
+  }
+
+  private static Set<Id> expandDispenseRelatedProductIds(Set<Id> productIds) {
+    Set<Id> expanded = new Set<Id>();
+    if (productIds == null || productIds.isEmpty()) {
+      return expanded;
+    }
+    if (
+      !hasObjectField(Product2.SObjectType, 'Product_Type__c') ||
+      !hasObjectField(Product2.SObjectType, 'Parent_Product__c')
+    ) {
+      return expanded;
+    }
+    Set<Id> parentIds = new Set<Id>();
+    for (Product2 product : Database.query(
+      'SELECT Id, Product_Type__c, Parent_Product__c FROM Product2 ' +
+      'WHERE Id IN :productIds WITH USER_MODE'
+    )) {
+      parentIds.add(product.Id);
+      if (product.Parent_Product__c != null) {
+        parentIds.add(product.Parent_Product__c);
+      }
+    }
+    if (parentIds.isEmpty()) {
+      return expanded;
+    }
+    for (Product2 sibling : Database.query(
+      'SELECT Id FROM Product2 WHERE IsActive = TRUE ' +
+      'AND Product_Type__c IN (\'Sample\', \'Brand Reminder\') ' +
+      'AND Parent_Product__c IN :parentIds WITH USER_MODE'
+    )) {
+      expanded.add(sibling.Id);
+    }
+    return expanded;
   }
 
   private static Boolean visitDetailSchemaReady() {
-    return canQueryVisitProductDetails();
+    if (visitDetailSchemaReadyCached == true) {
+      return visitDetailSchemaReadyValue;
+    }
+    visitDetailSchemaReadyValue = canQueryVisitProductDetails();
+    visitDetailSchemaReadyCached = true;
+    return visitDetailSchemaReadyValue;
   }
 
   private static Boolean visitMessageSchemaReady() {
-    return visitDetailSchemaReady() && canQueryVisitProductMessages();
+    if (visitMessageSchemaReadyCached == true) {
+      return visitMessageSchemaReadyValue;
+    }
+    visitMessageSchemaReadyValue = visitDetailSchemaReady() && canQueryVisitProductMessages();
+    visitMessageSchemaReadyCached = true;
+    return visitMessageSchemaReadyValue;
   }
 
   private static Boolean visitSampleSchemaReady() {
-    return canQueryVisitSamples();
+    if (visitSampleSchemaReadyCached == true) {
+      return visitSampleSchemaReadyValue;
+    }
+    visitSampleSchemaReadyValue = canQueryVisitSamples();
+    visitSampleSchemaReadyCached = true;
+    return visitSampleSchemaReadyValue;
+  }
+
+  private static Boolean sampleInventorySchemaReady() {
+    if (sampleInventorySchemaReadyCached == true) {
+      return sampleInventorySchemaReadyValue;
+    }
+    sampleInventorySchemaReadyValue = canQuerySampleInventory();
+    sampleInventorySchemaReadyCached = true;
+    return sampleInventorySchemaReadyValue;
   }
 
   private static Boolean canQueryVisitProductDetails() {
@@ -1322,6 +1684,20 @@ public with sharing class VisitCallReportService {
   }
 
   private static String buildProductDetailQuery(Id visitId) {
+    String productImageSelect = isProductImageUrlReadable()
+      ? ', Product2__r.Product_Image_URL__c'
+      : '';
+    String hierarchySelect = buildProductHierarchySelect('Product2__r');
+    return 'SELECT Id, Product2__c, Product2__r.Name' +
+      productImageSelect +
+      hierarchySelect +
+      ', Display_Order__c, Detail_Type__c, Notes__c ' +
+      'FROM Visit_Product_Detail__c WHERE Visit__c = \'' +
+      String.escapeSingleQuotes(String.valueOf(visitId)) +
+      '\' WITH USER_MODE ORDER BY Display_Order__c ASC, CreatedDate ASC';
+  }
+
+  private static String buildProductDetailQueryWithoutHierarchy(Id visitId) {
     String productImageSelect = isProductImageUrlReadable()
       ? ', Product2__r.Product_Image_URL__c'
       : '';

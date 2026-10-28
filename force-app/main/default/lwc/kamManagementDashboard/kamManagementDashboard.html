@@ -1,0 +1,208 @@
+<template>
+    <article class="kam-shell">
+        <header class="kam-toolbar">
+            <div>
+                <h1 class="kam-title">KAM Management</h1>
+                <p class="kam-caption">{portfolio.dataSourceLabel}</p>
+            </div>
+            <div class="toolbar-actions">
+                <lightning-combobox
+                    variant="label-hidden"
+                    label="Plan status"
+                    value={planStatus}
+                    options={planStatusOptions}
+                    onchange={handlePlanStatusChange}
+                    class="status-filter"
+                ></lightning-combobox>
+                <button type="button" class="btn-text" onclick={handleResetFilters}>Reset</button>
+            </div>
+        </header>
+
+        <template if:true={isLoading}>
+            <div class="kam-loading">
+                <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={hasPortfolio}>
+                <section class="kpi-row" aria-label="Executive KPIs">
+                    <template for:each={executiveKpis} for:item="kpi">
+                        <button
+                            key={kpi.id}
+                            type="button"
+                            class="kpi-card"
+                            data-filter={kpi.filterValue}
+                            data-scroll={kpi.scrollTarget}
+                            onclick={handleKpiClick}
+                        >
+                            <span class="kpi-label">{kpi.label}</span>
+                            <span class="kpi-value">{kpi.value}</span>
+                            <span class="kpi-hint">{kpi.hint}</span>
+                            <span class="kpi-action">View details →</span>
+                        </button>
+                    </template>
+                </section>
+
+                <section class="insight-row">
+                    <article class="panel">
+                        <h2 class="panel-title">Plan status</h2>
+                        <div class="donut-wrap">
+                            <div class="donut" style={donutStyle}>
+                                <div class="donut-hole">
+                                    <span class="donut-value">{donutCenterLabel}</span>
+                                    <span class="donut-sub">accounts</span>
+                                </div>
+                            </div>
+                            <ul class="legend">
+                                <template for:each={planLegend} for:item="item">
+                                    <li key={item.key}>
+                                        <button
+                                            type="button"
+                                            class="legend-btn"
+                                            data-bucket={item.bucket}
+                                            onclick={handleLegendClick}
+                                        >
+                                            <span class={item.legendClass}></span>
+                                            <span class="legend-text">{item.bucket}</span>
+                                            <span class="legend-meta">{item.count} · {item.percentLabel}</span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </article>
+
+                    <article class="panel" data-section="stakeholders-section">
+                        <h2 class="panel-title">Stakeholders by role</h2>
+                        <ul class="bar-list">
+                            <template for:each={stakeholderBars} for:item="bar">
+                                <li key={bar.key} class="bar-row">
+                                    <span class="bar-label">{bar.roleLabel}</span>
+                                    <div class="bar-track"><span class="bar-fill" style={bar.barStyle}></span></div>
+                                    <span class="bar-count">{bar.count}</span>
+                                </li>
+                            </template>
+                        </ul>
+                    </article>
+
+                    <article class="panel" data-section="objectives-section">
+                        <h2 class="panel-title">Objectives</h2>
+                        <ul class="objective-list">
+                            <template for:each={objectiveBars} for:item="obj">
+                                <li key={obj.key} class="objective-row">
+                                    <span class="bar-label">{obj.stateLabel}</span>
+                                    <div class="bar-track bar-track--thin">
+                                        <span class={obj.barClass} style={obj.barStyle}></span>
+                                    </div>
+                                    <span class="bar-count">{obj.count} · {obj.percentLabel}</span>
+                                </li>
+                            </template>
+                        </ul>
+                    </article>
+                </section>
+
+                <section class="tables-row">
+                    <article class="panel panel-table" data-section="accounts-section">
+                        <div class="panel-head">
+                            <h2 class="panel-title">Top strategic accounts</h2>
+                            <span class="panel-meta">Click a row to open the account</span>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Type</th>
+                                    <th>Plan status</th>
+                                    <th>Objectives</th>
+                                    <th>Last engagement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={accountRows} for:item="row">
+                                    <tr
+                                        key={row.key}
+                                        class="data-row"
+                                        data-account-id={row.accountId}
+                                        onclick={handleAccountClick}
+                                    >
+                                        <td class="cell-primary">{row.accountName}</td>
+                                        <td>{row.accountTypeLabel}</td>
+                                        <td><span class={row.statusClass}>{row.planStatus}</span></td>
+                                        <td>{row.objectiveDisplay}</td>
+                                        <td>{row.lastEngagementLabel}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </article>
+
+                    <article class="panel panel-table" data-section="activities-section">
+                        <div class="panel-head">
+                            <h2 class="panel-title">Recent engagements</h2>
+                            <span class="panel-meta">Completed visits on key accounts</span>
+                        </div>
+                        <template if:true={hasActivities}>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Account</th>
+                                        <th>Type</th>
+                                        <th>Rep</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={activityRows} for:item="row">
+                                        <tr
+                                            key={row.key}
+                                            class="data-row"
+                                            data-visit-id={row.visitId}
+                                            onclick={handleVisitClick}
+                                        >
+                                            <td>{row.dateLabel}</td>
+                                            <td class="cell-primary">{row.accountName}</td>
+                                            <td>{row.visitType}</td>
+                                            <td>{row.ownerName}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template if:false={hasActivities}>
+                            <p class="empty-copy">No completed visits on these accounts yet.</p>
+                        </template>
+                    </article>
+                </section>
+
+                <template if:true={hasAlerts}>
+                    <section class="alerts-section">
+                        <h2 class="panel-title">Alerts &amp; next actions</h2>
+                        <ul class="alert-list">
+                            <template for:each={alertRows} for:item="alert">
+                                <li key={alert.key}>
+                                    <button
+                                        type="button"
+                                        class={alert.rowClass}
+                                        data-account-id={alert.accountId}
+                                        onclick={handleAlertClick}
+                                    >
+                                        <lightning-icon icon-name={alert.icon} size="x-small"></lightning-icon>
+                                        <span>{alert.message}</span>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </section>
+                </template>
+            </template>
+
+            <template if:false={hasPortfolio}>
+                <div class="empty-state">
+                    <p class="empty-title">No key accounts to show</p>
+                    <p class="empty-copy">Map affiliations or create Account Plans to populate this dashboard.</p>
+                </div>
+            </template>
+        </template>
+    </article>
+</template>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Dosage_Form__c</fullName>
+    <label>Dosage Form</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Pre-filled pen</fullName>
+                <default>false</default>
+                <label>Pre-filled pen</label>
+            </value>
+            <value>
+                <fullName>Auto-injector</fullName>
+                <default>false</default>
+                <label>Auto-injector</label>
+            </value>
+            <value>
+                <fullName>Cartridge</fullName>
+                <default>false</default>
+                <label>Cartridge</label>
+            </value>
+            <value>
+                <fullName>IV infusion</fullName>
+                <default>false</default>
+                <label>IV infusion</label>
+            </value>
+            <value>
+                <fullName>Tablet</fullName>
+                <default>false</default>
+                <label>Tablet</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

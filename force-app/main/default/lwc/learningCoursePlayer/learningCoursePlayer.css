@@ -1,19 +1,32 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;      /* allow the host to shrink inside a flex parent */
+}
+
 .course-player {
+    display: flex;
+    flex-direction: column;
     background: #fff;
     border: 1px solid #d8e2ec;
     border-radius: 14px;
     overflow: hidden;
+    /* Fill the host element which is sized by the parent container.
+       min-height keeps the card from collapsing if the parent
+       doesn't constrain height yet. */
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .player-header {
+    flex: 0 0 auto;
     display: flex;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.85rem;
     align-items: center;
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid #e5e5e5;
-    background: linear-gradient(90deg, #0b3d5c, #145a86);
-    color: #fff;
+    padding: 0.85rem 1.1rem;
+    background: #0b3d5c;
     flex-wrap: wrap;
 }
 
@@ -21,31 +34,79 @@
     display: flex;
     gap: 0.75rem;
     align-items: center;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
-.player-header h1 {
+.back-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+    padding: 0;
+}
+
+.back-btn:hover,
+.back-btn:focus {
+    background: #e8f3fb;
+    outline: none;
+}
+
+.back-chevron {
+    display: block;
+    width: 8px;
+    height: 8px;
+    margin-left: 2px;
+    border-left: 2px solid #0b3d5c;
+    border-bottom: 2px solid #0b3d5c;
+    transform: rotate(45deg);
+}
+
+.header-copy {
+    min-width: 0;
+}
+
+.course-title {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.subtitle {
-    margin: 0.15rem 0 0;
-    opacity: 0.85;
-    font-size: 0.85rem;
+.status-chip {
+    display: inline-block;
+    margin-top: 0.3rem;
+    padding: 0.12rem 0.5rem;
+    border-radius: 999px;
+    background: #e8f3fb;
+    color: #0b3d5c;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.3;
 }
 
 .header-progress {
     display: flex;
     align-items: center;
-    min-width: 220px;
-    flex: 1;
-    max-width: 420px;
+    gap: 0.65rem;
+    flex: 0 1 280px;
 }
 
 .progress-track {
-    flex: 1;
+    flex: 1 1 auto;
     height: 10px;
-    background: rgba(255, 255, 255, 0.25);
+    min-width: 80px;
+    background: rgba(255, 255, 255, 0.28);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -55,52 +116,131 @@
     background: #7ad0ff;
 }
 
+.progress-pct {
+    flex: 0 0 auto;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: #fff;
+    color: #0b3d5c;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
 .player-body {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    min-height: 520px;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    /* Prevent wide stage content from bleeding outside the row
+       and squeezing / clipping the curriculum sidebar. */
+    overflow: hidden;
 }
 
 .curriculum {
-    border-right: 1px solid #e5e5e5;
-    background: #f7fafc;
-    padding: 1rem 0.75rem;
+    flex: 0 0 280px;
+    width: 280px;
+    min-width: 200px; /* floor guard — sidebar never squashes below readable width */
+    max-width: 280px;
+    box-sizing: border-box;
+    border-right: 1px solid #d8e2ec;
+    background: #f4f7fa;
+    padding: 0.85rem 0.65rem 1rem;
+    overflow: auto;
 }
 
-.curriculum h2 {
-    margin: 0 0.5rem 0.75rem;
-    font-size: 0.8rem;
+.curriculum-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0.55rem 0.75rem;
+}
+
+.curriculum-heading {
+    font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #706e6b;
+    color: #54698d;
+    font-weight: 700;
 }
 
-.curriculum ul {
+.curriculum-count {
+    font-size: 0.75rem;
+    color: #54698d;
+}
+
+.curriculum-list {
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
+.curriculum-empty,
+.stage-empty {
+    margin: 0.5rem;
+    color: #54698d;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
 .curriculum-item {
     width: 100%;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    border: none;
+    align-items: flex-start;
+    gap: 0.65rem;
+    border: 1px solid transparent;
     background: transparent;
     text-align: left;
     padding: 0.7rem 0.55rem;
-    border-radius: 8px;
+    min-height: 44px;
+    border-radius: 10px;
     cursor: pointer;
+    color: #181818;
 }
 
-.curriculum-item:hover,
+.curriculum-item:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.curriculum-item:hover:not(:disabled) {
+    background: #eaf3fa;
+}
+
 .curriculum-item.is-selected {
-    background: #e8f3fb;
+    background: #fff;
+    border-color: #c9d7e3;
 }
 
-.curriculum-item.is-complete {
+.curriculum-item.is-complete .lesson-title {
     color: #2e844a;
+}
+
+.curriculum-item.is-locked {
+    opacity: 0.55;
+}
+
+.curriculum-item.is-locked .lesson-title {
+    color: #706e6b;
+}
+
+.item-icon-wrap {
+    flex: 0 0 auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: #e8eef3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.1rem;
+}
+
+.curriculum-item.is-selected .item-icon-wrap {
+    background: #d7ebf8;
 }
 
 .lesson-copy {
@@ -108,51 +248,122 @@
     flex-direction: column;
     flex: 1;
     min-width: 0;
+    gap: 0.1rem;
+}
+
+.lesson-type {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #54698d;
 }
 
 .lesson-title {
     font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 600;
+    color: #0b3d5c;
+    line-height: 1.3;
 }
 
 .lesson-meta {
     font-size: 0.75rem;
-    color: #706e6b;
+    color: #54698d;
+}
+
+.complete-icon,
+.lock-icon {
+    flex: 0 0 auto;
+    margin-top: 0.2rem;
+}
+
+.complete-icon {
+    --sds-c-icon-color-foreground-default: #2e844a;
+}
+
+.lock-icon {
+    --sds-c-icon-color-foreground-default: #706e6b;
 }
 
 .stage {
-    padding: 1.25rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    background: #fff;
+    padding: 1.25rem 1.35rem 1rem;
+    box-sizing: border-box;
+    overflow: auto;
 }
 
 .stage-title {
     margin: 0 0 1rem;
     color: #0b3d5c;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.3;
 }
 
-.stage-nav {
+.stage c-learning-content-viewer,
+.stage c-quiz-player {
+    display: block;
+    max-width: 100%;
+}
+
+.player-footer {
+    flex: 0 0 auto;
     display: flex;
     justify-content: space-between;
-    margin-top: 1.25rem;
-    padding-top: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.85rem 1.35rem;
     border-top: 1px solid #e5e5e5;
+    background: #fff;
 }
 
-.stage-nav-right {
+.player-footer-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
 }
 
-@media (max-width: 768px) {
+.nav-hint {
+    color: #54698d;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+
+@media (max-width: 767px) {
+    .course-player {
+        min-height: 0;
+    }
+
     .player-body {
-        grid-template-columns: 1fr;
+        flex-direction: column;
     }
 
     .curriculum {
-        border-right: none;
-        border-bottom: 1px solid #e5e5e5;
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: none;
         max-height: 220px;
         overflow: auto;
+        border-right: none;
+        border-bottom: 1px solid #d8e2ec;
+    }
+
+    .stage {
+        padding: 1rem 0.85rem;
+    }
+
+    .player-header,
+    .player-footer {
+        padding-left: 0.85rem;
+        padding-right: 0.85rem;
+    }
+
+    .header-progress {
+        flex: 1 1 100%;
     }
 }

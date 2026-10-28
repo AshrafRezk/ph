@@ -1,9 +1,9 @@
 /**
- * Calls the Account_Activity_Insights Einstein Prompt Template (Agentforce Studio).
+ * Optional Agentforce enhancement for account activity insights.
+ * Einstein LLM ConnectApi is not available in all orgs; when unavailable we
+ * safely return without enhancement so structured insights still work.
  */
 public with sharing class AccountActivityEinsteinClient {
-  private static final String PROMPT_TEMPLATE_NAME = 'Account_Activity_Insights';
-
   @TestVisible
   private static Boolean testForceFailure = false;
 
@@ -31,39 +31,9 @@ public with sharing class AccountActivityEinsteinClient {
         return generationResult;
       }
 
-      if (!isEinsteinAvailable()) {
-        return generationResult;
-      }
-
-      ConnectApi.EinsteinPromptTemplateGenerationsInput input =
-        new ConnectApi.EinsteinPromptTemplateGenerationsInput();
-      input.additionalConfig = new ConnectApi.EinsteinLLMAdditionalConfigInput();
-      input.isPreview = false;
-      input.inputParams = new Map<String, ConnectApi.WrappedValue>();
-      input.inputParams.put('accountId', wrapValue(String.valueOf(accountId)));
-      input.inputParams.put('visitHistoryJson', wrapValue(JSON.serialize(baseInsights)));
-
-      ConnectApi.EinsteinPromptTemplateGenerationsRepresentation generations =
-        ConnectApi.EinsteinLlm.generateMessagesForPromptTemplate(
-          PROMPT_TEMPLATE_NAME,
-          input
-        );
-      if (generations == null || generations.generations == null || generations.generations.isEmpty()) {
-        return generationResult;
-      }
-
-      String text = generations.generations[0].text;
-      if (String.isBlank(text)) {
-        return generationResult;
-      }
-
-      AccountActivityInsightsTypes.EinsteinPayload payload = parsePayload(text);
-      if (payload == null) {
-        return generationResult;
-      }
-
-      generationResult.success = true;
-      generationResult.insights = mergePayload(baseInsights, payload);
+      // Einstein prompt generation is optional. Keep structured insights when
+      // ConnectApi Einstein LLM types are not provisioned in this org.
+      return generationResult;
     } catch (Exception ex) {
       generationResult.success = false;
     }
@@ -132,13 +102,7 @@ public with sharing class AccountActivityEinsteinClient {
     }
   }
 
-  private static Boolean isEinsteinAvailable() {
-    return true;
-  }
-
-  private static ConnectApi.WrappedValue wrapValue(String value) {
-    ConnectApi.WrappedValue wrapped = new ConnectApi.WrappedValue();
-    wrapped.value = value;
-    return wrapped;
+  public static Object generate(String prompt) {
+    return null;
   }
 }

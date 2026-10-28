@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Quantity_To_Bulk__c</fullName>
+    <description>Quantity moved to brick bulk after ceiling split.</description>
+    <externalId>false</externalId>
+    <label>Quantity To Bulk</label>
+    <precision>16</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

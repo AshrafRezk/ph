@@ -1,0 +1,161 @@
+<template>
+    <div class="mx-root home">
+        <header class="mx-card hero">
+            <div class="hero__text">
+                <div class="mx-eyebrow">Meetings</div>
+                <h1 class="mx-h1">{greeting}</h1>
+                <p class="mx-sub">Plan meetings, follow approvals, invite attendees, and settle costs.</p>
+            </div>
+            <button class="mx-btn mx-btn_primary hero__new" onclick={handleNew}>
+                <svg class="mx-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+                New meeting
+            </button>
+        </header>
+
+        <nav class="mx-tabs" role="tablist">
+            <template for:each={tabs} for:item="t">
+                <button key={t.value} class={t.cls} role="tab" aria-selected={t.selected} data-value={t.value} onclick={handleTab}>
+                    {t.label}
+                    <template lwc:if={t.hasCount}><span class="mx-badge">{t.count}</span></template>
+                </button>
+            </template>
+        </nav>
+
+        <template lwc:if={showSpinner}><div class="mx-spinner"></div></template>
+        <template lwc:if={error}><div class="mx-banner mx-banner_bad">{error}</div></template>
+
+        <template lwc:if={isMine}>
+            <div class="mx-kpis kpis">
+                <template for:each={stageKpis} for:item="s">
+                    <button key={s.value} class={s.cls} data-value={s.value} onclick={handleStage}>
+                        <span class="mx-kpi__value">{s.count}</span>
+                        <span class="mx-kpi__label">{s.label}</span>
+                    </button>
+                </template>
+            </div>
+
+            <div class="mx-search">
+                <svg class="mx-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                <input class="mx-input" type="search" placeholder="Search title, venue, brand, department" oninput={handleSearch} />
+            </div>
+
+            <template lwc:if={hasMine}>
+                <ul class="cards">
+                    <template for:each={visibleMine} for:item="m">
+                        <li key={m.key}>
+                            <button class="mx-card card" data-id={m.id} onclick={handleOpen}>
+                                <div class="date-tile">
+                                    <span class="date-tile__day">{m.day}</span>
+                                    <span class="date-tile__month">{m.month}</span>
+                                </div>
+                                <div class="card__main">
+                                    <div class="card__pills">
+                                        <span class={m.statusPill}>{m.statusText}</span>
+                                        <template lwc:if={m.department}><span class="mx-pill mx-pill_dept">{m.department}</span></template>
+                                        <template lwc:if={m.showPayment}><span class={m.paymentPill}>{m.paymentStatus}</span></template>
+                                    </div>
+                                    <div class="mx-strong card__title">{m.title}</div>
+                                    <div class="mx-small mx-muted card__meta">
+                                        <span>{m.time}</span>
+                                        <template lwc:if={m.venue}><span>· {m.venue}</span></template>
+                                        <span>· {m.people} attendees</span>
+                                    </div>
+                                    <template lwc:if={m.showApprover}>
+                                        <div class="mx-small card__waiting">Waiting for {m.currentApproverName} · {m.waitingText}</div>
+                                    </template>
+                                </div>
+                                <div class="card__cost">
+                                    <span class="mx-label">{m.costLabel}</span>
+                                    <span class="mx-strong mx-num">{m.costText}</span>
+                                </div>
+                            </button>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template lwc:if={showMineEmpty}>
+                <div class="mx-card mx-empty">
+                    <div class="mx-empty__title">No meetings yet</div>
+                    {mineEmptyText}
+                </div>
+            </template>
+        </template>
+
+        <template lwc:if={isApprovals}>
+            <template lwc:if={hasApprovals}>
+                <ul class="cards">
+                    <template for:each={approvalCards} for:item="m">
+                        <li key={m.key} class="mx-card approval">
+                            <div class="approval__head">
+                                <div class="date-tile">
+                                    <span class="date-tile__day">{m.day}</span>
+                                    <span class="date-tile__month">{m.month}</span>
+                                </div>
+                                <div class="card__main">
+                                    <div class="card__pills">
+                                        <template lwc:if={m.department}><span class="mx-pill mx-pill_dept">{m.department}</span></template>
+                                        <span class="mx-pill mx-pill_warn">{m.waitingRole}</span>
+                                    </div>
+                                    <div class="mx-strong card__title">{m.title}</div>
+                                    <div class="mx-small mx-muted">
+                                        Requested by {m.ownerName} · {m.activityType} · waiting {m.waitingText}
+                                    </div>
+                                </div>
+                                <div class="card__cost">
+                                    <span class="mx-label">Planned</span>
+                                    <span class="mx-strong mx-num">{m.plannedText}</span>
+                                </div>
+                            </div>
+                            <div class="approval__actions">
+                                <button class="mx-btn" data-id={m.id} onclick={handleOpen}>Review details</button>
+                                <button class="mx-btn mx-btn_danger" data-id={m.id} data-kind="reject" onclick={handleDecision}>Reject</button>
+                                <button class="mx-btn mx-btn_ok" data-id={m.id} data-kind="approve" onclick={handleDecision}>Approve</button>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template lwc:if={showApprovalsEmpty}>
+                <div class="mx-card mx-empty">
+                    <div class="mx-empty__title">You're all caught up</div>
+                    Meetings waiting for your approval appear here.
+                </div>
+            </template>
+        </template>
+
+        <template lwc:if={isAccounting}>
+            <c-meeting-accounting-queue embedded currency-code={currency} onchanged={handleChanged}></c-meeting-accounting-queue>
+        </template>
+
+        <template lwc:if={isDrawerOpen}>
+            <div class="drawer">
+                <div class="drawer__panel">
+                    <c-meeting-workspace
+                        meeting-id={openId}
+                        embedded
+                        onclose={handleClose}
+                        onchanged={handleChanged}
+                        oncreated={handleCreated}
+                    ></c-meeting-workspace>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={isDecisionOpen}>
+            <div class="mx-overlay" onclick={closeDecision}>
+                <div class="mx-modal" role="dialog" aria-modal="true" onclick={stop}>
+                    <h2 class="mx-h2">{decisionTitle}</h2>
+                    <p class="mx-sub">{decision.title}</p>
+                    <label class="mx-field">
+                        <span class="mx-label">{decisionLabel}</span>
+                        <textarea class="mx-textarea" value={decisionText} oninput={handleDecisionText}></textarea>
+                    </label>
+                    <div class="mx-modal__actions">
+                        <button class="mx-btn" onclick={closeDecision}>Cancel</button>
+                        <button class={decisionButtonClass} disabled={decisionDisabled} onclick={confirmDecision}>{decisionButton}</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

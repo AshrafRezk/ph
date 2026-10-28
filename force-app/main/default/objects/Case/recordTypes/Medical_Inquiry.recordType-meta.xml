@@ -1,31 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <RecordType xmlns="http://soap.sforce.com/2006/04/metadata">
-    <active>true</active>
-    <businessProcess>Standard Support Process</businessProcess>
-    <description>Medical information inquiry captured during a field visit.</description>
     <fullName>Medical_Inquiry</fullName>
+    <active>true</active>
+    <businessProcess>Default Support Process</businessProcess>
+    <description>Medical inquiry raised from a field visit</description>
     <label>Medical Inquiry</label>
     <picklistValues>
         <picklist>Origin</picklist>
         <values>
-            <fullName>Field Visit</fullName>
+            <fullName>Phone</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Web</fullName>
+            <default>true</default>
+        </values>
+    </picklistValues>
+    <picklistValues>
+        <picklist>Priority</picklist>
+        <values>
+            <fullName>High</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Low</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Medium</fullName>
             <default>true</default>
         </values>
     </picklistValues>
     <picklistValues>
         <picklist>Question_Category__c</picklist>
-        <values>
-            <fullName>Efficacy</fullName>
-            <default>false</default>
-        </values>
-        <values>
-            <fullName>Safety</fullName>
-            <default>false</default>
-        </values>
-        <values>
-            <fullName>Dosing</fullName>
-            <default>false</default>
-        </values>
         <values>
             <fullName>Administration</fullName>
             <default>false</default>
@@ -35,11 +42,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Dosing</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Drug Interactions</fullName>
             <default>false</default>
         </values>
         <values>
-            <fullName>Pregnancy/Lactation</fullName>
+            <fullName>Efficacy</fullName>
             <default>false</default>
         </values>
         <values>
@@ -48,6 +59,52 @@
         </values>
         <values>
             <fullName>Other</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Pregnancy%2FLactation</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Safety</fullName>
+            <default>false</default>
+        </values>
+    </picklistValues>
+    <picklistValues>
+        <picklist>Reason</picklist>
+        <values>
+            <fullName>Complex functionality</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Existing problem</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Instructions not clear</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>New problem</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>User didn%27t attend training</fullName>
+            <default>false</default>
+        </values>
+    </picklistValues>
+    <picklistValues>
+        <picklist>Type</picklist>
+        <values>
+            <fullName>Feature Request</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Problem</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Question</fullName>
             <default>false</default>
         </values>
     </picklistValues>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Monthly_Frequencies__c</fullName>
+    <description>Per-month frequency exceptions as JSON: {"yyyy-MM-dd": {"s": rep suggestion, "a": manager decision, "r": reviewed}}. Written in system mode by ClassEngineController.</description>
+    <externalId>false</externalId>
+    <label>Monthly Frequencies</label>
+    <length>2000</length>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

@@ -3,6 +3,7 @@
     <fullName>MR_MRI_Target__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — MRI Target</description>
+    <externalId>false</externalId>
     <label>MRI Target</label>
     <precision>16</precision>
     <required>false</required>

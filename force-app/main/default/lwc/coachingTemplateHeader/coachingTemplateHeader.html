@@ -27,6 +27,16 @@
                     </div>
                 </div>
             </div>
+            <div class="slds-page-header__col-actions">
+                <div class="slds-page-header__controls">
+                    <lightning-button
+                        label="Clone"
+                        variant="brand"
+                        onclick={handleClone}
+                        disabled={isCloning}
+                    ></lightning-button>
+                </div>
+            </div>
         </div>
     </div>
 </template>

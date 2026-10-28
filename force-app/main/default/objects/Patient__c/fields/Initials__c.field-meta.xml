@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Initials__c</fullName>
+    <externalId>false</externalId>
+    <formula>UPPER(LEFT(First_Name__c, 1) &amp; &apos;.&apos; &amp; LEFT(Last_Name__c, 1) &amp; &apos;.&apos;)</formula>
+    <inlineHelpText>De-identified patient reference visible to the pharma company.</inlineHelpText>
+    <label>Initials</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -33,6 +33,32 @@ public with sharing class ClmContentService {
             + contentVersionId;
     }
 
+    /**
+     * Page-level PDF/PPT preview image. pageNumber is 1-based (matches CLM_Sequence__c.Page_Number__c).
+     * Renditions display inline in <img>; document/download URLs often force attachment downloads.
+     */
+    public static String buildPdfPageRenditionUrl(String contentVersionId, Integer pageNumber) {
+        if (String.isBlank(contentVersionId)) {
+            return null;
+        }
+        Integer pageIndex = pageNumber != null && pageNumber > 0 ? pageNumber - 1 : 0;
+        return '/sfc/servlet.shepherd/version/renditionDownload?rendition=THUMB720BY480&versionId='
+            + contentVersionId
+            + '&page='
+            + String.valueOf(pageIndex);
+    }
+
+    public static String buildPdfPageHighResUrl(String contentVersionId, Integer pageNumber) {
+        if (String.isBlank(contentVersionId)) {
+            return null;
+        }
+        Integer pageIndex = pageNumber != null && pageNumber > 0 ? pageNumber - 1 : 0;
+        return '/sfc/servlet.shepherd/version/renditionDownload?rendition=JPGZ&versionId='
+            + contentVersionId
+            + '&page='
+            + String.valueOf(pageIndex);
+    }
+
     public static String buildDocumentDownloadUrl(String contentDocumentId) {
         if (String.isBlank(contentDocumentId)) {
             return null;

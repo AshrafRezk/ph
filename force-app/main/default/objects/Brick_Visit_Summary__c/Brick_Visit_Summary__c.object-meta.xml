@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Completed doctor visits per brick, rep and month (BrickVisitSummaryBatch). The Sales vs Target card splits each brick's sales among the reps whose line carries the product, by these visits.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>Brick Visit Summary</label>
+    <nameField>
+        <displayFormat>BVS-{000000}</displayFormat>
+        <label>Brick Visit Summary</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Brick Visit Summaries</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

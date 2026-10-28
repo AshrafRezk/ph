@@ -5,9 +5,9 @@
                 <lightning-icon icon-name="utility:settings" size="medium"></lightning-icon>
             </div>
             <div class="admin-header-text">
-                <h1 class="admin-header-title">Setup / Modules</h1>
+                <h1 class="admin-header-title">Admin Console</h1>
                 <p class="admin-header-subtitle">
-                    Configure presentations, coaching, territory alignment, and operational settings.
+                    Open a module to configure the field app, content, territories, targets, sales loads, and planner rules.
                 </p>
             </div>
         </header>
@@ -18,61 +18,81 @@
                     type="search"
                     variant="label-hidden"
                     label="Search modules"
-                    placeholder="Search items..."
+                    placeholder="Search modules, e.g. samples, holidays, مدير المنتجات"
                     value={searchTerm}
                     onchange={handleSearch}
                 ></lightning-input>
             </div>
 
-            <div class="admin-section-header">
-                <span class="admin-section-chevron" aria-hidden="true">
-                    <lightning-icon icon-name="utility:chevrondown" size="x-small"></lightning-icon>
-                </span>
-                <span class="admin-section-label">General</span>
-                <span class="admin-section-count">{moduleCount} modules</span>
-            </div>
+            <p class="admin-module-total" aria-live="polite">{moduleTotalLabel}</p>
 
-            <div class="admin-cards-grid">
-                <template for:each={cardsView} for:item="card">
-                    <article
-                        key={card.id}
-                        class={card.cardClass}
-                        data-card-id={card.id}
-                        onclick={handleCardClick}
-                        onkeydown={handleCardClick}
-                        role="button"
-                        tabindex="0"
-                        aria-label={card.ariaLabel}
-                    >
-                        <div class="admin-card-icon-panel" aria-hidden="true">
-                            <lightning-icon icon-name={card.icon} size="medium" class="admin-card-icon"></lightning-icon>
-                        </div>
-                        <div class="admin-card-body">
-                            <h3 class="admin-card-title">{card.title}</h3>
-                            <p class="admin-card-desc">{card.description}</p>
-                        </div>
-                        <div class="admin-card-chevron" aria-hidden="true">
-                            <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
-                        </div>
-                    </article>
-                </template>
-            </div>
+            <template for:each={sectionsView} for:item="section">
+                <section key={section.id} class="admin-group" aria-labelledby={section.labelId}>
+                    <div class="admin-section-header">
+                        <h2 class="admin-section-heading">
+                            <button
+                                type="button"
+                                class="admin-section-toggle"
+                                data-group-id={section.id}
+                                aria-expanded={section.ariaExpanded}
+                                aria-controls={section.gridId}
+                                title={section.toggleLabel}
+                                onclick={handleToggleGroup}
+                            >
+                                <span class="admin-section-chevron" aria-hidden="true">
+                                    <lightning-icon icon-name={section.chevronIcon} size="x-small"></lightning-icon>
+                                </span>
+                                <span class="admin-section-label" id={section.labelId}>{section.label}</span>
+                                <span class="admin-section-count">{section.countLabel}</span>
+                            </button>
+                        </h2>
+                    </div>
+                    <template if:true={section.expanded}>
+                    <div class="admin-cards-grid" id={section.gridId}>
+                        <template for:each={section.cards} for:item="card">
+                            <article
+                                key={card.id}
+                                class={card.cardClass}
+                                data-card-id={card.id}
+                                onclick={handleCardClick}
+                                onkeydown={handleCardClick}
+                                role="button"
+                                tabindex="0"
+                                aria-label={card.ariaLabel}
+                            >
+                                <div class="admin-card-icon-panel" aria-hidden="true">
+                                    <lightning-icon icon-name={card.icon} size="medium" class="admin-card-icon"></lightning-icon>
+                                </div>
+                                <div class="admin-card-body">
+                                    <h3 class="admin-card-title">{card.title}</h3>
+                                    <p class="admin-card-desc">{card.description}</p>
+                                </div>
+                                <div class="admin-card-chevron" aria-hidden="true">
+                                    <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
+                                </div>
+                            </article>
+                        </template>
+                    </div>
+                    </template>
+                </section>
+            </template>
 
             <template if:false={hasResults}>
                 <div class="admin-empty">
-                    <p>No modules match your search.</p>
+                    <p>No modules match “{searchTerm}”.</p>
+                    <p class="admin-empty-hint">Try a shorter word, or open Help to search the step-by-step guides.</p>
                 </div>
             </template>
         </div>
     </section>
 
     <template if:true={showModal}>
-        <div class="admin-console-modal-wrapper">
+        <div class="admin-console-modal-wrapper" onkeydown={handleModalKeydown}>
             <div class="admin-console-backdrop" role="presentation" aria-hidden="true"></div>
             <section
                 role="dialog"
                 tabindex="-1"
-                class="slds-modal slds-fade-in-open slds-modal_large admin-console-modal"
+                class={modalClass}
                 aria-labelledby="modal-heading-01"
                 aria-modal="true"
             >
@@ -89,6 +109,18 @@
                         <h2 id="modal-heading-01" class="slds-modal__title slds-hyphenate">{modalTitle}</h2>
                     </header>
                     <div class="slds-modal__content slds-p-around_medium">
+                        <template if:true={isFieldAppManager}>
+                            <c-field-app-manager></c-field-app-manager>
+                        </template>
+                        <template if:true={isHcpPortalManager}>
+                            <c-hcp-portal-manager></c-hcp-portal-manager>
+                        </template>
+                        <template if:true={isCopilotTabs}>
+                            <c-copilot-app-nav-admin></c-copilot-app-nav-admin>
+                        </template>
+                        <template if:true={isVisitTabs}>
+                            <c-visit-tab-admin></c-visit-tab-admin>
+                        </template>
                         <template if:true={isClmAdmin}>
                             <c-clm-admin-console embedded></c-clm-admin-console>
                         </template>
@@ -101,22 +133,85 @@
                         <template if:true={isTerritoryManagement}>
                             <c-territory-management-console></c-territory-management-console>
                         </template>
+                        <template if:true={isSfeApprovers}>
+                            <c-sfe-approver-admin></c-sfe-approver-admin>
+                        </template>
                         <template if:true={isBricksManagement}>
                             <c-bricks-management-console></c-bricks-management-console>
                         </template>
                         <template if:true={isProductsManager}>
                             <c-product-territory-manager></c-product-territory-manager>
                         </template>
+                        <template if:true={isSampleLogistics}>
+                            <c-sample-logistics-console></c-sample-logistics-console>
+                        </template>
                         <template if:true={isPlanManager}>
                             <c-plan-cycle-manager></c-plan-cycle-manager>
                         </template>
-                        <template if:true={isSalesData}>
-                            <c-pharmacy-sales-data-admin></c-pharmacy-sales-data-admin>
+                        <template if:true={isCallTargetRules}>
+                            <c-call-target-rule-manager></c-call-target-rule-manager>
+                        </template>
+                        <template if:true={isSalesPolicyAdmin}>
+                            <c-sales-policy-admin></c-sales-policy-admin>
+                        </template>
+                        <template if:true={isMonthlyDataPack}>
+                            <c-monthly-data-pack></c-monthly-data-pack>
+                        </template>
+                        <template if:true={isSalesExportMonth}>
+                            <c-sales-export-month></c-sales-export-month>
+                        </template>
+                        <template if:true={isDistributorsManagement}>
+                            <c-distributors-management></c-distributors-management>
+                        </template>
+                        <template if:true={isTargetGovernanceAdmin}>
+                            <c-target-governance-admin></c-target-governance-admin>
+                        </template>
+                        <template if:true={isAccountManagement}>
+                            <c-account-management-console></c-account-management-console>
+                        </template>
+                        <template if:true={isAccountDataQuality}>
+                            <c-account-data-quality-console></c-account-data-quality-console>
+                        </template>
+                        <template if:true={isTargetMasterLists}>
+                            <c-target-master-list-admin></c-target-master-list-admin>
                         </template>
                         <template if:true={isIntegrationsManagement}>
                             <c-integrations-management-console
                                 onopenadminmodule={handleOpenAdminModule}
                             ></c-integrations-management-console>
+                        </template>
+                        <template if:true={isPromoGridManagement}>
+                            <c-promo-grid-manager></c-promo-grid-manager>
+                        </template>
+                        <template if:true={isPublicHolidaysManagement}>
+                            <c-public-holidays-manager></c-public-holidays-manager>
+                        </template>
+                        <template if:true={isPlannerRulesAdmin}>
+                            <c-planner-rules-admin></c-planner-rules-admin>
+                        </template>
+                        <template if:true={isLearningModuleManagement}>
+                            <c-learning-module-manager></c-learning-module-manager>
+                        </template>
+                        <template if:true={isMeetingsSetup}>
+                            <c-meeting-setup-admin></c-meeting-setup-admin>
+                        </template>
+                        <template if:true={isServiceRequestTypesAdmin}>
+                            <c-service-request-types-admin></c-service-request-types-admin>
+                        </template>
+                        <template if:true={isQuizManagement}>
+                            <c-quiz-manager></c-quiz-manager>
+                        </template>
+                        <template if:true={isKpiTargetsAdmin}>
+                            <c-kpi-targets-admin></c-kpi-targets-admin>
+                        </template>
+                        <template if:true={isChromeDataTools}>
+                            <c-admin-chrome-data-tools></c-admin-chrome-data-tools>
+                        </template>
+                        <template if:true={isTrailheadLearning}>
+                            <c-admin-trailhead-learning></c-admin-trailhead-learning>
+                        </template>
+                        <template if:true={isAdminConsoleHelp}>
+                            <c-admin-console-help onopenadminmodule={handleOpenAdminModule}></c-admin-console-help>
                         </template>
                     </div>
                 </div>

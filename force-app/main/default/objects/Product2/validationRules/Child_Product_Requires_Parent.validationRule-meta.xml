@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Child_Product_Requires_Parent</fullName>
+    <active>true</active>
+    <description>Detail, Sample, and Brand Reminder rows require a parent product. Fires only on create or when Parent Product / Product Type changes, so legacy rows can still be edited.</description>
+    <errorConditionFormula>AND(
+  OR(
+    ISNEW(),
+    ISCHANGED(Parent_Product__c),
+    ISCHANGED(Product_Type__c)
+  ),
+  OR(
+    ISPICKVAL(Product_Type__c, &quot;Detail&quot;),
+    ISPICKVAL(Product_Type__c, &quot;Sample&quot;),
+    ISPICKVAL(Product_Type__c, &quot;Brand Reminder&quot;)
+  ),
+  ISBLANK(Parent_Product__c)
+)</errorConditionFormula>
+    <errorDisplayField>Parent_Product__c</errorDisplayField>
+    <errorMessage>Select a parent product for this product type.</errorMessage>
+</ValidationRule>

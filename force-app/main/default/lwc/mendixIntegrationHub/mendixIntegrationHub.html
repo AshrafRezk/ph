@@ -4,26 +4,56 @@
             <img src={mendixLogoUrl} alt="Mendix logo" class="mendix-logo" />
             <div>
                 <h2 class="mendix-hub-title">Mendix Integration Hub</h2>
-                <p class="mendix-hub-subtitle">Sync and monitor data flows between Salesforce and Mendix applications.</p>
+                <p class="mendix-hub-subtitle">
+                    Monitor Salesforce ↔ Mendix sync for Time Off (TOT) submit and closure.
+                </p>
             </div>
         </header>
         <div class="mendix-hub-body">
             <div class="slds-box slds-theme_info slds-m-bottom_medium">
                 <p>{statusMessage}</p>
-                <p class="slds-text-body_small slds-m-top_x-small">Configure Named Credential <strong>Mendix_API</strong> when Mendix endpoints are available.</p>
+                <lightning-button
+                    class="slds-m-top_small"
+                    label="Export what Mendix has synced"
+                    onclick={handleExport}
+                ></lightning-button>
+                <p class="slds-text-body_small slds-m-top_x-small">
+                    Named Credential <strong>Mendix_API</strong> · Config
+                    <code>config/mendix/time_off_module_config.yaml</code> · SSO Salesforce → Mendix.
+                </p>
+                <p class="slds-text-body_small">
+                    Closure webhook: <code>/services/apexrest/mendix/v1/time-off/</code>
+                </p>
             </div>
+            <template if:true={error}>
+                <div class="slds-text-color_error slds-m-bottom_small">{error}</div>
+            </template>
             <h3 class="slds-text-heading_small">Recent Sync Logs</h3>
             <table class="slds-table slds-table_cell-buffer slds-table_bordered">
-                <thead><tr><th>Log</th><th>Object</th><th>External Id</th><th>Status</th><th>Last Sync</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Log</th>
+                        <th>Object</th>
+                        <th>External Id</th>
+                        <th>Status</th>
+                        <th>Last Sync</th>
+                    </tr>
+                </thead>
                 <tbody>
                     <template for:each={logs} for:item="log">
                         <tr key={log.Id}>
-                            <td>{log.Name}</td><td>{log.Object_Type__c}</td><td>{log.External_Id__c}</td>
-                            <td>{log.Sync_Status__c}</td><td>{log.Last_Sync__c}</td>
+                            <td>{log.Name}</td>
+                            <td>{log.objectType}</td>
+                            <td>{log.externalId}</td>
+                            <td>{log.syncStatus}</td>
+                            <td>{log.lastSync}</td>
                         </tr>
                     </template>
                 </tbody>
             </table>
+            <template if:false={hasLogs}>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-top_small">No sync logs yet.</p>
+            </template>
         </div>
     </article>
 </template>

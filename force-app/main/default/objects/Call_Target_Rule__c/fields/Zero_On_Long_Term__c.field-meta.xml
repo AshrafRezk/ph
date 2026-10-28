@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Zero_On_Long_Term__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When on, target calls drop to the minimum after long-term days. When off, a longer absence still takes only the one step.</description>
+    <label>Zero On Long Term</label>
+    <type>Checkbox</type>
+</CustomField>

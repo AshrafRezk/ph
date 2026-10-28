@@ -49,7 +49,8 @@ function mapPriorVisit(v) {
 async function loadPriorVisits(accountId, currentVisitId, beforeStart, assignedToId) {
     if (!accountId) return [];
     let where =
-        `Account__c = '${esc(accountId)}' AND Status__c = 'Completed' ` +
+        `Account__c = '${esc(accountId)}' ` +
+        `AND Status__c IN ('Completed','Draft','Submitted','Scheduled','Rescheduled') ` +
         `AND Id != '${esc(currentVisitId)}' `;
     if (beforeStart) {
         where += `AND Start_Date__c < ${beforeStart} `;
@@ -58,11 +59,14 @@ async function loadPriorVisits(accountId, currentVisitId, beforeStart, assignedT
         where += `AND Assigned_To__c = '${esc(assignedToId)}' `;
     }
     const rows = await soql(
-        'SELECT Id, Name, Start_Date__c, Visit_Objective__c, Visit_Notes__c, ' +
+        'SELECT Id, Name, Start_Date__c, Visit_Objective__c, Visit_Notes__c, Status__c, ' +
         'Products_Discussed__c, Assigned_To__r.Name FROM Visit__c ' +
         `WHERE ${where}ORDER BY Start_Date__c DESC NULLS LAST LIMIT ${MAX_PRIOR_VISITS}`
     );
-    return rows.map(mapPriorVisit);
+    return rows.map((v) => ({
+        ...mapPriorVisit(v),
+        objective: v.Visit_Objective__c || v.Status__c || null
+    }));
 }
 
 async function loadVisitContextInsights(params) {
@@ -85,8 +89,8 @@ async function loadVisitContextInsights(params) {
     }
 
     const visits = await soql(
-        'SELECT Id, Account__c, Start_Date__c, Assigned_To__c, Account__r.Name, ' +
-        'Account__r.BillingLatitude, Account__r.BillingLongitude ' +
+        'SELECT Id, Name, Account__c, Start_Date__c, Assigned_To__c, Status__c, Visit_Objective__c, ' +
+        'Products_Discussed__c, Account__r.Name, Account__r.BillingLatitude, Account__r.BillingLongitude ' +
         `FROM Visit__c WHERE Id = '${esc(visitId)}' LIMIT 1`
     );
     if (!visits.length) {
@@ -94,6 +98,16 @@ async function loadVisitContextInsights(params) {
     }
     const visit = visits[0];
     const account = visit.Account__r || {};
+    result.visitSummary = {
+        visitId: visit.Id,
+        visitName: visit.Name,
+        accountId: visit.Account__c || null,
+        accountName: account.Name || null,
+        startDateTime: visit.Start_Date__c || null,
+        status: visit.Status__c || null,
+        objective: visit.Visit_Objective__c || null,
+        productsDiscussed: visit.Products_Discussed__c || null
+    };
 
     if (account.BillingLatitude != null && account.BillingLongitude != null) {
         result.hasGeo = true;

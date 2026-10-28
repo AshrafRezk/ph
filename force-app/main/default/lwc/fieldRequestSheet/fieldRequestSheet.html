@@ -1,0 +1,130 @@
+<template>
+    <template if:true={isOpen}>
+        <div class="sheet-backdrop" onclick={handleClose}>
+        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="frs-title" tabindex="-1" onclick={handleSheetClick} onkeydown={handleSheetKeydown}>
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <header class="sheet-header">
+                <div>
+                    <h2 id="frs-title" class="sheet-title">New request</h2>
+                    <p class="sheet-sub">Medical questions go to medical. Marketing services, samples, and everything else go to your manager first.</p>
+                </div>
+                <lightning-button-icon
+                    icon-name="utility:close"
+                    alternative-text="Close"
+                    onclick={handleClose}
+                ></lightning-button-icon>
+            </header>
+            <ol class="path" aria-label="Where this request goes">
+                <li class="path-step is-now">Rep</li>
+                <template if:true={isMedical}>
+                    <li class="path-step">Medical Affairs</li>
+                </template>
+                <template if:false={isMedical}>
+                    <li class="path-step">Manager</li>
+                </template>
+                <li class="path-step">Done</li>
+            </ol>
+
+            <div class="sheet-body">
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                </template>
+
+                <template if:false={isLoading}>
+                    <template if:true={errorMessage}>
+                        <p class="error" role="alert">{errorMessage}</p>
+                    </template>
+
+                    <div class="kind-row">
+                        <template if:true={showMedicalKind}>
+                            <button type="button" class={medicalKindClass} data-kind="Medical" aria-pressed={medicalPressed} onclick={handleKind}>
+                                <span class="kind-title">Medical</span>
+                                <span class="kind-desc">Efficacy, safety, dosing, and more</span>
+                            </button>
+                        </template>
+                        <template if:true={showMarketingKind}>
+                            <button type="button" class={marketingKindClass} data-kind="Marketing" aria-pressed={marketingPressed} onclick={handleKind}>
+                                <span class="kind-title">Marketing Services</span>
+                                <span class="kind-desc">Honorarium, hospitality, CME, branding, and more</span>
+                            </button>
+                        </template>
+                        <button type="button" class={fieldKindClass} data-kind="Field" aria-pressed={fieldPressed} onclick={handleKind}>
+                            <span class="kind-title">Something else</span>
+                            <span class="kind-desc">Sample, device, material, other</span>
+                        </button>
+                    </div>
+
+                    <c-field-account-lookup
+                        label="Account"
+                        required
+                        locked={accountLocked}
+                        invalid={accountInvalid}
+                        account-id={chosenAccountId}
+                        account-name={chosenAccountName}
+                        icon-name={chosenIconName}
+                        record-type-label={chosenRecordTypeLabel}
+                        suggestions={accountHints}
+                        onchange={handleAccountChange}
+                    ></c-field-account-lookup>
+
+                    <lightning-combobox
+                        label="Type"
+                        value={selectedType}
+                        options={typeOptions}
+                        onchange={handleTypeChange}
+                        class="field"
+                    ></lightning-combobox>
+
+                    <lightning-combobox
+                        label={productLabel}
+                        value={selectedProductId}
+                        options={productOptions}
+                        placeholder="Select…"
+                        onchange={handleProductChange}
+                        class="field"
+                    ></lightning-combobox>
+
+                    <template if:true={isSample}>
+                        <lightning-input
+                            type="number"
+                            label="Quantity"
+                            min="1"
+                            value={sampleQuantity}
+                            onchange={handleQuantityChange}
+                            class="field"
+                        ></lightning-input>
+                    </template>
+
+                    <lightning-combobox
+                        label="Urgency"
+                        value={selectedUrgency}
+                        options={urgencyOptions}
+                        onchange={handleUrgencyChange}
+                        class="field"
+                    ></lightning-combobox>
+
+                    <lightning-textarea
+                        label={summaryLabel}
+                        value={summary}
+                        onchange={handleSummaryChange}
+                        maxlength="2000"
+                    ></lightning-textarea>
+                </template>
+            </div>
+
+            <template if:false={isLoading}>
+                <div class="sheet-actions">
+                    <lightning-button label="Cancel" onclick={handleClose}></lightning-button>
+                    <lightning-button
+                        class="primary"
+                        label="Send request"
+                        variant="brand"
+                        onclick={handleSubmit}
+                        disabled={isSaving}
+                    ></lightning-button>
+                </div>
+            </template>
+        </section>
+        </div>
+    </template>
+</template>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Inactive_Reason__c</fullName>
+    <description>Required when Account Stage is Inactive.</description>
+    <label>Inactive Reason</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Left Practice</fullName>
+                <default>false</default>
+                <label>Left practice / retired</label>
+            </value>
+            <value>
+                <fullName>Deceased</fullName>
+                <default>false</default>
+                <label>Deceased</label>
+            </value>
+            <value>
+                <fullName>Left Territory</fullName>
+                <default>false</default>
+                <label>Left territory</label>
+            </value>
+            <value>
+                <fullName>Invalid Data</fullName>
+                <default>false</default>
+                <label>Invalid or poor quality data</label>
+            </value>
+            <value>
+                <fullName>No Longer Customer</fullName>
+                <default>false</default>
+                <label>No longer a customer</label>
+            </value>
+            <value>
+                <fullName>Requested by SFE</fullName>
+                <default>false</default>
+                <label>Requested by SFE</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

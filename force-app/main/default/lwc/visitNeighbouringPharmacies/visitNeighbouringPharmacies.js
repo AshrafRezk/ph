@@ -6,11 +6,18 @@ import LEAFLET from '@salesforce/resourceUrl/leaflet';
 import getVisitContextInsights from '@salesforce/apex/VisitContextInsightsController.getVisitContextInsights';
 import searchOpenMapPharmacies from '@salesforce/apex/VisitContextInsightsController.searchOpenMapPharmacies';
 import addExternalPharmacyToRoute from '@salesforce/apex/VisitContextInsightsController.addExternalPharmacyToRoute';
-import { addOsmTileLayer, createVisitPinIcon, ensureLeaflet } from 'c/plannerMapPins';
+import {
+    addNeighbourMapTileLayer,
+    createAccountCenterPinIcon,
+    createPharmacyPinIcon,
+    ensureLeaflet,
+    fitNeighbourMapView,
+    styleNeighbourMapPin
+} from 'c/plannerMapPins';
 
 const DEFAULT_PAGE_SIZE = 5;
 const DEFAULT_MAP_ZOOM = 14;
-const MIN_MAP_ZOOM = 12;
+const MIN_MAP_ZOOM = 8;
 const MAX_MAP_ZOOM = 18;
 const FILTER_ALL = 'all';
 const FILTER_IN_LIST = 'inList';
@@ -38,16 +45,6 @@ function decoratePharmacy(row, index, addingExternalKey) {
         badgeClass: inAccountList ? 'source-badge source-badge-in-list' : 'source-badge source-badge-out-list',
         isAdding: addingExternalKey === key
     };
-}
-
-function createExternalPharmacyIcon(leaflet) {
-    return leaflet.divIcon({
-        className: 'map-pin-icon-shell',
-        html: '<div class="map-pin-marker map-pin-marker-external" title="Pharmacy out of list"></div>',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-        popupAnchor: [0, -8]
-    });
 }
 
 export default class VisitNeighbouringPharmacies extends NavigationMixin(LightningElement) {
@@ -345,12 +342,8 @@ export default class VisitNeighbouringPharmacies extends NavigationMixin(Lightni
         return DEFAULT_MAP_ZOOM;
     }
 
-    enforceMapView(center, zoom) {
-        if (!this.mapInstance || !center) {
-            return;
-        }
-        this.mapInstance.invalidateSize();
-        this.mapInstance.setView([center.lat, center.lng], zoom, { animate: false });
+    enforceMapView(center, points) {
+        fitNeighbourMapView(this.mapInstance, window.L, center, points);
     }
 
     getMapPharmacies() {
@@ -390,27 +383,27 @@ export default class VisitNeighbouringPharmacies extends NavigationMixin(Lightni
         const leaflet = window.L;
         this.mapInstance = leaflet.map(mapDiv, {
             zoomControl: true,
+            attributionControl: false,
             center: [center.lat, center.lng],
             zoom: mapZoom,
             minZoom: MIN_MAP_ZOOM,
             maxZoom: MAX_MAP_ZOOM,
             worldCopyJump: false
         });
-        addOsmTileLayer(this.mapInstance, leaflet);
+        addNeighbourMapTileLayer(this.mapInstance, leaflet);
 
-        const centerMarker = leaflet.circleMarker([center.lat, center.lng], {
-            radius: 11,
-            color: '#0176d3',
-            fillColor: '#0176d3',
-            fillOpacity: 0.95,
-            weight: 2
+        const centerMarker = leaflet.marker([center.lat, center.lng], {
+            icon: createAccountCenterPinIcon(leaflet),
+            zIndexOffset: 600
         });
         centerMarker.addTo(this.mapInstance);
+        styleNeighbourMapPin(centerMarker);
         centerMarker.bindPopup(
             `<strong>${this.insights.centerAccountName || 'Call location'}</strong><br/><span>Current visit account</span>`
         );
         this.mapMarkers.push(centerMarker);
 
+        const plottedPoints = [];
         mapPharmacies.forEach((pharmacy) => {
             if (!this.isPlottablePharmacy(pharmacy, center)) {
                 return;
@@ -418,25 +411,24 @@ export default class VisitNeighbouringPharmacies extends NavigationMixin(Lightni
             const lat = Number(pharmacy.latitude);
             const lng = Number(pharmacy.longitude);
             const inAccountList = pharmacy.inAccountList === true;
-            const marker = inAccountList
-                ? leaflet.marker([lat, lng], {
-                      icon: createVisitPinIcon('hco', leaflet)
-                  })
-                : leaflet.marker([lat, lng], {
-                      icon: createExternalPharmacyIcon(leaflet)
-                  });
+            const marker = leaflet.marker([lat, lng], {
+                icon: createPharmacyPinIcon(inAccountList, leaflet),
+                zIndexOffset: inAccountList ? 400 : 200
+            });
             marker.addTo(this.mapInstance);
+            styleNeighbourMapPin(marker);
             const sourceLabel = inAccountList ? 'In list' : 'Out of list';
             marker.bindPopup(
                 `<strong>${pharmacy.name}</strong><br/>${pharmacy.addressLabel || pharmacy.city || ''}<br/>${pharmacy.distanceLabel}<br/><em>${sourceLabel}</em>`
             );
             marker.accountId = pharmacy.accountId;
             this.mapMarkers.push(marker);
+            plottedPoints.push({ lat, lng });
         });
 
-        this.enforceMapView(center, mapZoom);
-        window.setTimeout(() => this.enforceMapView(center, mapZoom), 120);
-        window.setTimeout(() => this.enforceMapView(center, mapZoom), 400);
+        this.enforceMapView(center, plottedPoints);
+        window.setTimeout(() => this.enforceMapView(center, plottedPoints), 120);
+        window.setTimeout(() => this.enforceMapView(center, plottedPoints), 400);
     }
 
     destroyMap() {

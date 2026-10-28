@@ -1,0 +1,72 @@
+.sla-panel {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+}
+
+.sla-title {
+    font-size: 0.875rem;
+    font-weight: 400;
+    margin: 0 0 0.75rem;
+    color: #181818;
+}
+
+.sla-card {
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    padding: 1rem 1.125rem;
+}
+
+.sla-card-success {
+    background: #eef9f1;
+    border-color: #2e844a;
+}
+
+.sla-card-warning {
+    background: #fff8e6;
+    border-color: #dd7a01;
+}
+
+.sla-card-error {
+    background: #fef1f1;
+    border-color: #ba0517;
+}
+
+.sla-card-base {
+    background: #f3f3f3;
+    border-color: #c9c9c9;
+}
+
+.sla-status {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.5rem;
+    color: #2e844a;
+}
+
+.sla-card-warning .sla-status {
+    color: #8c4b02;
+}
+
+.sla-card-error .sla-status {
+    color: #ba0517;
+}
+
+.sla-card-base .sla-status {
+    color: #444444;
+}
+
+.sla-elapsed {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin: 0;
+    color: #181818;
+}
+
+.sla-due {
+    font-size: 0.8125rem;
+    margin: 0.375rem 0 0;
+    color: #5c5c5c;
+}

@@ -1,0 +1,306 @@
+<template>
+    <div class="wrap">
+        <div class="hero">
+            <div>
+                <h3>KPI Targets</h3>
+                <p>
+                    Configure scorecard targets by role, choose what each metric counts from
+                    (numerator ÷ denominator), and add custom metrics. Field and Lead scorecards
+                    read these values in realtime.
+                </p>
+            </div>
+            <div class="hero-actions">
+                <lightning-button
+                    label="Reset to framework"
+                    class="reset-btn"
+                    onclick={handleResetRequest}
+                    disabled={busy}
+                ></lightning-button>
+                <lightning-button variant="brand" label="Save all" onclick={handleSave} disabled={busy}></lightning-button>
+            </div>
+        </div>
+
+        <template if:true={confirmReset}>
+            <div class="reset-confirm" role="alertdialog" aria-label="Confirm reset to framework">
+                <p>
+                    <strong>Reset all KPI targets to the SFE framework defaults?</strong> Every target percent, period
+                    and count source returns to the framework value, and custom metrics are removed. This cannot be
+                    undone.
+                </p>
+                <div class="reset-confirm-actions">
+                    <lightning-button
+                        variant="destructive"
+                        label="Yes, reset"
+                        class="reset-confirm-btn"
+                        onclick={handleReset}
+                        disabled={busy}
+                    ></lightning-button>
+                    <lightning-button label="Cancel" class="reset-cancel-btn" onclick={handleResetCancel}></lightning-button>
+                </div>
+            </div>
+        </template>
+
+        <template if:true={error}>
+            <div class="error">{error}</div>
+        </template>
+
+        <template if:true={needsSeed}>
+            <div class="error">
+                No KPI targets are saved yet. Reading this screen never writes data.
+                <lightning-button
+                    label="Load framework defaults"
+                    variant="brand"
+                    onclick={handleSeed}
+                    disabled={busy}
+                ></lightning-button>
+            </div>
+        </template>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading KPI targets" size="small"></lightning-spinner>
+        </template>
+
+        <template if:false={loading}>
+            <div class="layout">
+                <aside class="roles" aria-label="Roles">
+                    <div class="roles-title">Roles</div>
+                    <template for:each={roleNav} for:item="role">
+                        <button
+                            key={role.key}
+                            type="button"
+                            class={role.buttonClass}
+                            data-role={role.key}
+                            onclick={handleRoleClick}
+                        >
+                            <span>{role.label}</span>
+                            <span class="role-count">{role.count}</span>
+                        </button>
+                    </template>
+                </aside>
+
+                <section class="main">
+                    <div class="toolbar">
+                        <div class="toolbar-left">
+                            <lightning-input
+                                type="search"
+                                label="Search metrics"
+                                value={searchText}
+                                onchange={handleSearch}
+                                placeholder="Coverage, sales, quiz…"
+                            ></lightning-input>
+                            <lightning-button
+                                label={addToggleLabel}
+                                variant="neutral"
+                                onclick={toggleAdd}
+                                disabled={busy}
+                            ></lightning-button>
+                        </div>
+                    </div>
+
+                    <template if:true={showAdd}>
+                        <div class="panel">
+                            <h4 class="panel-title">Add metric</h4>
+                            <p class="panel-hint">
+                                Pick a framework metric or create a custom one, then define where it
+                                counts from so scorecards know the numerator and denominator.
+                                Examples: Brand Manager → Regions Visited (districts visited ÷ districts
+                                on line); District Manager → Team Double-Visit Coverage (reps coached ÷
+                                team size).
+                            </p>
+                            <div class="add-grid">
+                                <lightning-combobox
+                                    label="Role"
+                                    value={draftRole}
+                                    options={roleOptions}
+                                    data-field="role"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    label="Metric catalog"
+                                    value={selectedPresetValue}
+                                    options={metricPresetOptions}
+                                    onchange={handlePresetChange}
+                                ></lightning-combobox>
+                                <lightning-input
+                                    type="number"
+                                    label="Target %"
+                                    value={draftPercent}
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    data-field="percent"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <template if:true={isCustomMetric}>
+                                    <lightning-input
+                                        label="Metric key"
+                                        value={draftMetricKey}
+                                        placeholder="e.g. Sample_Drop_Rate"
+                                        data-field="metricKey"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Display label"
+                                        value={draftMetricLabel}
+                                        placeholder="Sample drop rate"
+                                        data-field="metricLabel"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                </template>
+                                <lightning-combobox
+                                    label="Period"
+                                    value={draftPeriod}
+                                    options={periodOptions}
+                                    data-field="period"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <lightning-combobox
+                                    label="Scope"
+                                    value={draftScopeLevel}
+                                    options={scopeLevelOptions}
+                                    data-field="scopeLevel"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <template if:true={showScopeKey}>
+                                    <lightning-input
+                                        label="Scope key"
+                                        value={draftScopeKey}
+                                        placeholder="Line name, title, or user Id"
+                                        data-field="scopeKey"
+                                        onchange={handleDraftChange}
+                                    ></lightning-input>
+                                </template>
+                                <lightning-combobox
+                                    label="Counts from"
+                                    value={draftCountSource}
+                                    options={countSourceOptions}
+                                    data-field="countSource"
+                                    onchange={handleDraftChange}
+                                ></lightning-combobox>
+                                <lightning-input
+                                    class="wide"
+                                    label="Numerator (what we count)"
+                                    value={draftCountNumerator}
+                                    data-field="countNumerator"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                                <lightning-input
+                                    class="wide"
+                                    label="Denominator (what we divide by)"
+                                    value={draftCountDenominator}
+                                    data-field="countDenominator"
+                                    onchange={handleDraftChange}
+                                ></lightning-input>
+                            </div>
+                            <div class="add-actions">
+                                <lightning-button label="Cancel" onclick={toggleAdd}></lightning-button>
+                                <lightning-button
+                                    variant="brand"
+                                    label="Add metric"
+                                    onclick={handleAddTarget}
+                                    disabled={busy}
+                                ></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template if:true={hasCards}>
+                        <div class="cards">
+                            <template for:each={filteredCards} for:item="card">
+                                <article key={card.key} class="card">
+                                    <div class="card-top">
+                                        <div>
+                                            <h4 class="card-title">{card.metricLabel}</h4>
+                                            <p class="card-key">{card.roleLabel} · {card.metricKey}</p>
+                                        </div>
+                                        <div>
+                                            <span class="badge badge-source">{card.sourceBadge}</span>
+                                            <template if:true={card.customBadge}>
+                                                <span class="badge badge-custom slds-m-left_xx-small"
+                                                    >{card.customBadge}</span
+                                                >
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <div class="count-box">
+                                        <strong>Counts from</strong>
+                                        <div class="frac">
+                                            <span>{card.countNumerator}</span>
+                                            <span class="den">÷ {card.countDenominator}</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-meta">
+                                        <lightning-input
+                                            type="number"
+                                            label="Target %"
+                                            value={card.displayPct}
+                                            min="0"
+                                            max="100"
+                                            step="0.1"
+                                            data-id={card.id}
+                                            onchange={handlePctChange}
+                                        ></lightning-input>
+                                        <lightning-combobox
+                                            label="Period"
+                                            value={card.periodLabel}
+                                            options={periodOptions}
+                                            data-id={card.id}
+                                            data-field="period"
+                                            onchange={handleCardField}
+                                        ></lightning-combobox>
+                                        <lightning-combobox
+                                            label="Count source"
+                                            value={card.countSource}
+                                            options={countSourceOptions}
+                                            data-id={card.id}
+                                            data-field="countSource"
+                                            onchange={handleCardField}
+                                        ></lightning-combobox>
+                                        <lightning-input
+                                            label="Scope"
+                                            value={card.scopeLabel}
+                                            disabled
+                                        ></lightning-input>
+                                    </div>
+
+                                    <lightning-input
+                                        label="Numerator"
+                                        value={card.countNumerator}
+                                        data-id={card.id}
+                                        data-field="countNumerator"
+                                        onchange={handleCardField}
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Denominator"
+                                        value={card.countDenominator}
+                                        data-id={card.id}
+                                        data-field="countDenominator"
+                                        onchange={handleCardField}
+                                    ></lightning-input>
+
+                                    <div class="card-actions">
+                                        <span class="slds-text-body_small slds-text-color_weak"
+                                            >{card.scopeLabel}</span
+                                        >
+                                        <lightning-button
+                                            label="Remove"
+                                            variant="destructive-text"
+                                            data-id={card.id}
+                                            onclick={handleDelete}
+                                            disabled={busy}
+                                        ></lightning-button>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </template>
+                    <template if:false={hasCards}>
+                        <div class="empty">No metrics match this role / search. Add a metric to get started.</div>
+                    </template>
+                </section>
+            </div>
+        </template>
+    </div>
+</template>

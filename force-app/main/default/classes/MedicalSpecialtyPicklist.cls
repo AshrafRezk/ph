@@ -45,8 +45,14 @@ public with sharing class MedicalSpecialtyPicklist {
     labelByApiValue = new Map<String, String>();
     apiValueByLabel = new Map<String, String>();
 
-    Schema.DescribeFieldResult fieldDescribe = Account.Specialty_1__c.getDescribe();
-    for (Schema.PicklistEntry entry : fieldDescribe.getPicklistValues()) {
+    Map<String, Schema.SObjectField> accountFields = Account.SObjectType.getDescribe().fields.getMap();
+    Schema.SObjectField specialtyField = accountFields.containsKey('Specialty_1__c')
+      ? accountFields.get('Specialty_1__c')
+      : accountFields.get('specialty_1__c');
+    if (specialtyField == null) {
+      return;
+    }
+    for (Schema.PicklistEntry entry : specialtyField.getDescribe().getPicklistValues()) {
       if (!entry.isActive()) {
         continue;
       }

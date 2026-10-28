@@ -1,0 +1,58 @@
+<template>
+    <section class="team-card" aria-label="Subordinate territories">
+        <header class="team-header">
+            <h2 class="team-title">My subordinate territories</h2>
+            <p class="team-subtitle">Territories and people in your hierarchy.</p>
+        </header>
+
+        <template if:true={isLoading}>
+            <p class="team-empty">Loading your team…</p>
+        </template>
+        <template if:true={errorMessage}>
+            <p class="team-error">{errorMessage}</p>
+        </template>
+        <template if:true={isEmpty}>
+            <p class="team-empty">No subordinate territories are assigned to you.</p>
+        </template>
+
+        <template if:true={hasRows}>
+            <ul class="territory-list">
+                <template for:each={rows} for:item="row">
+                    <li key={row.territoryId} class="territory-item" style={row.depthStyle}>
+                        <div class="territory-line">
+                            <template if:true={row.hasChildren}>
+                                <button
+                                    type="button"
+                                    class="toggle-btn"
+                                    data-id={row.territoryId}
+                                    onclick={handleToggle}
+                                >
+                                    {row.toggleLabel}
+                                </button>
+                            </template>
+                            <div class="territory-name">
+                                <strong>{row.name}</strong>
+                                <template if:true={row.level}>
+                                    <span class="level-pill">{row.level}</span>
+                                </template>
+                            </div>
+                        </div>
+                        <template if:true={row.hasUsers}>
+                            <ul class="user-list">
+                                <template for:each={row.users} for:item="person">
+                                    <li key={person.key} class="user-item">
+                                        <span class="user-name">{person.name}</span>
+                                        <span class="user-role">{person.role}</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template if:false={row.hasUsers}>
+                            <p class="vacant">No users assigned</p>
+                        </template>
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </section>
+</template>

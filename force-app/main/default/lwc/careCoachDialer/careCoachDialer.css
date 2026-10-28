@@ -1,0 +1,482 @@
+@import 'c/careCoachStyles';
+
+.dialer-container {
+    width: 24rem;
+    max-width: calc(100vw - 1.5rem);
+    min-width: 0;
+    padding: 0;
+    margin: 0 auto;
+}
+
+.dialer {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    border-radius: 1.25rem;
+    background: linear-gradient(180deg, #06334a 0%, #0b4f5f 55%, #0f7c8c 100%);
+    color: #fff;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+.dialer-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1rem 1rem 0.5rem;
+}
+
+.who {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.who-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    --slds-c-icon-color-foreground-default: #fff;
+}
+
+.who-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.who-sub {
+    min-height: 1rem;
+    font-size: 0.78rem;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+}
+
+.rec {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(186, 5, 23, 0.85);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.rec-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: #fff;
+    animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.2;
+    }
+}
+
+.close,
+.back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+    --slds-c-icon-color-foreground-default: #fff;
+}
+
+.close:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.remote {
+    display: none;
+}
+
+.dialer-body {
+    padding: 0.5rem 1rem;
+}
+
+.center {
+    position: relative;
+    min-height: 7rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.transcribing {
+    margin-top: 3.5rem;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.notice {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    --slds-c-icon-color-foreground-default: #fff;
+}
+
+.notice_warn {
+    background: rgba(254, 147, 57, 0.25);
+}
+
+.err {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #ffd2d2;
+}
+
+.number-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.number {
+    flex: 1;
+    --slds-c-input-color-background: rgba(255, 255, 255, 0.1);
+    --slds-c-input-color-border: rgba(255, 255, 255, 0.25);
+    --slds-c-input-text-color: #fff;
+    --slds-c-input-radius-border: 0.75rem;
+}
+
+.number-static {
+    margin: 0.75rem 0 0.25rem;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+}
+
+.pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    padding: 0.5rem 1.5rem;
+}
+
+.pad-key {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 3.6rem;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pad-key:active {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.pad-digit {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.pad-letters {
+    min-height: 0.7rem;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    opacity: 0.7;
+}
+
+.dialer-foot {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem 1.1rem;
+}
+
+.lang {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.lang button {
+    flex: 1;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: transparent;
+    color: #fff;
+    border-radius: 999px;
+    padding: 0.4rem 0.6rem;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.lang button.is-active {
+    background: #fff;
+    color: #032d60;
+}
+
+.consent {
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.75rem;
+    background: rgba(0, 0, 0, 0.18);
+    --slds-c-checkbox-color-border: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}
+
+.consent-help {
+    margin: 0.2rem 0 0 1.6rem;
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+.btn-call {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 3.2rem;
+    border: 0;
+    border-radius: 999px;
+    background: #2e844a;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    text-decoration: none;
+    --slds-c-icon-color-foreground-default: #fff;
+}
+
+.btn-call:hover,
+.btn-call:focus {
+    color: #fff;
+    text-decoration: none;
+}
+
+.btn-call:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.link {
+    width: 100%;
+    margin-top: 0.75rem;
+}
+
+.btn-hangup {
+    background: #ba0517;
+}
+
+.dialer-container.is-wide {
+    width: 40rem;
+}
+
+.phone-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.phone-help {
+    margin: 0.55rem 0 0;
+    color: #dddbda;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+
+.btn-record {
+    background: #2e844a;
+}
+
+.line_live {
+    opacity: 0.85;
+    font-style: italic;
+}
+
+.demo-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+}
+
+.demo-label {
+    margin: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #706e6b;
+}
+
+.btn-demo {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-demo_mic {
+    background: #0176d3;
+    border-color: #0176d3;
+}
+
+.coach-live {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 28rem;
+    overflow: auto;
+}
+
+.coach-hint {
+    margin: 0;
+    color: #dddbda;
+    font-size: 0.8rem;
+}
+
+.live-transcript {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.line {
+    margin: 0;
+    padding: 0.45rem 0.6rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+
+.line span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.line_coach {
+    background: rgba(1, 118, 211, 0.25);
+}
+
+.line_patient {
+    background: rgba(46, 132, 74, 0.28);
+}
+
+.insight {
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding-top: 0.65rem;
+}
+
+.insight-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.45rem;
+}
+
+.pill {
+    border-radius: 1rem;
+    padding: 0.15rem 0.55rem;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.pill_pos {
+    background: #2e844a;
+}
+
+.pill_neg {
+    background: #ba0517;
+}
+
+.nba {
+    margin: 0 0 0.35rem;
+    font-size: 0.85rem;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+}
+
+.ctl {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.6rem 0.25rem;
+    border: 0;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    --slds-c-icon-color-foreground-default: #fff;
+}
+
+.ctl_on {
+    background: #fff;
+    color: #0b4f5f;
+    --slds-c-icon-color-foreground-default: #0b4f5f;
+}
+
+.foot-links {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.foot-links a,
+.linkish {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: underline;
+}
+
+.linkish {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+}

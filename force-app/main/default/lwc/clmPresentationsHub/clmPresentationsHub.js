@@ -11,11 +11,16 @@ import {
 } from 'c/clmOfflineStore';
 import { prefetchPresentationAssets } from 'c/clmContentCache';
 import { isOfflineMode } from 'c/clmOfflineSync';
+import {
+    isLightningUiHost,
+    OFFLINE_CLM_URL,
+    openOfflineClmApp
+} from 'c/clmLightningGate';
 
 export default class ClmPresentationsHub extends LightningElement {
     presentations = [];
     usingCachedPresentations = false;
-    isLoading = true;
+    isLoading = false;
 
     showPlayer = false;
     activePresentationId;
@@ -23,31 +28,28 @@ export default class ClmPresentationsHub extends LightningElement {
 
     isSaving = false;
     saveLabel = '';
+    redirectToOffline = false;
 
     connectedCallback() {
+        this.redirectToOffline = isLightningUiHost();
         this.loadPresentations();
     }
 
     async loadPresentations() {
-        this.isLoading = true;
+        await this.loadCachedPresentations();
+        if (isOfflineMode()) {
+            return;
+        }
         try {
-            if (isOfflineMode()) {
-                await this.loadCachedPresentations();
-                return;
-            }
             const rows = await getRepPresentations();
-            this.presentations = Array.isArray(rows) ? rows : [];
-            this.usingCachedPresentations = false;
-            if (!this.presentations.length) {
-                await this.loadCachedPresentations();
+            if (Array.isArray(rows) && rows.length) {
+                this.presentations = rows;
+                this.usingCachedPresentations = false;
             }
         } catch (error) {
-            await this.loadCachedPresentations();
             if (!this.presentations.length) {
                 this.showToast('Unable to load presentations', this.reduceError(error), 'error');
             }
-        } finally {
-            this.isLoading = false;
         }
     }
 
@@ -67,9 +69,6 @@ export default class ClmPresentationsHub extends LightningElement {
     }
 
     get offlineHint() {
-        if (this.isLoading) {
-            return 'Loading presentations…';
-        }
         if (this.usingCachedPresentations) {
             return 'Showing cached CLMs from device';
         }
@@ -153,7 +152,28 @@ export default class ClmPresentationsHub extends LightningElement {
         }
     }
 
+    get offlineAppUrl() {
+        return OFFLINE_CLM_URL;
+    }
+
+    get presentButtonLabel() {
+        return this.redirectToOffline ? 'Open in Offline App' : 'Present';
+    }
+
+    handleOpenOfflineApp() {
+        openOfflineClmApp();
+    }
+
     handlePresent(event) {
+        if (this.redirectToOffline) {
+            this.showToast(
+                'Open CLM in the Offline App',
+                'Presentations play on salesforceoffline.com — opening it now.',
+                'info'
+            );
+            openOfflineClmApp();
+            return;
+        }
         const presentationId = event.currentTarget.dataset.id;
         const presentationName = event.currentTarget.dataset.name;
         if (!presentationId) {
@@ -170,6 +190,11 @@ export default class ClmPresentationsHub extends LightningElement {
         this.activePresentationId = null;
         this.activePresentationName = null;
         this.loadPresentations();
+    }
+
+    handleSwitchPresentation(event) {
+        this.activePresentationId = event.detail?.presentationId || this.activePresentationId;
+        this.activePresentationName = event.detail?.presentationName || this.activePresentationName;
     }
 
     showToast(title, message, variant) {

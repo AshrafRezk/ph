@@ -2,6 +2,10 @@ public without sharing class EmployeeTimeCardTerritoryService {
 
     private static final String HEAD_OFFICE_EXTERNAL_ID = 'TERR_HEAD_OFFICE';
 
+    public static void syncTerritoryHierarchy(List<Id> timeCardIds) {
+        syncTerritoryHierarchy(timeCardIds == null ? new Set<Id>() : new Set<Id>(timeCardIds));
+    }
+
     public static void syncTerritoryHierarchy(Set<Id> timeCardIds) {
         if (timeCardIds == null || timeCardIds.isEmpty()) {
             return;

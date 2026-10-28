@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>End-of-month queue: accounts visited outside target, proposed for next month list.</description>
+    <enableActivities>true</enableActivities>
+    <enableReports>true</enableReports>
+    <label>Out Of Target Proposal</label>
+    <nameField>
+        <label>Proposal Name</label>
+        <type>Text</type>
+    </nameField>
+    <pluralLabel>Out Of Target Proposals</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

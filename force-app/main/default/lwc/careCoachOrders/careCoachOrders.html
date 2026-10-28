@@ -1,0 +1,308 @@
+<template>
+    <div class="cc-page">
+        <c-care-coach-view-bar
+            title="Orders"
+            subtitle={subtitle}
+            icon-name="standard:orders"
+            context={context}
+            mode={mode}
+            scope={scope}
+            onmodechange={handleModeChange}
+            onscopechange={handleScopeChange}
+        ></c-care-coach-view-bar>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+
+        <div class="summary">
+            <template for:each={summary} for:item="s">
+                <div key={s.key} class={s.cls}>
+                    <span class="summary-value">{s.value}</span>
+                    <span class="summary-label">{s.label}</span>
+                </div>
+            </template>
+        </div>
+
+        <section class="cc-card">
+            <div class="filters">
+                <lightning-input
+                    class="search"
+                    type="search"
+                    label="Search orders"
+                    variant="label-hidden"
+                    placeholder="Search order, patient, product, item, coach or tracking number"
+                    value={search}
+                    onchange={handleSearch}
+                ></lightning-input>
+                <lightning-combobox
+                    label="Period"
+                    variant="label-hidden"
+                    value={days}
+                    options={periodOptions}
+                    onchange={handlePeriod}
+                ></lightning-combobox>
+                <lightning-button-icon icon-name="utility:refresh" alternative-text="Refresh" onclick={handleRefresh}></lightning-button-icon>
+                <div class="cc-segmented view-switch" role="group" aria-label="Layout">
+                    <button type="button" class={listBtnClass} data-view="list" onclick={handleView}>
+                        <lightning-icon icon-name="utility:list" size="xx-small"></lightning-icon> List
+                    </button>
+                    <button type="button" class={boardBtnClass} data-view="board" onclick={handleView}>
+                        <lightning-icon icon-name="utility:kanban" size="xx-small"></lightning-icon> Kanban
+                    </button>
+                </div>
+            </div>
+            <div class="chips">
+                <template for:each={statusChips} for:item="chip">
+                    <button key={chip.key} type="button" class={chip.cls} style={chip.style} data-value={chip.value} onclick={handleChip}>
+                        <span class="chip-label">{chip.label}</span>
+                        <span class="chip-count">{chip.count}</span>
+                    </button>
+                </template>
+            </div>
+        </section>
+
+        <section class="cc-card results">
+            <template lwc:if={isLoading}>
+                <lightning-spinner alternative-text="Loading orders" size="small"></lightning-spinner>
+            </template>
+
+            <template lwc:if={isBoard}>
+                <div class={boardClass}>
+                    <template for:each={boardColumns} for:item="col">
+                        <div key={col.status} class="board-col" style={col.style}>
+                            <div class="board-head">
+                                <span>{col.status}</span>
+                                <span class="board-count">{col.count}</span>
+                            </div>
+                            <div class="board-items">
+                                <template for:each={col.items} for:item="o">
+                                    <button key={o.id} type="button" class="order-card" data-id={o.id} onclick={handleOpen}>
+                                        <div class="order-card-top">
+                                            <span class="order-number">{o.orderNumber}</span>
+                                            <template lwc:if={o.isUrgent}><span class="urgent">Urgent</span></template>
+                                            <span class="order-total">{o.totalLabel}</span>
+                                        </div>
+                                        <div class="cc-row">
+                                            <span class={o.avatarClass}>{o.avatar}</span>
+                                            <div class="cc-row-main">
+                                                <div class="cc-row-title">{o.patientName}</div>
+                                                <div class="cc-row-sub">{o.productName} · {o.therapyArea}</div>
+                                            </div>
+                                        </div>
+                                        <template lwc:if={o.hasItems}>
+                                            <ul class="item-list">
+                                                <template for:each={o.preview} for:item="i">
+                                                    <li key={i.key}>
+                                                        <span class="item-qty">{i.qtyLabel}</span>
+                                                        <span class="item-name">{i.name}</span>
+                                                    </li>
+                                                </template>
+                                                <template lwc:if={o.hasMoreItems}>
+                                                    <li class="item-more">{o.moreLabel}</li>
+                                                </template>
+                                            </ul>
+                                        </template>
+                                        <div class="order-facts">
+                                            <span class={o.promiseClass}>
+                                                <lightning-icon icon-name="utility:date_input" size="xx-small"></lightning-icon>
+                                                {o.promiseLabel}
+                                            </span>
+                                            <span class="cc-muted">{o.unitsLabel} · {o.linesLabel}</span>
+                                        </div>
+                                        <div class="order-card-foot">
+                                            <span class="coach">
+                                                <span class="coach-avatar">{o.coachAvatar}</span>
+                                                {o.coachLabel}
+                                            </span>
+                                            <span class="cc-muted">{o.channelLabel}</span>
+                                        </div>
+                                    </button>
+                                </template>
+                                <template lwc:if={col.isEmpty}>
+                                    <div class="board-empty cc-muted">No orders</div>
+                                </template>
+                                <template lwc:if={col.moreLabel}>
+                                    <div class="board-more cc-muted">{col.moreLabel}</div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <template lwc:else>
+                <div class="table-wrap">
+                    <table class="cc-table">
+                        <thead>
+                            <tr>
+                                <th>Order</th>
+                                <th>Patient</th>
+                                <th>Line items</th>
+                                <th class="num">Units</th>
+                                <th>Status</th>
+                                <th>Ordered</th>
+                                <th>Promised</th>
+                                <th>Delivered</th>
+                                <th>Channel</th>
+                                <template lwc:if={showCoachColumn}><th>Care coach</th></template>
+                                <th class="num">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={rows} for:item="o">
+                                <tr key={o.id} class={o.rowClass} data-id={o.id} onclick={handleOpen}>
+                                    <td>
+                                        <div class="order-number">{o.orderNumber}</div>
+                                        <template lwc:if={o.isUrgent}><span class="urgent">Urgent</span></template>
+                                    </td>
+                                    <td>
+                                        <div class="cc-row">
+                                            <span class={o.avatarClass}>{o.avatar}</span>
+                                            <div class="cc-row-main">
+                                                <div class="cc-row-title">{o.patientName}</div>
+                                                <div class="cc-row-sub">{o.patientNumber}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="items-cell">
+                                        <div class="items-main">{o.productName}</div>
+                                        <div class="cc-muted items-summary" title={o.itemsSummary}>{o.itemsSummary}</div>
+                                    </td>
+                                    <td class="num">{o.totalUnits}</td>
+                                    <td><span class="cc-status" style={o.statusStyle}>{o.status}</span></td>
+                                    <td>{o.orderDateLabel}</td>
+                                    <td>
+                                        <div>{o.promisedDateLabel}</div>
+                                        <div class={o.promiseClass}>{o.promiseLabel}</div>
+                                    </td>
+                                    <td>{o.deliveredLabel}</td>
+                                    <td>
+                                        <div>{o.channelLabel}</div>
+                                        <div class="cc-muted">{o.pharmacy}</div>
+                                    </td>
+                                    <template lwc:if={showCoachColumn}><td>{o.coachLabel}</td></template>
+                                    <td class="num strong">{o.totalLabel}</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <template lwc:if={showEmpty}>
+                <div class="cc-empty">No orders match these filters.</div>
+            </template>
+
+            <div class="results-foot">
+                <span class="cc-muted">{countLabel}</span>
+            </div>
+        </section>
+
+        <template lwc:if={selected}>
+            <div class="drawer-backdrop" onclick={closeDetail}>
+                <aside class="drawer" role="dialog" aria-modal="true" aria-label={selected.orderNumber} onclick={stop}>
+                    <header class="drawer-head" style={selected.statusStyle}>
+                        <div class="drawer-title">
+                            <h2>{selected.orderNumber}</h2>
+                            <span class="cc-status" style={selected.statusStyle}>{selected.status}</span>
+                            <template lwc:if={selected.isUrgent}><span class="urgent">Urgent</span></template>
+                        </div>
+                        <lightning-button-icon icon-name="utility:close" variant="bare" alternative-text="Close" onclick={closeDetail}></lightning-button-icon>
+                    </header>
+
+                    <div class="drawer-body">
+                        <div class="cc-row patient">
+                            <span class={selected.avatarClass}>{selected.avatar}</span>
+                            <div class="cc-row-main">
+                                <div class="cc-row-title">{selected.patientName}</div>
+                                <div class="cc-row-sub">{selected.patientNumber} · {selected.productName} · {selected.therapyArea}</div>
+                            </div>
+                        </div>
+
+                        <dl class="facts">
+                            <div><dt>Ordered</dt><dd>{selected.orderDateLabel}</dd></div>
+                            <div>
+                                <dt>Promised</dt>
+                                <dd>{selected.promisedDateLabel} <span class={selected.promiseClass}>{selected.promiseLabel}</span></dd>
+                            </div>
+                            <div><dt>Delivered</dt><dd>{selected.deliveredLabel}</dd></div>
+                            <div><dt>Channel</dt><dd>{selected.channelLabel}</dd></div>
+                            <div class="span-2"><dt>Deliver to</dt><dd>{selected.locationLabel}</dd></div>
+                            <div><dt>Care coach</dt><dd>{selected.coachLabel}</dd></div>
+                            <div><dt>Tracking</dt><dd>{selected.trackingNumber}</dd></div>
+                        </dl>
+
+                        <h3 class="section-title">Line items</h3>
+                        <table class="cc-table items-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="num">Qty</th>
+                                    <th class="num">Unit price</th>
+                                    <th class="num">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={selected.items} for:item="i">
+                                    <tr key={i.key}>
+                                        <td>
+                                            <div class="strong">{i.name}</div>
+                                            <span class={i.typeClass}>{i.itemType}</span>
+                                        </td>
+                                        <td class="num">{i.quantity} <span class="cc-muted">{i.unitLabel}</span></td>
+                                        <td class="num">{i.priceLabel}</td>
+                                        <td class="num strong">{i.totalLabel}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td>{selected.linesLabel}</td>
+                                    <td class="num">{selected.unitsLabel}</td>
+                                    <td></td>
+                                    <td class="num strong">{selected.totalLabel}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <template lwc:if={selected.notes}>
+                            <h3 class="section-title">Notes</h3>
+                            <p class="notes">{selected.notes}</p>
+                        </template>
+
+                        <template lwc:if={actionError}>
+                            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{actionError}</div>
+                        </template>
+                    </div>
+
+                    <template lwc:if={showActions}>
+                        <footer class="drawer-foot">
+                            <template lwc:if={needsTracking}>
+                                <lightning-input
+                                    class="tracking"
+                                    label="Tracking number"
+                                    variant="label-hidden"
+                                    placeholder="Tracking number (optional)"
+                                    value={trackingDraft}
+                                    onchange={handleTracking}
+                                ></lightning-input>
+                            </template>
+                            <template lwc:if={canCancel}>
+                                <lightning-button label="Cancel order" variant="destructive-text" disabled={saving} onclick={handleCancelOrder}></lightning-button>
+                            </template>
+                            <template lwc:if={nextStep}>
+                                <lightning-button
+                                    label={nextStep.label}
+                                    icon-name={nextStep.icon}
+                                    variant="brand"
+                                    disabled={saving}
+                                    onclick={handleAdvance}
+                                ></lightning-button>
+                            </template>
+                        </footer>
+                    </template>
+                </aside>
+            </div>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,100 @@
+<template>
+    <template if:true={showPanel}>
+        <section class="panel-section">
+            <div class="panel-header">
+                <div>
+                    <h3 class="panel-title">HCP attendees (target list)</h3>
+                    <p class="panel-hint">Required for submission. Select HCPs from your call-plan targets.</p>
+                </div>
+                <lightning-button
+                    label="Add HCP"
+                    icon-name="utility:add"
+                    onclick={handleOpenPicker}
+                    disabled={isSaving}
+                ></lightning-button>
+            </div>
+
+            <template if:true={showValidationWarning}>
+                <div class="validation-banner" role="alert">{validationMessage}</div>
+            </template>
+
+            <template if:true={hasAttendees}>
+                <ul class="attendee-list">
+                    <template for:each={attendees} for:item="row">
+                        <li key={row.key} class="attendee-row">
+                            <div class="attendee-main">
+                                <button
+                                    type="button"
+                                    class="hcp-link"
+                                    data-id={row.accountId}
+                                    onclick={handleOpenProfile}
+                                >
+                                    {row.accountName}
+                                </button>
+                                <span class="attendee-meta">{row.specialtyLabel}</span>
+                                <template if:true={row.attendanceStatus}>
+                                    <span class="attendee-meta">· {row.attendanceStatus}</span>
+                                </template>
+                            </div>
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                alternative-text="Remove"
+                                title="Remove"
+                                data-id={row.memberId}
+                                onclick={handleRemove}
+                                disabled={isSaving}
+                            ></lightning-button-icon>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template if:false={hasAttendees}>
+                <p class="empty-hint">No HCP attendees yet. Add at least one from your target list.</p>
+            </template>
+        </section>
+
+        <section role="dialog" tabindex="-1" class={dialogClass} aria-modal="true">
+            <div class="slds-modal__container picker-modal">
+                <header class="slds-modal__header">
+                    <h2 class="slds-text-heading_medium">Target list HCPs</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-input
+                        type="search"
+                        label="Search"
+                        value={searchTerm}
+                        onchange={handleSearchChange}
+                    ></lightning-input>
+                    <template if:true={isSearching}>
+                        <lightning-spinner size="small" alternative-text="Searching"></lightning-spinner>
+                    </template>
+                    <ul class="candidate-list">
+                        <template for:each={candidates} for:item="candidate">
+                            <li key={candidate.accountId}>
+                                <button
+                                    type="button"
+                                    class="candidate-row"
+                                    data-id={candidate.accountId}
+                                    onclick={handleSelectCandidate}
+                                    disabled={isSaving}
+                                >
+                                    <span class="candidate-name">{candidate.accountName}</span>
+                                    <span class="candidate-meta">{candidate.accountTypeLabel}</span>
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                    <template if:false={isSearching}>
+                        <template if:false={candidates.length}>
+                            <p class="empty-hint">No matching HCPs on your target list.</p>
+                        </template>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Close" onclick={handleClosePicker}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class={backdropClass}></div>
+    </template>
+</template>

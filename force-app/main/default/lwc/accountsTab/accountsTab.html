@@ -1,6 +1,6 @@
 <template>
     <lightning-card title="Accounts" icon-name="standard:account">
-        <div class="accounts-shell">
+        <div class={shellClass}>
             <div class={toolbarClass}>
                 <lightning-input
                     class="accounts-search"
@@ -13,24 +13,33 @@
                     onkeyup={handleSearchKeyUp}
                 ></lightning-input>
 
-                <div class="slds-col_bump-left toolbar-actions">
-                    <lightning-button
-                        label="New Account"
+                <div class="toolbar-actions">
+                    <span class="slds-text-body_small">{bookScopeLabel}</span>
+                    <template if:true={canOpenFullBook}>
+                        <lightning-button
+                            label={bookToggleLabel}
+                            onclick={handleToggleFullBook}
+                        ></lightning-button>
+                    </template>
+                    <lightning-button-icon
                         icon-name="utility:add"
                         variant="brand"
+                        alternative-text="New Account"
                         title="New Account"
                         onclick={handleNewAccount}
-                    ></lightning-button>
-                    <lightning-button
-                        label="Export CSV"
-                        icon-name="utility:download"
-                        onclick={handleExportCsv}
-                    ></lightning-button>
+                    ></lightning-button-icon>
                     <lightning-button-icon
-                        class="toolbar-funnel"
+                        icon-name="utility:download"
+                        alternative-text="Export CSV"
+                        title="Export all accounts on this territory"
+                        disabled={isExporting}
+                        onclick={handleExportCsv}
+                    ></lightning-button-icon>
+                    <lightning-button-icon
+                        class={filterButtonClass}
                         icon-name="utility:filterList"
-                        alternative-text="Filters"
-                        title="Filters"
+                        alternative-text="Lists and filters"
+                        title="Lists and filters"
                         onclick={handleToggleFilters}
                     ></lightning-button-icon>
                     <lightning-button-icon
@@ -40,12 +49,12 @@
                     ></lightning-button-icon>
                     <lightning-button-group>
                         <lightning-button
-                            label="List View"
+                            label={listViewLabel}
                             variant={listVariant}
                             onclick={handleShowList}
                         ></lightning-button>
                         <lightning-button
-                            label="Map View"
+                            label={mapViewLabel}
                             variant={mapVariant}
                             onclick={handleShowMap}
                         ></lightning-button>
@@ -77,25 +86,6 @@
                 </div>
             </div>
 
-            <div class={summaryCardsClass}>
-                <article class="summary-card">
-                    <span class="summary-value">{summary.totalCount}</span>
-                    <span class="summary-label">Total Accounts</span>
-                </article>
-                <article class="summary-card">
-                    <span class="summary-value">{summary.inPlanCount}</span>
-                    <span class="summary-label">In Plan Cycle</span>
-                </article>
-                <article class="summary-card">
-                    <span class="summary-value">{summary.outPlanCount}</span>
-                    <span class="summary-label">Out of Plan Cycle</span>
-                </article>
-                <article class="summary-card summary-card-warn">
-                    <span class="summary-value">{summary.behindPaceCount}</span>
-                    <span class="summary-label">Behind / Critical Pace</span>
-                </article>
-            </div>
-
             <p class="list-meta">{countLabel} · {summary.monthLabel}</p>
 
             <template if:true={errorMessage}>
@@ -103,9 +93,33 @@
             </template>
 
             <template if:true={isListView}>
-                    <div class="oce-shell">
-                        <aside class={sidebarClass}>
+                    <div class={oceShellClass}>
+                        <template if:true={showSidebarBackdrop}>
+                            <button
+                                type="button"
+                                class="oce-sidebar-backdrop"
+                                aria-label="Close lists and filters"
+                                onclick={handleCloseSidebar}
+                            ></button>
+                        </template>
+                        <aside
+                            class={sidebarClass}
+                            role={sidebarRole}
+                            aria-modal={sidebarAriaModal}
+                            aria-label="Lists and filters"
+                            aria-hidden={sidebarAriaHidden}
+                        >
                             <div class="oce-sidebar-inner">
+                                <div class="oce-drawer-header">
+                                    <span class="oce-drawer-title">Lists &amp; Filters</span>
+                                    <button
+                                        type="button"
+                                        class="oce-drawer-close"
+                                        title="Close"
+                                        aria-label="Close lists and filters"
+                                        onclick={handleCloseSidebar}
+                                    >×</button>
+                                </div>
                                 <div class="oce-segment" role="tablist">
                                     <button
                                         class={listsSegmentClass}
@@ -155,6 +169,19 @@
                                             </li>
                                         </template>
                                     </ul>
+                                    <template if:true={showApprovalsSidebar}>
+                                        <p class="oce-sidebar-heading oce-sidebar-heading-spaced">Account nurturing</p>
+                                        <ul class="oce-nav-list" role="list">
+                                            <li class="oce-nav-item">
+                                                <button
+                                                    class={pendingApprovalNavClass}
+                                                    type="button"
+                                                    title={nurtureNavTitle}
+                                                    onclick={handlePendingApprovalNav}
+                                                >{pendingApprovalNavLabel}</button>
+                                            </li>
+                                        </ul>
+                                    </template>
                                 </template>
 
                                 <template if:true={isFiltersPanel}>
@@ -225,17 +252,87 @@
                         </aside>
 
                         <section class="oce-main">
+                            <template if:true={isNurturingList}>
+                                <div class="nurture-bar">
+                                    <p class="nurture-help">{nurtureHelp}</p>
+                                    <div class="nurture-chips" role="tablist" aria-label="Account nurturing status">
+                                        <template for:each={nurtureChips} for:item="chip">
+                                            <button
+                                                key={chip.value}
+                                                type="button"
+                                                role="tab"
+                                                class={chip.className}
+                                                data-lane={chip.value}
+                                                aria-selected={chip.ariaSelected}
+                                                onclick={handleNurtureLane}
+                                            >{chip.label}</button>
+                                        </template>
+                                    </div>
+                                    <template if:true={showMassApproval}>
+                                        <div class="nurture-mass">
+                                            <span class="nurture-mass-label">{massSelectionLabel}</span>
+                                            <div class="nurture-mass-actions">
+                                                <button
+                                                    type="button"
+                                                    class="nurture-mass-btn nurture-mass-approve"
+                                                    onclick={handleMassApprove}
+                                                    disabled={massDisabled}
+                                                >{massApproveLabel}</button>
+                                                <button
+                                                    type="button"
+                                                    class="nurture-mass-btn nurture-mass-reject"
+                                                    onclick={handleMassReject}
+                                                    disabled={massDisabled}
+                                                >{massRejectLabel}</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
                             <c-accounts-tab-oce-list
                                 rows={displayRowsWithMatch}
                                 is-loading={isLoading}
+                                compact={isCompactView}
                                 sort-by={sortBy}
                                 sort-direction={sortDirection}
                                 search-term={searchTerm}
                                 onrowaction={handleOceRowAction}
                                 oncolumnsort={handleColumnSort}
+                                onapprovalrejectionchange={handleApprovalRejectionChange}
+                                onapprovalselectionchange={handleApprovalSelectionChange}
+                                onduplicatechange={handleDuplicateChange}
                             ></c-accounts-tab-oce-list>
                             <template if:true={showEmptyState}>
-                                <p class="accounts-empty-state">No accounts match the current filters.</p>
+                                <p class="accounts-empty-state">{emptyStateMessage}</p>
+                            </template>
+                            <template if:true={showMassRejectModal}>
+                                <section
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="nurture-reject-title"
+                                    class="nurture-reject-layer"
+                                    onclick={handleCloseMassReject}
+                                >
+                                    <div class="nurture-reject-card" onclick={stopMassRejectClick}>
+                                        <h2 id="nurture-reject-title" class="nurture-reject-title">Rejection reason</h2>
+                                        <p class="nurture-reject-help">{massRejectHelp}</p>
+                                        <textarea
+                                            class="nurture-reject-input"
+                                            data-mass-reject-reason
+                                            rows="4"
+                                            placeholder="Required to reject"
+                                            oninput={handleMassRejectInput}
+                                            disabled={isSavingApproval}
+                                        ></textarea>
+                                        <template if:true={massRejectMissing}>
+                                            <p class="nurture-reject-error">A reason is required to reject.</p>
+                                        </template>
+                                        <div class="nurture-reject-actions">
+                                            <button type="button" class="nurture-mass-btn" onclick={handleCloseMassReject} disabled={isSavingApproval}>Cancel</button>
+                                            <button type="button" class="nurture-mass-btn nurture-mass-reject" onclick={handleConfirmMassReject} disabled={isSavingApproval}>Reject</button>
+                                        </div>
+                                    </div>
+                                </section>
                             </template>
                             <template if:true={showPagination}>
                                 <div class="pagination-bar">
@@ -263,82 +360,108 @@
 
             <template if:true={isMapView}>
                 <div class="map-view-layout">
-                    <aside class="map-account-list">
+                    <aside class="map-account-list" aria-label="Accounts on the map">
                         <div class="map-list-header">
-                            <span class="map-list-title">Accounts</span>
+                            <span class="map-list-title">On the map</span>
                             <span class="map-list-count">{mapListCountLabel}</span>
                         </div>
-                        <template if:true={isLoading}>
-                            <div class="map-list-loading">
-                                <lightning-spinner alternative-text="Loading accounts" size="small"></lightning-spinner>
-                            </div>
-                        </template>
-                        <template if:false={isLoading}>
-                            <template if:true={hasMapListItems}>
-                                <ul class="map-account-items" role="list">
-                                    <template for:each={mapListItems} for:item="item">
-                                        <li
-                                            key={item.accountId}
-                                            class={item.itemClass}
-                                            data-account-id={item.accountId}
-                                            onclick={handleMapListSelect}
-                                        >
-                                            <div class="map-account-item-body">
-                                                <div class="map-account-item-top">
-                                                    <span class={item.riskDotClass} title={item.agentforceRisk}></span>
-                                                    <span class="map-account-type">{item.typeLabel}</span>
-                                                    <lightning-badge
-                                                        label={item.classification}
-                                                        class="map-account-badge"
-                                                    ></lightning-badge>
-                                                </div>
-                                                <p class="map-account-name">{item.accountName}</p>
-                                                <p class="map-account-subtitle">{item.subtitle}</p>
-                                            </div>
-                                            <lightning-button-icon
-                                                icon-name="utility:new_window"
-                                                alternative-text="View account"
-                                                variant="bare"
-                                                size="small"
-                                                data-account-id={item.accountId}
-                                                onclick={handleMapListViewAccount}
-                                            ></lightning-button-icon>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </template>
-                            <template if:false={hasMapListItems}>
-                                <p class="map-list-empty">No accounts match the current filters.</p>
-                            </template>
-                            <template if:true={showMapPagination}>
-                                <div class="map-pagination-bar">
-                                    <span class="pagination-range">{mapRangeLabel}</span>
-                                    <div class="pagination-controls">
-                                        <button
-                                            type="button"
-                                            class="page-btn"
-                                            onclick={handleMapPreviousPage}
-                                            disabled={isMapPrevDisabled}
-                                        >Previous</button>
-                                        <span class="page-label">{mapPageLabel}</span>
-                                        <button
-                                            type="button"
-                                            class="page-btn"
-                                            onclick={handleMapNextPage}
-                                            disabled={isMapNextDisabled}
-                                        >Next</button>
-                                    </div>
+                        <div class={mapListBodyClass}>
+                            <template if:true={showMapListSpinner}>
+                                <div class="map-list-loading">
+                                    <lightning-spinner alternative-text="Loading accounts" size="small"></lightning-spinner>
                                 </div>
                             </template>
+                            <template if:false={showMapListSpinner}>
+                                <template if:true={hasMapListItems}>
+                                    <ul class="map-account-items" role="listbox" aria-label="Mapped accounts">
+                                        <template for:each={mapListItems} for:item="item">
+                                            <li
+                                                key={item.accountId}
+                                                class={item.itemClass}
+                                                data-account-id={item.accountId}
+                                                role="option"
+                                                aria-selected={item.selected}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="map-account-select"
+                                                    data-account-id={item.accountId}
+                                                    onclick={handleMapListSelect}
+                                                >
+                                                    <span class={item.avatarClass}>
+                                                        <template if:true={item.typeIconUrl}>
+                                                            <img class="map-account-type-icon" src={item.typeIconUrl} alt="" />
+                                                        </template>
+                                                        <span class={item.riskDotClass} title={item.riskLabel}></span>
+                                                    </span>
+                                                    <span class="map-account-item-body">
+                                                        <span class="map-account-item-top">
+                                                            <span class="map-account-name">{item.accountName}</span>
+                                                            <span class="map-account-class">{item.classification}</span>
+                                                        </span>
+                                                        <span class="map-account-subtitle">{item.subtitle}</span>
+                                                        <span class="map-account-meta">
+                                                            <span class={item.riskChipClass}>{item.riskLabel}</span>
+                                                            <span class="map-account-visits">{item.visitsLabel}</span>
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="map-account-open"
+                                                    data-account-id={item.accountId}
+                                                    title="Open account"
+                                                    aria-label="Open account"
+                                                    onclick={handleMapListViewAccount}
+                                                >Open</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                                <template if:false={hasMapListItems}>
+                                    <p class="map-list-empty">No accounts with a location match these filters.</p>
+                                </template>
+                            </template>
+                        </div>
+                        <template if:true={showMapPagination}>
+                            <div class="map-pagination-bar">
+                                <button
+                                    type="button"
+                                    class="page-btn map-page-btn"
+                                    onclick={handleMapPreviousPage}
+                                    disabled={isMapPrevDisabled}
+                                    aria-label="Previous map page"
+                                >Prev</button>
+                                <span class="page-label">{mapPageLabel}</span>
+                                <button
+                                    type="button"
+                                    class="page-btn map-page-btn"
+                                    onclick={handleMapNextPage}
+                                    disabled={isMapNextDisabled}
+                                    aria-label="Next map page"
+                                >Next</button>
+                            </div>
                         </template>
                     </aside>
-                    <section class="map-panel">
-                        <div class="map-legend">
-                            <span class="legend-item"><span class="legend-pin legend-pin-high"></span> High risk</span>
-                            <span class="legend-item"><span class="legend-pin legend-pin-med"></span> Med risk</span>
-                            <span class="legend-item"><span class="legend-pin legend-pin-low"></span> Low risk</span>
-                        </div>
+                    <section class="map-panel" aria-label="Account map">
                         <div class="accounts-map" lwc:dom="manual"></div>
+                        <div class="map-legend">
+                            <div class="legend-group">
+                                <span class="legend-label">Type</span>
+                                <span class="legend-item"><span class="legend-ring legend-ring-hcp"></span>HCP</span>
+                                <span class="legend-item"><span class="legend-ring legend-ring-hco"></span>HCO</span>
+                                <span class="legend-item"><span class="legend-ring legend-ring-pharmacy"></span>Pharmacy</span>
+                            </div>
+                            <div class="legend-group">
+                                <span class="legend-label">Pace</span>
+                                <span class="legend-item"><span class="legend-pin legend-pin-high"></span>High</span>
+                                <span class="legend-item"><span class="legend-pin legend-pin-med"></span>Med</span>
+                                <span class="legend-item"><span class="legend-pin legend-pin-low"></span>Low</span>
+                            </div>
+                        </div>
+                        <template if:true={showMapEmptyOverlay}>
+                            <div class="map-empty-overlay">No mapped accounts for these filters.</div>
+                        </template>
                     </section>
                 </div>
             </template>
@@ -472,7 +595,10 @@
                                         data-account-id={row.accountId}
                                         onclick={handleSelectMasterAccount}
                                     >
-                                        <span class="wizard-result-name">{row.name}</span>
+                                        <span class="wizard-result-head">
+                                            <span class="wizard-result-name">{row.name}</span>
+                                            <span class={row.sourceClass}>{row.sourceLabel}</span>
+                                        </span>
                                         <span class="wizard-result-meta">
                                             <template if:true={row.accountNumber}>{row.accountNumber} · </template>
                                             <template if:true={row.specialty}>{row.specialty} · </template>
@@ -495,7 +621,10 @@
                                         data-account-id={row.accountId}
                                         onclick={handleSelectMasterAccount}
                                     >
-                                        <span class="wizard-result-name">{row.name}</span>
+                                        <span class="wizard-result-head">
+                                            <span class="wizard-result-name">{row.name}</span>
+                                            <span class={row.sourceClass}>{row.sourceLabel}</span>
+                                        </span>
                                         <span class="wizard-result-meta">
                                             <template if:true={row.specialty}>{row.specialty} · </template>
                                             <template if:true={row.brickName}>{row.brickName}</template>
@@ -507,17 +636,84 @@
                             </div>
                         </template>
                         <template if:true={showMasterEmptyPrompt}>
-                            <p class="wizard-empty">No master-list match. Try a different spelling, or search maps to add a new account.</p>
+                            <template if:true={isPersonCreateType}>
+                                <p class="wizard-empty">No master-list match. Try a different spelling, or search maps or Google Search to add a new doctor.</p>
+                            </template>
+                            <template if:false={isPersonCreateType}>
+                                <p class="wizard-empty">No master-list match. Try a different spelling, or search maps to add a new account.</p>
+                            </template>
                         </template>
                         <div class="wizard-alt-actions">
                             <lightning-button
-                                label="Not found — search maps"
+                                label={notFoundSearchLabel}
                                 onclick={handleGoToMapSearch}
                             ></lightning-button>
                         </div>
                     </template>
 
                     <template if:true={isMapSearchStep}>
+                        <template if:true={showVezeetaSourceToggle}>
+                            <div class="wizard-source-toggle" role="tablist">
+                                <button type="button" class={mapSourceClass} data-source="maps" onclick={handleLookupSourceChange}>
+                                    Maps
+                                </button>
+                                <button type="button" class={vezeetaSourceClass} data-source="vezeeta" onclick={handleLookupSourceChange}>
+                                    Google Search
+                                </button>
+                            </div>
+                        </template>
+                        <template if:true={isVezeetaLookup}>
+                            <lightning-input
+                                type="search"
+                                label="Google Search"
+                                placeholder="Doctor name or specialty"
+                                value={vezeetaSearchTerm}
+                                onchange={handleVezeetaSearchChange}
+                            ></lightning-input>
+                            <p class="wizard-geo-hint">Egypt directory. A specialty such as جلدية opens that list. A doctor name opens matching profiles.</p>
+                            <template if:true={isVezeetaSearching}>
+                                <div class="slds-m-top_small slds-align_absolute-center">
+                                    <lightning-spinner alternative-text="Searching Google" size="small"></lightning-spinner>
+                                </div>
+                            </template>
+                            <template if:true={hasVezeetaResults}>
+                                <div class="wizard-result-list slds-m-top_small">
+                                    <template for:each={vezeetaResultCards} for:item="row">
+                                        <button
+                                            key={row.rowId}
+                                            type="button"
+                                            class={row.cardClass}
+                                            data-url-name={row.urlName}
+                                            onclick={handleSelectVezeetaDoctor}
+                                        >
+                                            <span class="wizard-result-head">
+                                                <span class="wizard-result-name">{row.name}</span>
+                                                <span class={row.sourceClass}>{row.sourceLabel}</span>
+                                            </span>
+                                            <template if:true={row.locationLine}>
+                                                <span class="wizard-result-location">{row.locationLine}</span>
+                                            </template>
+                                            <template if:true={row.metaLine}>
+                                                <span class="wizard-result-meta">{row.metaLine}</span>
+                                            </template>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                            <template if:true={showVezeetaEmpty}>
+                                <p class="wizard-empty">No Google Search match. Try another spelling, or enter the doctor manually.</p>
+                            </template>
+                            <template if:true={showVezeetaHint}>
+                                <p class="wizard-empty">Type a doctor name or specialty to search Google.</p>
+                            </template>
+                            <div class="wizard-alt-actions">
+                                <lightning-button
+                                    label="Enter details manually"
+                                    onclick={handleCreateBlankAccount}
+                                ></lightning-button>
+                            </div>
+                        </template>
+                        <template if:true={isMapLookup}>
                         <lightning-input
                             type="search"
                             label="Map search (name or phone)"
@@ -587,16 +783,22 @@
                                             >
                                                 <span class="wizard-result-head">
                                                     <span class={row.kindClass} title={row.placeKindLabel}>
-                                                        <lightning-icon
-                                                            icon-name={row.kindIcon}
-                                                            size="x-small"
-                                                            alternative-text={row.placeKindLabel}
-                                                        ></lightning-icon>
+                                                        <template if:true={row.kindIconUrl}>
+                                                            <img class="wizard-kind-glyph" src={row.kindIconUrl} alt="" />
+                                                        </template>
+                                                        <template if:false={row.kindIconUrl}>
+                                                            <lightning-icon
+                                                                icon-name={row.kindIcon}
+                                                                size="x-small"
+                                                                alternative-text={row.placeKindLabel}
+                                                            ></lightning-icon>
+                                                        </template>
                                                     </span>
                                                     <span class="wizard-result-name">{row.name}</span>
                                                     <template if:true={row.isKol}>
                                                         <span class="wizard-kol-pill">KOL</span>
                                                     </template>
+                                                    <span class={row.sourceClass}>{row.sourceLabel}</span>
                                                 </span>
                                                 <span class="wizard-kind-label">{row.placeKindLabel}</span>
                                                 <span class="wizard-map-stars" title={row.starTitle} aria-label={row.starTitle}>
@@ -634,6 +836,7 @@
                                 onclick={handleCreateBlankAccount}
                             ></lightning-button>
                         </div>
+                        </template>
                     </template>
 
                     <template if:true={isCreateFormStep}>
@@ -787,14 +990,17 @@
                                     value={createForm.clinicPhone}
                                     onchange={handleCreatePhoneChange}
                                 ></lightning-input>
-                                <p class="wizard-geo-hint">At least one unique number is required. Extra unique numbers raise the score.</p>
+                                <p class="wizard-geo-hint">At least one unique number is required. Extra unique numbers raise the score. Google Search does not include the doctor's phone.</p>
                                 <template if:true={isPhoneMapLookingUp}>
                                     <p class="wizard-geo-hint">Searching maps for this number…</p>
                                 </template>
                                 <template if:true={phoneMapSuggestion}>
                                     <div class="phone-map-suggestion">
                                         <p class="phone-map-suggestion-title">Map match</p>
-                                        <p class="wizard-result-name">{phoneMapSuggestion.name}</p>
+                                        <p class="wizard-result-head">
+                                            <span class="wizard-result-name">{phoneMapSuggestion.name}</span>
+                                            <span class="wizard-source-pill wizard-source-pill-maps">Maps</span>
+                                        </p>
                                         <p class="wizard-result-location">{phoneMapSuggestion.address}</p>
                                         <lightning-button
                                             class="slds-m-top_xx-small"
@@ -871,7 +1077,7 @@
                                         required
                                         data-field="governorate"
                                         value={createForm.governorate}
-                                        options={governateOptions}
+                                        options={governorateOptions}
                                         onchange={handleCreateFieldChange}
                                     ></lightning-combobox>
                                     <lightning-input

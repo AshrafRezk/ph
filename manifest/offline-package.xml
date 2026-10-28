@@ -17,6 +17,8 @@
         <members>fieldRepHomeTodayPlan</members>
         <members>fieldRepHomeMetrics</members>
         <members>fieldRepHomeNextBestCustomer</members>
+        <members>homeOfficeMessages</members>
+        <members>stayInTheKnow</members>
         <members>visitCallShell</members>
         <members>visitCoachingFormModal</members>
         <members>fieldRepPlanner</members>

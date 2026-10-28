@@ -6,17 +6,20 @@
     background: #fff;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 0.75rem;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .today-plan-header {
+    position: relative;
+    z-index: 5;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
     padding: 1rem 1.25rem 0.75rem;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 0.75rem 0.75rem 0 0;
     background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
 }
 
@@ -35,8 +38,107 @@
 }
 
 .today-plan-rep-picker {
+    position: relative;
+    z-index: 6;
     margin-top: 0.625rem;
-    max-width: 20rem;
+    max-width: 22rem;
+}
+
+.today-plan-viewer-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    min-height: 2rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    background: #fff;
+    color: #181818;
+    font: inherit;
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.today-plan-viewer-trigger:hover,
+.today-plan-viewer-trigger.is-open {
+    border-color: #0176d3;
+}
+
+.today-plan-viewer-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.today-plan-viewer-caret {
+    flex: 0 0 auto;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #747474;
+}
+
+.today-plan-viewer-menu {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    z-index: 8;
+    min-width: 100%;
+    width: max-content;
+    max-width: min(24rem, 90vw);
+    max-height: 18rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.today-plan-viewer-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    cursor: pointer;
+}
+
+.today-plan-viewer-option:hover,
+.today-plan-viewer-option:focus-visible {
+    background: #f3f3f3;
+    outline: none;
+}
+
+.today-plan-viewer-option.is-selected {
+    background: #eef4ff;
+}
+
+.today-plan-viewer-option-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.today-plan-pending {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 0.625rem;
+    background: #ba0517;
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .viewing-other-banner {
@@ -66,7 +168,9 @@
 }
 
 .today-plan-body {
+    overflow: hidden;
     padding: 1rem 1.25rem 1.25rem;
+    border-radius: 0 0 0.75rem 0.75rem;
 }
 
 .plan-layout {
@@ -143,11 +247,24 @@
 }
 
 .route-stop-order-hcp {
-    background: #0176d3;
+    background: #3f7de5;
 }
 
 .route-stop-order-hco {
-    background: #6a1b9a;
+    background: #fdbf29;
+    color: #3a2a00;
+}
+
+.route-stop-order-pharmacy {
+    background: #176935;
+}
+
+.visit-type-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+    float: left;
+    margin: 0.1rem 0.4rem 0.2rem 0;
 }
 
 .route-stop-body {
@@ -275,6 +392,16 @@
     margin-bottom: 0;
 }
 
+.route-outlier-item .route-stop-actions {
+    margin-top: 0.35rem;
+}
+
+.route-outlier-item .route-stop-btn {
+    min-height: 2.75rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+}
+
 .route-stop-outlier {
     border-color: #ffb74d;
     background: #fffaf3;
@@ -290,11 +417,11 @@
     flex-wrap: wrap;
     align-items: stretch;
     gap: 0;
-    border: 1px solid #dddbda;
-    border-radius: 0.55rem;
+    border: 1.5px solid #1b1b1b;
+    border-radius: 0.65rem;
     overflow: hidden;
-    background: #fff;
-    box-shadow: none;
+    background: #f3f3f3;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
 }
 
 .route-stop-btn {
@@ -303,8 +430,8 @@
     min-height: 2.25rem;
     padding: 0.4rem 0.85rem;
     border: 0;
-    border-right: 1px solid #e5e5e5;
-    background: #fff;
+    border-right: 1.5px solid #1b1b1b;
+    background: #f3f3f3;
     color: #181818;
     font-size: 0.75rem;
     font-weight: 700;
@@ -318,7 +445,7 @@
 }
 
 .route-stop-btn:hover:not(:disabled) {
-    background: #f4f8fd;
+    background: #e8e8e8;
 }
 
 .route-stop-btn:disabled {
@@ -369,11 +496,11 @@
 }
 
 .map-container .leaflet-control-attribution .cloudastick-map-logo {
-    height: 18px;
-    width: 18px;
+    height: 13px;
+    width: 13px;
     object-fit: contain;
     background: #000;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .map-pin-icon-shell {
@@ -398,11 +525,18 @@
 }
 
 .map-pin-marker-hcp {
-    background: #0176d3;
+    background: #fff;
+    border-color: #3f7de5;
 }
 
 .map-pin-marker-hco {
-    background: #6a1b9a;
+    background: #fff;
+    border-color: #fdbf29;
+}
+
+.map-pin-marker-pharmacy {
+    background: #fff;
+    border-color: #176935;
 }
 
 .map-legend {
@@ -430,11 +564,15 @@
 }
 
 .legend-pin-hcp {
-    background: #0176d3;
+    background: #3f7de5;
 }
 
 .legend-pin-hco {
-    background: #6a1b9a;
+    background: #fdbf29;
+}
+
+.legend-pin-pharmacy {
+    background: #176935;
 }
 
 .legend-pin-you {
@@ -585,3 +723,12 @@
     }
 }
 
+.postpone-modal .slds-modal__container {
+    max-width: 28rem;
+}
+
+.postpone-modal-copy {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    color: #444;
+}

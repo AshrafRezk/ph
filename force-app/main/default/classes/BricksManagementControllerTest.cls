@@ -25,9 +25,13 @@ private class BricksManagementControllerTest {
         Test.startTest();
         List<BricksManagementController.BrickRow> rows =
             BricksManagementController.getBricksByTerritory(null);
+        List<BricksManagementController.BrickRow> listed = BricksManagementController.listBricks();
+        BricksManagementController.SeedResult seed = BricksManagementController.seedBrickDemoData();
         Test.stopTest();
 
         System.assert(!rows.isEmpty(), 'Expected at least one brick row');
+        System.assert(!listed.isEmpty());
+        System.assertNotEquals(null, seed.message);
     }
 
     @IsTest
@@ -79,10 +83,16 @@ private class BricksManagementControllerTest {
         Id membershipId = BricksManagementController.addPharmacyToBrick(brick.Id, pharmacy.Id);
         List<BricksManagementController.BrickPharmacyRow> pharmacies =
             BricksManagementController.getBrickPharmacies(brick.Id);
+        List<BricksManagementController.BrickPharmacyRow> listed =
+            BricksManagementController.listPharmacies(brick.Id);
+        List<BricksManagementController.PharmacyOption> options =
+            BricksManagementController.searchPharmacyOptions('Brick Console');
         BricksManagementController.removePharmacyFromBrick(membershipId);
         Test.stopTest();
 
         System.assertEquals(1, pharmacies.size());
+        System.assertEquals(1, listed.size());
+        System.assert(!options.isEmpty());
     }
 
     @IsTest
@@ -112,5 +122,63 @@ private class BricksManagementControllerTest {
         Test.stopTest();
 
         System.assert(threw, 'Expected delete to fail when memberships exist');
+    }
+
+    @IsTest
+    static void deleteBrick_succeedsWhenEmpty() {
+        Brick__c brick = new Brick__c(
+            Name = 'Delete Empty Brick',
+            External_ID__c = 'BRICK_DELETE_EMPTY',
+            Is_Active__c = true
+        );
+        Database.insert(brick, AccessLevel.SYSTEM_MODE);
+
+        Test.startTest();
+        BricksManagementController.deleteBrick(brick.Id);
+        Test.stopTest();
+
+        System.assertEquals(
+            0,
+            [SELECT COUNT() FROM Brick__c WHERE Id = :brick.Id WITH SYSTEM_MODE]
+        );
+    }
+
+    @IsTest
+    static void assignBrickToTerritory_createsAlignment() {
+        Brick__c brick = new Brick__c(
+            Name = 'Align Brick',
+            External_ID__c = 'BRICK_ALIGN_TEST',
+            Is_Active__c = true
+        );
+        Database.insert(brick, AccessLevel.SYSTEM_MODE);
+
+        List<Territory2> territories = [
+            SELECT Id
+            FROM Territory2
+            WITH SYSTEM_MODE
+            LIMIT 1
+        ];
+        if (territories.isEmpty()) {
+            return;
+        }
+
+        Test.startTest();
+        BricksManagementController.assignBrickToTerritory(brick.Id, territories[0].Id);
+        List<BricksManagementController.BrickRow> scoped =
+            BricksManagementController.getBricksByTerritory(territories[0].Id);
+        Test.stopTest();
+
+        System.assert(!scoped.isEmpty());
+    }
+
+    @IsTest
+    static void upsertBrick_requiresName() {
+        Boolean threw = false;
+        try {
+            BricksManagementController.upsertBrick(new BricksManagementController.BrickUpsertInput());
+        } catch (AuraHandledException e) {
+            threw = true;
+        }
+        System.assert(threw);
     }
 }

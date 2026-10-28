@@ -1,0 +1,11 @@
+<template>
+    <template if:true={showBanner}>
+        <section class={bannerClass} style={bannerStyle}>
+            <img class="account-type-banner-icon" src={iconUrl} alt="" />
+            <div class="account-type-banner-copy">
+                <p class="account-type-banner-kicker">{typeLabel}</p>
+                <h2 class="account-type-banner-name">{accountName}</h2>
+            </div>
+        </section>
+    </template>
+</template>

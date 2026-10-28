@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PM_Call_Rate__c</fullName>
+    <description>Target non-hospital (PM) visits per working day for this territory — HCP, clinic, pharmacy.</description>
+    <inlineHelpText>Expected HCP / clinic / pharmacy visits per working day (PM channel).</inlineHelpText>
+    <label>PM Call Rate</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

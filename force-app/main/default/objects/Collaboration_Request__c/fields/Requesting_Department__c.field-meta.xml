@@ -6,5 +6,7 @@
     <referenceTo>Department_Island__c</referenceTo>
     <relationshipLabel>Outgoing Requests</relationshipLabel>
     <relationshipName>Requesting_Department</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

@@ -1,0 +1,5 @@
+Warning: This command will expose sensitive information that allows for subsequent activity using your current authenticated session.
+Sharing this information is equivalent to logging someone in under the current credential, resulting in unintended access and escalation of privilege.
+For additional information, please review the authorization section of the https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_web_flow.htm.
+
+Access org 00Dhk000002KJ8dEAG as user cloudastick@zetapharma.com with the following URL: https://zetapharma.my.salesforce.com/secur/frontdoor.jsp?otp=00Dhk000002KJ8d%21AQEAQG7brEvTF3EjwHs0vsuWjbhbueFk9lj_3YyLoF6vcSnwJ72lnoRPC7ikx5joy62c7NZ7lT1vWmeuzh9Rxn8qPnNDErEy&cshc=k000000qstxk000002KJ8d

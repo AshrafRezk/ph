@@ -1,0 +1,103 @@
+<template>
+    <div class="cc-page">
+        <c-care-coach-view-bar
+            title="Knowledge"
+            subtitle="Validated call scripts and patient education by product"
+            icon-name="standard:knowledge"
+            context={context}
+            mode={mode}
+            hide-scope
+            onmodechange={handleModeChange}
+        ></c-care-coach-view-bar>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+
+        <div class="kb">
+            <aside class="cc-card list">
+                <div class="list-head">
+                    <lightning-input type="search" label="Search scripts" variant="label-hidden" placeholder="Search questions and titles" onchange={handleSearch}></lightning-input>
+                    <div class="list-filters">
+                        <lightning-combobox label="Product" variant="label-hidden" value={productId} options={productOptions} onchange={handleProduct}></lightning-combobox>
+                        <lightning-combobox label="Category" variant="label-hidden" value={category} options={categoryOptions} onchange={handleCategory}></lightning-combobox>
+                    </div>
+                    <div class="list-meta">
+                        <lightning-input type="toggle" label="Published only" checked={publishedOnly} onchange={handlePublished} message-toggle-active="" message-toggle-inactive=""></lightning-input>
+                        <span class="cc-muted">{countLabel}</span>
+                    </div>
+                </div>
+                <div class="list-body">
+                    <template lwc:if={isLoading}>
+                        <lightning-spinner alternative-text="Loading scripts" size="small"></lightning-spinner>
+                    </template>
+                    <template for:each={rows} for:item="s">
+                        <button key={s.id} type="button" class={s.cls} data-id={s.id} onclick={handleOpen}>
+                            <div class="script-top">
+                                <span class="script-num">{s.scriptNumber}</span>
+                                <span class={s.validClass}>{s.validationStatus}</span>
+                            </div>
+                            <div class="script-title">{s.title}</div>
+                            <div class="script-q">{s.question}</div>
+                            <div class="cc-muted">{s.meta}</div>
+                        </button>
+                    </template>
+                    <template lwc:if={isEmpty}>
+                        <div class="cc-empty">No scripts match your search.</div>
+                    </template>
+                </div>
+            </aside>
+
+            <section class="cc-card reader">
+                <template lwc:if={isLoadingArticle}>
+                    <lightning-spinner alternative-text="Loading article" size="small"></lightning-spinner>
+                </template>
+                <template lwc:if={article}>
+                    <header class="reader-head">
+                        <div>
+                            <span class="cc-pill cc-pill_accent">{article.category}</span>
+                            <h2 class="reader-title">{article.title}</h2>
+                        </div>
+                        <div class="helpful">
+                            <span class="cc-muted">Was this helpful?</span>
+                            <lightning-button-icon-stateful
+                                icon-name="utility:like"
+                                selected={article.hasVoted}
+                                disabled={article.hasVoted}
+                                alternative-text="Helpful"
+                                onclick={handleHelpful}
+                            ></lightning-button-icon-stateful>
+                            <span class="helpful-count">{article.helpful}</span>
+                        </div>
+                    </header>
+                    <div class="reader-body">
+                        <div class="article">
+                            <div class="question-label">Question</div>
+                            <h3 class="question">{article.question}</h3>
+                            <div class="question-label">Answer</div>
+                            <lightning-formatted-rich-text class="answer" value={article.answer}></lightning-formatted-rich-text>
+                        </div>
+                        <aside class="details">
+                            <h4 class="details-title">Information</h4>
+                            <dl>
+                                <template for:each={article.details} for:item="d">
+                                    <div key={d.key} class="detail">
+                                        <dt>{d.label}</dt>
+                                        <dd>{d.value}</dd>
+                                    </div>
+                                </template>
+                            </dl>
+                            <template lwc:if={article.summary}>
+                                <h4 class="details-title">Summary</h4>
+                                <p class="summary">{article.summary}</p>
+                            </template>
+                        </aside>
+                    </div>
+                </template>
+                <template lwc:else>
+                    <div class="cc-empty">Select a script to read it.</div>
+                </template>
+            </section>
+        </div>
+    </div>
+</template>

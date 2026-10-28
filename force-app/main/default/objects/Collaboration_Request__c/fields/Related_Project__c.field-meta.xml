@@ -6,5 +6,7 @@
     <referenceTo>Pharma_Project__c</referenceTo>
     <relationshipLabel>Collaboration Requests</relationshipLabel>
     <relationshipName>Related_Project</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

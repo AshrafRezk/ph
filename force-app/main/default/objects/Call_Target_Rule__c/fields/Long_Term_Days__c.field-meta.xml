@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Long_Term_Days__c</fullName>
+    <defaultValue>40</defaultValue>
+    <description>Counted days that count as long leave. Used only when zero-on-long-term is on.</description>
+    <externalId>false</externalId>
+    <label>Long Term Days</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

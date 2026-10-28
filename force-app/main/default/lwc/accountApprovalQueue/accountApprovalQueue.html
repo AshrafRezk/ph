@@ -1,0 +1,410 @@
+<template>
+    <template if:true={showQueue}>
+        <section class="queue-card">
+            <header class="queue-header">
+                <div class="queue-heading">
+                    <h2 class="queue-title">Accounts Nurturing Engine</h2>
+                    <p class="queue-subtitle">{queueSubtitle}</p>
+                    <template if:true={hasMine}>
+                        <p class="mine-status">{mineSummary}</p>
+                    </template>
+                </div>
+                <div class="queue-header-tools">
+                    <template if:true={hasRows}>
+                        <template if:true={showNeedYouCount}>
+                            <span class="pending-count">{needYouLabel}</span>
+                        </template>
+                        <button type="button" class="more-btn" onclick={handleOpenList}>More</button>
+                        <template if:true={showCarouselNav}>
+                            <button
+                                type="button"
+                                class="nav-btn"
+                                onclick={handlePrevious}
+                                disabled={isPrevDisabled}
+                                aria-label="Previous accounts"
+                            >
+                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                    <path d="M10 3.5 5.5 8 10 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="nav-btn"
+                                onclick={handleNext}
+                                disabled={isNextDisabled}
+                                aria-label="Next accounts"
+                            >
+                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                    <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </svg>
+                            </button>
+                        </template>
+                    </template>
+                </div>
+            </header>
+
+            <template if:true={hasRows}>
+                <div class={carouselWrapClass}>
+                    <div
+                        class="carousel"
+                        data-carousel
+                        role="region"
+                        aria-roledescription="carousel"
+                        aria-label="Accounts Nurturing Engine"
+                        onscroll={handleCarouselScroll}
+                    >
+                        <template for:each={displayRows} for:item="row">
+                            <article key={row.accountId} class="tile" title={row.tooltip} style={row.themeStyle}>
+                                <template if:true={row.typeIconUrl}>
+                                    <img class="tile-icon" src={row.typeIconUrl} alt={row.typeLabel} />
+                                </template>
+                                <template if:false={row.typeIconUrl}>
+                                    <span class="tile-icon tile-icon-fallback" aria-hidden="true">{row.typeInitial}</span>
+                                </template>
+                                <div class="tile-copy">
+                                    <p class="tile-name">{row.accountName}</p>
+                                    <p class="tile-role">{row.specialtyLine}</p>
+                                    <p class="tile-meta">{row.tileMeta}</p>
+                                    <button
+                                        type="button"
+                                        class="dup-link"
+                                        data-account-id={row.accountId}
+                                        onclick={handleOpenDuplicate}
+                                    >
+                                        Duplicate check
+                                    </button>
+                                </div>
+                                <template if:true={row.showActions}>
+                                    <div class="tile-actions">
+                                        <button
+                                            type="button"
+                                            class="mark-btn mark-approve"
+                                            data-account-id={row.accountId}
+                                            onclick={handleApprove}
+                                            disabled={isSaving}
+                                            aria-label={row.approveLabel}
+                                            title="Approve"
+                                        >
+                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                <path d="M3.2 8.4 6.4 11.6 12.8 4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="mark-btn mark-reject"
+                                            data-account-id={row.accountId}
+                                            onclick={handleReject}
+                                            disabled={isSaving}
+                                            aria-label={row.rejectLabel}
+                                            title="Reject"
+                                        >
+                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                                <template if:false={row.showActions}>
+                                    <span class={row.statusClass}>{row.stageLabel}</span>
+                                </template>
+                            </article>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <template if:false={hasRows}>
+                <p class="queue-empty">No accounts in nurturing right now.</p>
+            </template>
+        </section>
+
+        <template if:true={showRejectModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                aria-labelledby="reject-modal-title"
+                class="slds-modal slds-fade-in-open reject-modal"
+                onclick={handleCloseRejectModal}
+            >
+                <div class="slds-modal__container reject-modal-container" onclick={stopModalClick}>
+                    <header class="slds-modal__header">
+                        <h2 id="reject-modal-title" class="modal-title">Please share your rejection reasons</h2>
+                        <button
+                            type="button"
+                            class="slds-button slds-button_icon slds-modal__close"
+                            onclick={handleCloseRejectModal}
+                            title="Close"
+                            disabled={isSaving}
+                        >
+                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+                            </svg>
+                            <span class="slds-assistive-text">Close</span>
+                        </button>
+                    </header>
+                    <div class="slds-modal__content modal-body">
+                        <template if:true={rejectSingleName}>
+                            <p class="reject-account">{rejectSingleName}</p>
+                        </template>
+                        <template if:true={rejectContextLine}>
+                            <p class="reject-context">{rejectContextLine}</p>
+                        </template>
+                        <template if:true={rejectBulkHelp}>
+                            <p class="reject-context">{rejectBulkHelp}</p>
+                        </template>
+                        <label class="reason-label">
+                            Rejection reason
+                            <textarea
+                                class="reason-area"
+                                data-reject-reason
+                                rows="4"
+                                placeholder="Required to reject"
+                                oninput={handleRejectReasonInput}
+                                disabled={isSaving}
+                            ></textarea>
+                        </label>
+                        <template if:true={rejectReasonMissing}>
+                            <p class="field-error">A reason is required to reject.</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer modal-footer">
+                        <button type="button" class="quiet-btn" onclick={handleCloseRejectModal} disabled={isSaving}>Cancel</button>
+                        <button type="button" class="solid-btn solid-reject" onclick={handleConfirmReject} disabled={isSaving}>Reject</button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open reject-backdrop"></div>
+        </template>
+
+        <template if:true={showListModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                aria-labelledby="list-modal-title"
+                class="slds-modal slds-fade-in-open list-modal"
+                onclick={handleCloseList}
+            >
+                <div class="slds-modal__container list-modal-container" onclick={stopModalClick}>
+                    <header class="slds-modal__header">
+                        <h2 id="list-modal-title" class="modal-title">Accounts Nurturing Engine</h2>
+                        <p class="modal-subtitle">{listSubtitle}</p>
+                        <button
+                            type="button"
+                            class="slds-button slds-button_icon slds-modal__close"
+                            onclick={handleCloseList}
+                            title="Close"
+                            disabled={isSaving}
+                        >
+                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+                            </svg>
+                            <span class="slds-assistive-text">Close</span>
+                        </button>
+                    </header>
+                    <div class="slds-modal__content list-modal-content">
+                        <div class="list-toolbar">
+                            <span class="selection-label">{selectionLabel}</span>
+                            <template if:true={saveStatus}>
+                                <span class="save-status" aria-live="polite">{saveStatus}</span>
+                            </template>
+                            <template if:true={canAct}>
+                            <div class="list-toolbar-actions">
+                                <button
+                                    type="button"
+                                    class="solid-btn solid-approve"
+                                    onclick={handleMassApprove}
+                                    disabled={massDisabled}
+                                    title={massApproveTitle}
+                                >
+                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                        <path d="M3.2 8.4 6.4 11.6 12.8 4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    </svg>
+                                    {massApproveLabel}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="solid-btn solid-reject"
+                                    onclick={handleMassReject}
+                                    disabled={massDisabled}
+                                    title={massRejectTitle}
+                                >
+                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                        <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                                    </svg>
+                                    {massRejectLabel}
+                                </button>
+                            </div>
+                            </template>
+                        </div>
+                        <template if:true={hasRows}>
+                            <div class="list-scroll">
+                                <table class="list-table">
+                                    <thead>
+                                        <tr>
+                                            <template if:true={canAct}>
+                                                <th class="col-check">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={allSelected}
+                                                        onchange={handleToggleAll}
+                                                        aria-label="Select all pending accounts"
+                                                        disabled={isSaving}
+                                                    />
+                                                </th>
+                                            </template>
+                                            <th>Account</th>
+                                            <th>Rep</th>
+                                            <th>Specialty</th>
+                                            <th>City</th>
+                                            <th>Submitted</th>
+                                            <th>Status</th>
+                                            <template if:true={canAct}>
+                                                <th class="col-reason">Rejection reason</th>
+                                                <th class="col-actions"><span class="sr-only">Actions</span></th>
+                                            </template>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={displayRows} for:item="row">
+                                            <tr key={row.accountId}>
+                                                <template if:true={canAct}>
+                                                    <td class="col-check">
+                                                        <template if:true={row.showActions}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={row.selected}
+                                                                data-account-id={row.accountId}
+                                                                onchange={handleToggleRow}
+                                                                aria-label={row.selectLabel}
+                                                                disabled={isSaving}
+                                                            />
+                                                        </template>
+                                                    </td>
+                                                </template>
+                                                <td class="col-name">
+                                                    <span class="name-cell">
+                                                        <template if:true={row.typeIconUrl}>
+                                                            <img class="list-type-icon" src={row.typeIconUrl} alt="" />
+                                                        </template>
+                                                        {row.accountName}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        class="dup-link"
+                                                        data-account-id={row.accountId}
+                                                        onclick={handleOpenDuplicate}
+                                                    >
+                                                        Duplicate check
+                                                    </button>
+                                                </td>
+                                                <td>{row.listRep}</td>
+                                                <td>{row.listSpecialty}</td>
+                                                <td>{row.listCity}</td>
+                                                <td class="col-date">{row.submittedLabel}</td>
+                                                <td><span class={row.statusClass}>{row.stageLabel}</span></td>
+                                                <template if:true={row.showActions}>
+                                                    <td class="col-reason">
+                                                        <input
+                                                            type="text"
+                                                            class="reason-field"
+                                                            data-account-id={row.accountId}
+                                                            placeholder="Reason for rejection"
+                                                            aria-label={row.reasonLabel}
+                                                            oninput={handleRejectionInput}
+                                                            disabled={isSaving}
+                                                        />
+                                                    </td>
+                                                    <td class="col-actions">
+                                                        <button
+                                                            type="button"
+                                                            class="mark-btn mark-approve"
+                                                            data-account-id={row.accountId}
+                                                            onclick={handleApprove}
+                                                            disabled={isSaving}
+                                                            aria-label={row.approveLabel}
+                                                            title="Approve"
+                                                        >
+                                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                                <path d="M3.2 8.4 6.4 11.6 12.8 4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="mark-btn mark-reject"
+                                                            data-account-id={row.accountId}
+                                                            onclick={handleReject}
+                                                            disabled={isSaving}
+                                                            aria-label={row.rejectLabel}
+                                                            title="Reject"
+                                                        >
+                                                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                                <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                                                            </svg>
+                                                        </button>
+                                                    </td>
+                                                </template>
+                                                <template if:false={row.showActions}>
+                                                    <template if:true={canAct}>
+                                                        <td></td>
+                                                        <td></td>
+                                                    </template>
+                                                </template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                        <template if:false={hasRows}>
+                            <p class="queue-empty list-empty">No accounts in nurturing right now.</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer modal-footer">
+                        <button type="button" class="quiet-btn" onclick={handleCloseList} disabled={isSaving}>Close</button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open list-backdrop"></div>
+        </template>
+
+        <template if:true={showDuplicateModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                aria-labelledby="duplicate-modal-title"
+                class="slds-modal slds-fade-in-open list-modal"
+                onclick={handleCloseDuplicate}
+            >
+                <div class="slds-modal__container list-modal-container" onclick={stopModalClick}>
+                    <header class="slds-modal__header">
+                        <h2 id="duplicate-modal-title" class="modal-title">Duplicate check</h2>
+                        <p class="modal-subtitle">Name (Arabic and Latin), mobile, type, and location</p>
+                        <button
+                            type="button"
+                            class="slds-button slds-button_icon slds-modal__close"
+                            onclick={handleCloseDuplicate}
+                            title="Close"
+                        >
+                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+                            </svg>
+                            <span class="slds-assistive-text">Close</span>
+                        </button>
+                    </header>
+                    <div class="slds-modal__content list-modal-content">
+                        <c-account-duplicate-check
+                            record-id={duplicateAccountId}
+                            onduplicatechange={handleDuplicateChange}
+                        ></c-account-duplicate-check>
+                    </div>
+                    <footer class="slds-modal__footer modal-footer">
+                        <button type="button" class="quiet-btn" onclick={handleCloseDuplicate}>Close</button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open list-backdrop"></div>
+        </template>
+    </template>
+</template>

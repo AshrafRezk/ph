@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtlClntAppConfigurablePolicies xmlns="http://soap.sforce.com/2006/04/metadata">
+    <externalClientApplication>OSR_Offline_Runtime</externalClientApplication>
+    <isEnabled>true</isEnabled>
+    <isMobilePluginEnabled>true</isMobilePluginEnabled>
+    <isNotificationPluginEnabled>true</isNotificationPluginEnabled>
+    <isOauthPluginEnabled>true</isOauthPluginEnabled>
+    <isPushPluginEnabled>true</isPushPluginEnabled>
+    <label>OSR_Offline_Runtime_defaultPolicy</label>
+    <startPage>None</startPage>
+</ExtlClntAppConfigurablePolicies>

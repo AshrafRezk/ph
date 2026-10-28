@@ -1,0 +1,60 @@
+<template>
+    <section class="fam">
+        <header class="fam-header">
+            <h2 class="fam-title">Field App Manager</h2>
+            <p class="fam-subtitle">
+                Choose what every field user sees on Home and Planner, turn Field AI and Class Engine
+                on or off, and control which request types are available. Changes apply to Lightning,
+                Salesforce mobile, and the APK.
+            </p>
+        </header>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading Field App Manager" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="fam-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <template if:false={isLoading}>
+            <template for:each={sections} for:item="section">
+                <article key={section.id} class="fam-section">
+                    <header class="fam-section-head">
+                        <div>
+                            <h3 class="fam-section-title">{section.title}</h3>
+                            <p class="fam-section-desc">{section.description}</p>
+                        </div>
+                        <lightning-button
+                            label={section.saveLabel}
+                            variant="brand"
+                            data-section={section.id}
+                            disabled={section.saveDisabled}
+                            onclick={handleSaveSection}
+                        ></lightning-button>
+                    </header>
+                    <ul class="fam-list">
+                        <template for:each={section.features} for:item="feature">
+                            <li key={feature.key} class={feature.rowClass}>
+                                <div class="fam-copy">
+                                    <div class="fam-name">{feature.label}</div>
+                                    <div class="fam-desc">{feature.description}</div>
+                                </div>
+                                <lightning-input
+                                    type="toggle"
+                                    label={feature.label}
+                                    variant="label-hidden"
+                                    data-key={feature.key}
+                                    data-section={section.id}
+                                    checked={feature.enabled}
+                                    disabled={feature.disabled}
+                                    onchange={handleToggle}
+                                ></lightning-input>
+                            </li>
+                        </template>
+                    </ul>
+                </article>
+            </template>
+        </template>
+    </section>
+</template>

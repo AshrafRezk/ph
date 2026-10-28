@@ -1,0 +1,33 @@
+<template>
+    <div class="kpi-shell">
+        <div class="kpi-header slds-grid slds-grid_align-spread">
+            <div>
+                <h1>My KPIs</h1>
+                <p>
+                    SFE framework scorecard · {periodLabel} · targets from Admin Console → KPI Targets
+                </p>
+            </div>
+            <lightning-button label="Refresh" onclick={handleRefresh} disabled={loading}></lightning-button>
+        </div>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+        <template if:true={error}>
+            <div class="slds-text-color_error">{error}</div>
+        </template>
+
+        <template if:true={scorecard}>
+            <div class="kpi-grid">
+                <template for:each={scorecard.cards} for:item="card">
+                    <article key={card.key} class={card.cardClass}>
+                        <h3>{card.label}</h3>
+                        <div class="kpi-actual">{card.actualLabel}</div>
+                        <div class="kpi-target">{card.targetLabel}</div>
+                        <div class="kpi-detail">{card.detail}</div>
+                    </article>
+                </template>
+            </div>
+        </template>
+    </div>
+</template>

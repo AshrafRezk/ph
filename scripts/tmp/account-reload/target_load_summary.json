@@ -1,0 +1,15 @@
+{
+  "atfRows": 64151,
+  "accountClassUpdates": 28369,
+  "exceptions": 23149,
+  "exceptionReasons": {
+    "vacant": 5945,
+    "no_user": 14924,
+    "no_territory": 2246,
+    "no_account": 34
+  },
+  "multiClinicSameRep": 20,
+  "teamMismatches": 89,
+  "missingEmployees": 133,
+  "employeesWithoutTerritory": 26
+}

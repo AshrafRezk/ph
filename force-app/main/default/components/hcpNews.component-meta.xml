@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexComponent xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <description>Zeta HCP app: News tab listing published Zeta News articles.</description>
+    <label>HCP App News</label>
+</ApexComponent>

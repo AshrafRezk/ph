@@ -1,0 +1,187 @@
+<template>
+    <template if:true={featureEnabled}>
+    <div class="sik-root">
+        <article class="sik-shell">
+            <header class="sik-header">
+                <lightning-icon icon-name="utility:news" size="small" class="sik-header-icon"></lightning-icon>
+                <div class="sik-header-text">
+                    <h2 class="sik-title">Be in the know!</h2>
+                    <p class="sik-subtitle">Egypt · My line · Pharma · Salesforce · Zeta</p>
+                </div>
+            </header>
+
+            <template if:true={isLoading}>
+                <div class="sik-loading">
+                    <lightning-spinner alternative-text="Loading news" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <template if:false={isLoading}>
+                <template if:true={hasArticles}>
+                    <div class="sik-chips" role="group" aria-label="News categories">
+                        <template for:each={filterChips} for:item="chip">
+                            <button
+                                key={chip.value}
+                                type="button"
+                                class={chip.chipClass}
+                                data-filter={chip.value}
+                                onclick={handleFilterClick}
+                                aria-pressed={chip.ariaPressed}
+                            >
+                                {chip.label}
+                            </button>
+                        </template>
+                    </div>
+
+                    <div
+                        class="sik-carousel"
+                        role="region"
+                        aria-label="Be in the know news carousel"
+                        aria-live="polite"
+                        onmouseenter={handleCarouselMouseEnter}
+                        onmouseleave={handleCarouselMouseLeave}
+                    >
+                        <div class="sik-progress" aria-hidden="true">
+                            <div class="sik-progress-bar" style={progressStyle}></div>
+                        </div>
+
+                        <div
+                            class={viewportClass}
+                            onpointerdown={handlePointerDown}
+                            onpointermove={handlePointerMove}
+                            onpointerup={handlePointerUp}
+                            onpointercancel={handlePointerUp}
+                        >
+                            <div class={trackClass} style={trackStyle}>
+                                <template for:each={articleRows} for:item="article">
+                                    <div
+                                        key={article.id}
+                                        class={article.cardClass}
+                                        data-index={article.index}
+                                        onpointerdown={handleCardPointerDown}
+                                        role="button"
+                                        tabindex="0"
+                                    >
+                                        <div class="sik-card-top">
+                                            <div class="sik-source-row">
+                                                <template if:true={article.hasFavicon}>
+                                                    <img
+                                                        class="sik-favicon"
+                                                        src={article.faviconUrl}
+                                                        alt=""
+                                                        width="16"
+                                                        height="16"
+                                                        loading="lazy"
+                                                        onerror={handleFaviconError}
+                                                    />
+                                                </template>
+                                                <span class={article.badgeClass}>{article.categoryLabel}</span>
+                                            </div>
+                                            <span class="sik-date">{article.publishedLabel}</span>
+                                        </div>
+                                        <h3 class="sik-article-title">{article.title}</h3>
+                                        <p class="sik-source">{article.domainLabel}</p>
+                                        <p class="sik-summary">{article.summaryPreview}</p>
+                                        <span class="sik-read-more">Tap to read more</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <template if:true={showDots}>
+                            <div class="sik-nav">
+                                <span class="sik-counter">{counterLabel}</span>
+                                <div class="sik-dots" role="tablist" aria-label="Article navigation">
+                                    <template for:each={visibleDots} for:item="dot">
+                                        <button
+                                            key={dot.key}
+                                            type="button"
+                                            class={dot.dotClass}
+                                            data-index={dot.index}
+                                            onclick={handleDotClick}
+                                            role="tab"
+                                            aria-selected={dot.isActive}
+                                            aria-label={dot.dotLabel}
+                                        ></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <template if:false={hasArticles}>
+                    <div class="sik-empty">
+                        <lightning-icon icon-name="utility:info" size="x-small"></lightning-icon>
+                        <span>
+                            <template if:true={loadError}>{loadError}</template>
+                            <template if:false={loadError}>No industry news available right now.</template>
+                        </span>
+                    </div>
+                </template>
+            </template>
+        </article>
+
+        <template if:true={showReader}>
+            <section class="sik-modal-root" role="presentation">
+                <div class="sik-modal-backdrop" onclick={handleCloseReader}></div>
+                <div
+                    class="sik-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="sik-modal-title"
+                    onclick={stopModalBubble}
+                >
+                    <div class="sik-modal-head">
+                        <div class="sik-modal-head-left">
+                            <template if:true={hasReaderFavicon}>
+                                <img
+                                    class="sik-favicon sik-favicon-lg"
+                                    src={readerFaviconUrl}
+                                    alt=""
+                                    width="20"
+                                    height="20"
+                                    onerror={handleFaviconError}
+                                />
+                            </template>
+                            <span class={readerCategoryClass}>{readerCategory}</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="sik-modal-close"
+                            onclick={handleCloseReader}
+                            aria-label="Close"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <h3 id="sik-modal-title" class="sik-modal-title">{readerTitle}</h3>
+                    <p class="sik-modal-meta">
+                        <span>{readerDomain}</span>
+                        <template if:true={readerDate}>
+                            <span aria-hidden="true"> · </span>
+                            <span>{readerDate}</span>
+                        </template>
+                    </p>
+                    <div class="sik-modal-body">
+                        <p class="sik-modal-summary">{readerSummary}</p>
+                    </div>
+                    <div class="sik-modal-actions">
+                        <button type="button" class="sik-btn-secondary" onclick={handleCloseReader}>
+                            Close
+                        </button>
+                        <a
+                            class="sik-btn-primary"
+                            href={readerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Open full article
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </template>
+    </div>
+    </template>
+</template>

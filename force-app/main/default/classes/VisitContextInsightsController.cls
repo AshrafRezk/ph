@@ -101,6 +101,47 @@ public with sharing class VisitContextInsightsController {
     return result;
   }
 
+  @AuraEnabled(cacheable=true)
+  public static VisitContextInsights getAccountNeighbouringInsights(Id accountId) {
+    VisitContextInsights result = new VisitContextInsights();
+    result.hasGeo = false;
+    result.searchRadiusKm = DEFAULT_RADIUS_KM;
+    result.pharmacyPageSize = PAGE_SIZE;
+    result.neighbouringPharmacies = new List<PharmacyRow>();
+    result.territoryPriorVisits = new List<PriorVisitRow>();
+    result.zetaPriorVisits = new List<PriorVisitRow>();
+
+    if (accountId == null) {
+      return result;
+    }
+
+    List<Account> accounts = [
+      SELECT Id, Name, BillingLatitude, BillingLongitude
+      FROM Account
+      WHERE Id = :accountId
+      WITH USER_MODE
+      LIMIT 1
+    ];
+    if (accounts.isEmpty()) {
+      return result;
+    }
+
+    Account center = accounts[0];
+    if (center.BillingLatitude != null && center.BillingLongitude != null) {
+      result.hasGeo = true;
+      result.centerLatitude = center.BillingLatitude;
+      result.centerLongitude = center.BillingLongitude;
+      result.centerAccountName = center.Name;
+      result.neighbouringPharmacies = loadNeighbouringPharmacies(
+        center.Id,
+        center.BillingLatitude,
+        center.BillingLongitude
+      );
+      result.totalPharmacyCount = result.neighbouringPharmacies.size();
+    }
+    return result;
+  }
+
   @AuraEnabled
   public static List<PharmacyRow> searchOpenMapPharmacies(
     Decimal centerLat,

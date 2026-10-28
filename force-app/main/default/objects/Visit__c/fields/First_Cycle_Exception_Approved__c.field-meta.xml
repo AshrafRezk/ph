@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>First_Cycle_Exception_Approved__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When approved (by DM), allows an additional HCP visit inside the first coverage cycle (1-week restriction).</description>
+    <label>First Cycle Exception Approved</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

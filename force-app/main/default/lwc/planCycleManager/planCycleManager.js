@@ -169,6 +169,13 @@ export default class PlanCycleManager extends LightningElement {
         this.resetToYearView();
     }
 
+    handleMonthTileKeydown(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.handleMonthTileClick(event);
+        }
+    }
+
     handleMonthTileClick(event) {
         this.selectedMonth = Number(event.currentTarget.dataset.month);
         this.viewMode = 'month';
@@ -252,7 +259,11 @@ export default class PlanCycleManager extends LightningElement {
 
     handleTargetFrequencyChange(event) {
         const targetId = event.currentTarget.dataset.id;
-        const value = Number(event.target.value);
+        const raw = event.target.value;
+        if (raw === '' || raw === null || raw === undefined) {
+            return; // keep the saved value; a blank cell is not a target of 0
+        }
+        const value = Number(raw);
         this.editableTargets = this.editableTargets.map((row) =>
             row.id === targetId ? { ...row, targetVisitFrequency: value } : row
         );

@@ -6,15 +6,15 @@
     <picklistValues>
         <picklist>Campaign_Type__c</picklist>
         <values>
-            <fullName>Other</fullName>
-            <default>false</default>
-        </values>
-        <values>
             <fullName>Chemipharm 360</fullName>
             <default>false</default>
         </values>
         <values>
             <fullName>Chemipharm Competition</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Other</fullName>
             <default>false</default>
         </values>
     </picklistValues>

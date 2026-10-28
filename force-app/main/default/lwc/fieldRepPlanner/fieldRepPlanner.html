@@ -1,17 +1,46 @@
 <template>
-    <lightning-card title="Planner" icon-name="standard:event">
-        <div class="planner-shell">
+    <div class="planner-shell">
             <div class="planner-toolbar">
+                <div class="toolbar-nav">
                 <template if:true={canSwitchPlannerView}>
-                    <lightning-combobox
-                        class="planner-viewer-combobox"
-                        label="View planner for"
-                        variant="label-hidden"
-                        placeholder="My planner"
-                        value={selectedContextUserId}
-                        options={plannerViewerOptions}
-                        onchange={handleContextUserChange}
-                    ></lightning-combobox>
+                    <div class="planner-viewer-picker" onkeydown={handleViewerMenuKeydown}>
+                        <button
+                            type="button"
+                            class={viewerMenuTriggerClass}
+                            aria-haspopup="listbox"
+                            aria-expanded={viewerMenuExpanded}
+                            aria-label={viewerPickerLabel}
+                            onclick={handleToggleViewerMenu}
+                        >
+                            <span class="planner-viewer-trigger__label">{selectedViewerLabel}</span>
+                            <template if:true={hasViewerPendingTotal}>
+                                <span class="planner-pending-bubble" title={viewerPendingTotalTitle}>{viewerPendingTotalLabel}</span>
+                            </template>
+                            <span class="planner-viewer-trigger__caret" aria-hidden="true"></span>
+                        </button>
+                        <template if:true={showViewerMenu}>
+                            <ul class="planner-viewer-menu" role="listbox" aria-label={viewerPickerLabel}>
+                                <template for:each={plannerViewerMenuItems} for:item="item">
+                                    <li
+                                        key={item.key}
+                                        class={item.className}
+                                        role="option"
+                                        tabindex="0"
+                                        aria-selected={item.ariaSelected}
+                                        data-value={item.value}
+                                        data-territory-id={item.territoryId}
+                                        onclick={handleViewerMenuSelect}
+                                        onkeydown={handleViewerOptionKeydown}
+                                    >
+                                        <span class="planner-viewer-option__label">{item.label}</span>
+                                        <template if:true={item.hasPending}>
+                                            <span class="planner-pending-bubble" title={item.pendingTitle}>{item.pendingLabel}</span>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </div>
                     <template if:true={showViewerBadge}>
                         <span class="planner-territory-badge">{viewerBadgeLabel}</span>
                     </template>
@@ -24,89 +53,212 @@
                     <lightning-button-icon icon-name="utility:chevronright" alternative-text="Next week" onclick={handleNextWeek}></lightning-button-icon>
                 </lightning-button-group>
 
-                <div class="slds-text-heading_small slds-m-left_small">{weekLabel}</div>
+                <div class="week-range-label">{weekLabel}</div>
+                <template if:true={showMapRouteSwitch}>
+                <div class="view-mode-switch" role="group" aria-label="Planner view">
+                    <button
+                        type="button"
+                        class={calendarSwitchClass}
+                        title="Calendar"
+                        aria-pressed={isCalendarView}
+                        aria-label="Calendar view"
+                        onclick={handleShowCalendar}
+                    >
+                        <span class="view-mode-switch__glyph" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
+                                <path d="M18 8a2 2 0 0 1 2 2v2h12V10a2 2 0 1 1 4 0v2h2a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4h2V10a2 2 0 0 1 2-2zm20 16H14v16h24V24zM14 16v4h24v-4H14z"/>
+                            </svg>
+                        </span>
+                        <span class="view-mode-switch__label">Calendar</span>
+                    </button>
+                    <button
+                        type="button"
+                        class={mapSwitchClass}
+                        title="Map &amp; Route"
+                        aria-pressed={isMapView}
+                        aria-label="Map and route view"
+                        onclick={handleShowMap}
+                    >
+                        <span class="view-mode-switch__glyph" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
+                                <path d="M8 12.5 20 8l12 6 12-4.5V39.5L32 44l-12-6-12 4.5V12.5zm4 3.2v22.6l8-3V12.7l-8 3zm12 20.4 8 4V18.7l-8-4v21.4zm12-17.2v22.8l8-3V15.9l-8 3z"/>
+                            </svg>
+                        </span>
+                        <span class="view-mode-switch__label">Map</span>
+                    </button>
+                </div>
+                </template>
+                </div>
 
-                <div class="slds-col_bump-left toolbar-view-actions">
+                <div class="toolbar-view-actions">
+                    <template if:true={showCopyPreviousPlan}>
+                    <div class="copy-plan-wrap">
+                        <button
+                            type="button"
+                            class={copyPlanButtonClass}
+                            title="Copy previous plan"
+                            aria-expanded={showCopyPlanMenu}
+                            aria-haspopup="menu"
+                            onclick={handleToggleCopyPlanMenu}
+                            disabled={isCopyPlanDisabled}
+                        >
+                            Copy previous plan
+                        </button>
+                        <template if:true={showCopyPlanMenu}>
+                            <div class="copy-plan-menu" role="menu">
+                                <button
+                                    type="button"
+                                    class="copy-plan-menu-item"
+                                    role="menuitem"
+                                    data-week-count="1"
+                                    onclick={handleCopyPreviousPlan}
+                                    disabled={isCopyingWeek}
+                                >
+                                    Copy 1 Week
+                                </button>
+                                <button
+                                    type="button"
+                                    class="copy-plan-menu-item"
+                                    role="menuitem"
+                                    data-week-count="2"
+                                    onclick={handleCopyPreviousPlan}
+                                    disabled={isCopyingWeek}
+                                >
+                                    Copy 2 Weeks
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    </template>
                     <lightning-button
                         label={submitWeekLabel}
                         variant="brand"
                         onclick={handleSubmitWeek}
                         disabled={isSubmitWeekDisabled}
                     ></lightning-button>
+                    <template if:true={showPlanningPlus}>
                     <button
                         type="button"
                         class={planningPlusButtonClass}
-                        title="Add TOT or meeting"
+                        title="Add meeting or time off"
                         aria-expanded={showPlanningPalettePanel}
-                        aria-label="Add TOT or meeting"
+                        aria-label="Add meeting or time off"
                         onclick={handleTogglePlanningPalette}
                         disabled={isReadOnlyPlannerView}
                     >
                         <span class="planning-plus-glyph" aria-hidden="true">＋</span>
                     </button>
-                    <div class="view-mode-switch" role="group" aria-label="Planner view">
+                    </template>
+                    <div class="planner-legend-wrap">
                         <button
                             type="button"
-                            class={calendarSwitchClass}
-                            title="Calendar"
-                            aria-pressed={isCalendarView}
-                            aria-label="Calendar view"
-                            onclick={handleShowCalendar}
+                            class={legendButtonClass}
+                            title="Color legend"
+                            aria-expanded={showLegendPanel}
+                            aria-controls="planner-legend-panel"
+                            aria-label="Color legend"
+                            onclick={handleToggleLegend}
                         >
-                            <span class="view-mode-switch__glyph" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
-                                    <path d="M18 8a2 2 0 0 1 2 2v2h12V10a2 2 0 1 1 4 0v2h2a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4h2V10a2 2 0 0 1 2-2zm20 16H14v16h24V24zM14 16v4h24v-4H14z"/>
-                                </svg>
-                            </span>
-                            <span class="view-mode-switch__label">Calendar</span>
+                            Legend
                         </button>
-                        <button
-                            type="button"
-                            class={mapSwitchClass}
-                            title="Map &amp; Route"
-                            aria-pressed={isMapView}
-                            aria-label="Map and route view"
-                            onclick={handleShowMap}
-                        >
-                            <span class="view-mode-switch__glyph" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="16" height="16" fill="currentColor" focusable="false">
-                                    <path d="M8 12.5 20 8l12 6 12-4.5V39.5L32 44l-12-6-12 4.5V12.5zm4 3.2v22.6l8-3V12.7l-8 3zm12 20.4 8 4V18.7l-8-4v21.4zm12-17.2v22.8l8-3V15.9l-8 3z"/>
-                                </svg>
-                            </span>
-                            <span class="view-mode-switch__label">Map</span>
-                        </button>
+                        <template if:true={showLegendPanel}>
+                            <div
+                                id="planner-legend-panel"
+                                class="planner-color-legend planner-color-legend-popover"
+                                role="dialog"
+                                aria-label="Planner color legend"
+                                onclick={stopLegendPanelClick}
+                            >
+                                <span class="planner-legend-group">
+                                    <span class="planner-legend-group-label">Visits</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch visit-draft"></span> Draft</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch visit-submitted"></span> Submitted</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch visit-scheduled"></span> Scheduled</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch visit-completed"></span> Completed</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch visit-cancelled"></span> Cancelled</span>
+                                </span>
+                                <span class="planner-legend-group">
+                                    <span class="planner-legend-group-label">TOT</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch tot-draft"></span> Draft</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch tot-submitted"></span> Submitted</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch tot-scheduled"></span> Scheduled</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch tot-rejected"></span> Rejected</span>
+                                </span>
+                                <span class="planner-legend-group">
+                                    <span class="planner-legend-group-label">Meetings</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch meeting-draft"></span> Draft</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch meeting-submitted"></span> Submitted</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch meeting-scheduled"></span> Scheduled</span>
+                                    <span class="planner-legend-item"><span class="planner-legend-swatch meeting-rejected"></span> Rejected</span>
+                                </span>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
 
-            <div class={mapToolbarClass} aria-hidden={isMapToolbarHidden}>
-                <lightning-combobox
-                    class="map-toolbar-day"
-                    label="Map day"
-                    variant="label-hidden"
-                    value={mapDayKey}
-                    options={mapDayOptions}
-                    onchange={handleMapDayChange}
-                    disabled={isMapToolbarDisabled}
-                ></lightning-combobox>
-                <lightning-button
-                    label={buildRouteLabel}
-                    variant="brand"
-                    onclick={handleBuildRoute}
-                    disabled={isRouteDisabled}
-                ></lightning-button>
-                <lightning-button
-                    label={optimizeRouteLabel}
-                    onclick={handleOptimizeRoute}
-                    disabled={isOptimizeDisabled}
-                ></lightning-button>
-                <lightning-button
-                    label="Update route &amp; calendar"
-                    variant="success"
-                    onclick={handleUpdateRouteAndCalendar}
-                    disabled={isUpdateRouteDisabled}
-                ></lightning-button>
-            </div>
+            <template if:true={canSubmitWeek}>
+                <div class="planner-submit-banner">
+                    <span>{draftSubmitBannerLabel}</span>
+                    <button
+                        type="button"
+                        class="planner-submit-banner-btn"
+                        onclick={handleSubmitWeek}
+                        disabled={isSubmitWeekDisabled}
+                    >
+                        Submit for approval
+                    </button>
+                </div>
+            </template>
+            <template if:true={showTeamPlannerBanner}>
+                <div class="planner-manager-banner" role="status">
+                    {teamPlannerBannerLabel}
+                </div>
+            </template>
+            <template if:true={isMapView}>
+                <div class="planner-map-toolbar is-open">
+                    <lightning-combobox
+                        class="map-toolbar-day"
+                        label="Map day"
+                        variant="label-hidden"
+                        value={mapDayKey}
+                        options={mapDayOptions}
+                        onchange={handleMapDayChange}
+                    ></lightning-combobox>
+                    <lightning-button
+                        label={buildRouteLabel}
+                        variant="brand"
+                        onclick={handleBuildRoute}
+                        disabled={isRouteDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label={optimizeRouteLabel}
+                        onclick={handleOptimizeRoute}
+                        disabled={isOptimizeDisabled}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Update route &amp; calendar"
+                        variant="success"
+                        onclick={handleUpdateRouteAndCalendar}
+                        disabled={isUpdateRouteDisabled}
+                    ></lightning-button>
+                    <lightning-combobox
+                        class="map-toolbar-day"
+                        label="Copy to day"
+                        variant="label-hidden"
+                        placeholder="Copy to day"
+                        value={copyTargetDayKey}
+                        options={copyTargetDayOptions}
+                        onchange={handleCopyTargetDayChange}
+                        disabled={isReadOnlyPlannerView}
+                    ></lightning-combobox>
+                    <lightning-button
+                        label="Copy day"
+                        onclick={handleCopyDay}
+                        disabled={isCopyDayDisabled}
+                    ></lightning-button>
+                </div>
+            </template>
 
             <template if:true={isLoading}>
                 <lightning-spinner alternative-text="Loading planner" size="medium"></lightning-spinner>
@@ -252,11 +404,30 @@
                                 ondragend={handleSidebarDragEnd}
                                 ontouchstart={handleAccountTouchStart}
                             >
-                                <span class="account-chip-name">{account.name}</span>
-                                <span class="account-chip-meta">{account.metaLine}</span>
-                                <template if:true={account.footnoteLine}>
-                                    <span class="account-card-footnote">{account.footnoteLine}</span>
-                                </template>
+                                <span class={account.typeIconClass} title={account.typeIconLabel} aria-hidden="true">
+                                    <template if:true={account.typeIconUrl}>
+                                        <img class="account-type-glyph" src={account.typeIconUrl} alt="" />
+                                    </template>
+                                    <template if:false={account.typeIconUrl}>
+                                        <lightning-icon
+                                            icon-name={account.typeIconName}
+                                            size="x-small"
+                                            alternative-text={account.typeIconLabel}
+                                        ></lightning-icon>
+                                    </template>
+                                </span>
+                                <span class="account-chip-body">
+                                    <span class="account-chip-name">{account.name}</span>
+                                    <span class="account-chip-meta">{account.metaLine}</span>
+                                </span>
+                                <span class="account-chip-aside">
+                                    <template if:true={account.coverageLabel}>
+                                        <span class={account.coverageBadgeClass}>{account.coverageLabel}</span>
+                                    </template>
+                                    <template if:true={account.footnoteLine}>
+                                        <span class="account-card-footnote">{account.footnoteLine}</span>
+                                    </template>
+                                </span>
                             </div>
                         </template>
                         <template if:true={isLoadingAccounts}>
@@ -268,6 +439,11 @@
                             <template if:false={isLoadingAccounts}>
                                 <div class="empty-hint">{emptyAccountsHint}</div>
                             </template>
+                        </template>
+                        <template if:true={showAccountLoadMore}>
+                            <button type="button" class="load-more-hint" onclick={handleLoadMoreAccounts}>
+                                Load more accounts
+                            </button>
                         </template>
                     </div>
                 </aside>
@@ -324,15 +500,35 @@
                                     ></lightning-combobox>
                                 </div>
                                 <div class="account-filter-field">
-                                    <label class="account-filter-label">Brick</label>
+                                    <label class="account-filter-label">148 brick</label>
                                     <lightning-combobox
-                                        label="Brick"
+                                        label="148 brick"
                                         variant="label-hidden"
-                                        placeholder="All bricks"
-                                        value={accountBrick}
-                                        options={brickOptions}
-                                        onchange={handleBrickChange}
-                                        disabled={brickFilterDisabled}
+                                        value={accountBrick148}
+                                        options={brick148FilterOptions}
+                                        onchange={handleBrick148Change}
+                                        disabled={brick148FilterDisabled}
+                                    ></lightning-combobox>
+                                </div>
+                                <div class="account-filter-field">
+                                    <label class="account-filter-label">702 brick</label>
+                                    <lightning-combobox
+                                        label="702 brick"
+                                        variant="label-hidden"
+                                        value={accountBrick702}
+                                        options={brick702FilterOptions}
+                                        onchange={handleBrick702Change}
+                                        disabled={brick702FilterDisabled}
+                                    ></lightning-combobox>
+                                </div>
+                                <div class="account-filter-field">
+                                    <label class="account-filter-label">Visit this week</label>
+                                    <lightning-combobox
+                                        label="Visit this week"
+                                        variant="label-hidden"
+                                        value={visitCoverage}
+                                        options={visitCoverageOptions}
+                                        onchange={handleVisitCoverageChange}
                                     ></lightning-combobox>
                                 </div>
                             </div>
@@ -369,6 +565,27 @@
                                 </button>
                             </div>
                             <div class="planning-palette-body">
+                                <template if:true={showPlannerMeetingSection}>
+                                <div class="planning-palette-section-title">Meeting</div>
+                                <div class="sidebar-helper-text">Drag onto a time slot, or tap to plan one now.</div>
+                                <div
+                                    class="meeting-palette-item"
+                                    draggable="true"
+                                    data-drag-type="meeting"
+                                    ondragstart={handleMeetingDragStart}
+                                    ondragend={handleSidebarDragEnd}
+                                    onclick={handleNewMeetingClick}
+                                >
+                                    <span class="meeting-palette-item__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.9"></path><path d="M16 3.1a4 4 0 0 1 0 7.8"></path></svg>
+                                    </span>
+                                    <span class="meeting-palette-item__text">
+                                        <span class="meeting-palette-item__title">New meeting</span>
+                                        <span class="meeting-palette-item__desc">Department approval, invites, and costs</span>
+                                    </span>
+                                </div>
+                                </template>
+                                <template if:true={showPlannerTimeOffSection}>
                                 <div class="planning-palette-section-title">Time Off (TOT)</div>
                                 <div class="sidebar-helper-text">Drag a preset to submit instantly, or use Custom for more options.</div>
                                 <div class="tot-quick-grid">
@@ -399,6 +616,7 @@
                                 >
                                     Custom TOT…
                                 </div>
+                                </template>
                             </div>
                             <div class="account-filter-panel-footer">
                                 <span class="planning-palette-hint">Drag items onto the calendar to schedule.</span>
@@ -425,6 +643,9 @@
                                         <div key={day.key} class={day.headerClass}>
                                             <div>{day.label}</div>
                                             <div class="slds-text-body_small">{day.dateLabel}</div>
+                                            <template if:true={day.isHoliday}>
+                                                <div class="calendar-holiday-label">{day.holidayLabel}</div>
+                                            </template>
                                         </div>
                                     </template>
 
@@ -477,7 +698,9 @@
                                                 <div
                                                     class="resize-handle"
                                                     data-event-id={event.id}
-                                                    onmousedown={handleResizeStart}
+                                                    data-event-type={event.type}
+                                                    title="Drag to change duration"
+                                                    onpointerdown={handleResizeStart}
                                                 ></div>
                                             </template>
                                         </div>
@@ -689,6 +912,7 @@
                                         <span class="legend-dot" style="background:#0176d3"></span> You
                                         <span class="legend-pin legend-pin-hcp slds-m-left_small"></span> Planned HCP
                                         <span class="legend-pin legend-pin-hco slds-m-left_small"></span> Planned HCO
+                                        <span class="legend-pin legend-pin-pharmacy slds-m-left_small"></span> Planned Pharmacy
                                         <span class="legend-pin legend-pin-outlier slds-m-left_small"></span> Outlier
                                         <span class="legend-pin legend-pin-unplanned slds-m-left_small"></span> Unplanned
                                         <span class="legend-dot slds-m-left_small" style="background:#2e7d32"></span> Route
@@ -703,16 +927,37 @@
         </div>
 
         <template if:true={showVisitDetailModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="visitDetail"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Plan Visit</h2>
                     </header>
                     <div class="slds-modal__content slds-p-around_medium">
                         <p class="slds-text-title_caps slds-m-bottom_x-small">{visitDetailAccountName}</p>
-                        <p class="slds-m-bottom_medium">
-                            <strong>When:</strong> {visitDetailStartLabel} – {visitDetailEndLabel}
-                        </p>
+                        <lightning-input
+                            class="slds-m-bottom_small"
+                            type="datetime"
+                            label="Visit start date &amp; time"
+                            value={visitDetailStartDateTime}
+                            onchange={handleVisitDetailStartChange}
+                            disabled={visitDetailReadOnly}
+                            required
+                        ></lightning-input>
+                        <lightning-input
+                            class="slds-m-bottom_medium"
+                            type="datetime"
+                            label="Visit end date &amp; time"
+                            value={visitDetailEndDateTime}
+                            onchange={handleVisitDetailEndChange}
+                            disabled={visitDetailReadOnly}
+                            required
+                        ></lightning-input>
                         <lightning-combobox
                             label="Status"
                             value={visitDetailStatus}
@@ -731,49 +976,111 @@
                                 required
                             ></lightning-textarea>
                         </template>
+                        <template if:true={visitDetailCanManagerApprove}>
+                            <lightning-textarea
+                                class="slds-m-top_medium"
+                                label="Rejection reason"
+                                placeholder="Required if you reject this visit"
+                                value={managerPlanRejectionReason}
+                                onchange={handleManagerPlanRejectionChange}
+                            ></lightning-textarea>
+                            <p class="slds-m-top_small slds-text-body_small slds-text-color_weak">
+                                Submitted for your approval. Approve to schedule it on the rep&apos;s calendar, or reject with a reason so they can revise the plan.
+                            </p>
+                        </template>
                         <p class="slds-m-top_medium slds-text-body_small slds-text-color_weak">
-                            Drag accounts onto the calendar to create draft visits. Open a visit here to schedule, complete, or cancel it.
+                            <template if:true={visitDetailCanSubmit}>
+                                This visit is still a draft. Submit it so your manager can approve the plan.
+                            </template>
+                            <template if:false={visitDetailCanSubmit}>
+                                <template if:false={visitDetailCanManagerApprove}>
+                                    Drag accounts onto the calendar to create draft visits. Open a visit here to schedule, complete, or cancel it.
+                                </template>
+                            </template>
                         </p>
                     </div>
                     <footer class="slds-modal__footer visit-modal-footer">
                         <div class="visit-modal-action-bar" role="group" aria-label="Visit actions">
-                            <button
-                                type="button"
-                                class="visit-bar-btn visit-bar-btn-primary"
-                                onclick={handleViewVisit}
-                            >
-                                View Visit
-                            </button>
-                            <template if:false={visitDetailReadOnly}>
+                            <template if:true={visitDetailCanManagerApprove}>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn visit-bar-btn-primary"
+                                    onclick={handleManagerApproveVisit}
+                                    disabled={isSaving}
+                                >
+                                    Approve visit
+                                </button>
                                 <button
                                     type="button"
                                     class="visit-bar-btn"
-                                    onclick={handleVisitDetailSave}
+                                    onclick={handleManagerRejectVisit}
                                     disabled={isSaving}
                                 >
-                                    Save
+                                    Reject visit
                                 </button>
-                                <template if:true={visitDetailCanSubmit}>
-                                    <button
-                                        type="button"
-                                        class="visit-bar-btn visit-bar-btn-primary"
-                                        onclick={handleSubmitVisitForApproval}
-                                        disabled={isSaving}
-                                    >
-                                        Submit
-                                    </button>
-                                </template>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn"
+                                    onclick={handleViewVisit}
+                                >
+                                    View visit
+                                </button>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn"
+                                    onclick={handleStartCoaching}
+                                >
+                                    Start coaching
+                                </button>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn"
+                                    onclick={handleVisitDetailCancel}
+                                >
+                                    Close
+                                </button>
+                            </template>
+                            <template if:true={visitDetailCanSubmit}>
+                                <button
+                                    type="button"
+                                    class="visit-bar-btn visit-bar-btn-primary"
+                                    onclick={handleSubmitVisitForApproval}
+                                    disabled={isSaving}
+                                >
+                                    Submit for approval
+                                </button>
+                            </template>
+                            <template if:false={visitDetailCanManagerApprove}>
                                 <template if:false={visitDetailCanSubmit}>
                                     <button
                                         type="button"
-                                        class="visit-bar-btn"
-                                        onclick={handleVisitDetailCancel}
+                                        class="visit-bar-btn visit-bar-btn-primary"
+                                        onclick={handleViewVisit}
                                     >
-                                        Close
+                                        View Visit
                                     </button>
+                                    <template if:true={visitDetailCanCoach}>
+                                        <button
+                                            type="button"
+                                            class="visit-bar-btn"
+                                            onclick={handleStartCoaching}
+                                        >
+                                            Start coaching
+                                        </button>
+                                    </template>
                                 </template>
                             </template>
-                            <template if:true={visitDetailReadOnly}>
+                            <template if:false={visitDetailCanManagerApprove}>
+                                <template if:false={visitDetailReadOnly}>
+                                    <button
+                                        type="button"
+                                        class="visit-bar-btn"
+                                        onclick={handleVisitDetailSave}
+                                        disabled={isSaving}
+                                    >
+                                        Save
+                                    </button>
+                                </template>
                                 <button
                                     type="button"
                                     class="visit-bar-btn"
@@ -798,6 +1105,16 @@
                                     </button>
                                     <template if:true={showVisitMoreMenu}>
                                         <div class="visit-bar-menu" role="menu">
+                                            <template if:true={visitDetailCanSubmit}>
+                                                <button
+                                                    type="button"
+                                                    class="visit-bar-menu-item"
+                                                    role="menuitem"
+                                                    onclick={handleViewVisit}
+                                                >
+                                                    View visit record
+                                                </button>
+                                            </template>
                                             <button
                                                 type="button"
                                                 class="visit-bar-menu-item"
@@ -816,16 +1133,6 @@
                                             >
                                                 Remove visit
                                             </button>
-                                            <template if:true={visitDetailCanSubmit}>
-                                                <button
-                                                    type="button"
-                                                    class="visit-bar-menu-item"
-                                                    role="menuitem"
-                                                    onclick={handleVisitDetailCancel}
-                                                >
-                                                    Close
-                                                </button>
-                                            </template>
                                         </div>
                                     </template>
                                 </div>
@@ -834,50 +1141,79 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showPlanChoiceModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container plan-choice-modal">
-                    <header class="slds-modal__header">
-                        <h2 class="slds-text-heading_medium">Plan this time slot</h2>
-                    </header>
-                    <div class="slds-modal__content slds-p-around_medium">
-                        <p class="slds-m-bottom_medium">{pendingSlotLabel}</p>
-                        <p class="slds-text-body_regular slds-m-bottom_medium">What would you like to schedule?</p>
-                        <div class="plan-choice-actions">
-                            <lightning-button
-                                class="plan-choice-button"
-                                label="Plan a Visit"
-                                icon-name="utility:event"
-                                onclick={handlePlanVisitChoice}
-                            ></lightning-button>
-                            <lightning-button
-                                class="plan-choice-button"
-                                label="Time Off (TOT)"
-                                icon-name="utility:away"
-                                onclick={handlePlanTotChoice}
-                            ></lightning-button>
-                            <lightning-button
-                                class="plan-choice-button"
-                                label="Meeting"
-                                icon-name="utility:groups"
-                                onclick={handlePlanMeetingChoice}
-                            ></lightning-button>
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="planChoice"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container plan-choice-modal" onclick={stopPlannerModalContentClick}>
+                    <div class="plan-choice">
+                        <header class="plan-choice__head">
+                            <div class="plan-choice__slot">
+                                <span class="plan-choice__eyebrow">Plan this time slot</span>
+                                <span class="plan-choice__day">{pendingSlotDayLabel}</span>
+                                <span class="plan-choice__time">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                                    {pendingSlotTimeLabel}
+                                </span>
+                            </div>
+                            <button type="button" class="plan-choice__close" aria-label="Close" onclick={handlePlanChoiceCancel}>
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                            </button>
+                        </header>
+                        <div class="plan-choice__options" role="list">
+                            <button type="button" class="plan-option plan-option_visit" role="listitem" onclick={handlePlanVisitChoice}>
+                                <span class="plan-option__icon">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                </span>
+                                <span class="plan-option__text">
+                                    <span class="plan-option__title">Visit</span>
+                                    <span class="plan-option__desc">Call on an HCP, pharmacy, or hospital</span>
+                                </span>
+                                <svg class="plan-option__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                            </button>
+                            <button type="button" class="plan-option plan-option_meeting" role="listitem" onclick={handlePlanMeetingChoice}>
+                                <span class="plan-option__icon">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.9"></path><path d="M16 3.1a4 4 0 0 1 0 7.8"></path></svg>
+                                </span>
+                                <span class="plan-option__text">
+                                    <span class="plan-option__title">Meeting</span>
+                                    <span class="plan-option__desc">Speaker dinner, round table, seminar, or promotional activity, with approval and costs</span>
+                                </span>
+                                <svg class="plan-option__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                            </button>
+                            <button type="button" class="plan-option plan-option_tot" role="listitem" onclick={handlePlanTotChoice}>
+                                <span class="plan-option__icon">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+                                </span>
+                                <span class="plan-option__text">
+                                    <span class="plan-option__title">Time off</span>
+                                    <span class="plan-option__desc">Leave, training, or office time</span>
+                                </span>
+                                <svg class="plan-option__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                            </button>
                         </div>
                     </div>
-                    <footer class="slds-modal__footer">
-                        <lightning-button label="Cancel" onclick={handlePlanChoiceCancel}></lightning-button>
-                    </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showVisitModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="visit"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Plan a Visit</h2>
                     </header>
@@ -886,22 +1222,18 @@
                             <strong>Start:</strong> {pendingSlotLabel}
                             <span class="slds-m-left_small"><strong>End:</strong> {visitEndLabel}</span>
                         </p>
-                        <lightning-input
-                            type="search"
-                            label="Search HCP / HCO"
-                            placeholder="Type to search accounts..."
-                            value={visitAccountSearch}
-                            onchange={handleVisitAccountSearch}
-                        ></lightning-input>
-                        <lightning-combobox
-                            class="slds-m-top_small"
+                        <c-field-account-lookup
                             label="Account"
-                            placeholder="Select an HCP or HCO"
-                            value={visitAccountId}
-                            options={visitAccountOptions}
-                            onchange={handleVisitAccountChange}
+                            placeholder="Search a name in Arabic or English"
                             required
-                        ></lightning-combobox>
+                            invalid={visitAccountInvalid}
+                            account-id={visitAccountId}
+                            account-name={visitAccountName}
+                            icon-name={visitAccountIconName}
+                            record-type-label={visitAccountRecordTypeLabel}
+                            suggestions={visitAccountSuggestions}
+                            onchange={handleVisitAccountLookupChange}
+                        ></c-field-account-lookup>
                     </div>
                     <footer class="slds-modal__footer">
                         <lightning-button label="Cancel" onclick={handleVisitCancel}></lightning-button>
@@ -909,12 +1241,18 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showVisitPickerModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="visitPicker"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Select a visit</h2>
                     </header>
@@ -942,12 +1280,18 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showTotModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container tot-modal">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="tot"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container tot-modal" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Create Time Off (TOT)</h2>
                     </header>
@@ -1030,12 +1374,18 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showRenameCollectionModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container save-collection-modal">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="renameCollection"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container save-collection-modal" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Rename account list</h2>
                     </header>
@@ -1060,12 +1410,18 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showSaveCollectionModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container save-collection-modal">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="saveCollection"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container save-collection-modal" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Save as account list</h2>
                     </header>
@@ -1093,12 +1449,18 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
         <template if:true={showPromoModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container">
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="promo"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
                         <h2 class="slds-text-heading_medium">Plan Promotional Event</h2>
                     </header>
@@ -1138,60 +1500,197 @@
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
 
-        <template if:true={showMeetingModal}>
-            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
-                <div class="slds-modal__container">
+        <template if:true={showPlanApprovalModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="planApproval"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
                     <header class="slds-modal__header">
-                        <h2 class="slds-text-heading_medium">Plan a Meeting</h2>
+                        <h2 class="slds-text-heading_medium">Manager approval</h2>
                     </header>
                     <div class="slds-modal__content slds-p-around_medium">
-                        <p class="slds-m-bottom_small">
-                            <strong>Start:</strong> {pendingSlotLabel}
-                            <span class="slds-m-left_small"><strong>End:</strong> {meetingEndLabel}</span>
-                        </p>
-                        <lightning-combobox
-                            label="Meeting type"
-                            placeholder="Select a type"
-                            value={meetingRecordType}
-                            options={meetingRecordTypeOptions}
-                            onchange={handleMeetingRecordTypeChange}
-                            required
-                        ></lightning-combobox>
-                        <lightning-input
-                            class="slds-m-top_small"
-                            label="Meeting title"
-                            placeholder="e.g. Regional speaker dinner, RTD kickoff"
-                            value={meetingTitle}
-                            onchange={handleMeetingTitleChange}
-                            required
-                        ></lightning-input>
-                        <lightning-combobox
-                            class="slds-m-top_small"
-                            label="Project (optional)"
-                            placeholder="Link to a project"
-                            value={meetingProjectId}
-                            options={promoProjectOptions}
-                            onchange={handleMeetingProjectChange}
-                        ></lightning-combobox>
-                        <p class="slds-m-top_medium slds-text-body_small slds-text-color_weak">
-                            Creates a Draft Meeting on your calendar. Open it to manage members, expenses, and approval.
-                        </p>
+                        <p class="slds-text-title_caps slds-m-bottom_small">{planApprovalTitle}</p>
+                        <lightning-textarea
+                            label="Rejection reason"
+                            placeholder="Required if you reject this item"
+                            value={planApprovalRejectionReason}
+                            onchange={handlePlanApprovalRejectionChange}
+                        ></lightning-textarea>
                     </div>
                     <footer class="slds-modal__footer">
-                        <lightning-button label="Cancel" onclick={handleMeetingCancel}></lightning-button>
+                        <lightning-button label="Close" onclick={handlePlanApprovalCancel}></lightning-button>
                         <lightning-button
-                            label="Save Meeting"
+                            label="Reject"
+                            onclick={handlePlanApprovalReject}
+                            disabled={isSaving}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Approve"
                             variant="brand"
-                            onclick={handleMeetingSave}
-                            disabled={isMeetingSaveDisabled}
+                            onclick={handlePlanApprovalApprove}
+                            disabled={isSaving}
                         ></lightning-button>
                     </footer>
                 </div>
             </section>
-            <div class="slds-backdrop slds-backdrop_open"></div>
+            <div class={plannerBackdropClass}></div>
         </template>
-    </lightning-card>
+
+        <template if:true={showMeetingPanel}>
+            <div class="meeting-drawer" onclick={handleMeetingPanelShellClick}>
+                <div class="meeting-drawer__panel" role="dialog" aria-modal="true" aria-label="Meeting">
+                    <c-meeting-workspace
+                        meeting-id={meetingPanelId}
+                        default-start={meetingPanelStart}
+                        default-end={meetingPanelEnd}
+                        embedded
+                        onclose={handleMeetingPanelClose}
+                        onchanged={handleMeetingPanelChanged}
+                        oncreated={handleMeetingPanelCreated}
+                    ></c-meeting-workspace>
+                </div>
+            </div>
+        </template>
+
+        <template if:true={showMeetingExpenseModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                class={plannerModalClass}
+                data-modal="meetingExpense"
+                onclick={handlePlannerModalShellClick}
+            >
+                <div class="slds-modal__container" onclick={stopPlannerModalContentClick}>
+                    <header class="slds-modal__header">
+                        <h2 class="slds-text-heading_medium">Meeting expenses</h2>
+                        <p class="slds-text-body_small slds-m-top_x-small">{meetingExpenseTitle}</p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <c-planner-meeting-expenses meeting-id={meetingExpenseId}></c-planner-meeting-expenses>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Open meeting" onclick={handleOpenMeetingRecord}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" label="Close" variant="brand" onclick={handleMeetingExpenseClose}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class={plannerBackdropClass}></div>
+        </template>
+
+        <template if:true={renderAgentforceFab}>
+        <div class="agentforce-fab-root" style={agentforceFabStyle}>
+            <template if:true={showPlannerInsights}>
+                <section class="agentforce-popup" role="dialog" aria-label="Planner Agentforce">
+                    <header class="agentforce-popup-header">
+                        <div>
+                            <div class="agentforce-popup-title">Agentforce</div>
+                            <div class="agentforce-popup-sub">Recommendations, insights &amp; Q&amp;A</div>
+                        </div>
+                        <button type="button" class="agentforce-popup-close" onclick={handleCloseAgentforcePopup} aria-label="Close">
+                            ×
+                        </button>
+                    </header>
+
+                    <div class="agentforce-section">
+                        <div class="agentforce-section-title">
+                            Week recommendations
+                            <span class="agentforce-section-meta">{weekForecastLabel}</span>
+                        </div>
+                        <template if:true={isLoadingRecommendations}>
+                            <p class="slds-text-body_small">Loading recommendations…</p>
+                        </template>
+                        <template if:true={hasWeekRecommendations}>
+                            <ul class="planner-rec-list agentforce-rec-list">
+                                <template for:each={weekRecommendations} for:item="rec">
+                                    <li key={rec.key} class="planner-rec-item">
+                                        <div>
+                                            <div class="planner-rec-title">{rec.accountName}</div>
+                                            <div class="planner-rec-meta">{rec.gapLabel}</div>
+                                            <div class="planner-rec-reason">{rec.reason}</div>
+                                        </div>
+                                        <lightning-button
+                                            label="Add draft"
+                                            data-account-id={rec.accountId}
+                                            onclick={handlePlanRecommendation}
+                                            disabled={isReadOnlyPlannerView}
+                                        ></lightning-button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template if:false={hasWeekRecommendations}>
+                            <template if:false={isLoadingRecommendations}>
+                                <p class="slds-text-body_small">No open frequency gaps for this week.</p>
+                            </template>
+                        </template>
+                    </div>
+
+                    <div class="agentforce-section">
+                        <div class="agentforce-section-title">Insights</div>
+                        <ul class="planner-insight-list agentforce-insight-list">
+                            <template for:each={plannerInsightLines} for:item="line">
+                                <li key={line.key}>{line.text}</li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <div class="agentforce-section">
+                        <div class="agentforce-section-title">Ask about this week</div>
+                        <div class="planner-chat">
+                            <template for:each={plannerChatMessages} for:item="msg">
+                                <div key={msg.key} class={msg.cssClass}>
+                                    {msg.text}
+                                </div>
+                            </template>
+                            <lightning-textarea
+                                label="Ask Agentforce anything…"
+                                value={plannerChatQuestion}
+                                onchange={handlePlannerChatQuestionChange}
+                                max-length="500"
+                            ></lightning-textarea>
+                            <lightning-button
+                                class="slds-m-top_x-small"
+                                label="Ask"
+                                variant="brand"
+                                onclick={handleAskPlannerQuestion}
+                                disabled={isAskingPlanner}
+                            ></lightning-button>
+                        </div>
+                    </div>
+                </section>
+            </template>
+            <div class="agentforce-fab-cluster" onpointerdown={handleAgentforceFabPointerDown}>
+                <button
+                    type="button"
+                    class="agentforce-fab-robot"
+                    title="Ask Agentforce"
+                    aria-label="Ask Agentforce"
+                    onclick={handleAgentforceFabClick}
+                >
+                    <svg class="agentforce-fab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                            fill="currentColor"
+                            d="M12 2a2 2 0 0 1 2 2v1h2a3 3 0 0 1 3 3v2h1a1 1 0 1 1 0 2h-1v2a3 3 0 0 1-3 3h-2v1a2 2 0 1 1-4 0v-1H8a3 3 0 0 1-3-3v-2H4a1 1 0 1 1 0-2h1V8a3 3 0 0 1 3-3h2V4a2 2 0 0 1 2-2zm-3 8a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 9 10zm6 0a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 15 10zm-6.5 4.25h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1 0-1.5z"
+                        ></path>
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    class="agentforce-fab-menu"
+                    title="Agentforce menu"
+                    aria-label="Agentforce menu"
+                    onclick={handleAgentforceFabClick}
+                >
+                    ···
+                </button>
+            </div>
+        </div>
+        </template>
 </template>

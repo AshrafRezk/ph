@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Invoice__c</fullName>
+    <defaultValue>true</defaultValue>
+    <inlineHelpText>Deposit and actual cost need an attached invoice before they go to accounting.</inlineHelpText>
+    <label>Invoice Required</label>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

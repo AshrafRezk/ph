@@ -1,0 +1,57 @@
+<template>
+    <section class="hcp-admin">
+        <header class="hcp-admin-header">
+            <h2 class="hcp-admin-title">HCP Portal</h2>
+            <p class="hcp-admin-subtitle">
+                Choose which tabs guests see on the meeting invite app (/meet). The entry pass and
+                live QR always stay available.
+            </p>
+        </header>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading HCP Portal settings" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="hcp-admin-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <template if:false={isLoading}>
+            <article class="hcp-admin-card">
+                <header class="hcp-admin-card-head">
+                    <div>
+                        <h3 class="hcp-admin-card-title">Tabs</h3>
+                        <p class="hcp-admin-card-desc">
+                            Events still require a personal invite or PIN session when this switch is on.
+                        </p>
+                    </div>
+                    <lightning-button
+                        label={saveLabel}
+                        variant="brand"
+                        disabled={saveDisabled}
+                        onclick={handleSave}
+                    ></lightning-button>
+                </header>
+                <ul class="hcp-admin-list">
+                    <template for:each={features} for:item="feature">
+                        <li key={feature.key} class="hcp-admin-row">
+                            <div>
+                                <div class="hcp-admin-name">{feature.label}</div>
+                                <div class="hcp-admin-desc">{feature.description}</div>
+                            </div>
+                            <lightning-input
+                                type="toggle"
+                                label={feature.label}
+                                variant="label-hidden"
+                                data-key={feature.key}
+                                checked={feature.enabled}
+                                onchange={handleToggle}
+                            ></lightning-input>
+                        </li>
+                    </template>
+                </ul>
+                <p class="hcp-admin-note">Entry pass and live QR are always on.</p>
+            </article>
+        </template>
+    </section>
+</template>

@@ -1,0 +1,98 @@
+<template>
+    <article class="visit-panel">
+        <div class="panel-header">
+            <div>
+                <h2 class="visit-panel-title">Make an Order</h2>
+                <p class="visit-panel-subtitle">
+                    Order products aligned to your territory. Save here independently of the visit report.
+                </p>
+            </div>
+            <template if:true={hasProducts}>
+                <lightning-button
+                    label="Save Order"
+                    variant="brand"
+                    onclick={handleSave}
+                    disabled={saveDisabled}
+                ></lightning-button>
+            </template>
+        </div>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading order" size="small"></lightning-spinner>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:false={hasProducts}>
+                <p class="empty-hint">{emptyReason}</p>
+            </template>
+            <template if:true={hasProducts}>
+                <lightning-combobox
+                    label="Order status"
+                    value={status}
+                    options={statusOptions}
+                    onchange={handleStatusChange}
+                    disabled={disabled}
+                ></lightning-combobox>
+                <lightning-textarea
+                    class="slds-m-top_small"
+                    label="Order notes"
+                    value={notes}
+                    onchange={handleNotesChange}
+                    disabled={disabled}
+                    placeholder="Delivery timing, shelf location, or pharmacist request."
+                ></lightning-textarea>
+
+                <template for:each={displayLines} for:item="line">
+                    <div key={line.key} class="order-line">
+                        <lightning-combobox
+                            label="Product"
+                            value={line.productId}
+                            options={productOptions}
+                            data-key={line.key}
+                            data-field="productId"
+                            onchange={handleLineChange}
+                            disabled={disabled}
+                            required
+                        ></lightning-combobox>
+                        <lightning-input
+                            type="number"
+                            label="Quantity"
+                            value={line.quantity}
+                            min="1"
+                            data-key={line.key}
+                            data-field="quantity"
+                            onchange={handleLineChange}
+                            disabled={disabled}
+                            required
+                        ></lightning-input>
+                        <lightning-input
+                            label="Line notes"
+                            value={line.notes}
+                            data-key={line.key}
+                            data-field="notes"
+                            onchange={handleLineChange}
+                            disabled={disabled}
+                        ></lightning-input>
+                        <lightning-button-icon
+                            class="remove-line"
+                            icon-name="utility:delete"
+                            alternative-text="Remove line"
+                            title="Remove line"
+                            data-key={line.key}
+                            onclick={handleRemoveLine}
+                            disabled={disabled}
+                        ></lightning-button-icon>
+                    </div>
+                </template>
+
+                <lightning-button
+                    class="slds-m-top_small"
+                    label="Add product"
+                    icon-name="utility:add"
+                    onclick={handleAddLine}
+                    disabled={disabled}
+                ></lightning-button>
+            </template>
+        </template>
+    </article>
+</template>

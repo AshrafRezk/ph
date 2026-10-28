@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Private</cacheControl>
+    <contentType>application/json</contentType>
+    <description>HR master dates by employee code: hiring date, resignation notification date, last day of work. Source: COMMERCCIAL DATA BASE.xlsx.</description>
+</StaticResource>

@@ -3,6 +3,7 @@
     <fullName>MR_PET_MRI_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — PET/MRI Sold</description>
+    <externalId>false</externalId>
     <label>PET/MRI Sold</label>
     <precision>16</precision>
     <required>false</required>

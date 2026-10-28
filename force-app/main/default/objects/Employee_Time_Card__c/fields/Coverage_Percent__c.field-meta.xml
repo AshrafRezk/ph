@@ -8,7 +8,7 @@
 )</formula>
     <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
     <label>Coverage Percent</label>
-    <precision>5</precision>
+    <precision>18</precision>
     <required>false</required>
     <scale>1</scale>
     <trackHistory>false</trackHistory>

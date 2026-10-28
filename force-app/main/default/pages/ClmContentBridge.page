@@ -1,0 +1,88 @@
+<apex:page controller="ClmContentBridgeController"
+    showHeader="false"
+    sidebar="false"
+    standardStylesheets="false"
+    docType="html-5.0"
+    applyHtmlTag="true"
+    applyBodyTag="true">
+    <c:PendingPaymentAlert />
+    <script>
+        (function () {
+            var requestId = '{!JSENCODE(requestId)}';
+            var docId = '{!JSENCODE(docId)}';
+            function notify(payload) {
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(payload, '*');
+                    }
+                } catch (ignore) {
+                    /* parent may be unavailable */
+                }
+            }
+
+            if ({!hasError}) {
+                notify({
+                    type: 'clm-content-error',
+                    requestId: requestId,
+                    docId: docId,
+                    message: '{!JSENCODE(errorMessage)}'
+                });
+                return;
+            }
+
+            notify({
+                type: 'clm-content-start',
+                requestId: requestId,
+                docId: docId,
+                total: {!totalBytes}
+            });
+        })();
+    </script>
+    <apex:repeat value="{!chunkRows}" var="row">
+        <script>
+            (function () {
+                var requestId = '{!JSENCODE(requestId)}';
+                var docId = '{!JSENCODE(docId)}';
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage(
+                            {
+                                type: 'clm-content-chunk-b64',
+                                requestId: requestId,
+                                docId: docId,
+                                index: {!row.index},
+                                base64: '{!JSENCODE(row.base64)}'
+                            },
+                            '*'
+                        );
+                    }
+                } catch (ignore) {
+                    /* parent may be unavailable */
+                }
+            })();
+        </script>
+    </apex:repeat>
+    <script>
+        (function () {
+            if ({!hasError}) {
+                return;
+            }
+            var requestId = '{!JSENCODE(requestId)}';
+            var docId = '{!JSENCODE(docId)}';
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(
+                        {
+                            type: 'clm-content-end',
+                            requestId: requestId,
+                            docId: docId
+                        },
+                        '*'
+                    );
+                }
+            } catch (ignore) {
+                /* parent may be unavailable */
+            }
+        })();
+    </script>
+</apex:page>

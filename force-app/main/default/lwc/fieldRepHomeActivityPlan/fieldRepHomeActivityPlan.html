@@ -1,0 +1,33 @@
+<template>
+    <template if:true={showWidget}>
+        <article class="plan-card">
+            <header class="plan-header">
+                <h2 class="plan-title">Activity plan</h2>
+                <p class="plan-subtitle">Monthly calls versus target</p>
+            </header>
+            <template if:true={errorMessage}>
+                <p class="plan-error">{errorMessage}</p>
+            </template>
+            <template if:false={errorMessage}>
+                <div class="plan-metrics">
+                    <div class="plan-metric">
+                        <span class="plan-label">Coverage</span>
+                        <strong>{coverageLabel}</strong>
+                    </div>
+                    <div class="plan-metric">
+                        <span class="plan-label">Actual / target</span>
+                        <strong>{actualTargetLabel}</strong>
+                    </div>
+                    <div class="plan-metric">
+                        <span class="plan-label">Remaining calls</span>
+                        <strong>{remainingLabel}</strong>
+                    </div>
+                    <div class="plan-metric">
+                        <span class="plan-label">Customers reached</span>
+                        <strong>{customerCoverageLabel}</strong>
+                    </div>
+                </div>
+            </template>
+        </article>
+    </template>
+</template>

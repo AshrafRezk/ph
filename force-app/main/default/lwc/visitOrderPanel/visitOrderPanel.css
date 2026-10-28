@@ -1,0 +1,21 @@
+:host { display: block; }
+.workflow-panel { padding: 0.25rem 0 1rem; }
+.workflow-title { margin: 0; font-size: 1.05rem; color: #032d60; }
+.workflow-help, .workflow-error { margin: 0.35rem 0 0.75rem; font-size: 0.8125rem; }
+.workflow-error { color: #ba0517; }
+.add-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) 6rem auto;
+    gap: 0.5rem;
+    align-items: end;
+}
+.workflow-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.workflow-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e5e5e5;
+    font-size: 0.8125rem;
+}
+.workflow-list span { display: block; color: #706e6b; }

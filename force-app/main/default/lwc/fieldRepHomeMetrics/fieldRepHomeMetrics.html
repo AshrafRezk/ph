@@ -1,4 +1,5 @@
 <template>
+    <template if:true={featureEnabled}>
     <article class="perf-card">
         <header class="perf-header">
             <div class="perf-header-top">
@@ -29,29 +30,78 @@
             <div class="perf-body">
                 <!-- Primary KPIs -->
                 <template if:true={metricsReady}>
+                <template if:true={showCallRateStrip}>
+                    <div class="rate-strip" role="list" aria-label="Territory call rates">
+                        <template for:each={callRateChips} for:item="chip">
+                            <div key={chip.id} class="rate-chip" role="listitem" title={chip.hint} aria-label={chip.ariaLabel}>
+                                <span class="rate-chip-label">{chip.label}</span>
+                                <span class="rate-chip-value">{chip.valueLabel}</span>
+                                <span class="rate-chip-hint">actual / target per day</span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
                 <div class="kpi-row" role="list" aria-label="Performance KPI rings">
                     <template for:each={kpiCards} for:item="kpi">
-                        <div
-                            key={kpi.id}
-                            class={kpi.cardClass}
-                            style={kpi.cardStyle}
-                            role="listitem"
-                            aria-label={kpi.ariaLabel}
-                        >
-                            <span class="kpi-help" onclick={handleStopHelpClick}>
-                                <lightning-helptext content={kpi.helpContent}></lightning-helptext>
-                            </span>
+                        <div key={kpi.id} class={kpi.shellClass} role="listitem">
                             <button
                                 type="button"
-                                class="kpi-card-button"
+                                class={kpi.cardClass}
+                                style={kpi.cardStyle}
                                 data-kpi-id={kpi.id}
                                 onclick={handleKpiDrill}
                                 title={kpi.hint}
                                 aria-pressed={kpi.ariaPressed}
+                                aria-label={kpi.ariaLabel}
                             >
+                                <template if:true={kpi.showScene}>
+                                    <div class="kpi-sky" aria-hidden="true">
+                                        <template if:true={kpi.isMorning}>
+                                            <span class="sky-wash sky-wash-morning"></span>
+                                            <span class="sky-sun"></span>
+                                            <span class="sky-cloud sky-cloud-a">
+                                                <svg viewBox="0 0 64 32" focusable="false">
+                                                    <ellipse cx="22" cy="20" rx="14" ry="8"></ellipse>
+                                                    <ellipse cx="36" cy="15" rx="13" ry="10"></ellipse>
+                                                    <ellipse cx="48" cy="20" rx="12" ry="7"></ellipse>
+                                                </svg>
+                                            </span>
+                                            <span class="sky-cloud sky-cloud-b">
+                                                <svg viewBox="0 0 64 32" focusable="false">
+                                                    <ellipse cx="24" cy="20" rx="14" ry="8"></ellipse>
+                                                    <ellipse cx="38" cy="16" rx="12" ry="9"></ellipse>
+                                                    <ellipse cx="48" cy="21" rx="11" ry="6"></ellipse>
+                                                </svg>
+                                            </span>
+                                            <span class="sky-cloud sky-cloud-c">
+                                                <svg viewBox="0 0 64 32" focusable="false">
+                                                    <ellipse cx="22" cy="20" rx="13" ry="7"></ellipse>
+                                                    <ellipse cx="36" cy="16" rx="12" ry="9"></ellipse>
+                                                    <ellipse cx="48" cy="21" rx="10" ry="6"></ellipse>
+                                                </svg>
+                                            </span>
+                                        </template>
+                                        <template if:true={kpi.isNight}>
+                                            <span class="sky-wash sky-wash-night"></span>
+                                            <span class="sky-moon"></span>
+                                            <span class="sky-star sky-star-1"></span>
+                                            <span class="sky-star sky-star-2"></span>
+                                            <span class="sky-star sky-star-3"></span>
+                                            <span class="sky-star sky-star-4"></span>
+                                            <span class="sky-star sky-star-5"></span>
+                                            <span class="sky-star sky-star-6"></span>
+                                            <span class="sky-shoot"></span>
+                                        </template>
+                                    </div>
+                                </template>
                                 <div class="kpi-card-inner">
                                     <div class="kpi-card-meta">
-                                        <span class="kpi-label">{kpi.label}</span>
+                                        <span class="kpi-label-row">
+                                            <template if:true={kpi.logoUrl}>
+                                                <img class="kpi-type-logo" src={kpi.logoUrl} alt="" />
+                                            </template>
+                                            <span class="kpi-label">{kpi.label}</span>
+                                        </span>
                                         <template if:true={kpi.countLabel}>
                                             <span class="kpi-count-label">{kpi.countLabel}</span>
                                         </template>
@@ -83,6 +133,9 @@
                                     </template>
                                 </div>
                             </button>
+                            <span class="kpi-help">
+                                <lightning-helptext content={kpi.helpContent}></lightning-helptext>
+                            </span>
                         </div>
                     </template>
                 </div>
@@ -135,7 +188,6 @@
                                 oninput={scheduleSearch}
                                 onchange={commitSearch}
                                 autocomplete="off"
-                                autocorrect="off"
                                 spellcheck="false"
                                 enterkeyhint="search"
                             />
@@ -459,4 +511,9 @@
             <div class="slds-backdrop slds-backdrop_open"></div>
         </template>
     </article>
+
+    <div class="expense-section-host">
+        <c-expense-submission></c-expense-submission>
+    </div>
+    </template>
 </template>

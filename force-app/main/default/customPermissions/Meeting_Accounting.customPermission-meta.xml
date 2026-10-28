@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Record payments on meetings, and send meetings back to the business for correction.</description>
+    <isLicensed>false</isLicensed>
+    <label>Meeting Accounting</label>
+</CustomPermission>

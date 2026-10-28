@@ -21,7 +21,9 @@ export function makeDualApex(loader) {
     }
 
     ApexDual.prototype.connect = function connect() {
-        this._emit();
+        if (this._config !== undefined) {
+            this._emit();
+        }
     };
     ApexDual.prototype.update = function update(config) {
         this._config = config;
@@ -33,21 +35,41 @@ export function makeDualApex(loader) {
     ApexDual.prototype._emit = function _emit() {
         const cb = this._dataCallback;
         if (!cb) {
-            return;
+            return Promise.resolve();
         }
+        const self = this;
+        const attachRefresh = (payload) => {
+            payload.refresh = () => self._emit();
+            return payload;
+        };
         if (loader) {
-            Promise.resolve(loader(this._config)).then(
-                (data) => cb({ data, error: undefined }),
-                (error) => cb({ data: undefined, error })
+            this._seq = (this._seq || 0) + 1;
+            const seq = this._seq;
+            this._inflight = Promise.resolve(loader(this._config)).then(
+                (data) => {
+                    if (seq !== self._seq) {
+                        return;
+                    }
+                    cb(attachRefresh({ data, error: undefined }));
+                },
+                (error) => {
+                    if (seq !== self._seq) {
+                        return;
+                    }
+                    cb(attachRefresh({ data: undefined, error }));
+                }
             );
-        } else {
-            // No offline data source — surface as an error so @wire consumers
-            // take their error/empty branch rather than an infinite spinner.
-            cb({
+            return this._inflight;
+        }
+        // No offline data source — surface as an error so @wire consumers
+        // take their error/empty branch rather than an infinite spinner.
+        cb(
+            attachRefresh({
                 data: undefined,
                 error: { status: 0, body: { message: 'Not available in the offline build.' } }
-            });
-        }
+            })
+        );
+        return Promise.resolve();
     };
 
     return ApexDual;

@@ -283,8 +283,18 @@ body {
 
 .list-card-meta {
     margin: 0.35rem 0 0;
-    color: #706e6b;
+    color: #3e3e3c;
     font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.list-card-meta-label {
+    color: #706e6b;
+}
+
+.list-kanban-card .list-kanban-title {
+    display: block;
+    margin-bottom: 0.15rem;
 }
 
 .list-kanban {

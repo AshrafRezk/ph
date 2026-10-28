@@ -6,12 +6,16 @@
     ISPICKVAL(Span_Type__c, &quot;Hours&quot;),
     Span_Duration__c / 8,
     IF(
-        ISPICKVAL(Span_Type__c, &quot;Full_Day&quot;),
-        Span_Duration__c,
+        ISPICKVAL(Span_Type__c, &quot;Half_Day&quot;),
+        0.5,
         IF(
-            TEXT(Span_Type__c) = &quot;Days&quot;,
+            ISPICKVAL(Span_Type__c, &quot;Full_Day&quot;),
             Span_Duration__c,
-            null
+            IF(
+                TEXT(Span_Type__c) = &quot;Days&quot;,
+                Span_Duration__c,
+                null
+            )
         )
     )
 )</formula>

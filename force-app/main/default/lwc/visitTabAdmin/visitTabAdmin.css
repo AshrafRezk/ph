@@ -1,0 +1,78 @@
+.vta-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.vta-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.vta-subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 40rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.vta-error {
+    color: #c23934;
+}
+
+.vta-scroll {
+    overflow-x: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.vta-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+}
+
+.vta-table th,
+.vta-table td {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid #f3f3f3;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.vta-table thead th {
+    background: #f7f8fa;
+    font-weight: 700;
+    color: #3e3e3c;
+}
+
+.vta-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    text-align: left !important;
+    background: #fff;
+    min-width: 10rem;
+}
+
+.vta-table thead .vta-sticky {
+    z-index: 2;
+    background: #f7f8fa;
+}
+
+.vta-table tbody tr:last-child th,
+.vta-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.vta-table input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: #0176d3;
+}

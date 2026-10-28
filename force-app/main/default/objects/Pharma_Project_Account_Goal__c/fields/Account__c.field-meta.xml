@@ -6,5 +6,6 @@
     <referenceTo>Account</referenceTo>
     <relationshipName>Pharma_Project_Account_Goals</relationshipName>
     <required>true</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

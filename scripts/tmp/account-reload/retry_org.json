@@ -1,0 +1,12 @@
+{
+  "name": "Error",
+  "message": "Parsing --file \n\tNo file found at ph/scripts/tmp/account-reload/accounts_org_retry.csv\nSee more help with --help",
+  "exitCode": 2,
+  "context": "Upsert",
+  "stack": "Error: Parsing --file \n\tNo file found at ph/scripts/tmp/account-reload/accounts_org_retry.csv\nSee more help with --help\n    at SfCommandError.from (file:///opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@salesforce/sf-plugins-core/lib/SfCommandError.js:48:16)\n    at Upsert.catch (file:///opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@salesforce/sf-plugins-core/lib/sfCommand.js:332:47)\n    at Upsert._run (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/command.js:186:29)\n    at async Config.runCommand (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/config/config.js:456:25)\n    at async run (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/main.js:97:16)\n    at async file:///opt/homebrew/lib/node_modules/@salesforce/cli/bin/run.js:15:1",
+  "cause": "Error: Parsing --file \n\tNo file found at ph/scripts/tmp/account-reload/accounts_org_retry.csv\nSee more help with --help\n    at fileExists (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/util/fs.js:42:15)\n    at async parseFlagOrThrowError (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/parser/parse.js:285:24)\n    at async /opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/parser/parse.js:431:88\n    at async Promise.all (index 3)\n    at async Parser._flags (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/parser/parse.js:418:33)\n    at async Promise.all (index 1)\n    at async Parser.parse (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/parser/parse.js:186:55)\n    at async Object.parse (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/parser/index.js:21:20)\n    at async Upsert.parse (/opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@oclif/core/lib/command.js:280:25)\n    at async Upsert.run (file:///opt/homebrew/lib/node_modules/@salesforce/cli/node_modules/@salesforce/plugin-data/lib/commands/data/upsert/bulk.js:40:27) {\n  oclif: { exit: 2 }\n}",
+  "warnings": [],
+  "code": "2",
+  "status": 2,
+  "commandName": "Upsert"
+}

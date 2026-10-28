@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtlClntAppGlobalOauthSettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <callbackUrl>https://oauth.pstmn.io/v1/callback</callbackUrl>
+    <consumerKey>3MVG9U65ySgtae71Qj6sHa91riTQ7YsIfolfXII_SSnlT9AGCEglUrVPiYSiM2ZBP5ntbCKR1PLqBBYSeGL3o</consumerKey>
+    <externalClientApplication>Mendix_Meetings_API</externalClientApplication>
+    <isClientCredentialsFlowEnabled>true</isClientCredentialsFlowEnabled>
+    <isCodeCredFlowEnabled>false</isCodeCredFlowEnabled>
+    <isCodeCredPostOnly>false</isCodeCredPostOnly>
+    <isConsumerSecretOptional>false</isConsumerSecretOptional>
+    <isDPopEnabled>false</isDPopEnabled>
+    <isDeviceFlowEnabled>false</isDeviceFlowEnabled>
+    <isEnforceRefreshTokenTTL>true</isEnforceRefreshTokenTTL>
+    <isIntrospectAllTokens>false</isIntrospectAllTokens>
+    <isNamedUserJwtEnabled>false</isNamedUserJwtEnabled>
+    <isPkceRequired>true</isPkceRequired>
+    <isRefreshTokenRotationEnabled>true</isRefreshTokenRotationEnabled>
+    <isSecretRequiredForRefreshToken>true</isSecretRequiredForRefreshToken>
+    <isSecretRequiredForTokenExchange>true</isSecretRequiredForTokenExchange>
+    <isTokenExchangeEnabled>false</isTokenExchangeEnabled>
+    <label>Mendix Integration API Global OAuth</label>
+    <shouldRotateConsumerKey>false</shouldRotateConsumerKey>
+    <shouldRotateConsumerSecret>false</shouldRotateConsumerSecret>
+</ExtlClntAppGlobalOauthSettings>

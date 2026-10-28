@@ -1,0 +1,341 @@
+<template>
+    <div class="cc-page planner-page">
+        <c-care-coach-view-bar
+            title="Planner"
+            icon-name="standard:event"
+            context={context}
+            mode={mode}
+            hide-scope
+            compact
+            onmodechange={handleModeChange}
+        ></c-care-coach-view-bar>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+
+        <div class="planner">
+            <!-- Patients -->
+            <aside class="cc-card side">
+                <div class="side-head">
+                    <h2 class="cc-card-title">My patients</h2>
+                    <p class="cc-card-subtitle">Drag onto a time. New calls are 5 minutes. Long-press on touch.</p>
+                    <lightning-input
+                        type="search"
+                        label="Search patients"
+                        variant="label-hidden"
+                        placeholder="Search patients"
+                        class="slds-m-top_x-small"
+                        onchange={handlePatientSearch}
+                    ></lightning-input>
+                    <div class="mini-chips">
+                        <template for:each={filterChips} for:item="c">
+                            <button key={c.key} type="button" class={c.cls} data-key={c.key} onclick={handlePatientFilter}>{c.label}</button>
+                        </template>
+                    </div>
+                    <div class="cc-muted">{patientCountLabel}</div>
+                </div>
+                <div class="side-list">
+                    <template for:each={patients} for:item="p">
+                        <div
+                            key={p.id}
+                            class={p.cardClass}
+                            data-drag="patient"
+                            data-draggable={p.draggable}
+                            data-label={p.displayName}
+                            data-id={p.id}
+                            onpointerdown={handleDragPointerDown}
+                            onclick={handlePatientClick}
+                            title="Drag onto the calendar or click to plan a call"
+                        >
+                            <div class="cc-row">
+                                <span class={p.avatarClass}>{p.avatar}</span>
+                                <div class="cc-row-main">
+                                    <div class="cc-row-title"><span class="status-dot" style={p.statusDot}></span>{p.displayName}</div>
+                                    <div class="cc-row-sub">{p.productName} · {p.lastCall}</div>
+                                    <template lwc:if={p.phone}><div class="cc-row-sub">{p.phone}</div></template>
+                                    <template lwc:if={p.next}><div class="cc-row-sub next">{p.next}</div></template>
+                                </div>
+                                <template lwc:if={p.riskLabel}><span class={p.riskClass}>{p.riskLabel}</span></template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </aside>
+
+            <!-- Calendar -->
+            <section class="cc-card cal">
+                <div class="toolbar">
+                    <div class="toolbar-left">
+                        <button type="button" class="icon-btn" onclick={handlePrev} aria-label="Previous">
+                            <lightning-icon icon-name="utility:chevronleft" size="x-small"></lightning-icon>
+                        </button>
+                        <button type="button" class="icon-btn" onclick={handleNext} aria-label="Next">
+                            <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
+                        </button>
+                        <h2 class="range">{rangeLabel}</h2>
+                        <template lwc:if={showJumpToday}>
+                            <button type="button" class="text-btn" onclick={handleToday}>Today</button>
+                        </template>
+                    </div>
+                    <div class="toolbar-right">
+                        <span class="summary">{summaryText}</span>
+                        <div class="cc-segmented" role="group" aria-label="Calendar view">
+                            <button type="button" class={dayBtnClass} data-view="day" onclick={handleView}>Day</button>
+                            <button type="button" class={weekBtnClass} data-view="week" onclick={handleView}>Week</button>
+                        </div>
+                        <template lwc:if={canEdit}>
+                            <button type="button" class="icon-btn" title="Request time off" aria-label="Request time off" onclick={handleNewTimeOff}>
+                                <lightning-icon icon-name="utility:away" size="x-small"></lightning-icon>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="cal-scroll">
+                    <template lwc:if={isLoading}>
+                        <lightning-spinner alternative-text="Loading planner" size="small"></lightning-spinner>
+                    </template>
+                    <div class="cal-head">
+                        <div class="gutter"></div>
+                        <template for:each={days} for:item="d">
+                            <div key={d.key} class={d.headCls}>
+                                <span class="day-name">{d.name}</span>
+                                <span class="day-num">{d.num}</span>
+                                <template lwc:if={d.count}><span class="day-count">{d.count}</span></template>
+                            </div>
+                        </template>
+                    </div>
+                    <template lwc:if={hasFullDayRow}>
+                        <div class="allday">
+                            <div class="gutter gutter-label">All day</div>
+                            <template for:each={days} for:item="d">
+                                <div key={d.key} class="allday-cell">
+                                    <template for:each={d.fullDayOff} for:item="t">
+                                        <button
+                                            key={t.key}
+                                            type="button"
+                                            class={t.cls}
+                                            data-id={t.id}
+                                            data-drag="tot"
+                                            data-draggable={t.draggable}
+                                            data-fullday={t.fullDayAttr}
+                                            data-label={t.type}
+                                            onpointerdown={handleDragPointerDown}
+                                            onclick={handleTimeOffClick}
+                                        >
+                                            <lightning-icon icon-name="utility:away" size="xx-small"></lightning-icon>
+                                            {t.label}
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <div class="cal-body">
+                        <div class="gutter hours" style={gridStyle}>
+                            <template for:each={hours} for:item="h">
+                                <div key={h.key} class="hour-label">{h.label}</div>
+                            </template>
+                        </div>
+                        <template for:each={days} for:item="d">
+                            <div key={d.key} class={d.cls} style={gridStyle} data-day={d.iso}>
+                                <div class="drop-mark" data-day={d.iso}></div>
+                                <template for:each={d.slots} for:item="s">
+                                    <div key={s.key} class={s.cls} data-day={d.iso} data-minutes={s.minutes} onclick={handleSlotClick}></div>
+                                </template>
+                                <template for:each={d.blocks} for:item="t">
+                                    <button
+                                        key={t.key}
+                                        type="button"
+                                        class={t.cls}
+                                        style={t.style}
+                                        data-id={t.id}
+                                        data-drag="tot"
+                                        data-draggable={t.draggable}
+                                        data-fullday={t.fullDayAttr}
+                                        data-label={t.type}
+                                        onpointerdown={handleDragPointerDown}
+                                        onclick={handleTimeOffClick}
+                                    >
+                                        <span class="tot-title">{t.label}</span>
+                                        <span class="tot-time">{t.timeLabel}</span>
+                                    </button>
+                                </template>
+                                <template for:each={d.calls} for:item="c">
+                                    <div
+                                        key={c.id}
+                                        class={c.cls}
+                                        style={c.style}
+                                        data-id={c.id}
+                                        data-drag="call"
+                                        data-draggable={c.draggable}
+                                        data-label={c.dragLabel}
+                                        title={c.title}
+                                        onpointerdown={handleDragPointerDown}
+                                        onclick={handleEventClick}
+                                    >
+                                        <div class="event-time">{c.timeLabel}</div>
+                                        <div class="event-title">{c.patientName}</div>
+                                        <div class="event-sub">{c.reason} · {c.status}</div>
+                                        <template lwc:if={c.riskBadge}><span class="event-risk">High risk</span></template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-swatch sw-planned"></span>Planned</span>
+                    <span class="legend-item"><span class="legend-swatch sw-reached"></span>Reached</span>
+                    <span class="legend-item"><span class="legend-swatch sw-noanswer"></span>No answer</span>
+                    <span class="legend-item"><span class="legend-swatch sw-off"></span>Switched off</span>
+                    <span class="legend-item"><span class="legend-swatch sw-callback"></span>Call back</span>
+                    <span class="legend-item"><span class="legend-swatch sw-tot"></span>Time off</span>
+                </div>
+            </section>
+        </div>
+        <div class="drag-ghost" lwc:dom="manual" aria-hidden="true"></div>
+
+        <!-- New call -->
+        <template lwc:if={showCallModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open" aria-modal="true" aria-label="Plan a call">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header"><h2 class="slds-modal__title">Plan a patient call</h2></header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <div class="cc-modal-grid">
+                            <lightning-combobox class="cc-span-2" label="Patient" data-field="patientId" value={callForm.patientId} options={patientOptions} onchange={handleCallField} required></lightning-combobox>
+                            <lightning-input type="datetime" label="Start" data-field="startTime" value={callForm.startTime} onchange={handleCallField} required></lightning-input>
+                            <lightning-combobox label="Duration" data-field="duration" value={callForm.duration} options={durationOptions} onchange={handleCallField}></lightning-combobox>
+                            <lightning-combobox label="Reason" data-field="reason" value={callForm.reason} options={reasonOptions} onchange={handleCallField}></lightning-combobox>
+                            <lightning-combobox label="Direction" data-field="direction" value={callForm.direction} options={directionOptions} onchange={handleCallField}></lightning-combobox>
+                            <lightning-textarea class="cc-span-2" label="Notes" data-field="notes" value={callForm.notes} onchange={handleCallField}></lightning-textarea>
+                        </div>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                        <lightning-button class="slds-m-left_x-small" variant="brand" label="Plan call" onclick={saveCall} disabled={saving}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <!-- Call details / complete -->
+        <template lwc:if={showDetailModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_medium" aria-modal="true" aria-label="Call details">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-modal__title">{selectedCall.patientName}</h2>
+                        <p class="slds-m-top_xx-small cc-muted">{selectedCall.when} · {selectedCall.reason} · {selectedCall.status}</p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template lwc:if={selectedCall.phone}>
+                            <div class="call-phone">
+                                <lightning-icon icon-name="utility:call" size="x-small"></lightning-icon>
+                                <span>{selectedCall.phone}</span>
+                            </div>
+                        </template>
+                        <template lwc:if={selectedCall.canComplete}>
+                            <h3 class="section-title">Log outcome</h3>
+                            <div class="cc-modal-grid">
+                                <lightning-combobox label="Outcome" data-field="status" value={completeForm.status} options={outcomeOptions} onchange={handleCompleteField} required></lightning-combobox>
+                                <lightning-input type="number" label="Duration (min)" data-field="durationMinutes" value={completeForm.durationMinutes} onchange={handleCompleteField}></lightning-input>
+                                <lightning-textarea class="cc-span-2" label="Coach notes" data-field="notes" value={completeForm.notes} onchange={handleCompleteField}></lightning-textarea>
+                                <lightning-textarea
+                                    class="cc-span-2"
+                                    label="Transcript (paste from the call recording). AI analyses it on save."
+                                    data-field="transcript"
+                                    value={completeForm.transcript}
+                                    onchange={handleCompleteField}
+                                ></lightning-textarea>
+                                <lightning-input type="date" label="Schedule follow-up on" data-field="followUpDate" value={completeForm.followUpDate} onchange={handleCompleteField}></lightning-input>
+                                <lightning-input type="toggle" label="Adverse event reported" data-field="adverseEvent" checked={completeForm.adverseEvent} onchange={handleCompleteField}></lightning-input>
+                                <lightning-input type="toggle" label="Patient consented to recording" data-field="recordingConsent" checked={completeForm.recordingConsent} onchange={handleCompleteField}></lightning-input>
+                                <template lwc:if={recordingHint}>
+                                    <p class="cc-span-2 cc-muted">{recordingHint}</p>
+                                </template>
+                            </div>
+                            <h3 class="section-title">Or reschedule</h3>
+                            <div class="reschedule">
+                                <lightning-input type="datetime" label="New time" value={rescheduleValue} onchange={handleRescheduleField}></lightning-input>
+                                <lightning-button label="Reschedule" onclick={saveReschedule} disabled={saving}></lightning-button>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <template lwc:if={selectedCall.notes}><p class="notes">{selectedCall.notes}</p></template>
+                            <p class="cc-muted">Open the patient to see the transcript and AI analysis for this call.</p>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer footer-split">
+                        <div>
+                            <template lwc:if={selectedCall.canComplete}>
+                                <lightning-button variant="destructive-text" label="Delete call" onclick={removeCall} disabled={saving}></lightning-button>
+                            </template>
+                        </div>
+                        <div>
+                            <template lwc:if={canDialSelected}>
+                                <lightning-button variant="success" label="Call now" icon-name="utility:call" onclick={openDialer}></lightning-button>
+                            </template>
+                            <lightning-button class="slds-m-left_x-small" label="Open patient" onclick={openPatient}></lightning-button>
+                            <lightning-button class="slds-m-left_x-small" label="Close" onclick={closeModals}></lightning-button>
+                            <template lwc:if={selectedCall.canComplete}>
+                                <lightning-button class="slds-m-left_x-small" variant="brand" label="Save outcome" onclick={saveComplete} disabled={saving}></lightning-button>
+                            </template>
+                        </div>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+
+        <!-- Time off -->
+        <template lwc:if={showTimeOffModal}>
+            <section role="dialog" class="slds-modal slds-fade-in-open" aria-modal="true" aria-label="Time off">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-modal__title">{timeOffTitle}</h2>
+                        <template lwc:if={timeOffForm.stage}><p class="cc-muted slds-m-top_xx-small">Stage: {timeOffForm.stage}</p></template>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <div class="cc-modal-grid">
+                            <lightning-combobox label="Type" data-field="type" value={timeOffForm.type} options={timeOffTypeOptions} onchange={handleTimeOffField} disabled={timeOffLocked} required></lightning-combobox>
+                            <lightning-combobox label="Span" data-field="spanType" value={timeOffForm.spanType} options={spanOptions} onchange={handleTimeOffField} disabled={timeOffLocked}></lightning-combobox>
+                            <lightning-input type="datetime" label="Start" data-field="startTime" value={timeOffForm.startTime} onchange={handleTimeOffField} disabled={timeOffLocked} required></lightning-input>
+                            <template lwc:if={isHours}>
+                                <lightning-combobox label="Hours" data-field="hours" value={timeOffForm.hours} options={hourOptions} onchange={handleTimeOffField} disabled={timeOffLocked}></lightning-combobox>
+                            </template>
+                            <lightning-textarea class="cc-span-2" label="Comments" data-field="comments" value={timeOffForm.comments} onchange={handleTimeOffField} disabled={timeOffLocked}></lightning-textarea>
+                            <template lwc:if={isNewTimeOff}>
+                                <lightning-input type="toggle" label="Submit for approval now" data-field="submit" checked={timeOffForm.submit} onchange={handleTimeOffField}></lightning-input>
+                            </template>
+                        </div>
+                    </div>
+                    <footer class="slds-modal__footer footer-split">
+                        <div>
+                            <template lwc:if={canDeleteTimeOff}>
+                                <lightning-button variant="destructive-text" label="Delete" onclick={removeTimeOff} disabled={saving}></lightning-button>
+                            </template>
+                        </div>
+                        <div>
+                            <lightning-button label="Cancel" onclick={closeModals}></lightning-button>
+                            <template lwc:if={canRecallTimeOff}>
+                                <lightning-button class="slds-m-left_x-small" label="Recall" onclick={recallTimeOff} disabled={saving}></lightning-button>
+                            </template>
+                            <template lwc:if={canSubmitTimeOff}>
+                                <lightning-button class="slds-m-left_x-small" label="Submit for approval" onclick={submitTimeOff} disabled={saving}></lightning-button>
+                            </template>
+                            <template lwc:if={timeOffEditable}>
+                                <lightning-button class="slds-m-left_x-small" variant="brand" label="Save" onclick={saveTimeOff} disabled={saving}></lightning-button>
+                            </template>
+                        </div>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </div>
+    <template lwc:if={showDialer}>
+        <c-care-coach-dialer patient-name={selectedCall.patientName} phone={selectedCall.phone} call-id={selectedCall.id} onclose={closeDialer} oncallcomplete={handleCallComplete}></c-care-coach-dialer>
+    </template>
+</template>

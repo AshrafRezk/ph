@@ -1,0 +1,11 @@
+# Copied into dist/ on build. Required for CLI `netlify deploy --dir=dist`
+# (netlify.toml redirects are not applied on publish-folder deploys).
+# First match wins. `!` forces the rewrite even if a static file exists.
+
+/oauth/callback   /index.html   200!
+/oauth/callback/  /index.html   200!
+
+# Keep CLM package URLs out of the SPA fallback.
+/clm-pkg/*        /clm-pkg-missing.txt  404
+
+/*                /index.html   200

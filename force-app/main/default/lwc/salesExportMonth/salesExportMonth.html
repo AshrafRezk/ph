@@ -1,0 +1,40 @@
+<template>
+    <section class="export-card slds-p-around_medium">
+        <h2 class="slds-text-heading_small">Export month</h2>
+        <p class="slds-text-color_weak slds-m-bottom_small">
+            Consolidated distributor sales for one report month as an Excel file: every line with its line, product, sub
+            type, chain, brick, territory, quantity and revenue (Zeta price list), including sales whose pharmacy could
+            not be placed (brick "Unknown"). Extra sheets list the unfind pharmacies and the totals per distributor.
+        </p>
+        <div class="slds-grid slds-wrap slds-gutters slds-grid_vertical-align-end">
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <lightning-input
+                    class="month-input"
+                    type="date"
+                    label="Any day in the report month"
+                    value={month}
+                    onchange={handleMonthChange}
+                ></lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <lightning-combobox
+                    label="Distributor"
+                    value={source}
+                    options={sourceOptions}
+                    onchange={handleSourceChange}
+                ></lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <lightning-button
+                    class="export-button"
+                    variant="brand"
+                    label="Export month"
+                    icon-name="utility:download"
+                    disabled={disableExport}
+                    onclick={handleExport}
+                ></lightning-button>
+            </div>
+        </div>
+        <p class="slds-m-top_small slds-text-color_weak">{progress}</p>
+    </section>
+</template>

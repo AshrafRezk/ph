@@ -9,6 +9,5 @@ Who: Bill Macaulay When: March 2023</description>
     <required>false</required>
     <scale>2</scale>
     <trackFeedHistory>false</trackFeedHistory>
-    <trackHistory>false</trackHistory>
     <type>Currency</type>
 </CustomField>

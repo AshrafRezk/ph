@@ -1,8 +1,8 @@
+import { accountThemeFor } from './accountTypeTheme.js';
+
 const REST_BASE = (typeof globalThis !== 'undefined' && globalThis.PLANNER_REST_BASE) || '';
 const API_TOKEN = (typeof globalThis !== 'undefined' && globalThis.PLANNER_ACCESS_TOKEN) || '';
 const SF_INSTANCE = (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) || '';
-
-const HCP_RECORD_TYPES = new Set(['SDO_PersonAccounts', 'Medical_Professional_HCP', 'PersonAccount', 'Business_Contact']);
 
 let state = {
     visits: [],
@@ -43,19 +43,44 @@ function formatDate(value) {
     catch (_) { return ''; }
 }
 
-function isHCP(recordTypeDeveloperName) {
-    return HCP_RECORD_TYPES.has(recordTypeDeveloperName);
+function visitTheme(visit) {
+    return accountThemeFor(visit?.accountRecordTypeDeveloperName, visit?.accountRecordTypeName);
 }
 
 function getAccountBadgeLabel(visit) {
-    const devName = visit?.accountRecordTypeDeveloperName || '';
-    if (isHCP(devName)) return 'HCP';
-    if (devName === 'Institution_HCO' || (visit?.accountRecordTypeName || '').toLowerCase().includes('hco')) return 'HCO';
-    return visit?.accountRecordTypeName || 'Account';
+    const theme = visitTheme(visit);
+    if (theme.kind === 'account') return visit?.accountRecordTypeName || 'Account';
+    return theme.label;
 }
 
 function getAccountBadgeClass(visit) {
-    return isHCP(visit?.accountRecordTypeDeveloperName || '') ? 'account-badge account-badge-hcp' : 'account-badge account-badge-hco';
+    return `account-badge account-badge-${visitTheme(visit).kind}`;
+}
+
+function applyVisitTheme(visit) {
+    const theme = visitTheme(visit);
+    const detail = el('visit-detail-view');
+    const icon = el('visit-type-icon');
+    const themed = theme.kind !== 'account';
+    if (detail) {
+        detail.classList.toggle('is-themed', themed);
+        if (themed) {
+            detail.style.setProperty('--account-theme', theme.color);
+            detail.style.setProperty('--account-theme-ink', theme.ink);
+            detail.style.setProperty('--account-theme-soft', theme.soft);
+            detail.style.setProperty('--account-theme-border', theme.border);
+        }
+    }
+    if (icon) {
+        if (theme.iconUrl) {
+            icon.hidden = false;
+            icon.src = theme.iconUrl;
+        } else {
+            icon.hidden = true;
+            icon.removeAttribute('src');
+        }
+    }
+    return theme;
 }
 
 function getStatusBadgeClass(status) {
@@ -156,21 +181,27 @@ function applyVisit(data) {
     }
     el('visit-list-loading').style.display = 'none';
     el('visit-list-empty').style.display = 'none';
-    list.innerHTML = filtered.map(v => `
-        <li class="visit-list-item" data-id="${v.id || ''}" onclick="showVisitDetail('${v.id || ''}')">
+    list.innerHTML = filtered.map(v => {
+        const theme = visitTheme(v);
+        const glyph = theme.iconUrl ? `<img class="visit-type-icon" src="${theme.iconUrl}" alt="" />` : '';
+        return `
+        <li class="visit-list-item" data-id="${v.id || ''}" style="border-left:3px solid ${theme.color}" onclick="showVisitDetail('${v.id || ''}')">
             <div class="visit-list-item-top">
+                ${glyph}
                 <span class="${getAccountBadgeClass(v)}">${getAccountBadgeLabel(v)}</span>
                 <span class="${getStatusBadgeClass(v.status)}">${escHtml(v.status)}</span>
             </div>
             <p class="visit-list-account-name">${escHtml(v.accountName)}</p>
             <p class="visit-list-meta">${escHtml(formatDateTime(v.startDateTime))} · ${escHtml(v.visitType || '')}</p>
         </li>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function renderDetail() {
     const v = state.visit;
     if (!v) return;
+    applyVisitTheme(v);
     const badge = el('visit-account-badge');
     if (badge) { badge.textContent = getAccountBadgeLabel(v); badge.className = getAccountBadgeClass(v); }
     const statusBadge = el('visit-status-badge');
@@ -346,87 +377,6 @@ function init() {
     const plannerBtn = el('btn-open-planner');
     if (plannerBtn) plannerBtn.addEventListener('click', () => {
         window.location.href = '/index.html';
-    });
-
-    loadVisits();
-    window.addEventListener('online', () => loadVisits());
-    window.addEventListener('offline', () => {
-        const errBar = el('visit-error');
-        if (errBar) { errBar.textContent = 'You are offline.'; errBar.style.display = 'block'; }
-    });
-}
-
-    const statusFilter = el('visit-status-filter');
-    if (statusFilter) {
-        statusFilter.addEventListener('change', () => {
-            state.statusFilter = statusFilter.value;
-            renderVisitList();
-        });
-    }
-
-    const backBtn = el('btn-back');
-    if (backBtn) backBtn.addEventListener('click', () => {
-        el('visits-list-view').style.display = 'block';
-        el('visit-detail-view').style.display = 'none';
-        el('visit-title').textContent = 'Visits';
-    });
-
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.addEventListener('click', () => switchTab(btn.dataset.key));
-    });
-
-    const statusSelect = el('vd-status');
-    if (statusSelect) {
-        statusSelect.addEventListener('change', () => {
-            state.statusValue = statusSelect.value;
-            el('vd-cancellation-field').style.display = state.statusValue === 'Cancelled' ? 'block' : 'none';
-            const pendingEl = el('vd-pending-approval');
-            if (pendingEl) pendingEl.style.display = state.statusValue === 'Submitted' ? 'block' : 'none';
-        });
-    }
-
-    const saveBtn = el('btn-save-visit');
-    if (saveBtn) saveBtn.addEventListener('click', async () => {
-        state.isSaving = true;
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving…';
-        try {
-            const path = `/services/apexrest/planner/v1/visits/${state.currentVisitId}`;
-            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-            if (API_TOKEN) headers['Authorization'] = `Bearer ${API_TOKEN}`;
-            const url = `${REST_BASE ? REST_BASE.replace(/\/$/, '') : ''}${path}`;
-            const body = {
-                status: state.statusValue,
-                visitObjective: el('vd-objective').value,
-                visitNotes: el('vd-notes').value,
-                productsDiscussed: el('vd-products').value,
-                productDetails: el('vd-product-details').value,
-                nextVisitDate: el('vd-next-visit').value || null,
-                cancellationReason: state.cancellationReason || null
-            };
-            const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-            if (!resp.ok) throw new Error(`Save failed: HTTP ${resp.status}`);
-            await loadVisitDetail(state.currentVisitId);
-        } catch (err) {
-            const errBar = el('visit-error');
-            if (errBar) { errBar.textContent = err?.message || 'Save failed.'; errBar.style.display = 'block'; }
-        } finally {
-            state.isSaving = false;
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Save Visit';
-        }
-    });
-
-    const viewAccountBtn = el('btn-view-account');
-    if (viewAccountBtn) viewAccountBtn.addEventListener('click', () => {
-        if (state.visit?.accountId && SF_INSTANCE) {
-            window.open(`${SF_INSTANCE.replace(/\/$/, '')}/lightning/r/Account/${state.visit.accountId}/view`, '_blank');
-        }
-    });
-
-    const plannerBtn = el('btn-open-planner');
-    if (plannerBtn) plannerBtn.addEventListener('click', () => {
-        if (SF_INSTANCE) window.open(`${SF_INSTANCE.replace(/\/$/, '')}/lightning/n/Field_Rep_Planner`, '_blank');
     });
 
     loadVisits();

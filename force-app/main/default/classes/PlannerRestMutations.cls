@@ -37,7 +37,7 @@ global with sharing class PlannerRestMutations {
       }
       writeJson(res, 404, new ErrorResponse('Unknown POST path: ' + path));
     } catch (Exception e) {
-      writeJson(res, 400, new ErrorResponse(e.getMessage()));
+      writeJson(res, 400, new ErrorResponse(PlannerUserMessage.fromException(e)));
     }
   }
 

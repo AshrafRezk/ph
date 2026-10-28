@@ -6,6 +6,7 @@ export default class RadioGroup extends LightningElement {
     @api value = '';
     @api options = [];
     @api disabled = false;
+    @api type = 'radio';
 
     get computedOptions() {
         return (this.options || []).map((o) => ({
@@ -16,9 +17,14 @@ export default class RadioGroup extends LightningElement {
     }
 
     handleChange(event) {
+        event.stopPropagation();
         this.value = event.target.value;
-        this.dispatchEvent(new CustomEvent('change', {
-            detail: { value: this.value }
-        }));
+        this.dispatchEvent(
+            new CustomEvent('change', {
+                bubbles: true,
+                composed: true,
+                detail: { value: this.value }
+            })
+        );
     }
 }

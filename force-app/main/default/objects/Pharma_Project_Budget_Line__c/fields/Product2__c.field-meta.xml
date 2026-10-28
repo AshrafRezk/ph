@@ -5,5 +5,7 @@
     <label>Product</label>
     <referenceTo>Product2</referenceTo>
     <relationshipName>Pharma_Project_Budget_Lines</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

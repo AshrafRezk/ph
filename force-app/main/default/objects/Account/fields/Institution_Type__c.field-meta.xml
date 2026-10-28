@@ -1,20 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Institution_Type__c</fullName>
-    <description>Type of healthcare organization.</description>
-    <label>Institution Type</label>
+    <description>Shows whether this HCP is a Doctor or a Polyclinic/Clinic, or whether this HCO is a Hospital/Contract.</description>
+    <label>Subtype</label>
     <required>false</required>
     <trackFeedHistory>false</trackFeedHistory>
-    <trackHistory>false</trackHistory>
     <type>Picklist</type>
     <valueSet>
         <restricted>true</restricted>
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Hospital</fullName>
+                <fullName>Doctor</fullName>
                 <default>false</default>
-                <label>Hospital</label>
+                <label>Doctor</label>
+            </value>
+            <value>
+                <fullName>Polyclinic</fullName>
+                <default>false</default>
+                <label>Polyclinic</label>
             </value>
             <value>
                 <fullName>Clinic</fullName>
@@ -22,19 +26,32 @@
                 <label>Clinic</label>
             </value>
             <value>
-                <fullName>University</fullName>
+                <fullName>Hospital</fullName>
                 <default>false</default>
-                <label>University</label>
+                <label>Hospital</label>
+            </value>
+            <value>
+                <fullName>Contract</fullName>
+                <default>false</default>
+                <label>Contract</label>
             </value>
             <value>
                 <fullName>Government</fullName>
                 <default>false</default>
+                <isActive>false</isActive>
                 <label>Government</label>
             </value>
             <value>
                 <fullName>Other</fullName>
                 <default>false</default>
+                <isActive>false</isActive>
                 <label>Other</label>
+            </value>
+            <value>
+                <fullName>University</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>University</label>
             </value>
         </valueSetDefinition>
     </valueSet>

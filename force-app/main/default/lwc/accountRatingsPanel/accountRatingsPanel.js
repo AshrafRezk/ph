@@ -9,8 +9,10 @@ import { hasMeaningfulValue, mergeRatingValues } from 'c/ratingValueMerge';
 const AUTO_SAVE_DEBOUNCE_MS = 200;
 const SAVED_INDICATOR_MS = 2500;
 
-const TOGGLE_FIELDS = new Set(['Is_KOL__c', 'Has_KOLs__c']);
+const TOGGLE_FIELDS = new Set(['Is_KOL__c', 'Has_KOLs__c', 'Is_Speaker__c']);
 const ATPF_SAVE_FIELDS = [
+    'Potential__c',
+    'Penetration__c',
     'Rx_Per_Week__c',
     'Adoption__c',
     'Loyalty__c',
@@ -87,13 +89,6 @@ export default class AccountRatingsPanel extends LightningElement {
     }
 
     applyContext(data, { bumpRenderKey = true } = {}) {
-        if (!data) {
-            this.layoutId = null;
-            this.layoutJson = null;
-            this.alignedProducts = [];
-            this.loadError = { message: 'Rating layout is not available for this account.' };
-            return;
-        }
         this.layoutId = data.layoutId;
         this.layoutJson = data.layoutJson;
         this.accountVariant = data.accountVariant || 'HCP';
@@ -133,8 +128,14 @@ export default class AccountRatingsPanel extends LightningElement {
         return this.accountVariant === 'HCO';
     }
 
+    get isOrganizationAccount() {
+        return this.accountVariant === 'HCO' || this.accountVariant === 'Pharmacy';
+    }
+
     get productSectionHeading() {
-        return this.isHcoAccount ? 'Organization Product Ratings' : 'Account Product Ratings';
+        return this.isOrganizationAccount
+            ? 'Organization Product Ratings'
+            : 'Account Product Ratings';
     }
 
     get territorySubtitle() {
@@ -152,7 +153,7 @@ export default class AccountRatingsPanel extends LightningElement {
     }
 
     get validitySubtext() {
-        return this.isHcoAccount
+        return this.isOrganizationAccount
             ? 'Agentforce checks public online signals for this organization against your ratings.'
             : 'Agentforce checks public online signals for this HCP against your ratings.';
     }

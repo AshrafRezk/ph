@@ -1,0 +1,105 @@
+<apex:component access="global">
+    <apex:attribute name="theme"
+        type="String"
+        default="light"
+        description="Visual theme: light (default) or dark (login right-frame)."
+    />
+
+    <apex:outputPanel layout="none" rendered="{!$Setup.Org_Feature_Switch__c.Pending_Payment__c}">
+        <div id="pendingPaymentOverlay" class="ppa-overlay ppa-theme-{!theme}" role="dialog" aria-modal="true" aria-labelledby="pendingPaymentTitle">
+            <div class="ppa-modal">
+                <button type="button" class="ppa-close" title="Close" aria-label="Close" onclick="window.__ppaDismiss &amp;&amp; window.__ppaDismiss();">&times;</button>
+                <h2 id="pendingPaymentTitle" class="ppa-title">Pending Payment</h2>
+                <p class="ppa-message">Salesforce invoice pending payment, your org is at risk of being shut-down, please share proof of payment with your account manager</p>
+                <div class="ppa-actions">
+                    <button type="button" class="ppa-ack" onclick="window.__ppaDismiss &amp;&amp; window.__ppaDismiss();">Acknowledge</button>
+                </div>
+            </div>
+        </div>
+        <style type="text/css">
+            .ppa-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 100000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 1.25rem;
+                background: rgba(8, 15, 28, 0.62);
+            }
+            .ppa-modal {
+                position: relative;
+                width: min(28rem, 100%);
+                border-radius: 0.5rem;
+                padding: 1.5rem 1.5rem 1.25rem;
+                box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+            }
+            .ppa-theme-light .ppa-modal {
+                background: #ffffff;
+                color: #181818;
+                border: 1px solid #e5e5e5;
+            }
+            .ppa-theme-dark .ppa-modal {
+                background: #0B1C33;
+                color: #E8F1FA;
+                border: 1px solid rgba(0, 174, 239, 0.35);
+            }
+            .ppa-close {
+                position: absolute;
+                top: 0.5rem;
+                right: 0.65rem;
+                border: none;
+                background: transparent;
+                font-size: 1.5rem;
+                line-height: 1;
+                cursor: pointer;
+                padding: 0.25rem;
+            }
+            .ppa-theme-light .ppa-close { color: #706e6b; }
+            .ppa-theme-dark .ppa-close { color: rgba(232, 241, 250, 0.62); }
+            .ppa-title {
+                margin: 0 1.5rem 0.75rem 0;
+                font-size: 1.125rem;
+                font-weight: 700;
+            }
+            .ppa-theme-light .ppa-title { color: #8b0000; }
+            .ppa-theme-dark .ppa-title { color: #ff8a80; }
+            .ppa-message {
+                margin: 0 0 1.25rem;
+                font-size: 0.9375rem;
+                line-height: 1.45;
+            }
+            .ppa-theme-light .ppa-message { color: #3e3e3c; }
+            .ppa-theme-dark .ppa-message { color: rgba(232, 241, 250, 0.86); }
+            .ppa-actions { display: flex; justify-content: flex-end; }
+            .ppa-ack {
+                border-radius: 0.25rem;
+                padding: 0.55rem 1rem;
+                font-size: 0.8125rem;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .ppa-theme-light .ppa-ack {
+                border: 1px solid #8b0000;
+                background: #8b0000;
+                color: #ffffff;
+            }
+            .ppa-theme-dark .ppa-ack {
+                border: 1px solid #00AEEF;
+                background: #0054A6;
+                color: #ffffff;
+            }
+            .ppa-overlay.ppa-hidden { display: none !important; }
+        </style>
+        <script type="text/javascript">
+            (function () {
+                window.__ppaDismiss = function () {
+                    var el = document.getElementById('pendingPaymentOverlay');
+                    if (el) {
+                        el.className = el.className + ' ppa-hidden';
+                    }
+                };
+            })();
+        </script>
+    </apex:outputPanel>
+</apex:component>

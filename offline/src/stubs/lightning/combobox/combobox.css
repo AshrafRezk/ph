@@ -1,0 +1,114 @@
+:host {
+    display: block;
+    max-width: 100%;
+}
+
+.slds-form-element {
+    min-width: 0;
+    margin-bottom: var(--slds-c-form-element-spacing-block-end, 0.75rem);
+}
+
+.slds-form-element__label {
+    display: block;
+    margin: 0 0 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #181818;
+}
+
+.slds-combobox__input {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: var(--zeta-field-control-height, 2.75rem);
+    box-sizing: border-box;
+    padding: 0.35rem var(--slds-c-input-spacing-horizontal-end, 0.65rem) 0.35rem
+        var(--slds-c-input-spacing-horizontal-start, 0.65rem);
+    border: 1px solid var(--slds-c-input-color-border, var(--lwc-colorBorderInput, #c9c7c5));
+    border-radius: var(--slds-c-input-radius-border, 0.25rem);
+    background: var(--slds-c-input-color-background, #fff);
+    box-shadow: var(--slds-c-input-shadow, none);
+    color: #181818;
+    font: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+}
+
+.slds-combobox__input:disabled {
+    cursor: not-allowed;
+    background: #f3f3f3;
+    color: #706e6b;
+}
+
+.slds-combobox__input:focus {
+    outline: none;
+    border-color: var(--slds-c-input-color-border-focus, var(--lwc-colorBorderInputActive, #0176d3));
+    box-shadow: var(--slds-c-input-shadow-focus, 0 0 0 1px #0176d3);
+}
+
+.slds-combobox__value {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.slds-combobox__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.slds-combobox__thumb,
+.slds-combobox__mark {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 0.3rem;
+    flex: none;
+}
+
+.slds-combobox__thumb {
+    object-fit: cover;
+    background: #f3f3f3;
+}
+
+.slds-combobox__mark {
+    background: #0176d3 center / 0.85rem 0.85rem no-repeat;
+}
+
+.mark-product {
+    background-color: #0176d3;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9zm8 1.2L7.2 6.2 12 3.6l4.8 2.6L12 8.7zM6 9.2v5.6l5 2.8v-5.6L6 9.2zm12 0-5 2.8v5.6l5-2.8V9.2z'/%3E%3C/svg%3E");
+}
+
+.mark-sample {
+    background-color: #2e844a;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M9 3h6v2h4v4.2a8 8 0 1 1-14 0V5h4V3zm2 2v2h2V5h-2zm-3 4.2V7h8v2.2a6 6 0 1 1-8 0z'/%3E%3C/svg%3E");
+}
+
+.mark-detail {
+    background-color: #7f8de1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M7 3h8l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm7 1.5V9h4.5L14 4.5zM8 12h8v1.5H8V12zm0 3h8v1.5H8V15z'/%3E%3C/svg%3E");
+}
+
+.mark-reminder {
+    background-color: #fe9339;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 3l2.1 4.4 4.8.7-3.5 3.4.8 4.8L12 14l-4.2 2.3.8-4.8L5.1 8.1l4.8-.7L12 3z'/%3E%3C/svg%3E");
+}
+
+.slds-combobox__chevron {
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 0.28rem solid transparent;
+    border-right: 0.28rem solid transparent;
+    border-top: 0.34rem solid #706e6b;
+}

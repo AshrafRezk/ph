@@ -1,0 +1,71 @@
+# Apex deploy + test results — ZetaPharma
+
+- Deploy ID: 0Afiv0000005NiLCAU
+- Status: **Succeeded**
+- Components: 59/59
+- Tests: 53 passed / 0 failed (of 53)
+
+## Passing test classes
+
+- **AccountDuplicateCheckServiceTest** (5 methods)
+  - findDuplicates_matchesArabicSpellingAndLatinTransliteration
+  - findDuplicates_scoresNameMobileTypeAndLocation
+  - mergeAccounts_keepsTheChosenSurvivor
+  - mergeAccounts_rejectsTheSameAccount
+  - reportDuplicate_linksTheOriginalAccount
+- **DistributorsManagementControllerTest** (14 methods)
+  - batchAutoCreatesPharmacyFromGeocode
+  - batchPersistsGeocodeFailureMessage
+  - geocodeCallout
+  - geocodeConfigAndNominatimFallback
+  - geocodeFailureMessagesGoogle
+  - geocodeFailureMessagesNominatim
+  - geocodeFailureMessagesRateLimit
+  - ingestAndBatch
+  - mappingAccuracyCountsConfirmedAndManual
+  - placesTextSearchWhenStreetGeocodeMisses
+  - productAliasCrudAndSearch
+  - seedFromCsv
+  - selloutAliasLinkAndCreate
+  - selloutRowExposesGeoAndAccountLinks
+- **DryRunOct21SmokeTest** (1 methods)
+  - salesPolicyDistributorsAndServiceRequests
+- **EmployeeTimeCardMetricsServiceTest** (13 methods)
+  - coachingEventUpdatesCoachedDays
+  - completedVisitsTrackAmAndPmRatesByAccountType
+  - completingVisitSetsAttendanceTimesAndCompliance
+  - completingVisitUpdatesDayEntryAndTargetRollups
+  - draftVisitIncrementsPotentialAndCompleteMovesCounts
+  - mapFrequencyPicklist_mapsExpectedValues
+  - metricsBatchProcessesActiveCards
+  - recalcMonthlyKpisCountsMeetings
+  - reconcileTimeCardRebuildsCountsFromVisits
+  - resolveVisitChannel_mapsRecordTypes
+  - shortVisitDayIsNotCompliant
+  - unplannedVisitTracksUnplannedBreakdown
+  - weekendCompletedVisitDoesNotCountTowardRate
+- **KpiTargetServiceTest** (1 methods)
+  - listSaveAndTargetFor_roundTrip
+- **TerritoryManagementControllerTest** (9 methods)
+  - adminMutations_guardrails
+  - assignUserToTerritory_createsAssignment
+  - clearTerritoryAssignments_removesAssignments
+  - getAssignableUsers_returnsPharmaUsers
+  - getTerritoryTree_returnsHierarchy
+  - mapAssignmentRole_coversHierarchyTitles
+  - productLineLinkage_countsAssignAndClear
+  - userManagement_profilePasswordAndStatusGuards
+  - vacantPosition_keepsBrickAlignmentAndPromoTargets
+- **TerritorySwitcherControllerTest** (8 methods)
+  - getContext_returnsTreeForAssignedUser
+  - getEffectiveTerritoryIds_coversOtherUserAndInvalidSelection
+  - getSelectedTerritoryId_ignoresOrgDefaultAndUsesUserRow
+  - getSwitchableTerritoryIds_returnsSet
+  - getSwitcherContext_buildsTreeAndLevels
+  - isAlignedOnRepTerritory_falseWhenAssignedToParentTerritory
+  - setSelectedTerritory_acceptsAssignedOrClears
+  - setSelectedTerritory_rejectsUnknownId
+- **UserSeatLabelServiceTest** (1 methods)
+  - getSeatLabels_readsAssignedTerritory
+- **ZetaPlannedFieldDaysCalculatorTest** (1 methods)
+  - plannedFieldDaysByRole

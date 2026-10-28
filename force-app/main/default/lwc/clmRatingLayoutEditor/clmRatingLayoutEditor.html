@@ -99,7 +99,7 @@
                                                     data-identity={field.identity}
                                                     data-direction="up"
                                                     onclick={handleMoveField}
-                                                    disabled={field.canMoveUp}
+                                                    disabled={field.disableMoveUp}
                                                 >
                                                     ↑
                                                 </button>
@@ -109,7 +109,7 @@
                                                     data-identity={field.identity}
                                                     data-direction="down"
                                                     onclick={handleMoveField}
-                                                    disabled={field.canMoveDown}
+                                                    disabled={field.disableMoveDown}
                                                 >
                                                     ↓
                                                 </button>
@@ -143,8 +143,15 @@
                     </div>
 
                     <footer class="editor-actions">
-                        <lightning-button label="Save Draft" onclick={handleSave}></lightning-button>
-                        <lightning-button label="Deploy" variant="brand" onclick={handleDeploy}></lightning-button>
+                        <lightning-button
+                            label="Save Draft"
+                            onclick={handleSave}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Deploy"
+                            variant="brand"
+                            onclick={handleDeploy}
+                        ></lightning-button>
                     </footer>
                 </div>
             </template>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Pharmacy_Code__c</fullName>
+    <description>Zeta pharmacy code from the Organizations Master List (the number before "_" in the master Name, e.g. 1000000007). Not unique in the source file.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Zeta pharmacy code from the master list.</inlineHelpText>
+    <label>Pharmacy Code</label>
+    <length>40</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

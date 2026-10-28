@@ -10,9 +10,9 @@ import {
     createVisitPinIcon,
     ensureLeaflet,
     getPinColor,
-    resolveAccountPinKind,
     resolveAccountTypeLabel
 } from 'c/plannerMapPins';
+import { resolveAccountThemeKind } from 'c/accountTypeTheme';
 
 const NEIGHBOR_PAGE_SIZE = 5;
 const SINGLE_ACCOUNT_MAP_ZOOM = 15;
@@ -119,7 +119,7 @@ export default class AccountVisitInsightsPanel extends NavigationMixin(Lightning
                 if (row.selectedByDefault) {
                     selected.add(accountId);
                 }
-                const pinKind = resolveAccountPinKind(
+                const pinKind = resolveAccountThemeKind(
                     row.recordTypeDeveloperName,
                     row.recordTypeName
                 );
@@ -318,6 +318,9 @@ export default class AccountVisitInsightsPanel extends NavigationMixin(Lightning
     }
 
     get centerLegendLabel() {
+        if (this.centerPinKind === 'pharmacy') {
+            return 'Current account (Pharmacy)';
+        }
         return this.centerPinKind === 'hco' ? 'Current account (HCO)' : 'Current account (HCP)';
     }
 

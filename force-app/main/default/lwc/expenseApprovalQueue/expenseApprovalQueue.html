@@ -1,0 +1,58 @@
+<template>
+    <section class="approval-section" aria-label="Expense approvals">
+        <header class="approval-header">
+            <h3 class="approval-title">Expenses pending approval</h3>
+            <p class="approval-subtitle">{subtitle}</p>
+        </header>
+        <template if:true={hasRows}>
+            <template for:each={rows} for:item="row">
+                <article key={row.expenseId} class="approval-card">
+                    <div class="approval-main">
+                        <div class="approval-line">
+                            <strong>{row.expenseName}</strong>
+                            <span class="approval-meta">{row.repName}</span>
+                        </div>
+                        <div class="approval-line">
+                            <span>{row.typeLabel}</span>
+                            <span>{row.expenseDateLabel}</span>
+                            <span>{row.amountLabel} EGP</span>
+                        </div>
+                        <template if:true={row.description}>
+                            <p class="approval-desc">{row.description}</p>
+                        </template>
+                    </div>
+                    <template if:true={row.canAct}>
+                        <div class="approval-actions">
+                            <lightning-textarea
+                                label="Rejection reason"
+                                variant="label-hidden"
+                                placeholder="Required if rejecting"
+                                data-expense-id={row.expenseId}
+                                onchange={handleRejectionChange}
+                            ></lightning-textarea>
+                            <div class="approval-buttons">
+                                <lightning-button
+                                    label="Reject"
+                                    data-expense-id={row.expenseId}
+                                    onclick={handleReject}
+                                ></lightning-button>
+                                <lightning-button
+                                    variant="brand"
+                                    label="Approve"
+                                    data-expense-id={row.expenseId}
+                                    onclick={handleApprove}
+                                ></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+                    <template if:false={row.canAct}>
+                        <p class="pending-pill">Pending approval</p>
+                    </template>
+                </article>
+            </template>
+        </template>
+        <template if:false={hasRows}>
+            <p class="approval-empty">No expenses are waiting for approval.</p>
+        </template>
+    </section>
+</template>

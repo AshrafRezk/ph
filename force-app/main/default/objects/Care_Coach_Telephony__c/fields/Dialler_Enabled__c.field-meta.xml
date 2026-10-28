@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Dialler_Enabled__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Show the built-in dialler; when off the Call button opens the device phone app</description>
+    <label>Dialler Enabled</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

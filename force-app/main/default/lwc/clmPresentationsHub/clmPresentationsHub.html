@@ -1,5 +1,25 @@
 <template>
     <section class="clm-presentations-hub">
+        <template if:true={redirectToOffline}>
+            <aside class="offline-redirect-banner" role="status">
+                <lightning-icon icon-name="utility:info" size="small"></lightning-icon>
+                <div class="offline-redirect-copy">
+                    <strong>CLM plays in the Offline Field app</strong>
+                    <p>
+                        Open presentations from
+                        <a href={offlineAppUrl} target="_blank" rel="noopener noreferrer"
+                            >salesforceoffline.com</a
+                        >
+                        (Field Co-pilot → CLM Presentations). Lightning does not play decks here.
+                    </p>
+                </div>
+                <lightning-button
+                    label="Open Offline App"
+                    variant="brand"
+                    onclick={handleOpenOfflineApp}
+                ></lightning-button>
+            </aside>
+        </template>
         <header class="hub-header">
             <lightning-icon icon-name="utility:screen" size="small"></lightning-icon>
             <div>
@@ -32,6 +52,7 @@
                 presentation-id={activePresentationId}
                 presentation-name={activePresentationName}
                 onclose={handlePlayerClose}
+                onswitchpresentation={handleSwitchPresentation}
             ></c-clm-player>
         </template>
 
@@ -56,7 +77,7 @@
                                     <span>Product: {pres.productName}</span>
                                 </p>
                                 <lightning-button
-                                    label="Present"
+                                    label={presentButtonLabel}
                                     variant="brand"
                                     data-id={pres.id}
                                     data-name={pres.name}
@@ -68,8 +89,7 @@
                 </template>
                 <template if:false={hasPresentations}>
                     <p class="empty">
-                        <template if:true={isLoading}>Loading presentations…</template>
-                        <template if:false={isLoading}>No presentations are available.</template>
+                        No presentations are available.
                     </p>
                 </template>
             </article>

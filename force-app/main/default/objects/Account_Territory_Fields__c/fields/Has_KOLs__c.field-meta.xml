@@ -3,7 +3,6 @@
     <fullName>Has_KOLs__c</fullName>
     <defaultValue>false</defaultValue>
     <description>Whether this organization has affiliated key opinion leaders (HCO accounts only).</description>
-    <externalId>false</externalId>
     <label>Has KOLs</label>
     <trackHistory>true</trackHistory>
     <trackTrending>false</trackTrending>

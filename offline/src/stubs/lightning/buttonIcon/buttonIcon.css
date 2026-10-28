@@ -1,0 +1,38 @@
+:host {
+    display: inline-flex;
+}
+
+.slds-button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--lwc-button-min-height, 44px);
+    height: var(--lwc-button-min-height, 44px);
+    min-width: var(--lwc-button-min-height, 44px);
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    cursor: pointer;
+    border: 1px solid #dddbda;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #0176d3;
+}
+
+.slds-button_icon-bare {
+    border: 0;
+    background: transparent;
+}
+
+.slds-assistive-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

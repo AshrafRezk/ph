@@ -1,5 +1,10 @@
 public with sharing class VisitCallReportController {
 
+  @AuraEnabled(cacheable=false)
+  public static List<String> getVisitTabs(String developerName, String recordTypeName) {
+    return VisitTabConfigService.tabsFor(developerName, recordTypeName);
+  }
+
   @AuraEnabled(cacheable=true)
   public static VisitCallReportService.CallReportPayload getCallReportPayload(Id visitId) {
     return VisitCallReportService.getCallReportPayload(visitId);
@@ -43,6 +48,18 @@ public with sharing class VisitCallReportController {
     return VisitCallReportService.saveCallReport(request);
   }
 
+  @AuraEnabled
+  public static VisitCallReportService.CallReportPayload saveCallReportJson(String requestJson) {
+    if (String.isBlank(requestJson)) {
+      throw RestSafeError.make('Visit Id is required.');
+    }
+    VisitCallReportService.SaveRequest request = (VisitCallReportService.SaveRequest) JSON.deserialize(
+      requestJson,
+      VisitCallReportService.SaveRequest.class
+    );
+    return VisitCallReportService.saveCallReport(request);
+  }
+
   @RemoteAction
   public static VisitCallReportService.CallReportPayload getCallReportPayloadRemote(Id visitId) {
     return VisitCallReportService.getCallReportPayload(visitId);
@@ -79,6 +96,12 @@ public with sharing class VisitCallReportController {
     VisitCallReportService.SaveRequest request = new VisitCallReportService.SaveRequest();
     request.visitId = (Id) root.get('visitId');
     request.status = (String) root.get('status');
+    if (root.get('capturedAt') != null && String.isNotBlank(String.valueOf(root.get('capturedAt')))) {
+      request.capturedAt = (DateTime) JSON.deserialize(
+        '"' + String.valueOf(root.get('capturedAt')) + '"',
+        DateTime.class
+      );
+    }
     request.visitObjective = (String) root.get('visitObjective');
     request.visitNotes = (String) root.get('visitNotes');
     request.clmPresentation = (String) root.get('clmPresentation');
@@ -86,6 +109,13 @@ public with sharing class VisitCallReportController {
       request.nextVisitDate = Date.valueOf(String.valueOf(root.get('nextVisitDate')));
     }
     request.cancellationReason = (String) root.get('cancellationReason');
+    request.isDoubleVisit = root.get('isDoubleVisit') == true;
+    if (root.get('doubleVisitWithId') != null) {
+      String companionId = String.valueOf(root.get('doubleVisitWithId'));
+      if (String.isNotBlank(companionId) && companionId != 'null') {
+        request.doubleVisitWithId = (Id) companionId;
+      }
+    }
     request.attendees = parseAttendeeRows((List<Object>) root.get('attendees'));
     request.products = parseProductRows((List<Object>) root.get('products'));
     request.samples = parseSampleRows((List<Object>) root.get('samples'));
@@ -162,5 +192,19 @@ public with sharing class VisitCallReportController {
       rows.add(row);
     }
     return rows;
+  }
+
+  /**
+   * Legacy Visualforce / remote-action entry used by older call-report pages.
+   * Kept so dependent Apex in the org can compile; prefer getCallReportPayload for LWC.
+   */
+  @AuraEnabled
+  public static String getReportHtml(Id visitId) {
+    return '';
+  }
+
+  @AuraEnabled
+  public static Map<String, Object> getReportData(Id visitId) {
+    return new Map<String, Object>();
   }
 }

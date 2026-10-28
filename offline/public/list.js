@@ -1,3 +1,12 @@
+import {
+    sfCacheGet,
+    idbPayload,
+    idbSet,
+    listPageKey,
+    describeEntityKey,
+    listViewsEntityKey
+} from './sfRestCache.js';
+
 const SF_INSTANCE =
     (typeof globalThis !== 'undefined' && globalThis.PLANNER_SF_INSTANCE) ||
     (typeof localStorage !== 'undefined' && localStorage.getItem('zeta.pwa.sfInstanceUrl')) ||
@@ -11,6 +20,8 @@ const DEFAULT_API_VERSION = 'v62.0';
 const KANBAN_FIELDS = ['StageName', 'Status', 'Type', 'Rating', 'Priority', 'Industry'];
 const DATE_FIELDS = ['ActivityDate', 'StartDateTime', 'Due_Date__c', 'CloseDate', 'CreatedDate'];
 const PAGE_SIZE = 25;
+// Cached pages written before lookup names replaced id columns are ignored.
+const LIST_PAGE_LAYOUT = 2;
 
 let apiVersion = DEFAULT_API_VERSION;
 const describeCache = {};
@@ -18,6 +29,7 @@ let currentObject = null;
 let currentRecords = [];
 let currentFields = [];
 let currentDescribe = null;
+let columnLabels = {};
 let titleField = 'Name';
 let kanbanField = null;
 let dateField = null;
@@ -30,6 +42,9 @@ let listViews = [];
 let currentListViewId = null;
 let pinnedListViewIds = [];
 let skipKanbanPickerOnce = false;
+let nextRecordsUrl = null;
+let remoteTotalSize = null;
+let loadingMore = false;
 
 function el(id) {
     return document.getElementById(id);
@@ -159,75 +174,89 @@ function absoluteSfUrl(path) {
     return `${base}/services/data/${apiVersion}${suffix}`;
 }
 
-async function sfFetch(path) {
-    if (!API_TOKEN) {
-        throw new Error('Not signed in. Open the app, sign in with Salesforce, then try again.');
-    }
-    const url = absoluteSfUrl(path);
-    try {
-        const proxied = await fetch('/.netlify/functions/sf-api', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({
-                url,
-                method: 'GET',
-                authorization: `Bearer ${API_TOKEN}`
-            })
-        });
-        if (proxied.ok) return proxied.json();
-        if (proxied.status === 401) {
-            throw new Error('Session expired. Sign in again in the main app.');
-        }
-    } catch (err) {
-        if (err && err.message && err.message.includes('Session expired')) throw err;
-    }
-    const resp = await fetch(url, {
-        method: 'GET',
-        headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${API_TOKEN}`
-        }
+async function sfFetch(path, options = {}) {
+    return sfCacheGet(path, { apiVersion, fresh: options.fresh === true });
+}
+
+async function persistListPage() {
+    if (!currentObject) return;
+    await idbSet(listPageKey(currentObject, currentListViewId), {
+        objectApiName: currentObject,
+        listViewId: currentListViewId,
+        fields: currentFields,
+        labels: columnLabels,
+        layout: LIST_PAGE_LAYOUT,
+        records: currentRecords,
+        nextRecordsUrl,
+        totalSize: remoteTotalSize != null ? remoteTotalSize : currentRecords.length,
+        savedAt: Date.now()
     });
-    if (resp.status === 401) {
-        throw new Error('Session expired. Sign in again in the main app.');
-    }
-    if (!resp.ok) {
-        let detail = `HTTP ${resp.status}`;
-        try {
-            const err = await resp.json();
-            const first = Array.isArray(err) ? err[0] : err;
-            detail = first?.message || detail;
-        } catch (_err) {
-            /* keep status */
-        }
-        throw new Error(detail);
-    }
-    return resp.json();
 }
 
 async function getDescribe(object) {
     const key = String(object).toLowerCase();
     if (describeCache[key]) return describeCache[key];
+    const fromIdb = await idbPayload(describeEntityKey(object));
+    if (fromIdb) {
+        describeCache[key] = fromIdb;
+        return fromIdb;
+    }
     const fromStorage = readCache(`pwa_cache_record_desc.${key}`);
     if (fromStorage && fromStorage.payload) {
         describeCache[key] = fromStorage.payload;
-    } else {
-        const desc = await sfFetch(`/sobjects/${encodeURIComponent(object)}/describe`);
-        describeCache[key] = desc;
-        try {
-            localStorage.setItem(
-                `pwa_cache_record_desc.${key}`,
-                JSON.stringify({ savedAt: Date.now(), payload: desc })
-            );
-        } catch (_err) {
-            /* ignore */
-        }
+        await idbSet(describeEntityKey(object), fromStorage.payload);
+        return describeCache[key];
+    }
+    const desc = await sfFetch(`/sobjects/${encodeURIComponent(object)}/describe`);
+    describeCache[key] = desc;
+    await idbSet(describeEntityKey(object), desc);
+    try {
+        localStorage.setItem(
+            `pwa_cache_record_desc.${key}`,
+            JSON.stringify({ savedAt: Date.now(), payload: desc })
+        );
+    } catch (_err) {
+        /* ignore */
     }
     return describeCache[key];
 }
 
 function fieldByName(describe, name) {
     return (describe.fields || []).find((field) => field.name === name);
+}
+
+function valueAt(record, path) {
+    if (!record) return undefined;
+    if (Object.prototype.hasOwnProperty.call(record, path) || !String(path).includes('.')) return record[path];
+    return String(path)
+        .split('.')
+        .reduce((obj, key) => (obj == null ? undefined : obj[key]), record);
+}
+
+function fieldInfo(name) {
+    const direct = currentDescribe && fieldByName(currentDescribe, name);
+    if (direct) return direct;
+    if (!String(name).includes('.')) return null;
+    const rel = String(name).split('.')[0];
+    const ref = (currentDescribe?.fields || []).find((field) => field.relationshipName === rel);
+    const label = columnLabels[name] || (ref ? String(ref.label || rel).replace(/ ID$/, '') : rel);
+    return { name, type: 'string', label };
+}
+
+/** Record ids are never useful to read; lookups show the related record's name instead. */
+function readableFields(describe, fields) {
+    const out = [];
+    (fields || []).forEach((name) => {
+        const info = describe && fieldByName(describe, name);
+        if (name === 'Id' || info?.type === 'id') return;
+        let resolved = name;
+        if (info && info.type === 'reference') {
+            if (!info.relationshipName) return;
+            resolved = `${info.relationshipName}.Name`;
+        }
+        if (!out.includes(resolved)) out.push(resolved);
+    });
+    return out;
 }
 
 function pickTitleField(describe) {
@@ -323,7 +352,7 @@ function formatCell(field, value) {
 }
 
 function compareValues(fieldName, a, b) {
-    const info = fieldByName(currentDescribe, fieldName);
+    const info = fieldInfo(fieldName);
     const av = a == null || a === '' ? null : a;
     const bv = b == null || b === '' ? null : b;
     if (av == null && bv == null) return 0;
@@ -346,10 +375,10 @@ function recordMatchesSearch(record, query) {
     if (!query) return true;
     const fields = currentFields.length ? currentFields : Object.keys(record);
     for (const name of fields) {
-        const info = fieldByName(currentDescribe, name);
-        const formatted = formatCell(info, record[name]);
+        const info = fieldInfo(name);
+        const raw = valueAt(record, name);
+        const formatted = formatCell(info, raw);
         if (formatted && formatted !== '—' && formatted.toLowerCase().includes(query)) return true;
-        const raw = record[name];
         if (raw != null && String(raw).toLowerCase().includes(query)) return true;
     }
     return String(record.Id || '')
@@ -366,7 +395,7 @@ function visibleRecords() {
     if (sortField) {
         const dir = sortDir === 'desc' ? -1 : 1;
         rows = [...rows].sort(
-            (a, b) => compareValues(sortField, a[sortField], b[sortField]) * dir
+            (a, b) => compareValues(sortField, valueAt(a, sortField), valueAt(b, sortField)) * dir
         );
     }
     return rows;
@@ -397,13 +426,16 @@ function updateCountAndPager(rows) {
     const total = currentRecords.length;
     const shown = rows.length;
     const query = searchTerm.trim();
+    const moreHint = nextRecordsUrl ? '+' : '';
     let text = '';
     if (!total) {
         text = 'No records.';
     } else if (query) {
-        text = `${shown} matching of ${total}`;
+        text = `${shown} matching of ${total}${moreHint}`;
+    } else if (remoteTotalSize != null && remoteTotalSize > total) {
+        text = `${total} loaded of ${remoteTotalSize}`;
     } else {
-        text = `${total} record${total === 1 ? '' : 's'}`;
+        text = `${total}${moreHint} record${total === 1 && !moreHint ? '' : 's'}`;
     }
     if (currentView === 'calendar' && dateField) {
         const info = fieldByName(currentDescribe, dateField);
@@ -417,15 +449,27 @@ function updateCountAndPager(rows) {
     const pages = totalPagesFor(shown);
     const start = (currentPage - 1) * PAGE_SIZE + 1;
     const end = Math.min(currentPage * PAGE_SIZE, shown);
-    if (label) label.textContent = `${start}–${end} of ${shown} · Page ${currentPage} of ${pages}`;
+    if (label) label.textContent = `${start}–${end} of ${shown}${moreHint} · Page ${currentPage} of ${pages}${nextRecordsUrl ? '+' : ''}`;
     if (prev) prev.disabled = currentPage <= 1;
-    if (next) next.disabled = currentPage >= pages;
+    if (next) next.disabled = currentPage >= pages && !nextRecordsUrl;
 }
 
 function openRecord(id, object) {
     if (!id) return;
-    if (object === 'Visit__c' && window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'open-visit-call', recordId: id }, '*');
+    const isVisit = object === 'Visit__c' || object === 'Visit' || currentObject === 'Visit__c';
+    if (isVisit) {
+        const payload = { type: 'open-visit-call', recordId: id };
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage(payload, '*');
+            return;
+        }
+        if (window.top && window.top !== window) {
+            window.top.postMessage(payload, '*');
+            return;
+        }
+        window.dispatchEvent(new CustomEvent('zeta-navigate-record', {
+            detail: { recordId: id, objectApiName: 'Visit__c', actionName: 'view' }
+        }));
         return;
     }
     if (window.parent && window.parent !== window) {
@@ -447,10 +491,41 @@ function bindRecordOpener(node, record) {
 }
 
 async function fetchListViews(object) {
+    const cached = await idbPayload(listViewsEntityKey(object));
+    if (Array.isArray(cached) && cached.length) {
+        listViews = cached
+            .filter((row) => row && (row.id || row.Id) && (row.label || row.Label))
+            .map((row) => ({
+                id: String(row.id || row.Id),
+                label: row.label || row.Label,
+                developerName: row.developerName || row.label || row.Label,
+                soqlCompatible: row.soqlCompatible !== false
+            }));
+        // Refresh in background via cache-first helper.
+        sfFetch(`/sobjects/${encodeURIComponent(object)}/listviews`)
+            .then(async (data) => {
+                const rows = Array.isArray(data?.listviews) ? data.listviews : [];
+                const mapped = rows
+                    .filter((row) => row && row.id && row.label)
+                    .map((row) => ({
+                        id: String(row.id),
+                        label: row.label,
+                        developerName: row.developerName || row.label,
+                        soqlCompatible: row.soqlCompatible !== false
+                    }));
+                if (mapped.length) {
+                    await idbSet(listViewsEntityKey(object), mapped);
+                    listViews = mapped;
+                    renderListViewSelect();
+                }
+            })
+            .catch(() => {});
+        return listViews;
+    }
     try {
         const data = await sfFetch(`/sobjects/${encodeURIComponent(object)}/listviews`);
         const rows = Array.isArray(data?.listviews) ? data.listviews : [];
-        return rows
+        const mapped = rows
             .filter((row) => row && row.id && row.label)
             .map((row) => ({
                 id: String(row.id),
@@ -458,10 +533,262 @@ async function fetchListViews(object) {
                 developerName: row.developerName || row.label,
                 soqlCompatible: row.soqlCompatible !== false
             }));
+        await idbSet(listViewsEntityKey(object), mapped);
+        return mapped;
     } catch (err) {
         console.warn('[List] listviews failed', err);
         return [];
     }
+}
+
+function flattenListViewRows(rows) {
+    return (rows || []).map((row) => {
+        if (row && row.columns) {
+            const flat = { Id: row.id || row.Id };
+            (row.columns || []).forEach((col) => {
+                const key = col.fieldNameOrPath || col.fieldApiName;
+                if (key) flat[key] = col.value;
+            });
+            return flat.Id ? flat : row;
+        }
+        return row;
+    });
+}
+
+function applyLoadedPage(object, describe, displayFields, records, nextUrl, totalSize) {
+    currentObject = object;
+    currentRecords = records;
+    currentFields = readableFields(describe, displayFields);
+    currentDescribe = describe;
+    nextRecordsUrl = nextUrl || null;
+    remoteTotalSize = totalSize != null ? totalSize : records.length;
+    currentPage = 1;
+    restoreSort(object);
+    if (sortField && !currentFields.includes(sortField)) sortField = null;
+    renderListViewSelect();
+    renderKanbanFieldSelect();
+    renderCurrentView();
+    setVisible('list-result', true);
+    showError('');
+    void persistListPage();
+    return records.length;
+}
+
+async function loadListViewResults(object, listViewId) {
+    const describe = await getDescribe(object);
+    titleField = pickTitleField(describe);
+    kanbanField = restoreKanbanField(describe, object);
+    dateField = pickDateField(describe, object);
+
+    let records = [];
+    let displayFields = pickDisplayFields(describe);
+    nextRecordsUrl = null;
+    remoteTotalSize = null;
+
+    // Paint from IndexedDB immediately when available.
+    const cachedPage = await idbPayload(listPageKey(object, listViewId || null));
+    columnLabels = {};
+    if (
+        cachedPage &&
+        cachedPage.layout === LIST_PAGE_LAYOUT &&
+        Array.isArray(cachedPage.records) &&
+        cachedPage.records.length
+    ) {
+        columnLabels = cachedPage.labels || {};
+        displayFields = Array.isArray(cachedPage.fields) && cachedPage.fields.length
+            ? cachedPage.fields
+            : displayFields;
+        applyLoadedPage(
+            object,
+            describe,
+            displayFields,
+            cachedPage.records,
+            cachedPage.nextRecordsUrl || null,
+            cachedPage.totalSize
+        );
+        // Quiet background refresh of first page only.
+        void refreshFirstPageQuiet(object, listViewId, describe, displayFields);
+        return cachedPage.records.length;
+    }
+
+    if (listViewId) {
+        try {
+            const desc = await sfFetch(
+                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/describe`
+            );
+            const cols = [];
+            (Array.isArray(desc?.columns) ? desc.columns : []).forEach((c) => {
+                const name = c && !c.hidden && (c.fieldNameOrPath || c.fieldApiName || c.name);
+                if (!name) return;
+                cols.push(name);
+                if (c.label) columnLabels[name] = c.label;
+            });
+            const readable = readableFields(describe, cols);
+            if (readable.length) displayFields = readable.slice(0, 8);
+            const results = await sfFetch(
+                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/results?limit=${PAGE_SIZE}`
+            );
+            records = flattenListViewRows(Array.isArray(results?.records) ? results.records : []);
+            remoteTotalSize = results?.size != null ? results.size : records.length;
+            nextRecordsUrl = null;
+            if (records.length >= PAGE_SIZE) {
+                // List-view API has no nextRecordsUrl; further pages use SOQL offset.
+                nextRecordsUrl = `__offset__:${PAGE_SIZE}`;
+            }
+        } catch (err) {
+            console.warn('[List] list view results failed; falling back to SOQL', err);
+            listViewId = null;
+            currentListViewId = null;
+        }
+    }
+
+    if (!listViewId) {
+        const selectFields = ['Id', ...displayFields];
+        if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
+        dateFieldsFromDescribe(describe).forEach((field) => {
+            if (!selectFields.includes(field.name)) selectFields.push(field.name);
+        });
+        const unique = [...new Set(selectFields)];
+        const soql = `SELECT ${unique.join(', ')} FROM ${object} LIMIT ${PAGE_SIZE}`;
+        const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`);
+        records = [...(data.records || [])];
+        nextRecordsUrl = data.nextRecordsUrl || null;
+        remoteTotalSize = data.totalSize != null ? data.totalSize : records.length;
+    } else if (kanbanField) {
+        const missing = records.some((r) => r && r[kanbanField] === undefined);
+        if (missing && records.length && records[0].Id) {
+            try {
+                const ids = records
+                    .map((r) => r.Id)
+                    .filter(Boolean)
+                    .slice(0, PAGE_SIZE)
+                    .map((id) => `'${String(id).replace(/'/g, "\\'")}'`)
+                    .join(',');
+                if (ids) {
+                    const enrich = await sfFetch(
+                        `/query?q=${encodeURIComponent(
+                            `SELECT Id, ${kanbanField} FROM ${object} WHERE Id IN (${ids})`
+                        )}`
+                    );
+                    const byId = new Map((enrich.records || []).map((r) => [r.Id, r]));
+                    records = records.map((r) => {
+                        const extra = byId.get(r.Id);
+                        return extra ? { ...r, [kanbanField]: extra[kanbanField] } : r;
+                    });
+                }
+            } catch (_err) {
+                /* ignore enrich failures */
+            }
+        }
+    }
+
+    return applyLoadedPage(object, describe, displayFields, records, nextRecordsUrl, remoteTotalSize);
+}
+
+async function refreshFirstPageQuiet(object, listViewId, describe, displayFields) {
+    try {
+        let records = [];
+        let nextUrl = null;
+        let totalSize = null;
+        const fields = readableFields(describe, displayFields);
+        if (listViewId) {
+            const results = await sfFetch(
+                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/results?limit=${PAGE_SIZE}`,
+                { fresh: true }
+            );
+            records = flattenListViewRows(Array.isArray(results?.records) ? results.records : []);
+            totalSize = results?.size != null ? results.size : records.length;
+            nextUrl = records.length >= PAGE_SIZE ? `__offset__:${PAGE_SIZE}` : null;
+        } else {
+            const selectFields = ['Id', ...fields];
+            if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
+            const unique = [...new Set(selectFields)];
+            const soql = `SELECT ${unique.join(', ')} FROM ${object} LIMIT ${PAGE_SIZE}`;
+            const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`, { fresh: true });
+            records = [...(data.records || [])];
+            nextUrl = data.nextRecordsUrl || null;
+            totalSize = data.totalSize != null ? data.totalSize : records.length;
+        }
+        if (!records.length) return;
+        // Merge: keep already-loaded extra pages if still same object/view.
+        if (currentObject === object && currentListViewId === listViewId && currentRecords.length > records.length) {
+            const byId = new Map(records.map((r) => [r.Id, r]));
+            currentRecords = currentRecords.map((r) => byId.get(r.Id) || r);
+            const seen = new Set(currentRecords.map((r) => r.Id));
+            records.forEach((r) => {
+                if (r.Id && !seen.has(r.Id)) currentRecords.unshift(r);
+            });
+        } else if (currentObject === object && currentListViewId === listViewId) {
+            currentRecords = records;
+            nextRecordsUrl = nextUrl;
+            remoteTotalSize = totalSize;
+            renderCurrentView();
+        }
+        await persistListPage();
+    } catch (_err) {
+        /* keep cached paint */
+    }
+}
+
+async function fetchNextRemotePage() {
+    if (loadingMore || !nextRecordsUrl || !currentObject) return false;
+    loadingMore = true;
+    try {
+        let rows = [];
+        if (String(nextRecordsUrl).startsWith('__offset__:')) {
+            const offset = Number(String(nextRecordsUrl).slice('__offset__:'.length)) || currentRecords.length;
+            const selectFields = ['Id', ...currentFields];
+            if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
+            const unique = [...new Set(selectFields)];
+            const soql = `SELECT ${unique.join(', ')} FROM ${currentObject} LIMIT ${PAGE_SIZE} OFFSET ${offset}`;
+            const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`, { fresh: true });
+            rows = [...(data.records || [])];
+            nextRecordsUrl = rows.length >= PAGE_SIZE ? `__offset__:${offset + rows.length}` : null;
+            if (data.totalSize != null) remoteTotalSize = data.totalSize;
+        } else {
+            const data = await sfFetch(nextRecordsUrl, { fresh: true });
+            rows = [...(data.records || [])];
+            nextRecordsUrl = data.nextRecordsUrl || null;
+            if (data.totalSize != null) remoteTotalSize = data.totalSize;
+        }
+        if (!rows.length) {
+            nextRecordsUrl = null;
+            return false;
+        }
+        const seen = new Set(currentRecords.map((r) => r.Id));
+        rows.forEach((row) => {
+            if (row.Id && seen.has(row.Id)) return;
+            if (row.Id) seen.add(row.Id);
+            currentRecords.push(row);
+        });
+        await persistListPage();
+        return true;
+    } catch (err) {
+        console.warn('[List] next page failed', err);
+        return false;
+    } finally {
+        loadingMore = false;
+    }
+}
+
+async function runQuery(object) {
+    pinnedListViewIds = readPinnedListViews(object);
+    listViews = await fetchListViews(object);
+    let preferred = null;
+    try {
+        preferred = localStorage.getItem(lastListViewKey(object));
+    } catch (_err) {
+        preferred = null;
+    }
+    if (preferred && listViews.some((v) => v.id === preferred)) {
+        currentListViewId = preferred;
+    } else if (pinnedListViewIds.length) {
+        const pinnedHit = listViews.find((v) => pinnedListViewIds.includes(v.id));
+        currentListViewId = pinnedHit ? pinnedHit.id : null;
+    } else {
+        currentListViewId = null;
+    }
+    return loadListViewResults(object, currentListViewId);
 }
 
 function sortListViewsForUi(views, pinnedIds) {
@@ -523,132 +850,6 @@ function renderKanbanFieldSelect() {
     wrap.hidden = currentView !== 'kanban' || !fields.length;
 }
 
-async function loadListViewResults(object, listViewId) {
-    const describe = await getDescribe(object);
-    titleField = pickTitleField(describe);
-    kanbanField = restoreKanbanField(describe, object);
-    dateField = pickDateField(describe, object);
-
-    let records = [];
-    let displayFields = pickDisplayFields(describe);
-
-    if (listViewId) {
-        try {
-            const desc = await sfFetch(
-                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/describe`
-            );
-            const cols = Array.isArray(desc?.columns)
-                ? desc.columns
-                      .map((c) => c.fieldNameOrPath || c.fieldApiName || c.name)
-                      .filter((name) => name && !String(name).includes('.'))
-                : [];
-            if (cols.length) displayFields = cols.slice(0, 8);
-            const results = await sfFetch(
-                `/sobjects/${encodeURIComponent(object)}/listviews/${encodeURIComponent(listViewId)}/results?limit=200`
-            );
-            const rows = Array.isArray(results?.records) ? results.records : [];
-            records = rows.map((row) => {
-                if (row && row.columns) {
-                    // Some orgs return columnar shape; flatten if needed.
-                    const flat = { Id: row.id || row.Id };
-                    (row.columns || []).forEach((col) => {
-                        const key = col.fieldNameOrPath || col.fieldApiName;
-                        if (key) flat[key] = col.value;
-                    });
-                    return flat.Id ? flat : row;
-                }
-                return row;
-            });
-        } catch (err) {
-            console.warn('[List] list view results failed; falling back to SOQL', err);
-            listViewId = null;
-            currentListViewId = null;
-        }
-    }
-
-    if (!listViewId) {
-        const selectFields = ['Id', ...displayFields];
-        if (kanbanField && !selectFields.includes(kanbanField)) selectFields.push(kanbanField);
-        dateFieldsFromDescribe(describe).forEach((field) => {
-            if (!selectFields.includes(field.name)) selectFields.push(field.name);
-        });
-        const soql = `SELECT ${selectFields.join(', ')} FROM ${object} LIMIT 200`;
-        const data = await sfFetch(`/query?q=${encodeURIComponent(soql)}`);
-        records = [...(data.records || [])];
-        let next = data.nextRecordsUrl;
-        const seen = new Set(records.map((row) => row.Id));
-        while (next && records.length < 1000) {
-            const nxt = await sfFetch(next);
-            for (const row of nxt.records || []) {
-                if (row.Id && seen.has(row.Id)) continue;
-                if (row.Id) seen.add(row.Id);
-                records.push(row);
-            }
-            next = nxt.nextRecordsUrl;
-        }
-    } else if (kanbanField) {
-        // Ensure kanban field exists on rows for grouping when list-view payload omitted it.
-        const missing = records.some((r) => r && r[kanbanField] === undefined);
-        if (missing && records.length && records[0].Id) {
-            try {
-                const ids = records
-                    .map((r) => r.Id)
-                    .filter(Boolean)
-                    .slice(0, 200)
-                    .map((id) => `'${String(id).replace(/'/g, "\\'")}'`)
-                    .join(',');
-                if (ids) {
-                    const enrich = await sfFetch(
-                        `/query?q=${encodeURIComponent(
-                            `SELECT Id, ${kanbanField} FROM ${object} WHERE Id IN (${ids})`
-                        )}`
-                    );
-                    const byId = new Map((enrich.records || []).map((r) => [r.Id, r]));
-                    records = records.map((r) => {
-                        const extra = byId.get(r.Id);
-                        return extra ? { ...r, [kanbanField]: extra[kanbanField] } : r;
-                    });
-                }
-            } catch (_err) {
-                /* ignore enrich failures */
-            }
-        }
-    }
-
-    currentObject = object;
-    currentRecords = records;
-    currentFields = displayFields;
-    currentDescribe = describe;
-    currentPage = 1;
-    restoreSort(object);
-    renderListViewSelect();
-    renderKanbanFieldSelect();
-    renderCurrentView();
-    setVisible('list-result', true);
-    showError('');
-    return records.length;
-}
-
-async function runQuery(object) {
-    pinnedListViewIds = readPinnedListViews(object);
-    listViews = await fetchListViews(object);
-    let preferred = null;
-    try {
-        preferred = localStorage.getItem(lastListViewKey(object));
-    } catch (_err) {
-        preferred = null;
-    }
-    if (preferred && listViews.some((v) => v.id === preferred)) {
-        currentListViewId = preferred;
-    } else if (pinnedListViewIds.length) {
-        const pinnedHit = listViews.find((v) => pinnedListViewIds.includes(v.id));
-        currentListViewId = pinnedHit ? pinnedHit.id : null;
-    } else {
-        currentListViewId = null;
-    }
-    return loadListViewResults(object, currentListViewId);
-}
-
 function recordsForView() {
     const rows = visibleRecords();
     if (usesPagination()) {
@@ -695,7 +896,7 @@ function renderTable(stage, records) {
     const headRow = document.createElement('tr');
     currentFields.forEach((name) => {
         const th = document.createElement('th');
-        const info = fieldByName(currentDescribe, name);
+        const info = fieldInfo(name);
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'list-sort-btn';
@@ -739,7 +940,7 @@ function renderTable(stage, records) {
             currentFields.forEach((name) => {
                 const td = document.createElement('td');
                 td.className = 'list-cell';
-                const info = fieldByName(currentDescribe, name);
+                const info = fieldInfo(name);
                 if (name === titleField) {
                     const link = document.createElement('a');
                     link.className = 'list-link';
@@ -748,7 +949,7 @@ function renderTable(stage, records) {
                     bindRecordOpener(link, record);
                     td.appendChild(link);
                 } else {
-                    td.textContent = formatCell(info, record[name]);
+                    td.textContent = formatCell(info, valueAt(record, name));
                 }
                 tr.appendChild(td);
             });
@@ -778,16 +979,22 @@ function renderCards(stage, records) {
         const title = document.createElement('h3');
         title.textContent = titleValue(record);
         card.appendChild(title);
-        subtitleFields.forEach((name) => {
-            const info = fieldByName(currentDescribe, name);
-            const line = document.createElement('p');
-            line.className = 'list-card-meta';
-            line.textContent = `${(info && info.label) || name}: ${formatCell(info, record[name])}`;
-            card.appendChild(line);
-        });
+        subtitleFields.forEach((name) => card.appendChild(metaLine(record, name)));
         grid.appendChild(card);
     });
     stage.appendChild(grid);
+}
+
+function metaLine(record, name) {
+    const info = fieldInfo(name);
+    const line = document.createElement('p');
+    line.className = 'list-card-meta';
+    const label = document.createElement('span');
+    label.className = 'list-card-meta-label';
+    label.textContent = `${(info && info.label) || name}: `;
+    line.appendChild(label);
+    line.appendChild(document.createTextNode(formatCell(info, valueAt(record, name))));
+    return line;
 }
 
 function renderKanban(stage, records) {
@@ -807,6 +1014,7 @@ function renderKanban(stage, records) {
         if (!buckets.has(key)) buckets.set(key, []);
         buckets.get(key).push(record);
     });
+    const detailFields = currentFields.filter((name) => name !== titleField && name !== kanbanField).slice(0, 5);
     const board = document.createElement('div');
     board.className = 'list-kanban';
     buckets.forEach((rows, key) => {
@@ -820,7 +1028,15 @@ function renderKanban(stage, records) {
             const card = document.createElement('button');
             card.type = 'button';
             card.className = 'list-kanban-card';
-            card.textContent = titleValue(record);
+            const title = document.createElement('span');
+            title.className = 'list-kanban-title';
+            title.textContent = titleValue(record);
+            card.appendChild(title);
+            detailFields.forEach((name) => {
+                const value = valueAt(record, name);
+                if (value == null || value === '') return;
+                card.appendChild(metaLine(record, name));
+            });
             bindRecordOpener(card, record);
             col.appendChild(card);
         });
@@ -1061,10 +1277,20 @@ function setupSearchAndPager() {
         });
     }
     if (next) {
-        next.addEventListener('click', () => {
+        next.addEventListener('click', async () => {
             const rows = visibleRecords();
-            if (currentPage < totalPagesFor(rows.length)) {
+            const pages = totalPagesFor(rows.length);
+            if (currentPage < pages) {
                 currentPage += 1;
+                renderCurrentView();
+                return;
+            }
+            if (nextRecordsUrl) {
+                next.disabled = true;
+                const loaded = await fetchNextRemotePage();
+                if (loaded) {
+                    currentPage += 1;
+                }
                 renderCurrentView();
             }
         });

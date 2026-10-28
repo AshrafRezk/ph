@@ -584,11 +584,19 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Dermatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Diabetology</fullName>
             <default>false</default>
         </values>
         <values>
             <fullName>Embryology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Endocrinology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -608,6 +616,18 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Gastroenterology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Practice</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Genetics</fullName>
             <default>false</default>
         </values>
@@ -620,7 +640,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Hepatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Intensive_Care</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Internal_Medicine</fullName>
             <default>false</default>
         </values>
         <values>
@@ -629,6 +657,34 @@
         </values>
         <values>
             <fullName>Miscellaneous</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nephrology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neuropsychiatry</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurosurgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nutrition_Medicine</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Obstetrics_and_Gynaecology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Oncology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -680,7 +736,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Plastic_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Pneumology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Psychiatry</fullName>
             <default>false</default>
         </values>
         <values>
@@ -689,6 +753,10 @@
         </values>
         <values>
             <fullName>Radiotherapy</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Rheumatology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -701,6 +769,10 @@
         </values>
         <values>
             <fullName>Urology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Vascular_Surgery</fullName>
             <default>false</default>
         </values>
     </picklistValues>
@@ -771,11 +843,19 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Dermatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Diabetology</fullName>
             <default>false</default>
         </values>
         <values>
             <fullName>Embryology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Endocrinology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -795,6 +875,18 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Gastroenterology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Practice</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Genetics</fullName>
             <default>false</default>
         </values>
@@ -807,7 +899,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Hepatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Intensive_Care</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Internal_Medicine</fullName>
             <default>false</default>
         </values>
         <values>
@@ -816,6 +916,34 @@
         </values>
         <values>
             <fullName>Miscellaneous</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nephrology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neuropsychiatry</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurosurgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nutrition_Medicine</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Obstetrics_and_Gynaecology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Oncology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -867,7 +995,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Plastic_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Pneumology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Psychiatry</fullName>
             <default>false</default>
         </values>
         <values>
@@ -876,6 +1012,10 @@
         </values>
         <values>
             <fullName>Radiotherapy</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Rheumatology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -888,6 +1028,10 @@
         </values>
         <values>
             <fullName>Urology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Vascular_Surgery</fullName>
             <default>false</default>
         </values>
     </picklistValues>
@@ -958,11 +1102,19 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Dermatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Diabetology</fullName>
             <default>false</default>
         </values>
         <values>
             <fullName>Embryology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Endocrinology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -982,6 +1134,18 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Gastroenterology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Practice</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Genetics</fullName>
             <default>false</default>
         </values>
@@ -994,7 +1158,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Hepatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Intensive_Care</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Internal_Medicine</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1003,6 +1175,34 @@
         </values>
         <values>
             <fullName>Miscellaneous</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nephrology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neuropsychiatry</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurosurgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nutrition_Medicine</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Obstetrics_and_Gynaecology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Oncology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1054,7 +1254,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Plastic_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Pneumology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Psychiatry</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1063,6 +1271,10 @@
         </values>
         <values>
             <fullName>Radiotherapy</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Rheumatology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1075,6 +1287,10 @@
         </values>
         <values>
             <fullName>Urology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Vascular_Surgery</fullName>
             <default>false</default>
         </values>
     </picklistValues>
@@ -1145,11 +1361,19 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Dermatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Diabetology</fullName>
             <default>false</default>
         </values>
         <values>
             <fullName>Embryology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Endocrinology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1169,6 +1393,18 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Gastroenterology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Practice</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>General_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Genetics</fullName>
             <default>false</default>
         </values>
@@ -1181,7 +1417,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Hepatology</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Intensive_Care</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Internal_Medicine</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1190,6 +1434,34 @@
         </values>
         <values>
             <fullName>Miscellaneous</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nephrology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neuropsychiatry</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Neurosurgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Nutrition_Medicine</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Obstetrics_and_Gynaecology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Oncology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1241,7 +1513,15 @@
             <default>false</default>
         </values>
         <values>
+            <fullName>Plastic_Surgery</fullName>
+            <default>false</default>
+        </values>
+        <values>
             <fullName>Pneumology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Psychiatry</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1250,6 +1530,10 @@
         </values>
         <values>
             <fullName>Radiotherapy</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Rheumatology</fullName>
             <default>false</default>
         </values>
         <values>
@@ -1262,6 +1546,10 @@
         </values>
         <values>
             <fullName>Urology</fullName>
+            <default>false</default>
+        </values>
+        <values>
+            <fullName>Vascular_Surgery</fullName>
             <default>false</default>
         </values>
     </picklistValues>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Double_Visit_With__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Team member who accompanied this call when it is a double visit. Defaults to the territory manager.</description>
+    <label>Double Visit With</label>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Double Visit With Visits</relationshipLabel>
+    <relationshipName>DoubleVisitWithVisits</relationshipName>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

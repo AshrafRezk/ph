@@ -1,0 +1,40 @@
+.nav-admin {
+    max-width: 40rem;
+}
+
+.nav-admin-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.nav-admin-subtitle {
+    margin: 0.35rem 0 1rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+}
+
+.nav-admin-error {
+    color: #c23934;
+}
+
+.nav-admin-list {
+    list-style: none;
+    margin: 1rem 0;
+    padding: 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5rem;
+}
+
+.nav-admin-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid #eee;
+}
+
+.nav-admin-row:last-child {
+    border-bottom: 0;
+}

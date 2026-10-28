@@ -2,43 +2,7 @@
 <CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
     <actionOverrides>
         <actionName>View</actionName>
-        <comment>Action override created by Lightning App Builder during activation.</comment>
-        <content>SDO_Contact_Default</content>
-        <formFactor>Small</formFactor>
-        <skipRecordTypeSelect>false</skipRecordTypeSelect>
-        <type>Flexipage</type>
-        <pageOrSobjectType>Contact</pageOrSobjectType>
-    </actionOverrides>
-    <actionOverrides>
-        <actionName>View</actionName>
-        <comment>Action override created by Lightning App Builder during activation.</comment>
-        <content>SDO_Contact_Default</content>
-        <formFactor>Large</formFactor>
-        <skipRecordTypeSelect>false</skipRecordTypeSelect>
-        <type>Flexipage</type>
-        <pageOrSobjectType>Contact</pageOrSobjectType>
-    </actionOverrides>
-    <actionOverrides>
-        <actionName>View</actionName>
-        <comment>Action override created by Lightning App Builder during activation.</comment>
-        <content>Opportunity_Record_Page</content>
-        <formFactor>Small</formFactor>
-        <skipRecordTypeSelect>false</skipRecordTypeSelect>
-        <type>Flexipage</type>
-        <pageOrSobjectType>Opportunity</pageOrSobjectType>
-    </actionOverrides>
-    <actionOverrides>
-        <actionName>View</actionName>
-        <comment>Action override created by Lightning App Builder during activation.</comment>
-        <content>Opportunity_Record_Page</content>
-        <formFactor>Large</formFactor>
-        <skipRecordTypeSelect>false</skipRecordTypeSelect>
-        <type>Flexipage</type>
-        <pageOrSobjectType>Opportunity</pageOrSobjectType>
-    </actionOverrides>
-    <actionOverrides>
-        <actionName>View</actionName>
-        <comment>Pharma account record page with visit insights sidebar.</comment>
+        <comment>Pharma account page with Affiliations, Ratings, and Visit Insights.</comment>
         <content>Pharma_Account_Record_Page</content>
         <formFactor>Large</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
@@ -47,7 +11,7 @@
     </actionOverrides>
     <actionOverrides>
         <actionName>View</actionName>
-        <comment>Pharma account record page with visit insights sidebar.</comment>
+        <comment>Pharma account page with Affiliations, Ratings, and Visit Insights.</comment>
         <content>Pharma_Account_Record_Page</content>
         <formFactor>Small</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
@@ -55,20 +19,40 @@
         <pageOrSobjectType>Account</pageOrSobjectType>
     </actionOverrides>
     <actionOverrides>
-        <actionName>Tab</actionName>
-        <content>Field_Rep_Home</content>
+        <actionName>View</actionName>
+        <comment>Action override created by Lightning App Builder during activation.</comment>
+        <content>Contact_Record_Page_Three_Column</content>
         <formFactor>Large</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
         <type>Flexipage</type>
-        <pageOrSobjectType>standard-home</pageOrSobjectType>
+        <pageOrSobjectType>Contact</pageOrSobjectType>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <comment>Action override created by Lightning App Builder during activation.</comment>
+        <content>Lead_Record_Page_Three_Column</content>
+        <formFactor>Large</formFactor>
+        <skipRecordTypeSelect>false</skipRecordTypeSelect>
+        <type>Flexipage</type>
+        <pageOrSobjectType>Lead</pageOrSobjectType>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <comment>Action override created by Lightning App Builder during activation.</comment>
+        <content>Opportunity_Record_Page_Three_Column</content>
+        <formFactor>Large</formFactor>
+        <skipRecordTypeSelect>false</skipRecordTypeSelect>
+        <type>Flexipage</type>
+        <pageOrSobjectType>Opportunity</pageOrSobjectType>
     </actionOverrides>
     <brand>
-        <headerColor>#1BD8B8</headerColor>
-        <logo>X30992751</logo>
+        <headerColor>#1B6FD8</headerColor>
+        <logo>Field_Copilot_Icon</logo>
         <logoVersion>1</logoVersion>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
-    <description>Pharma Field — home, planner, accounts, visits, and CLM for sales reps.</description>
+    <defaultLandingTab>Field_Rep_Home_App</defaultLandingTab>
+    <description>Field Co-pilot — home, planner, accounts, visits, and CLM for sales reps.</description>
     <formFactors>Small</formFactors>
     <formFactors>Medium</formFactors>
     <formFactors>Large</formFactors>
@@ -76,16 +60,107 @@
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
     <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
-    <label>Pharma Field</label>
+    <label>Field Co-pilot</label>
     <navType>Standard</navType>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_Institution_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Institution_HCO</recordType>
+        <type>Flexipage</type>
+        <profile>Admin</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Medical_Professional_HCP</recordType>
+        <type>Flexipage</type>
+        <profile>Admin</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.PersonAccount</recordType>
+        <type>Flexipage</type>
+        <profile>Admin</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Small</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.PersonAccount</recordType>
+        <type>Flexipage</type>
+        <profile>Admin</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_Pharmacy_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Pharmacy</recordType>
+        <type>Flexipage</type>
+        <profile>Admin</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.PersonAccount</recordType>
+        <type>Flexipage</type>
+        <profile>SDO-Sales</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Small</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.PersonAccount</recordType>
+        <type>Flexipage</type>
+        <profile>SDO-Sales</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_HCP_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Medical_Professional_HCP</recordType>
+        <type>Flexipage</type>
+        <profile>SDO-Sales</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_Institution_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Institution_HCO</recordType>
+        <type>Flexipage</type>
+        <profile>SDO-Sales</profile>
+    </profileActionOverrides>
+    <profileActionOverrides>
+        <actionName>View</actionName>
+        <content>Account_Pharmacy_Record_Page</content>
+        <formFactor>Large</formFactor>
+        <pageOrSobjectType>Account</pageOrSobjectType>
+        <recordType>Account.Pharmacy</recordType>
+        <type>Flexipage</type>
+        <profile>SDO-Sales</profile>
+    </profileActionOverrides>
     <tabs>Field_Rep_Home_App</tabs>
     <tabs>Field_Rep_Planner</tabs>
     <tabs>Accounts_Tab</tabs>
-    <tabs>Visit__c</tabs>
+    <tabs>Field_KPIs</tabs>
+    <tabs>Field_Requests</tabs>
+    <tabs>Field_Orders</tabs>
     <tabs>CLM_Presentations</tabs>
     <tabs>My_Learning</tabs>
-    <tabs>Coaching_Event__c</tabs>
-    <tabs>Request_Time_Off</tabs>
+    <tabs>Class_Engine</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>Pharma_UtilityBar</utilityBar>
 </CustomApplication>

@@ -7,9 +7,9 @@ import getDistrictOptions from '@salesforce/apex/ManagementKpiController.getDist
 import {
     ensureLeaflet,
     addOsmTileLayer,
-    createVisitPinIcon,
-    resolveAccountPinKind
+    createVisitPinIcon
 } from 'c/plannerMapPins';
+import { resolveAccountThemeKind } from 'c/accountTypeTheme';
 import { fetchOsrmRoute, buildCoordPath } from 'c/plannerMapUtils';
 
 const DEFAULT_MAP_CENTER = [30.0444, 31.2357];
@@ -396,10 +396,11 @@ export default class ManagementFleetMap extends LightningElement {
         }
 
         geocodedStops.forEach((stop) => {
-            const pinKind = resolveAccountPinKind(
+            const themeKind = resolveAccountThemeKind(
                 stop.accountRecordTypeDeveloperName,
                 stop.accountRecordTypeName
             );
+            const pinKind = themeKind === 'account' ? 'hcp' : themeKind;
             const marker = leaflet.marker([stop.latitude, stop.longitude], {
                 icon: createVisitPinIcon(pinKind, leaflet)
             });

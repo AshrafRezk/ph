@@ -1,0 +1,306 @@
+<apex:component>
+    <style>
+        .rtypes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
+        .rtype { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; border: 1px solid var(--line); background: #fff; border-radius: 1.1rem; padding: 0.9rem; text-align: left; cursor: pointer; box-shadow: 0 4px 14px rgba(3,45,96,0.05); transition: transform 0.15s ease; }
+        .rtype:active { transform: scale(0.97); }
+        .rtype b { font-size: 0.9rem; color: var(--brand-deep); line-height: 1.25; }
+        .rtype span { font-size: 0.75rem; color: var(--muted); line-height: 1.3; }
+        .rtype i { display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 0.8rem; background: #e8f1fb; color: var(--brand); font-style: normal; }
+        .rtype--alert { border-color: rgba(180,35,24,0.25); }
+        .rtype--alert i { background: #fdecea; color: #b42318; }
+        .rform { background: #fff; border: 1px solid var(--line); border-radius: 1.25rem; padding: 1.1rem 1rem 1.2rem; box-shadow: 0 10px 30px rgba(3,45,96,0.08); }
+        .rform[hidden], .rdone[hidden], .rtypes[hidden] { display: none; }
+        .rform__back { border: 0; background: none; padding: 0; color: var(--brand); font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+        .rform h2 { margin: 0.5rem 0 0.25rem; color: var(--brand-deep); font-size: 1.2rem; }
+        .rform__hint { margin: 0 0 1rem; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
+        .rform__as { margin: -0.4rem 0 1rem; font-size: 0.8rem; color: var(--muted); background: #f6f8fb; border-radius: 0.7rem; padding: 0.5rem 0.7rem; }
+        .f { display: block; margin-bottom: 0.85rem; min-width: 0; }
+        .f[hidden] { display: none; }
+        .f > span { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; font-weight: 700; color: #374151; }
+        .f > span em { font-style: normal; font-weight: 600; color: var(--muted); }
+        .f input, .f select, .f textarea { width: 100%; min-width: 0; max-width: 100%; border: 1px solid #d5dde8; border-radius: 0.8rem; background: #fbfcfe; padding: 0.72rem 0.8rem; font: inherit; font-size: 0.95rem; color: #181818; outline: 0; transition: border-color 0.15s ease, box-shadow 0.15s ease; -webkit-appearance: none; appearance: none; }
+        .f select { background-image: linear-gradient(45deg, transparent 50%, #6b7280 50%), linear-gradient(135deg, #6b7280 50%, transparent 50%); background-position: calc(100% - 1.1rem) 55%, calc(100% - 0.8rem) 55%; background-size: 0.3rem 0.3rem; background-repeat: no-repeat; padding-right: 2rem; }
+        .f textarea { min-height: 6.5rem; resize: vertical; }
+        .f input:focus, .f select:focus, .f textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(11,92,171,0.15); background: #fff; }
+        .f3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+        .f input[type="date"] { display: block; min-height: 2.9rem; }
+        .seg { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .seg label { position: relative; flex: 1; min-width: 5.5rem; }
+        .f .seg input { position: absolute; inset: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        .seg span { display: block; text-align: center; border: 1px solid #d5dde8; border-radius: 0.8rem; padding: 0.6rem 0.4rem; font-size: 0.85rem; font-weight: 700; color: #374151; background: #fbfcfe; cursor: pointer; }
+        .seg input:checked + span { border-color: var(--brand); background: #e8f1fb; color: var(--brand-deep); }
+        .warnbox { background: #fdecea; color: #7a1a12; border-radius: 0.8rem; padding: 0.7rem 0.8rem; font-size: 0.82rem; line-height: 1.45; margin-bottom: 1rem; }
+        .rerr { color: #b42318; font-size: 0.85rem; font-weight: 700; margin: 0 0 0.7rem; }
+        .rerr:empty { display: none; }
+        .rdone { text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 1.25rem; padding: 1.4rem 1rem; box-shadow: 0 10px 30px rgba(3,45,96,0.08); }
+        .rdone h2 { margin: 0.2rem 0 0.4rem; color: var(--brand-deep); font-size: 1.2rem; }
+        .rdone p { margin: 0 0 1rem; color: #4b5563; font-size: 0.9rem; }
+        .rq { background: #fff; border: 1px solid var(--line); border-radius: 1rem; padding: 0.8rem 0.9rem; }
+        .rq + .rq { margin-top: 0.6rem; }
+        .rq__top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .rq__title { font-weight: 800; color: var(--brand-deep); font-size: 0.9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rq__meta { margin-top: 0.15rem; font-size: 0.76rem; color: var(--muted); }
+        .rq__answer { margin-top: 0.6rem; background: #f0f7f2; border-radius: 0.7rem; padding: 0.6rem 0.7rem; font-size: 0.86rem; color: #1f3d2b; line-height: 1.45; }
+    </style>
+
+    <section class="tab" id="tab-requests" data-tab="requests" hidden="hidden">
+        <div class="tab__head">
+            <h1 class="title">Requests</h1>
+            <p class="sub">Ask your Zeta team for anything you need</p>
+        </div>
+        <div class="rtypes" id="reqTypes"></div>
+        <form class="rform" id="reqForm" hidden="hidden" novalidate="novalidate"></form>
+        <div class="rdone" id="reqDone" hidden="hidden"></div>
+        <div class="section-h"><h2>My requests</h2></div>
+        <div id="reqList"></div>
+    </section>
+
+    <script>
+    window.Zeta.tabs.requests = (function () {
+        var Z = window.Zeta;
+        var QUEUE = 'zetaApp.queue';
+        var ICONS = {
+            samples: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+            medical: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.3M12 17h.01"/>',
+            visit: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 11h5M19.5 8.5v5"/>',
+            material: '<path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6M8 14h8M8 17h5"/>',
+            event: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+            side_effect: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>'
+        };
+        var TYPES = {
+            samples: { tile: 'Product samples', sub: 'Delivered by your rep', title: 'Request product samples', hint: 'Your Zeta representative will deliver them.', fields: ['product!', 'quantity', 'message?'], msg: 'Anything else we should know?' },
+            medical: { tile: 'Medical question', sub: 'Answered by Medical Affairs', title: 'Ask a medical question', hint: 'Our Medical Affairs team answers you directly, usually within 2 working days.', fields: ['product?', 'category', 'message!'], msg: 'Your question' },
+            visit: { tile: 'Visit or call back', sub: 'From your Zeta rep', title: 'Ask for a visit or call', hint: 'Your Zeta representative will contact you to arrange a time.', fields: ['contact', 'product?', 'message?'], msg: 'What would you like to discuss?' },
+            material: { tile: 'Scientific material', sub: 'Studies, leaflets, guidelines', title: 'Request scientific material', hint: 'Studies, product monographs, patient leaflets or guidelines.', fields: ['product?', 'message!'], msg: 'What material do you need?' },
+            event: { tile: 'Join an event', sub: 'Round tables and webinars', title: 'Ask to join an event', hint: 'The organizer will confirm and send you a personal invitation.', fields: ['event!', 'message?'], msg: 'Note for the organizer' },
+            side_effect: { tile: 'Report a side effect', sub: 'Goes to our safety team', title: 'Report a side effect', hint: 'Tell us about a suspected side effect of a Zeta product. Our pharmacovigilance team reviews every report.', fields: ['aeProduct', 'reaction', 'onset', 'patient', 'serious'], alert: true }
+        };
+        var ORDER = ['samples', 'medical', 'visit', 'material', 'event', 'side_effect'].filter(function (key) {
+            return key !== 'event' || Z.data.me.known;
+        });
+        var LABELS = { 'Rep Visit': 'Visit request', 'Samples': 'Sample request', 'Medical Question': 'Medical question', 'Scientific Material': 'Scientific material', 'Join Event': 'Event request', 'Side Effect': 'Side effect report' };
+        var STATES = { 'Submitted': '', 'In progress': 'warn', 'Answered': 'ok', 'Waiting for signal': 'warn' };
+        var active = null;
+
+        function svg(name) { return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + '</svg>'; }
+        function el(id) { return document.getElementById(id); }
+        function field(label, inner, optional) {
+            return '<label class="f"><span>' + label + (optional ? ' <em>(optional)</em>' : '') + '</span>' + inner + '</label>';
+        }
+        function productOptions(selected, other) {
+            var rows = Z.data.products.slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
+            return '<option value="">Choose a product</option>' + rows.map(function (p) {
+                return '<option value="' + Z.esc(p.id) + '"' + (p.id === selected ? ' selected="selected"' : '') + '>' + Z.esc(p.name) + '</option>';
+            }).join('') + (other ? '<option value="other">Another product (type it below)</option>' : '');
+        }
+        function input(def, preset) {
+            var key = def.replace(/[!?]$/, '');
+            var required = /!$/.test(def);
+            var optional = /\?$/.test(def);
+            var req = required ? ' required="required"' : '';
+            switch (key) {
+                case 'product':
+                    return field('Product', '<select name="productId"' + req + '>' + productOptions(preset.productId) + '</select>', optional);
+                case 'quantity':
+                    return field('Quantity', '<input name="quantity" type="number" min="1" max="999" inputmode="numeric" placeholder="e.g. 10" />', true);
+                case 'category':
+                    return field('Topic', '<select name="category">' + ['Efficacy', 'Safety', 'Dosing', 'Administration', 'Contraindications', 'Drug Interactions', 'Pregnancy/Lactation', 'Other'].map(function (c) {
+                        return '<option>' + c + '</option>';
+                    }).join('') + '</select>');
+                case 'message':
+                    return field(TYPES[active].msg, '<textarea name="message" maxlength="4000"' + req + '></textarea>', optional);
+                case 'contact':
+                    return '<div class="f"><span>How should we reach you?</span><div class="seg">'
+                        + ['Visit', 'Phone call', 'WhatsApp'].map(function (c, i) {
+                            return '<label><input type="radio" name="contact" value="' + c + '"' + (i === 0 ? ' checked="checked"' : '') + '/><span>' + c + '</span></label>';
+                        }).join('') + '</div></div>';
+                case 'event':
+                    return field('Event', '<select name="eventId"' + req + '><option value="">Choose an event</option>' + Z.data.openEvents.map(function (e) {
+                        return '<option value="' + Z.esc(e.id) + '"' + (e.id === preset.eventId ? ' selected="selected"' : '') + '>' + Z.esc(e.title + (e.when ? ' · ' + e.when : '')) + '</option>';
+                    }).join('') + '</select>');
+                case 'aeProduct':
+                    return field('Product taken', '<select name="productId" required="required">' + productOptions(preset.productId, true) + '</select>')
+                        + '<label class="f" id="aeOther" hidden="hidden"><span>Product name</span><input name="productName" maxlength="120" /></label>';
+                case 'reaction':
+                    return field('What happened?', '<textarea name="reaction" maxlength="4000" required="required" placeholder="Describe the reaction, how long it lasted and what was done"></textarea>');
+                case 'onset':
+                    return field('When did it start?', '<input name="onset" type="date" />', true);
+                case 'patient':
+                    return '<div class="f"><span>Patient <em>(no names, please)</em></span><div class="f3">'
+                        + '<input name="initials" maxlength="5" placeholder="Initials" />'
+                        + '<input name="age" type="number" min="0" max="120" inputmode="numeric" placeholder="Age" />'
+                        + '<select name="sex"><option value="">Sex</option><option>Female</option><option>Male</option></select></div></div>';
+                case 'serious':
+                    return '<div class="f"><span>Was it serious? (hospital stay, life-threatening, disability or death)</span><div class="seg">'
+                        + '<label><input type="radio" name="serious" value="no" checked="checked"/><span>No</span></label>'
+                        + '<label><input type="radio" name="serious" value="yes"/><span>Yes</span></label></div></div>';
+            }
+            return '';
+        }
+        function identity() {
+            if (Z.data.me.known) {
+                return '<p class="rform__as">Sending as <b>' + Z.esc(Z.data.me.name) + '</b>' + (Z.data.me.phone ? ' · ' + Z.esc(Z.data.me.phone) : '') + '</p>'
+                    + (Z.data.me.phone ? '' : field('Mobile number', '<input name="phone" type="tel" required="required" autocomplete="tel" />'));
+            }
+            return field('Your name', '<input name="name" required="required" autocomplete="name" placeholder="Dr. …" />')
+                + field('Mobile number', '<input name="phone" type="tel" required="required" autocomplete="tel" placeholder="01x…" />')
+                + field('Email', '<input name="email" type="email" autocomplete="email" />', true);
+        }
+        function openForm(type, preset) {
+            active = type;
+            var t = TYPES[type];
+            var form = el('reqForm');
+            form.innerHTML = '<button type="button" class="rform__back" data-back="1">&#8592; All requests</button>'
+                + '<h2>' + t.title + '</h2><p class="rform__hint">' + t.hint + '</p>'
+                + (t.alert ? '<div class="warnbox">For a medical emergency, call emergency services first. This form is not monitored around the clock.</div>' : '')
+                + identity()
+                + t.fields.map(function (f) { return input(f, preset || {}); }).join('')
+                + '<p class="rerr" id="reqErr"></p>'
+                + '<button type="submit" class="btn ' + (t.alert ? 'btn--danger' : 'btn--primary') + ' btn--block">' + (t.alert ? 'Send report' : 'Send request') + '</button>';
+            el('reqTypes').hidden = true;
+            el('reqDone').hidden = true;
+            form.hidden = false;
+            var ae = form.querySelector('select[name="productId"]');
+            if (ae && type === 'side_effect') {
+                ae.addEventListener('change', function () { el('aeOther').hidden = ae.value !== 'other'; });
+            }
+        }
+        function showPicker() {
+            active = null;
+            el('reqForm').hidden = true;
+            el('reqDone').hidden = true;
+            el('reqTypes').hidden = false;
+        }
+        function payload(form) {
+            var out = { type: active };
+            new FormData(form).forEach(function (value, key) { if (value !== '') out[key] = value; });
+            if (out.productId === 'other') delete out.productId;
+            return out;
+        }
+        function validate(form) {
+            var bad = null;
+            form.querySelectorAll('[required]').forEach(function (input) {
+                if (!bad && !String(input.value || '').trim()) bad = input;
+            });
+            if (active === 'side_effect') {
+                var sel = form.querySelector('select[name="productId"]');
+                var other = form.querySelector('input[name="productName"]');
+                if (!bad && sel.value === 'other' && !other.value.trim()) bad = other;
+            }
+            if (bad) {
+                bad.focus();
+                var label = bad.closest('.f');
+                return 'Please fill in ' + (label ? label.querySelector('span').firstChild.textContent.trim().toLowerCase() : 'the required fields') + '.';
+            }
+            return null;
+        }
+        function endpoint() {
+            return window.location.pathname + '?a=request' + (Z.data.me.code ? '&c=' + encodeURIComponent(Z.data.me.code) : '');
+        }
+        function send(data) {
+            var body = new URLSearchParams(data);
+            return fetch(endpoint(), { method: 'POST', body: body, credentials: 'same-origin', cache: 'no-store' })
+                .then(function (res) { return res.text(); })
+                .then(function (text) {
+                    try { return JSON.parse(text); } catch (e) {
+                        return fetch(endpoint() + '&' + body.toString(), { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); });
+                    }
+                });
+        }
+        function readQueue() { try { return JSON.parse(localStorage.getItem(QUEUE) || '[]'); } catch (e) { return []; } }
+        function writeQueue(rows) { try { localStorage.setItem(QUEUE, JSON.stringify(rows)); } catch (e) {} }
+        function flush() {
+            var rows = readQueue();
+            if (!rows.length || !navigator.onLine) return;
+            var next = rows[0];
+            send(next.data).then(function (res) {
+                writeQueue(readQueue().slice(1));
+                if (res && res.ok) {
+                    Z.data.requests.unshift({ number: res.caseNumber, type: LABEL_BY_KEY[next.data.type], subject: next.title, state: 'Submitted', created: 'Just now' });
+                    Z.toast('Your saved request was sent.');
+                }
+                list();
+                flush();
+            }).catch(function () {});
+        }
+        var LABEL_BY_KEY = { visit: 'Rep Visit', samples: 'Samples', medical: 'Medical Question', material: 'Scientific Material', event: 'Join Event', side_effect: 'Side Effect' };
+        function done(title, text, number) {
+            el('reqForm').hidden = true;
+            var box = el('reqDone');
+            box.innerHTML = '<div class="tick">&#10003;</div><h2>' + Z.esc(title) + '</h2><p>' + Z.esc(text) + (number ? '<br/>Reference <b>' + Z.esc(number) + '</b>' : '') + '</p>'
+                + '<button type="button" class="btn btn--soft btn--block" data-back="1">Send another request</button>';
+            box.hidden = false;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        function submit(e) {
+            e.preventDefault();
+            var form = el('reqForm');
+            var err = validate(form);
+            el('reqErr').textContent = err || '';
+            if (err) return;
+            var data = payload(form);
+            var title = TYPES[active].title;
+            if (!navigator.onLine) {
+                var rows = readQueue();
+                rows.push({ data: data, title: title, code: Z.data.me.code, at: Date.now() });
+                writeQueue(rows);
+                list();
+                done('Saved on your phone', 'You are offline. We will send it automatically when you are back online.');
+                return;
+            }
+            var button = form.querySelector('[type="submit"]');
+            button.disabled = true;
+            button.textContent = 'Sending…';
+            send(data).then(function (res) {
+                if (res && res.ok) {
+                    Z.data.requests.unshift({ number: res.caseNumber, type: LABEL_BY_KEY[active], subject: title, state: 'Submitted', created: 'Just now' });
+                    list();
+                    done('Request sent', res.message, res.caseNumber);
+                } else {
+                    el('reqErr').textContent = (res && res.message) || 'We could not send your request. Please try again.';
+                    button.disabled = false;
+                    button.textContent = 'Try again';
+                }
+            }).catch(function () {
+                el('reqErr').textContent = 'No connection. Check your signal and try again.';
+                button.disabled = false;
+                button.textContent = 'Try again';
+            });
+        }
+        function row(r) {
+            var tone = STATES[r.state] || '';
+            return '<div class="rq"><div class="rq__top"><span class="rq__title">' + Z.esc(LABELS[r.type] || r.subject || 'Request') + '</span>'
+                + '<span class="pill ' + tone + '">' + Z.esc(r.state) + '</span></div>'
+                + '<div class="rq__meta">' + Z.esc([r.subject && LABELS[r.type] !== r.subject ? r.subject : null, r.created, r.number ? '#' + r.number : null].filter(Boolean).join(' · ')) + '</div>'
+                + (r.response ? '<div class="rq__answer">' + Z.paragraphs(r.response) + '</div>' : '') + '</div>';
+        }
+        function list() {
+            var queued = readQueue().filter(function (q) { return q.code === Z.data.me.code; }).map(function (q) {
+                return { type: LABEL_BY_KEY[q.data.type], subject: q.title, state: 'Waiting for signal', created: 'Saved on this phone' };
+            });
+            var rows = queued.concat(Z.data.requests);
+            el('reqList').innerHTML = rows.length ? rows.map(row).join('') : '<p class="empty">Requests you send appear here with their status.</p>';
+        }
+        function render() {
+            el('reqTypes').innerHTML = ORDER.map(function (k) {
+                var t = TYPES[k];
+                return '<button type="button" class="rtype' + (t.alert ? ' rtype--alert' : '') + '" data-type="' + k + '"><i>' + svg(k) + '</i><b>' + t.tile + '</b><span>' + t.sub + '</span></button>';
+            }).join('');
+            el('tab-requests').addEventListener('click', function (e) {
+                var tile = e.target.closest('[data-type]');
+                if (tile) { openForm(tile.getAttribute('data-type'), {}); return; }
+                if (e.target.closest('[data-back]')) showPicker();
+            });
+            el('reqForm').addEventListener('submit', submit);
+            window.addEventListener('online', flush);
+            list();
+            flush();
+        }
+        function show(arg) {
+            if (arg && arg.type && TYPES[arg.type]) openForm(arg.type, arg.preset);
+            else if (!el('reqDone').hidden) showPicker();
+        }
+        return { render: render, show: show };
+    })();
+    </script>
+</apex:component>

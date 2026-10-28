@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>L&amp;D 2 CEO</label>
+    <protected>false</protected>
+    <values><field>Department__c</field><value xsi:type="xsd:string">L&amp;D</value></values>
+    <values><field>Step_Order__c</field><value xsi:type="xsd:double">2</value></values>
+    <values><field>Role_Label__c</field><value xsi:type="xsd:string">CEO</value></values>
+    <values><field>Approver_Source__c</field><value xsi:type="xsd:string">Title</value></values>
+    <values><field>Role_Values__c</field><value xsi:type="xsd:string">CEO;Chief Executive Officer</value></values>
+    <values><field>Min_Amount__c</field><value xsi:type="xsd:double">250000</value></values>
+    <values><field>Strictly_Greater__c</field><value xsi:type="xsd:boolean">false</value></values>
+    <values><field>Is_Active__c</field><value xsi:type="xsd:boolean">true</value></values>
+</CustomMetadata>

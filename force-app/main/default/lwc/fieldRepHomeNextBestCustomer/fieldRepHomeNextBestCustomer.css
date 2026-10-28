@@ -24,6 +24,12 @@
     flex-wrap: wrap;
 }
 
+.nbc-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 .nbc-title {
     margin: 0;
     font-size: 1.125rem;
@@ -38,6 +44,14 @@
     font-weight: 400;
     color: #706e6b;
     line-height: 1.2;
+}
+
+.nbc-help-line {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #3e3e3c;
+    line-height: 1.35;
 }
 
 .sync-chip {
@@ -112,53 +126,67 @@
 
 .nbc-row {
     display: grid;
-    grid-template-columns: 48px minmax(8rem, 1fr) 0.8fr 0.6fr 0.6fr minmax(6.5rem, auto);
+    grid-template-columns: 64px minmax(8rem, 1fr) 0.8fr 0.6fr 0.6fr minmax(8.75rem, auto);
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem;
+    padding: 0.65rem 0.75rem;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 0.5rem;
     background: #fff;
 }
 
 .rank-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+    width: 56px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 
-.rank-glyph {
-    font-size: 1.125rem;
-    line-height: 1;
+.rank-medal {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    display: block;
+    transform-origin: 50% 10%;
+    filter: drop-shadow(0 2px 3px rgba(3, 45, 96, 0.16));
+    animation: medal-sway 2.6s ease-in-out infinite;
 }
 
-.rank-icon--first {
-    background: linear-gradient(135deg, #ffe566 0%, #f5c400 100%);
-    --slds-c-icon-color-foreground: #5c4a00;
+.rank-icon--second .rank-medal {
+    animation-delay: 0.18s;
 }
 
-.rank-icon--second {
-    background: linear-gradient(135deg, #f0f0f0 0%, #b8b8b8 100%);
-    --slds-c-icon-color-foreground: #3e3e3c;
+.rank-icon--third .rank-medal {
+    animation-delay: 0.36s;
 }
 
-.rank-icon--third {
-    background: linear-gradient(135deg, #f0c9a0 0%, #cd7f32 100%);
-    --slds-c-icon-color-foreground: #4a2c0a;
+.rank-icon--fourth .rank-medal {
+    animation-delay: 0.12s;
+    animation-duration: 2.9s;
 }
 
-.rank-icon--fourth {
-    background: linear-gradient(135deg, #d8e8ff 0%, #7eb3ff 100%);
-    --slds-c-icon-color-foreground: #014486;
+.rank-icon--fifth .rank-medal {
+    animation-delay: 0.3s;
+    animation-duration: 3.1s;
 }
 
-.rank-icon--fifth {
-    background: linear-gradient(135deg, #e8d8ff 0%, #b794f4 100%);
-    --slds-c-icon-color-foreground: #3b1f6e;
+@keyframes medal-sway {
+    0%,
+    100% {
+        transform: rotate(-3.5deg);
+    }
+    50% {
+        transform: rotate(3.5deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rank-medal,
+    .plan-btn {
+        animation: none;
+    }
 }
 
 .cell-label {
@@ -221,30 +249,51 @@
 
 .plan-btn {
     appearance: none;
-    border-radius: 0.25rem;
-    padding: 0.35rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 8.25rem;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.45rem 0.95rem;
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    color: #fff;
+    background: linear-gradient(180deg, #1b96ff 0%, #0176d3 55%, #0b5cab 100%);
+    box-shadow: 0 1px 1px rgba(255, 255, 255, 0.35) inset, 0 4px 10px rgba(1, 118, 211, 0.32);
     cursor: pointer;
-    line-height: 1.3;
+    white-space: nowrap;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
-.plan-btn-neutral {
-    border: 1px solid #c9c9c9;
-    background: #f3f3f3;
-    color: #181818;
-    text-decoration: none;
+.plan-btn-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
 }
 
-.plan-btn-neutral:hover {
-    background: #e5e5e5;
-    color: #0176d3;
-    border-color: #0176d3;
+.plan-btn:hover {
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, #0176d3 0%, #0b5cab 100%);
+    box-shadow: 0 1px 1px rgba(255, 255, 255, 0.28) inset, 0 6px 14px rgba(1, 118, 211, 0.4);
+}
+
+.plan-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(1, 68, 134, 0.28);
+}
+
+.plan-btn:focus-visible {
+    outline: 2px solid #014486;
+    outline-offset: 2px;
 }
 
 @media (max-width: 768px) {
     .nbc-row {
-        grid-template-columns: 40px 1fr auto;
+        grid-template-columns: 52px 1fr auto;
         grid-template-areas:
             'rank account action'
             'rank callplan callplan'
@@ -253,14 +302,28 @@
         row-gap: 0.35rem;
     }
 
-    .rank-icon {
+    .rank-icon,
+    .rank-medal {
         grid-area: rank;
-        width: 36px;
-        height: 36px;
+        width: 48px;
+        height: 48px;
     }
 
     .cell.account {
         grid-area: account;
+        min-width: 0;
+    }
+
+    .account-link {
+        display: block;
+        overflow-wrap: anywhere;
+    }
+
+    .plan-btn {
+        min-width: 0;
+        padding: 0.4rem 0.72rem;
+        font-size: 0.75rem;
+        gap: 0.3rem;
     }
 
     .cell.call-plan {
@@ -301,4 +364,27 @@
     .cell.score .cell-label {
         margin: 0;
     }
+}
+.rank-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f3f3;
+    color: #444;
+    font-weight: 700;
+}
+
+.nbc-more-btn {
+    align-self: center;
+    margin-top: 0.5rem;
+    padding: 0.4rem 1rem;
+    border: 1px solid #c9c9c9;
+    border-radius: 999px;
+    background: #fff;
+    color: #0176d3;
+    font-weight: 600;
+    cursor: pointer;
 }

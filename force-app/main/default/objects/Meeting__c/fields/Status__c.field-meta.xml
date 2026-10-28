@@ -55,6 +55,11 @@
                 <default>false</default>
                 <label>Concluded</label>
             </value>
+            <value>
+                <fullName>Incomplete</fullName>
+                <default>false</default>
+                <label>Incomplete</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

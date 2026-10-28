@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Approver_Source__c</fullName>
+    <description>Manager: requester's manager. Manager Of Previous: manager of the previous step's approver. Chain Role: first person up the requester's management line or territory tree whose role matches. Title: any active user whose title matches.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Approver Source</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Manager</fullName>
+                <default>false</default>
+                <label>Manager</label>
+            </value>
+            <value>
+                <fullName>Manager Of Previous</fullName>
+                <default>false</default>
+                <label>Manager Of Previous</label>
+            </value>
+            <value>
+                <fullName>Chain Role</fullName>
+                <default>true</default>
+                <label>Chain Role</label>
+            </value>
+            <value>
+                <fullName>Title</fullName>
+                <default>false</default>
+                <label>Title</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

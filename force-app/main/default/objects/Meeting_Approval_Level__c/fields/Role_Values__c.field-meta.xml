@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Role_Values__c</fullName>
+    <label>Role Values</label>
+    <inlineHelpText>Titles or territory roles that hold this role, separated by semicolons. Blank uses the role label.</inlineHelpText>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

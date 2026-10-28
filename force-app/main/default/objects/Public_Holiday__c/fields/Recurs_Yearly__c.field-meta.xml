@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Recurs_Yearly__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When true, this holiday repeats every year on the same month and day.</description>
+    <inlineHelpText>Repeats every year on the same month and day.</inlineHelpText>
+    <label>Recurs Yearly</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

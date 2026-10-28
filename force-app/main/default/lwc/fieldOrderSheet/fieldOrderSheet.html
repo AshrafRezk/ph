@@ -1,0 +1,84 @@
+<template>
+    <template if:true={isOpen}>
+        <div class="sheet-backdrop" onclick={handleClose}>
+        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="fos-title" tabindex="-1" onclick={handleSheetClick} onkeydown={handleSheetKeydown}>
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <header class="sheet-header">
+                <div>
+                    <h2 id="fos-title" class="sheet-title">New order</h2>
+                    <p class="sheet-sub">Direct or distributor. Discount and free goods are per product.</p>
+                </div>
+                <lightning-button-icon icon-name="utility:close" alternative-text="Close" onclick={handleClose}></lightning-button-icon>
+            </header>
+            <ol class="path" aria-label="Where this order goes">
+                <li class="path-step is-now">Rep</li>
+                <li class="path-step">Manager</li>
+                <li class="path-step">National</li>
+                <li class="path-step">Business unit</li>
+                <li class="path-step">Yasser</li>
+                <li class="path-step">Finance</li>
+                <li class="path-step">Goods</li>
+                <li class="path-step">Collection</li>
+                <li class="path-step">Settled</li>
+            </ol>
+
+            <div class="sheet-body">
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                </template>
+
+                <template if:false={isLoading}>
+                    <template if:true={errorMessage}><p class="error" role="alert">{errorMessage}</p></template>
+                    <template if:true={routingHint}><p class="hint">{routingHint}</p></template>
+
+                    <c-field-account-lookup
+                        label="Pharmacy / account"
+                        required
+                        locked={accountLocked}
+                        invalid={accountInvalid}
+                        account-id={chosenAccountId}
+                        account-name={chosenAccountName}
+                        icon-name={chosenIconName}
+                        record-type-label={chosenRecordTypeLabel}
+                        suggestions={accountHints}
+                        onchange={handleAccountChange}
+                    ></c-field-account-lookup>
+
+                    <lightning-combobox label="Order type" value={orderType} options={orderTypeOptions} onchange={handleOrderTypeChange} class="field"></lightning-combobox>
+
+                    <template if:true={isDistributor}>
+                        <lightning-combobox label="Distributor" value={distributorName} options={distributorOptions} onchange={handleDistributorChange} class="field"></lightning-combobox>
+                        <lightning-input label="Branch" value={branchName} onchange={handleBranchChange} class="field"></lightning-input>
+                    </template>
+
+                    <p class="line-note">Free of charge is for that product only. It is sent as a sample request.</p>
+                    <template for:each={lines} for:item="line">
+                        <div key={line.key} class="line-card">
+                            <div class="line-main">
+                                <lightning-combobox label="Product" value={line.productId} options={productOptions} placeholder="Product" data-key={line.key} data-field="productId" onchange={handleLineChange}></lightning-combobox>
+                                <lightning-input type="number" label="Qty" value={line.quantity} min="1" data-key={line.key} data-field="quantity" onchange={handleLineChange}></lightning-input>
+                            </div>
+                            <div class="line-extra">
+                                <lightning-input type="number" label="Discount %" value={line.discountPercent} min="0" max="100" data-key={line.key} data-field="discountPercent" onchange={handleLineChange}></lightning-input>
+                                <lightning-input type="checkbox" label="Free of charge" checked={line.foc} data-key={line.key} data-field="foc" onchange={handleLineChange}></lightning-input>
+                                <lightning-button-icon icon-name="utility:delete" alternative-text="Remove line" data-key={line.key} onclick={handleRemoveLine}></lightning-button-icon>
+                            </div>
+                        </div>
+                    </template>
+                    <lightning-button label="Add line" onclick={handleAddLine} class="field"></lightning-button>
+
+                    <lightning-textarea label="Notes" value={notes} onchange={handleNotesChange}></lightning-textarea>
+                </template>
+            </div>
+
+            <template if:false={isLoading}>
+                <div class="sheet-actions">
+                    <lightning-button label="Cancel" onclick={handleClose}></lightning-button>
+                    <lightning-button label="Save draft" onclick={handleSaveDraft} disabled={isSaving}></lightning-button>
+                    <lightning-button class="primary" label="Submit order" variant="brand" onclick={handleSubmit} disabled={isSaving}></lightning-button>
+                </div>
+            </template>
+        </section>
+        </div>
+    </template>
+</template>

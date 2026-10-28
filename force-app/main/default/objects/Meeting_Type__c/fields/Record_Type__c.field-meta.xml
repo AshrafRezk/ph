@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Record_Type__c</fullName>
+    <externalId>false</externalId>
+    <inlineHelpText>Developer name of the Meeting record type new meetings of this type get, e.g. RTD.</inlineHelpText>
+    <label>Meeting Record Type</label>
+    <length>80</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

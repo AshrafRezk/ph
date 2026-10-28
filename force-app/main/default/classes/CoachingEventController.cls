@@ -14,6 +14,8 @@ public with sharing class CoachingEventController {
         @AuraEnabled public Boolean selfEvaluationCompleted;
         @AuraEnabled public String userRole;
         @AuraEnabled public Id currentUserId;
+        @AuraEnabled public String rejectionReason;
+        @AuraEnabled public Boolean canApprove;
     }
 
     public class SaveResult {
@@ -33,6 +35,7 @@ public with sharing class CoachingEventController {
             SELECT Id, Employee__c, Manager__c, Status__c, Responses_JSON__c,
                    Manager_Total_Score__c, Employee_Total_Score__c, Previous_Score__c,
                    Section_Scores_JSON__c, Self_Evaluation_Requested__c, Self_Evaluation_Completed__c,
+                   Rejection_Reason__c,
                    Coaching_Template__r.Questions_JSON__c
             FROM Coaching_Event__c
             WHERE Id = :eventId
@@ -59,12 +62,70 @@ public with sharing class CoachingEventController {
         data.selfEvaluationCompleted = eventRecord.Self_Evaluation_Completed__c;
         data.currentUserId = UserInfo.getUserId();
         data.userRole = resolveUserRole(eventRecord);
+        data.rejectionReason = eventRecord.Rejection_Reason__c;
+        // The assigned manager can approve/reject while the coaching is not yet
+        // in a terminal state.
+        data.canApprove =
+            data.userRole == 'manager' &&
+            eventRecord.Status__c != 'Completed' &&
+            eventRecord.Status__c != 'Cancelled';
 
         if (data.previousScore == null) {
             data.previousScore = lookupPreviousScore(eventRecord.Employee__c, eventRecord.Id);
         }
 
         return data;
+    }
+
+    @AuraEnabled
+    public static void approveCoaching(Id eventId) {
+        Coaching_Event__c eventRecord = forManagerDecision(eventId);
+        eventRecord.Status__c = 'Completed';
+        eventRecord.Rejection_Reason__c = null;
+        saveDecision(eventRecord);
+    }
+
+    @AuraEnabled
+    public static void rejectCoaching(Id eventId, String reason) {
+        if (String.isBlank(reason)) {
+            throw new AuraHandledException('A rejection reason is required.');
+        }
+        Coaching_Event__c eventRecord = forManagerDecision(eventId);
+        // Send it back to the rep for rework.
+        eventRecord.Status__c = 'Self Evaluation';
+        eventRecord.Rejection_Reason__c = reason;
+        saveDecision(eventRecord);
+    }
+
+    private static Coaching_Event__c forManagerDecision(Id eventId) {
+        if (eventId == null) {
+            throw new AuraHandledException('Event Id is required.');
+        }
+        List<Coaching_Event__c> events = [
+            SELECT Id, Manager__c, Status__c
+            FROM Coaching_Event__c
+            WHERE Id = :eventId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (events.isEmpty()) {
+            throw new AuraHandledException('Coaching event not found.');
+        }
+        Coaching_Event__c eventRecord = events[0];
+        if (eventRecord.Manager__c != UserInfo.getUserId()) {
+            throw new AuraHandledException('Only the assigned manager can approve or reject this coaching.');
+        }
+        if (eventRecord.Status__c == 'Completed' || eventRecord.Status__c == 'Cancelled') {
+            throw new AuraHandledException('This coaching has already been ' + eventRecord.Status__c.toLowerCase() + '.');
+        }
+        return eventRecord;
+    }
+
+    private static void saveDecision(Coaching_Event__c eventRecord) {
+        if (!Schema.sObjectType.Coaching_Event__c.isUpdateable()) {
+            throw new AuraHandledException('Insufficient permissions to update coaching event.');
+        }
+        update as user eventRecord;
     }
 
     @AuraEnabled

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <brand>
+        <headerColor>#0F7C8C</headerColor>
+        <logo>Care_Coach_Copilot_Icon</logo>
+        <logoVersion>1</logoVersion>
+        <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
+    </brand>
+    <description>Care Coach Co-pilot — patient support programme (PSP) workspace for care coaches: patient journeys, call planner, orders, AI-analysed call transcripts and a de-identified view for the pharma company.</description>
+    <formFactors>Small</formFactors>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>Care Coach Co-pilot</label>
+    <navType>Standard</navType>
+    <tabs>Care_Coach_Home</tabs>
+    <tabs>Care_Coach_Patients</tabs>
+    <tabs>Care_Coach_Planner</tabs>
+    <tabs>Care_Coach_Products</tabs>
+    <tabs>Care_Coach_Orders</tabs>
+    <tabs>Care_Coach_Knowledge</tabs>
+    <uiType>Lightning</uiType>
+</CustomApplication>

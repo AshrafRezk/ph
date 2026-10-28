@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>meetingStatusBar</componentName>
+                <identifier>Meeting_statusBar</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>meetingWorkspace</componentName>
+                <identifier>Meeting_workspace</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>main</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>Meeting Record Page</masterLabel>
+    <sobjectType>Meeting__c</sobjectType>
+    <template>
+        <name>flexipage:recordHomeSimpleViewTemplate</name>
+    </template>
+    <type>RecordPage</type>
+</FlexiPage>

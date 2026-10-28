@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Consent_Type__c</fullName>
+    <label>Consent Type</label>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Detailing</fullName>
+                <default>true</default>
+                <label>Detailing</label>
+            </value>
+            <value>
+                <fullName>Samples</fullName>
+                <default>false</default>
+                <label>Samples</label>
+            </value>
+            <value>
+                <fullName>Contact Preferences</fullName>
+                <default>false</default>
+                <label>Contact Preferences</label>
+            </value>
+            <value>
+                <fullName>Privacy</fullName>
+                <default>false</default>
+                <label>Privacy</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

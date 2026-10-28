@@ -1,0 +1,99 @@
+.team-card {
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #ffffff;
+}
+
+.team-header {
+    margin-bottom: 0.75rem;
+}
+
+.team-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #032d60;
+}
+
+.team-subtitle,
+.team-empty,
+.vacant {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+.team-error {
+    margin: 0.5rem 0 0;
+    color: #ba0517;
+    font-size: 0.8125rem;
+}
+
+.territory-list,
+.user-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.territory-item {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.territory-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.territory-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    color: #0f172a;
+}
+
+.toggle-btn {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #032d60;
+    border-radius: 0.375rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.level-pill,
+.user-role {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #032d60;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.user-list {
+    margin-top: 0.5rem;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    margin-top: 0.35rem;
+    border-radius: 0.375rem;
+    background: #f8fafc;
+    font-size: 0.8125rem;
+}
+
+.user-name {
+    color: #0f172a;
+}

@@ -1,0 +1,85 @@
+.hcp-admin {
+    max-width: 40rem;
+}
+
+.hcp-admin-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.hcp-admin-subtitle {
+    margin: 0.35rem 0 1.25rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.hcp-admin-error {
+    color: #c23934;
+    font-size: 0.875rem;
+}
+
+.hcp-admin-card {
+    border: 1px solid #e5e5e5;
+    border-radius: 0.625rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.hcp-admin-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: #f7f8fa;
+    border-bottom: 1px solid #ecebea;
+}
+
+.hcp-admin-card-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.hcp-admin-card-desc {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
+    color: #706e6b;
+}
+
+.hcp-admin-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.hcp-admin-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #f3f3f3;
+}
+
+.hcp-admin-row:first-child {
+    border-top: none;
+}
+
+.hcp-admin-name {
+    font-weight: 600;
+}
+
+.hcp-admin-desc {
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+}
+
+.hcp-admin-note {
+    margin: 0;
+    padding: 0.75rem 1rem 1rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+}

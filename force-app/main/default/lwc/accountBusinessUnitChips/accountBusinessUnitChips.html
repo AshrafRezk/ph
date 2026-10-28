@@ -1,0 +1,24 @@
+<template>
+    <section class="abu-panel">
+        <h3 class="abu-title">Business Units</h3>
+        <template if:true={errorMessage}>
+            <p class="abu-error">{errorMessage}</p>
+        </template>
+        <template if:false={errorMessage}>
+            <template if:true={hasLinks}>
+                <div class="abu-chips">
+                    <template for:each={displayLinks} for:item="link">
+                        <span
+                            key={link.key}
+                            class="abu-chip"
+                            title={link.businessUnitExternalId}
+                        >{link.chipLabel}</span>
+                    </template>
+                </div>
+            </template>
+            <template if:false={hasLinks}>
+                <p class="abu-empty">No active Business Unit links.</p>
+            </template>
+        </template>
+    </section>
+</template>

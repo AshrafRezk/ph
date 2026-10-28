@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Long_Leave__c</fullName>
+    <description>Flags extended leave (&gt; 5 approved days) for manager reports.</description>
+    <formula>NOT(ISNULL(Approved_Leave_Days__c)) &amp;&amp; Approved_Leave_Days__c &gt; 5</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Long Leave</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

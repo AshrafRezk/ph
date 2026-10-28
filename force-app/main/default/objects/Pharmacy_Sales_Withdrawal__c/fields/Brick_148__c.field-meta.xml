@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_148__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>148 commercial brick of this sales line, from the distributor client's location inside a brick region (or the pharmacy's own 148 brick).</description>
+    <label>148 Brick</label>
+    <referenceTo>Brick__c</referenceTo>
+    <relationshipLabel>Pharmacy Sales Withdrawals (148)</relationshipLabel>
+    <relationshipName>Withdrawals_148</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

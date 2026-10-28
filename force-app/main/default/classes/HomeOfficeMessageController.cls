@@ -21,6 +21,11 @@ public without sharing class HomeOfficeMessageController {
     }
 
     @AuraEnabled(cacheable=true)
+    public static List<HomeOfficeMessageRow> getMessages() {
+        return getActiveMessages(DEFAULT_LIMIT);
+    }
+
+    @AuraEnabled(cacheable=true)
     public static List<HomeOfficeMessageRow> getActiveMessages(Integer limitSize) {
         Integer rowLimit = limitSize == null || limitSize < 1 ? DEFAULT_LIMIT : Math.min(limitSize, 25);
         TerritoryHierarchyService.HierarchyLabels labels = resolveCurrentUserLabels();

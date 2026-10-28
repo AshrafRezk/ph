@@ -3,6 +3,8 @@
     <types>
         <members>FieldRepHomeController</members>
         <members>FieldRepHomeControllerTest</members>
+        <members>StayInTheKnowController</members>
+        <members>StayInTheKnowControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -10,6 +12,8 @@
         <members>fieldRepHomeMetrics</members>
         <members>fieldRepHomeTodayPlan</members>
         <members>fieldRepHomeNextBestCustomer</members>
+        <members>homeOfficeMessages</members>
+        <members>stayInTheKnow</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>

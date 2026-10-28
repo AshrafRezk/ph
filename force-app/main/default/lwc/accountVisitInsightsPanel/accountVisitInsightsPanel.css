@@ -202,11 +202,18 @@
 }
 
 .map-pin-marker-hcp {
-    background: #0176d3;
+    background: #fff;
+    border-color: #3f7de5;
 }
 
 .map-pin-marker-hco {
-    background: #6a1b9a;
+    background: #fff;
+    border-color: #fdbf29;
+}
+
+.map-pin-marker-pharmacy {
+    background: #fff;
+    border-color: #176935;
 }
 
 .map-legend {
@@ -230,21 +237,30 @@
 }
 
 .legend-pin-hcp {
-    background: #0176d3;
+    background: #3f7de5;
 }
 
 .legend-pin-hco {
-    background: #6a1b9a;
+    background: #fdbf29;
+}
+
+.legend-pin-pharmacy {
+    background: #176935;
 }
 
 .legend-pin-center-hcp {
-    background: #0176d3;
-    box-shadow: 0 0 0 1px #0176d3;
+    background: #3f7de5;
+    box-shadow: 0 0 0 1px #3f7de5;
 }
 
 .legend-pin-center-hco {
-    background: #6a1b9a;
-    box-shadow: 0 0 0 1px #6a1b9a;
+    background: #fdbf29;
+    box-shadow: 0 0 0 1px #fdbf29;
+}
+
+.legend-pin-center-pharmacy {
+    background: #176935;
+    box-shadow: 0 0 0 1px #176935;
 }
 
 .radius-hint {

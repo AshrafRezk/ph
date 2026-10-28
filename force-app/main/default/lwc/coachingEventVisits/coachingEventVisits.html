@@ -1,0 +1,155 @@
+<template>
+    <lightning-card title="Associated Visits" icon-name="custom:custom18">
+        <div slot="actions" class="count-pill">{associatedCountLabel}</div>
+        <div class="card-body">
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading associated visits" size="small"></lightning-spinner>
+            </template>
+
+            <template if:false={isLoading}>
+                <template if:true={errorMessage}>
+                    <p class="error-text">{errorMessage}</p>
+                </template>
+
+                <template if:false={errorMessage}>
+                    <p class="hint">
+                        Double-visit coaching for {employeeName}. Open any visit, edit manager notes, or add more same-day calls.
+                    </p>
+
+                    <template if:false={hasAssociatedVisits}>
+                        <div class="empty-state">
+                            <lightning-icon icon-name="utility:travel_and_places" size="small"></lightning-icon>
+                            <p>No visits are linked to this coaching event yet.</p>
+                        </div>
+                    </template>
+
+                    <template if:true={hasAssociatedVisits}>
+                        <ul class="visit-list">
+                            <template for:each={associatedVisits} for:item="row">
+                                <li key={row.visitId} class="visit-card">
+                                    <div class="visit-card-header">
+                                        <div>
+                                            <div class="visit-title-row">
+                                                <strong>{row.visitName}</strong>
+                                                <template if:true={row.isOrigin}>
+                                                    <span class="origin-pill">Origin</span>
+                                                </template>
+                                                <template if:true={row.isDoubleVisit}>
+                                                    <span class="double-pill">Double Visit</span>
+                                                </template>
+                                            </div>
+                                            <p class="visit-meta">{row.accountName} � {row.startLabel} � {row.status}</p>
+                                        </div>
+                                        <div class="visit-actions">
+                                            <lightning-button
+                                                variant="neutral"
+                                                label="Open visit"
+                                                icon-name="utility:new_window"
+                                                data-visit-id={row.visitId}
+                                                onclick={handleOpenVisit}
+                                            ></lightning-button>
+                                            <lightning-button
+                                                variant="destructive-text"
+                                                label="Remove"
+                                                disabled={row.isOrigin}
+                                                data-visit-id={row.visitId}
+                                                data-is-origin={row.isOrigin}
+                                                onclick={handleRemove}
+                                            ></lightning-button>
+                                        </div>
+                                    </div>
+                                    <lightning-textarea
+                                        class="slds-m-top_small"
+                                        label="Manager notes"
+                                        value={row.managerNotes}
+                                        data-visit-id={row.visitId}
+                                        onchange={handleAssociatedNotesChange}
+                                        placeholder={row.notesPlaceholder}
+                                    ></lightning-textarea>
+                                    <div class="notes-actions">
+                                        <lightning-button
+                                            variant="brand"
+                                            label="Save notes"
+                                            disabled={row.savingNotes}
+                                            data-visit-id={row.visitId}
+                                            onclick={handleSaveNotes}
+                                        ></lightning-button>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+
+                    <div class="add-panel slds-m-top_medium">
+                        <h3 class="slds-text-heading_small">Add visits</h3>
+                        <p class="hint">Same-day visits for this rep that are not already on the event.</p>
+
+                        <template if:true={hasEligibleVisits}>
+                            <lightning-input
+                                class="slds-m-top_small"
+                                type="checkbox"
+                                label="Select all"
+                                checked={allEligibleSelected}
+                                onchange={handleSelectAllEligible}
+                            ></lightning-input>
+                            <ul class="visit-list compact">
+                                <template for:each={eligibleVisits} for:item="row">
+                                    <li key={row.visitId} class="eligible-row">
+                                        <lightning-input
+                                            type="checkbox"
+                                            label={row.visitName}
+                                            checked={row.selected}
+                                            data-visit-id={row.visitId}
+                                            onchange={handleEligibleToggle}
+                                        ></lightning-input>
+                                        <span class="eligible-meta">{row.accountName} � {row.startLabel}</span>
+                                        <template if:true={row.selected}>
+                                            <lightning-textarea
+                                                class="slds-m-top_x-small"
+                                                label="Manager notes"
+                                                value={row.managerNotes}
+                                                data-visit-id={row.visitId}
+                                                onchange={handleEligibleNotesChange}
+                                                placeholder={row.notesPlaceholder}
+                                            ></lightning-textarea>
+                                        </template>
+                                    </li>
+                                </template>
+                            </ul>
+                            <lightning-button
+                                class="slds-m-top_small"
+                                variant="brand"
+                                label="Add selected visits"
+                                disabled={addDisabled}
+                                onclick={handleAddSelected}
+                            ></lightning-button>
+                        </template>
+
+                        <template if:false={hasEligibleVisits}>
+                            <div class="empty-state compact">
+                                <p>No other same-day visits are available to add for this rep.</p>
+                            </div>
+                        </template>
+
+                        <div class="picker-row slds-m-top_medium">
+                            <lightning-record-picker
+                                label="Add another visit for this rep"
+                                placeholder="Search visits..."
+                                object-api-name="Visit__c"
+                                filter={recordPickerFilter}
+                                onchange={handlePickerChange}
+                            ></lightning-record-picker>
+                            <lightning-button
+                                class="slds-m-top_small"
+                                variant="neutral"
+                                label="Add visit"
+                                disabled={pickerAddDisabled}
+                                onclick={handleAddFromPicker}
+                            ></lightning-button>
+                        </div>
+                    </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Org planner weekends and overlap policies (Allow / Warn / Block). Edited from Admin Console.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableReports>false</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>Planner Rule</label>
+    <nameField>
+        <label>Rule Name</label>
+        <type>Text</type>
+    </nameField>
+    <pluralLabel>Planner Rules</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

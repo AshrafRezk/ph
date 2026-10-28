@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Pending SFE review row from a duplicate or nurture quality scan.</description>
+    <enableActivities>false</enableActivities>
+    <enableReports>true</enableReports>
+    <label>Account Quality Proposal</label>
+    <nameField>
+        <displayFormat>AQP-{000000}</displayFormat>
+        <label>Proposal Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Account Quality Proposals</pluralLabel>
+    <sharingModel>ControlledByParent</sharingModel>
+</CustomObject>

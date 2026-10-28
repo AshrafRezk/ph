@@ -2,6 +2,40 @@
     padding: 1rem;
 }
 
+.offline-redirect-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid #c9e6f2;
+    border-radius: 0.5rem;
+    background: #f0f9fc;
+}
+
+.offline-redirect-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+.offline-redirect-copy strong {
+    display: block;
+    font-size: 0.875rem;
+    color: #032d60;
+}
+
+.offline-redirect-copy p {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: #444;
+    line-height: 1.4;
+}
+
+.offline-redirect-copy a {
+    color: #0176d3;
+    font-weight: 600;
+}
+
 .hub-header {
     display: flex;
     align-items: flex-start;

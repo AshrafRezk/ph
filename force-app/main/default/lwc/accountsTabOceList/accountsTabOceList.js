@@ -1,4 +1,5 @@
 import { LightningElement, api, track } from 'lwc';
+import { accountThemeFor, accountTypeIconUrl } from 'c/accountTypeTheme';
 import getAccountHealthInsight from '@salesforce/apex/AccountsTabController.getAccountHealthInsight';
 
 const HEALTH_CLASS = {
@@ -28,12 +29,36 @@ const SORTABLE_COLUMNS = [
     { id: 'specialty', label: 'Specialty', sortField: 'specialty', colClass: 'col-specialty' }
 ];
 
+function stageBadgeClassFor(lane) {
+    const classes = ['oce-stage-badge'];
+    if (lane === 'needsYou') {
+        classes.push('oce-stage-badge-needs');
+    } else if (lane === 'withManager') {
+        classes.push('oce-stage-badge-wait');
+    } else if (lane === 'withSfe') {
+        classes.push('oce-stage-badge-sfe');
+    }
+    return classes.join(' ');
+}
+
 function isBlankDisplay(value) {
     if (value == null) {
         return true;
     }
     const text = String(value).trim();
     return text === '' || text === '—' || text === '-' || text === '–';
+}
+
+/** Class badges must be letter+number (A1–C3). Bare A/B/C becomes —. */
+function formatLetterNumberClass(raw) {
+    if (raw == null || raw === '') {
+        return '—';
+    }
+    const key = String(raw).trim().toUpperCase();
+    if (/^[ABC][123]$/.test(key)) {
+        return key;
+    }
+    return '—';
 }
 
 function compareText(left, right) {
@@ -214,7 +239,8 @@ function buildInsights(row, daysSince) {
 
 function buildNextBestAction(row, daysSince) {
     const isKol = row.isKol === true;
-    const classA = row.classification === 'A';
+    const classCode = formatLetterNumberClass(row.matrixRating || row.classification);
+    const classA = classCode.startsWith('A');
     const rtdEligible = isKol || classA;
     const hasNext = !isBlankDisplay(row.nextVisitDisplay);
     const gap = Number(row.visitGap);
@@ -458,6 +484,16 @@ export default class AccountsTabOceList extends LightningElement {
     @api rows = [];
     @api isLoading = false;
 
+    _compact = false;
+
+    @api
+    get compact() {
+        return this._compact;
+    }
+    set compact(value) {
+        this._compact = value === true || value === 'true';
+    }
+
     _sortBy;
     _sortDirection;
     @track localSortBy;
@@ -481,6 +517,8 @@ export default class AccountsTabOceList extends LightningElement {
         this.localSortDirection = value;
     }
 
+    @track showDuplicateModal = false;
+    duplicateAccountId;
     @track showHealthModal = false;
     @track healthModalRow = null;
     healthInsightToken = 0;
@@ -514,6 +552,10 @@ export default class AccountsTabOceList extends LightningElement {
         return (this.rows || []).length > 0;
     }
 
+    get listRootClass() {
+        return this.compact ? 'oce-list oce-list-compact' : 'oce-list';
+    }
+
     get showInitialSpinner() {
         return this.isLoading && !this.hasRows;
     }
@@ -537,13 +579,22 @@ export default class AccountsTabOceList extends LightningElement {
     get displayRows() {
         const mapped = (this.rows || []).map((row) => {
             const pinKind = row.pinKind || 'hcp';
-            const pinLabel = row.accountSubtype || (pinKind === 'hco' ? 'HCO' : 'HCP');
-            const classification = row.classification || '—';
+            const theme = accountThemeFor(row.recordTypeDeveloperName, row.recordTypeName);
+            const iconKind = theme.kind === 'account' ? (pinKind === 'hco' ? 'hco' : 'hcp') : theme.kind;
+            const pinLabel = theme.kind === 'account'
+                ? (row.accountSubtype || (pinKind === 'hco' ? 'HCO' : 'HCP'))
+                : theme.label;
+            const classification = formatLetterNumberClass(
+                row.matrixRating || row.classification
+            );
             const specialty = row.specialty || null;
             const city = row.city || null;
             const metaParts = [pinLabel, city].filter(Boolean);
             if (!city && row.addressLine) {
                 metaParts.push(row.addressLine);
+            }
+            if (row.nurtureLane && row.submittedByName) {
+                metaParts.push(row.submittedByName);
             }
             const healthStatus = row.healthStatus || 'na';
             const isHcp = pinKind === 'hcp';
@@ -551,14 +602,17 @@ export default class AccountsTabOceList extends LightningElement {
                 ? null
                 : row.lastVisitDisplay;
             const showHealth = isHcp && healthStatus !== 'na';
+            const classLetter = classification && classification !== '—'
+                ? classification.charAt(0).toUpperCase()
+                : '';
 
             return {
                 ...row,
                 pinKind,
-                typeIconName: pinKind === 'hco' ? 'standard:account' : 'standard:contact',
+                typeIconName: iconKind === 'hco' ? 'standard:account' : iconKind === 'pharmacy' ? 'standard:location' : 'standard:contact',
+                typeIconUrl: theme.iconUrl || accountTypeIconUrl(iconKind),
                 pinLabel,
-                typeIconClass:
-                    pinKind === 'hco' ? 'account-type-icon-hco' : 'account-type-icon-hcp',
+                typeIconClass: `account-type-icon account-type-icon-${iconKind}`,
                 riskDotClass: {
                     High: 'risk-dot-high',
                     Med: 'risk-dot-med',
@@ -569,18 +623,23 @@ export default class AccountsTabOceList extends LightningElement {
                     A: 'oce-class-badge oce-class-a',
                     B: 'oce-class-badge oce-class-b',
                     C: 'oce-class-badge oce-class-c'
-                }[row.classification] || 'oce-class-badge',
+                }[classLetter] || 'oce-class-badge',
                 metaLine: metaParts.join(' · '),
                 planCycleDisplay: row.planCycleLabel || (row.inPlanCycle ? 'In' : 'Out'),
                 planBadgeClass: row.inPlanCycle ? 'oce-plan oce-plan-in' : 'oce-plan oce-plan-out',
                 callPlanLabel:
                     row.inPlanCycle && row.targetVisits != null
                         ? `${row.actualVisits || 0}/${row.targetVisits}`
-                        : '—',
+                        : row.callPlanFrequency != null
+                          ? `${row.actualVisits || 0}/${row.callPlanFrequency}`
+                          : '—',
+                // Out of a plan cycle (e.g. a DM viewing the team), fall back to the target-list frequency.
                 plannedPlanLabel:
                     row.inPlanCycle && row.targetVisits != null
                         ? `Planned ${row.plannedVisits || 0}/${row.targetVisits}`
-                        : 'No target',
+                        : row.callPlanFrequency != null
+                          ? `Frequency ${row.callPlanFrequency}/month`
+                          : 'No target',
                 gapDisplay:
                     row.inPlanCycle && row.visitGap != null ? String(row.visitGap) : '—',
                 healthClass: HEALTH_CLASS[healthStatus] || HEALTH_CLASS.na,
@@ -608,7 +667,16 @@ export default class AccountsTabOceList extends LightningElement {
                     row.isKol === true
                         ? 'KOL is on for this territory. Click to turn off.'
                         : 'KOL is off for this territory. Click to turn on.',
-                kolBusy: row.kolBusy === true
+                kolBusy: row.kolBusy === true,
+                showStageBadge:
+                    Boolean(row.accountStageLabel) &&
+                    row.accountStage !== 'Active' &&
+                    row.accountStage != null,
+                selectLabel: `Select ${row.accountName || 'account'}`,
+                showNurtureWait: Boolean(row.nurtureWaitLabel),
+                showDuplicateCheck: Boolean(row.showApprovalActions) || Boolean(row.nurtureWaitLabel),
+                showPlanActions: !row.showApprovalActions && !row.nurtureWaitLabel,
+                stageBadgeClass: stageBadgeClassFor(row.nurtureLane)
             };
         });
         const sortField = this.activeSortBy;
@@ -766,6 +834,65 @@ export default class AccountsTabOceList extends LightningElement {
         );
     }
 
+    get showApprovalSelect() {
+        return (this.rows || []).some((row) => row.showApprovalActions);
+    }
+
+    get approvalHeaderChecked() {
+        const actionable = (this.rows || []).filter((row) => row.showApprovalActions);
+        return actionable.length > 0 && actionable.every((row) => row.approvalSelected);
+    }
+
+    handleApprovalToggle(event) {
+        event.stopPropagation();
+        const accountId = event.target.dataset.id;
+        this.dispatchEvent(
+            new CustomEvent('approvalselectionchange', {
+                detail: { accountId, selected: event.target.checked },
+                bubbles: true,
+                composed: true
+            })
+        );
+    }
+
+    handleApprovalToggleAll(event) {
+        this.dispatchEvent(
+            new CustomEvent('approvalselectionchange', {
+                detail: { all: true, selected: event.target.checked },
+                bubbles: true,
+                composed: true
+            })
+        );
+    }
+
+    handleOpenDuplicate(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        const accountId = event.currentTarget.dataset.id;
+        if (!accountId) {
+            return;
+        }
+        this.duplicateAccountId = accountId;
+        this.showDuplicateModal = true;
+    }
+
+    handleCloseDuplicate(event) {
+        event?.stopPropagation?.();
+        event?.preventDefault?.();
+        this.showDuplicateModal = false;
+        this.duplicateAccountId = null;
+    }
+
+    handleDuplicateOverlayClick(event) {
+        if (event.target === event.currentTarget) {
+            this.handleCloseDuplicate();
+        }
+    }
+
+    handleDuplicateChange() {
+        this.dispatchEvent(new CustomEvent('duplicatechange', { bubbles: true, composed: true }));
+    }
+
     handleQuickAction(event) {
         event.preventDefault();
         event.stopPropagation();
@@ -777,6 +904,19 @@ export default class AccountsTabOceList extends LightningElement {
         this.dispatchEvent(
             new CustomEvent('rowaction', {
                 detail: { accountId, action },
+                bubbles: true,
+                composed: true
+            })
+        );
+    }
+
+    handleApprovalRejectionChange(event) {
+        this.dispatchEvent(
+            new CustomEvent('approvalrejectionchange', {
+                detail: {
+                    accountId: event.target.dataset.accountId,
+                    value: event.detail.value
+                },
                 bubbles: true,
                 composed: true
             })

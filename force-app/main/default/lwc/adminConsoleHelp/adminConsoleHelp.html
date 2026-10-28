@@ -1,0 +1,209 @@
+<template>
+    <div class="help-shell" onkeydown={handleZoomKey}>
+        <p class="help-hint">
+            Describe what you want to do, in English or Arabic. Example: “change field tabs”, “who approves meetings”, “KPI targets”.
+            Open any topic for a full guide with screenshots.
+        </p>
+        <div class="help-toolbar">
+            <lightning-input
+                type="search"
+                label="Search help"
+                placeholder="When I want to…"
+                value={query}
+                onchange={handleQuery}
+            ></lightning-input>
+            <lightning-combobox
+                class="help-lang"
+                label="Language"
+                value={lang}
+                options={langOptions}
+                onchange={handleLang}
+            ></lightning-combobox>
+        </div>
+
+        <!-- Topic list -->
+        <template if:false={isDetail}>
+            <template if:true={hasResults}>
+                <div class="help-grid" dir={dir}>
+                    <template for:each={results} for:item="item">
+                        <article key={item.id} class="help-card">
+                            <template if:true={item.hasThumb}>
+                                <button class="help-thumb" data-id={item.id} onclick={handleView} aria-label={labels.viewGuide}>
+                                    <img src={item.thumbUrl} alt={item.title} loading="lazy" />
+                                </button>
+                            </template>
+                            <div class="help-card-body">
+                                <h3>{item.title}</h3>
+                                <p class="when">{item.whenText}</p>
+                                <p class="meta">{item.metaText}</p>
+                                <div class="help-card-actions">
+                                    <lightning-button
+                                        label={labels.viewGuide}
+                                        variant="brand"
+                                        icon-name="utility:richtextnumberedlist"
+                                        data-id={item.id}
+                                        onclick={handleView}
+                                    ></lightning-button>
+                                    <lightning-button
+                                        label={labels.openModule}
+                                        variant="neutral"
+                                        icon-name="utility:new_window"
+                                        data-id={item.id}
+                                        data-title={item.tile}
+                                        onclick={handleOpen}
+                                    ></lightning-button>
+                                </div>
+                            </div>
+                        </article>
+                    </template>
+                </div>
+            </template>
+            <template if:false={hasResults}>
+                <div class="help-empty">No walkthrough matches that ask. Try “tabs”, “approvers”, or “KPI”.</div>
+            </template>
+        </template>
+
+        <!-- Topic guide -->
+        <template if:true={isDetail}>
+            <article class="guide" dir={dir}>
+                <div class="guide-nav">
+                    <lightning-button
+                        variant="base"
+                        label={labels.back}
+                        icon-name="utility:back"
+                        onclick={handleBack}
+                    ></lightning-button>
+                </div>
+                <header class="guide-head">
+                    <div>
+                        <h2>{topic.title}</h2>
+                        <p class="guide-sub">{topic.subtitle}</p>
+                    </div>
+                    <lightning-button
+                        label={labels.openModule}
+                        variant="brand"
+                        icon-name="utility:new_window"
+                        data-id={topic.id}
+                        data-title={topic.tile}
+                        onclick={handleOpen}
+                    ></lightning-button>
+                </header>
+                <p class="guide-when">{topic.whenText}</p>
+
+                <section class="guide-section">
+                    <h3>{labels.overview}</h3>
+                    <p>{topic.overview}</p>
+                </section>
+
+                <template if:true={hasGlance}>
+                    <div class="guide-glance">
+                        <template if:true={hasAffects}>
+                            <div class="glance-box">
+                                <h4><lightning-icon icon-name="utility:groups" size="x-small"></lightning-icon> {labels.affects}</h4>
+                                <p>{topic.affects}</p>
+                            </div>
+                        </template>
+                        <template if:true={hasBefore}>
+                            <div class="glance-box">
+                                <h4><lightning-icon icon-name="utility:checkin" size="x-small"></lightning-icon> {labels.before}</h4>
+                                <ul>
+                                    <template for:each={topic.before} for:item="b">
+                                        <li key={b.key}>{b.text}</li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <section class="guide-section">
+                    <h3>{labels.steps}</h3>
+                    <ol class="guide-steps">
+                        <template for:each={topic.steps} for:item="step">
+                            <li key={step.key} class="guide-step">
+                                <span class="step-num">{step.num}</span>
+                                <div class="step-body">
+                                    <p class="step-text">{step.text}</p>
+                                    <template if:true={step.detail}>
+                                        <p class="step-detail">{step.detail}</p>
+                                    </template>
+                                    <template if:true={step.hasShot}>
+                                        <button
+                                            class="step-shot"
+                                            data-url={step.shotUrl}
+                                            data-alt={step.shotAlt}
+                                            onclick={handleZoom}
+                                            title={labels.enlarge}
+                                        >
+                                            <img src={step.shotUrl} alt={step.shotAlt} loading="lazy" />
+                                        </button>
+                                    </template>
+                                </div>
+                            </li>
+                        </template>
+                    </ol>
+                </section>
+
+                <template if:true={hasGallery}>
+                    <section class="guide-section">
+                        <h3>{labels.shots}</h3>
+                        <div class="guide-gallery">
+                            <template for:each={topic.gallery} for:item="g">
+                                <button key={g.key} class="step-shot" data-url={g.url} data-alt={g.alt} onclick={handleZoom} title={labels.enlarge}>
+                                    <img src={g.url} alt={g.alt} loading="lazy" />
+                                </button>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+
+                <template if:true={hasTips}>
+                    <section class="guide-callout tip">
+                        <h4><lightning-icon icon-name="utility:light_bulb" size="x-small"></lightning-icon> {labels.tips}</h4>
+                        <ul>
+                            <template for:each={topic.tips} for:item="t">
+                                <li key={t.key}>{t.text}</li>
+                            </template>
+                        </ul>
+                    </section>
+                </template>
+
+                <template if:true={hasCautions}>
+                    <section class="guide-callout caution">
+                        <h4><lightning-icon icon-name="utility:warning" size="x-small" variant="warning"></lightning-icon> {labels.cautions}</h4>
+                        <ul>
+                            <template for:each={topic.cautions} for:item="c">
+                                <li key={c.key}>{c.text}</li>
+                            </template>
+                        </ul>
+                    </section>
+                </template>
+
+                <template if:true={hasRelated}>
+                    <section class="guide-section">
+                        <h3>{labels.related}</h3>
+                        <div class="guide-related">
+                            <template for:each={topic.related} for:item="r">
+                                <lightning-button
+                                    key={r.id}
+                                    label={r.label}
+                                    variant="neutral"
+                                    data-id={r.id}
+                                    onclick={handleView}
+                                ></lightning-button>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+            </article>
+        </template>
+
+        <!-- Screenshot zoom -->
+        <template if:true={zoomShot}>
+            <div class="zoom-backdrop" role="dialog" aria-modal="true" tabindex="-1" onclick={handleZoomClose}>
+                <img src={zoomShot.url} alt={zoomShot.alt} />
+                <span class="zoom-close">✕ {labels.close}</span>
+            </div>
+        </template>
+    </div>
+</template>

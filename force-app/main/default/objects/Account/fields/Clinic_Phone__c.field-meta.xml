@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Clinic_Phone__c</fullName>
+    <description>Clinic / landline number. Counts as one of the required phone channels on create.</description>
+    <inlineHelpText>Clinic or landline. At least one of WhatsApp, Phone, or Clinic is required.</inlineHelpText>
+    <label>Clinic Number</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Phone</type>
+</CustomField>

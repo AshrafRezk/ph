@@ -1,0 +1,151 @@
+<template>
+    <div class="panel">
+        <p class="help">
+            Finds doctors entered twice with different specialties (for example Internal Medicine on one
+            record and Gastroenterology on the other). Check the evidence, choose the record to keep, and
+            merge: the doctor keeps every specialty, every visit, every clinic and pharmacy, and a separate
+            class per line. Nothing merges until you click Merge.
+        </p>
+
+        <div class="toolbar">
+            <lightning-button
+                label="Find doctors with different specialties"
+                variant="brand"
+                onclick={handleScan}
+                disabled={isBusy}
+            ></lightning-button>
+            <lightning-combobox
+                class="score"
+                label="Show"
+                value={minScore}
+                options={scoreOptions}
+                onchange={handleScoreChange}
+            ></lightning-combobox>
+            <label class="check">
+                <input type="checkbox" checked={showClosed} onchange={handleShowClosed} />
+                Include merged and kept-apart pairs
+            </label>
+            <p class="muted">{runSummary}</p>
+        </div>
+
+        <div class="compare">
+            <lightning-input label="Doctor code" placeholder="59087" value={codeA} onchange={handleCodeA}></lightning-input>
+            <lightning-input label="Other doctor code" placeholder="DOC-61021" value={codeB} onchange={handleCodeB}></lightning-input>
+            <lightning-button label="Compare" onclick={handleCompare} disabled={isBusy}></lightning-button>
+        </div>
+
+        <template if:true={isBusy}>
+            <div class="progress">
+                <lightning-spinner alternative-text="Working" size="small"></lightning-spinner>
+                <span class="muted">{progressMessage}</span>
+            </div>
+        </template>
+
+        <template if:true={manualCard}>
+            <p class="section">Compared by code</p>
+            <article class="pair">
+                <div class="pair-head">
+                    <span class={manualCard.badgeClass}>{manualCard.score}% {manualCard.label}</span>
+                    <template for:each={manualCard.factorItems} for:item="f">
+                        <span key={f.key} class={f.className}>{f.text}</span>
+                    </template>
+                </div>
+                <div class="doctors">
+                    <div class={manualCard.leftCard.boxClass}>
+                        <label class="check keep">
+                            <input type="radio" name={manualCard.radioName} value={manualCard.leftCard.id} data-key={manualCard.key} checked={manualCard.leftCard.isKept} onchange={handleKeepChange} />
+                            {manualCard.leftCard.keepLabel}
+                        </label>
+                        <a href={manualCard.leftCard.url} target="_blank" class="name">{manualCard.leftCard.name}</a>
+                        <p class="meta">{manualCard.leftCard.code} · class {manualCard.leftCard.customerClass} · {manualCard.leftCard.visitCount} visits</p>
+                        <p><strong>Specialty:</strong> {manualCard.leftCard.specialtyText}</p>
+                        <p class="meta">Phone: {manualCard.leftCard.phones}</p>
+                        <template for:each={manualCard.leftCard.workplaceItems} for:item="w"><p key={w.key} class="meta">🏥 {w.text}</p></template>
+                        <template for:each={manualCard.leftCard.lineItems} for:item="l"><p key={l.key} class="meta">🎯 {l.text}</p></template>
+                    </div>
+                    <div class={manualCard.rightCard.boxClass}>
+                        <label class="check keep">
+                            <input type="radio" name={manualCard.radioName} value={manualCard.rightCard.id} data-key={manualCard.key} checked={manualCard.rightCard.isKept} onchange={handleKeepChange} />
+                            {manualCard.rightCard.keepLabel}
+                        </label>
+                        <a href={manualCard.rightCard.url} target="_blank" class="name">{manualCard.rightCard.name}</a>
+                        <p class="meta">{manualCard.rightCard.code} · class {manualCard.rightCard.customerClass} · {manualCard.rightCard.visitCount} visits</p>
+                        <p><strong>Specialty:</strong> {manualCard.rightCard.specialtyText}</p>
+                        <p class="meta">Phone: {manualCard.rightCard.phones}</p>
+                        <template for:each={manualCard.rightCard.workplaceItems} for:item="w"><p key={w.key} class="meta">🏥 {w.text}</p></template>
+                        <template for:each={manualCard.rightCard.lineItems} for:item="l"><p key={l.key} class="meta">🎯 {l.text}</p></template>
+                    </div>
+                </div>
+                <p class="after">After merge: one doctor with <strong>{manualCard.mergedSpecialtyText}</strong>, all visits, clinics, pharmacies and lines.</p>
+                <div class="actions">
+                    <lightning-button label="Merge" variant="brand" data-key={manualCard.key} onclick={handleMerge} disabled={isBusy}></lightning-button>
+                    <lightning-button label="Close" data-key={manualCard.key} onclick={handleDismiss} disabled={isBusy}></lightning-button>
+                </div>
+            </article>
+        </template>
+
+        <template if:true={hasPairs}>
+            <p class="section">Possible duplicates from the last scan</p>
+            <template for:each={pairCards} for:item="pair">
+                <article key={pair.key} class="pair">
+                    <div class="pair-head">
+                        <span class={pair.badgeClass}>{pair.score}% {pair.label}</span>
+                        <span class="badge">{pair.statusText}</span>
+                        <template for:each={pair.factorItems} for:item="f">
+                            <span key={f.key} class={f.className}>{f.text}</span>
+                        </template>
+                    </div>
+                    <template if:true={pair.isComplete}>
+                        <div class="doctors">
+                            <div class={pair.leftCard.boxClass}>
+                                <template if:true={pair.isOpen}>
+                                    <label class="check keep">
+                                        <input type="radio" name={pair.radioName} value={pair.leftCard.id} data-key={pair.key} checked={pair.leftCard.isKept} onchange={handleKeepChange} />
+                                        {pair.leftCard.keepLabel}
+                                    </label>
+                                </template>
+                                <a href={pair.leftCard.url} target="_blank" class="name">{pair.leftCard.name}</a>
+                                <p class="meta">{pair.leftCard.code} · class {pair.leftCard.customerClass} · {pair.leftCard.visitCount} visits</p>
+                                <p><strong>Specialty:</strong> {pair.leftCard.specialtyText}</p>
+                                <p class="meta">Phone: {pair.leftCard.phones}</p>
+                                <template for:each={pair.leftCard.workplaceItems} for:item="w"><p key={w.key} class="meta">🏥 {w.text}</p></template>
+                                <template for:each={pair.leftCard.lineItems} for:item="l"><p key={l.key} class="meta">🎯 {l.text}</p></template>
+                            </div>
+                            <div class={pair.rightCard.boxClass}>
+                                <template if:true={pair.isOpen}>
+                                    <label class="check keep">
+                                        <input type="radio" name={pair.radioName} value={pair.rightCard.id} data-key={pair.key} checked={pair.rightCard.isKept} onchange={handleKeepChange} />
+                                        {pair.rightCard.keepLabel}
+                                    </label>
+                                </template>
+                                <a href={pair.rightCard.url} target="_blank" class="name">{pair.rightCard.name}</a>
+                                <p class="meta">{pair.rightCard.code} · class {pair.rightCard.customerClass} · {pair.rightCard.visitCount} visits</p>
+                                <p><strong>Specialty:</strong> {pair.rightCard.specialtyText}</p>
+                                <p class="meta">Phone: {pair.rightCard.phones}</p>
+                                <template for:each={pair.rightCard.workplaceItems} for:item="w"><p key={w.key} class="meta">🏥 {w.text}</p></template>
+                                <template for:each={pair.rightCard.lineItems} for:item="l"><p key={l.key} class="meta">🎯 {l.text}</p></template>
+                            </div>
+                        </div>
+                        <p class="after">After merge: one doctor with <strong>{pair.mergedSpecialtyText}</strong>, all visits, clinics, pharmacies and lines.</p>
+                    </template>
+                    <template if:true={pair.note}>
+                        <p class="after">{pair.note}</p>
+                    </template>
+                    <template if:true={pair.errorMessage}>
+                        <p class="error">{pair.errorMessage}</p>
+                    </template>
+                    <template if:true={pair.isOpen}>
+                        <div class="actions">
+                            <lightning-button label="Merge" variant="brand" data-key={pair.key} onclick={handleMerge} disabled={isBusy}></lightning-button>
+                            <lightning-button label="Not the same doctor" data-key={pair.key} onclick={handleDismiss} disabled={isBusy}></lightning-button>
+                        </div>
+                    </template>
+                </article>
+            </template>
+        </template>
+
+        <template if:false={hasPairs}>
+            <p class="muted">No open pairs at this level. Run a scan, lower the "Show" level, or compare two codes.</p>
+        </template>
+    </div>
+</template>

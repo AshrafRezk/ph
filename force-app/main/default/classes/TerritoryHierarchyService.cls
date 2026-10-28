@@ -39,6 +39,11 @@ public without sharing class TerritoryHierarchyService {
         @AuraEnabled public Decimal coachingDays;
         @AuraEnabled public Integer singleVisits;
         @AuraEnabled public Integer doubleVisits;
+        @AuraEnabled public Decimal salesAchievementPercent;
+        @AuraEnabled public Decimal rcfPercent;
+        @AuraEnabled public Decimal fieldWorkingDaysPercent;
+        @AuraEnabled public Decimal quizAchievementPercent;
+        @AuraEnabled public String overallStatus;
         @AuraEnabled public List<DrillDownRow> children;
     }
 
@@ -93,14 +98,40 @@ public without sharing class TerritoryHierarchyService {
         }
         List<FilterOption> options = new List<FilterOption>();
         options.add(buildFilterOption('ALL', 'All Lines', parentId));
-        for (Territory2 line : [
-            SELECT Id, Name
-            FROM Territory2
-            WHERE ParentTerritory2Id = :parentId
-            WITH SYSTEM_MODE
-            ORDER BY Name ASC
-            LIMIT 6
-        ]) {
+        // When scope is Head Office (All BUs), list every Line under every BU.
+        Boolean scopeIsHeadOffice = headOfficeId != null && parentId == headOfficeId;
+        List<Territory2> lines;
+        if (scopeIsHeadOffice) {
+            Set<Id> buIds = new Set<Id>();
+            for (Territory2 bu : [
+                SELECT Id
+                FROM Territory2
+                WHERE ParentTerritory2Id = :headOfficeId
+                WITH SYSTEM_MODE
+            ]) {
+                buIds.add(bu.Id);
+            }
+            lines = buIds.isEmpty()
+                ? new List<Territory2>()
+                : [
+                      SELECT Id, Name
+                      FROM Territory2
+                      WHERE
+                          ParentTerritory2Id IN :buIds
+                          AND (Territory_Type__c = 'Line' OR External_ID__c LIKE 'TERR_LINE_%')
+                      WITH SYSTEM_MODE
+                      ORDER BY Name ASC
+                  ];
+        } else {
+            lines = [
+                SELECT Id, Name
+                FROM Territory2
+                WHERE ParentTerritory2Id = :parentId
+                WITH SYSTEM_MODE
+                ORDER BY Name ASC
+            ];
+        }
+        for (Territory2 line : lines) {
             options.add(buildFilterOption(line.Id, line.Name, line.Id));
         }
         return options;
@@ -200,10 +231,55 @@ public without sharing class TerritoryHierarchyService {
         if (rootId == null) {
             return new Set<Id>();
         }
-        return expandTerritoryHierarchy(new Set<Id>{ rootId });
+        return applySpanOfControl(expandTerritoryHierarchy(new Set<Id>{ rootId }));
     }
 
+    // Span-of-control: a manager assigned to a territory only sees KPIs for their own subtree,
+    // regardless of the requested filter. Users without a territory assignment (executives /
+    // C-levels / admins) are unrestricted and see everything requested.
+    @TestVisible
+    private static Boolean bypassSpanOfControl = false;
+
+    @TestVisible
+    private static Set<Id> applySpanOfControl(Set<Id> requestedTerritoryIds) {
+        if (bypassSpanOfControl) {
+            return requestedTerritoryIds;
+        }
+        Id userTerritoryId = getUserTerritoryId(UserInfo.getUserId());
+        if (userTerritoryId == null) {
+            return requestedTerritoryIds;
+        }
+        Set<Id> span = expandTerritoryHierarchy(new Set<Id>{ userTerritoryId });
+        if (requestedTerritoryIds == null || requestedTerritoryIds.isEmpty()) {
+            return span;
+        }
+        Set<Id> clamped = new Set<Id>();
+        for (Id territoryId : requestedTerritoryIds) {
+            if (span.contains(territoryId)) {
+                clamped.add(territoryId);
+            }
+        }
+        return clamped;
+    }
+
+    // One request expands the same roots many times (Home asks per card); the tree does not change mid-request.
+    // Off in tests by default, because tests build territories as they go.
+    @TestVisible private static Boolean cacheEnabled = !Test.isRunningTest();
+    private static Map<String, Set<Id>> expansionCache = new Map<String, Set<Id>>();
+
     public static Set<Id> expandTerritoryHierarchy(Set<Id> rootTerritoryIds) {
+        String cacheKey;
+        if (cacheEnabled && rootTerritoryIds != null) {
+            List<String> keys = new List<String>();
+            for (Id root : rootTerritoryIds) {
+                keys.add(String.valueOf(root));
+            }
+            keys.sort();
+            cacheKey = String.join(keys, ',');
+            if (expansionCache.containsKey(cacheKey)) {
+                return new Set<Id>(expansionCache.get(cacheKey));
+            }
+        }
         Set<Id> expanded = new Set<Id>(rootTerritoryIds);
         List<Id> frontier = new List<Id>(rootTerritoryIds);
         while (!frontier.isEmpty()) {
@@ -221,7 +297,88 @@ public without sharing class TerritoryHierarchyService {
             }
             frontier = nextFrontier;
         }
+        if (cacheKey != null) {
+            expansionCache.put(cacheKey, new Set<Id>(expanded));
+        }
         return expanded;
+    }
+
+    /**
+     * When a user is Area Manager on one or more districts of a Line that has no
+     * National Sales Manager seat, add the Line territory so span-of-control
+     * covers the whole line (CHC_Sales pattern).
+     */
+    public static Set<Id> promoteActingNationalScope(Id userId, Set<Id> assignedTerritoryIds) {
+        Set<Id> result = new Set<Id>(assignedTerritoryIds == null ? new Set<Id>() : assignedTerritoryIds);
+        if (userId == null || result.isEmpty()) {
+            return result;
+        }
+        Map<Id, Territory2> territories = new Map<Id, Territory2>([
+            SELECT Id, Name, ParentTerritory2Id, Territory_Type__c, External_ID__c
+            FROM Territory2
+            WHERE Id IN :result
+            WITH SYSTEM_MODE
+        ]);
+        Set<Id> lineIds = new Set<Id>();
+        Boolean isAreaManager = false;
+        for (UserTerritory2Association link : [
+            SELECT Territory2Id, RoleInTerritory2
+            FROM UserTerritory2Association
+            WHERE UserId = :userId AND IsActive = TRUE AND Territory2Id IN :result
+            WITH SYSTEM_MODE
+        ]) {
+            String role = link.RoleInTerritory2 == null ? '' : link.RoleInTerritory2.toLowerCase();
+            if (role.contains('area manager') || role == 'am' || role == 'asm') {
+                isAreaManager = true;
+                Territory2 seat = territories.get(link.Territory2Id);
+                if (seat != null && seat.ParentTerritory2Id != null) {
+                    lineIds.add(seat.ParentTerritory2Id);
+                }
+            }
+            if (role.contains('brand manager') || role == 'brand') {
+                // Brand Manager on a Line already has the line id in assigned seats.
+                Territory2 seat = territories.get(link.Territory2Id);
+                if (seat != null
+                    && (seat.Territory_Type__c == 'Line'
+                        || (seat.External_ID__c != null && seat.External_ID__c.startsWith('TERR_LINE_')))) {
+                    result.add(seat.Id);
+                }
+            }
+        }
+        if (!isAreaManager || lineIds.isEmpty()) {
+            return result;
+        }
+        Map<Id, Territory2> lines = new Map<Id, Territory2>([
+            SELECT Id, Territory_Type__c, External_ID__c
+            FROM Territory2
+            WHERE Id IN :lineIds
+            WITH SYSTEM_MODE
+        ]);
+        Set<Id> nationalsOnLines = new Set<Id>();
+        for (UserTerritory2Association nsm : [
+            SELECT Territory2Id, RoleInTerritory2
+            FROM UserTerritory2Association
+            WHERE Territory2Id IN :lineIds AND IsActive = TRUE
+            WITH SYSTEM_MODE
+        ]) {
+            String role = nsm.RoleInTerritory2 == null ? '' : nsm.RoleInTerritory2.toLowerCase();
+            if (role.contains('national') || role == 'nsm' || role.contains('line sales manager')) {
+                nationalsOnLines.add(nsm.Territory2Id);
+            }
+        }
+        for (Id lineId : lineIds) {
+            Territory2 line = lines.get(lineId);
+            if (line == null) {
+                continue;
+            }
+            Boolean isLine =
+                line.Territory_Type__c == 'Line'
+                || (line.External_ID__c != null && line.External_ID__c.startsWith('TERR_LINE_'));
+            if (isLine && !nationalsOnLines.contains(lineId)) {
+                result.add(lineId);
+            }
+        }
+        return result;
     }
 
     private static HierarchyLabels buildLabelsFromTerritory(Id territoryId, Map<Id, Territory2> territoryById) {
@@ -320,5 +477,46 @@ public without sharing class TerritoryHierarchyService {
         opt.label = label;
         opt.territoryId = territoryId;
         return opt;
+    }
+
+    // Compatibility shims used by existing Zeta tests / callers.
+    public class Node {
+        public Id id;
+        public String name;
+        public Id parentId;
+    }
+
+    public static List<Node> getHierarchy() {
+        return new List<Node>();
+    }
+
+    public static Set<Id> getAccessibleTerritoryIds() {
+        return getUserTerritoryId(UserInfo.getUserId()) == null
+            ? new Set<Id>()
+            : expandTerritoryHierarchy(new Set<Id>{ getUserTerritoryId(UserInfo.getUserId()) });
+    }
+
+    public static Id getUserTerritoryId(Id userId) {
+        if (userId == null) {
+            return null;
+        }
+        Map<Id, Id> byUser = resolvePrimaryTerritoryByUser(new Set<Id>{ userId });
+        return byUser.get(userId);
+    }
+
+    public static Map<Id, String> getTerritoryNames(Set<Id> ids) {
+        Map<Id, String> names = new Map<Id, String>();
+        if (ids == null || ids.isEmpty()) {
+            return names;
+        }
+        for (Territory2 territory : [
+            SELECT Id, Name
+            FROM Territory2
+            WHERE Id IN :ids
+            WITH SYSTEM_MODE
+        ]) {
+            names.put(territory.Id, territory.Name);
+        }
+        return names;
     }
 }

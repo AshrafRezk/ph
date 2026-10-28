@@ -46,7 +46,7 @@ export function extractReportTable(report) {
     const note =
         format === 'TABULAR'
             ? null
-            : 'Summary layout flattened for offline viewing — not Lightning Report Builder.';
+            : 'Summary layout flattened for offline viewing \u2014 not Lightning Report Builder.';
 
     if (format === 'TABULAR' || (!groupingDown.length && !groupingAcross.length)) {
         const block = factMap['T!T'] || {};
@@ -75,7 +75,7 @@ export function extractReportTable(report) {
     const columns = [
         ...downHeaders,
         ...(acrossPaths.length > 1
-            ? acrossLabels.flatMap((label) => aggLabels.map((agg) => (label ? `${label} — ${agg}` : agg)))
+            ? acrossLabels.flatMap((label) => aggLabels.map((agg) => (label ? `${label} \u2014 ${agg}` : agg)))
             : aggLabels),
         ...detailColumns.map((name) => columnLabel(extended, name))
     ];
@@ -124,28 +124,196 @@ export function extractReportTable(report) {
     return { columns, rows, note };
 }
 
-export function extractChartSeries(report) {
+function aggKey(name) {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/^[a-z]!/, '');
+}
+
+function groupLabel(group) {
+    return (group && (group.label || group.value)) || 'Group';
+}
+
+function selectedAggregateIndexes(meta) {
+    const aggregates = meta.aggregates || [];
+    if (!aggregates.length) return [];
+    const chart = meta.chart || {};
+    const summaries = chart.summaries || chart.chartSummaries || [];
+    if (!summaries.length) return aggregates.map((_, i) => i);
+    const wanted = summaries.map((item) => {
+        if (item == null) return '';
+        if (typeof item === 'string') return aggKey(item);
+        return aggKey(item.column || item.name || item.value || '');
+    }).filter(Boolean);
+    if (!wanted.length) return aggregates.map((_, i) => i);
+    const matched = aggregates
+        .map((name, i) => ({ i, key: aggKey(name) }))
+        .filter((row) => wanted.some((w) => row.key.includes(w) || w.includes(row.key)))
+        .map((row) => row.i);
+    return matched.length ? matched : aggregates.map((_, i) => i);
+}
+
+function factAggregate(factMap, downKey, acrossKey, index) {
+    const fact = factMap[`${downKey}!${acrossKey}`] || {};
+    return (fact.aggregates || [])[index];
+}
+
+export function extractChartData(report, aggIndexOverride) {
+    const meta = (report && report.reportMetadata) || {};
+    const extended = (report && report.reportExtendedMetadata) || {};
     const factMap = (report && report.factMap) || {};
-    const groupings = (report && report.groupingsDown && report.groupingsDown.groupings) || [];
-    const items = groupings.map((group) => {
-        const fact = factMap[`${group.key}!T`] || {};
-        const agg = (fact.aggregates || [])[0];
-        return {
-            label: group.label || group.value || 'Group',
-            value: numericValue(agg),
-            display: cellLabel(agg)
-        };
-    });
-    if (items.length) return items;
-    const grand = factMap['T!T'];
-    if (grand && (grand.aggregates || []).length) {
-        return (grand.aggregates || []).map((agg, i) => ({
-            label: `Total ${i + 1}`,
-            value: numericValue(agg),
-            display: cellLabel(agg)
-        }));
+    const aggregates = meta.aggregates || [];
+    const groupingDown = (report && report.groupingsDown && report.groupingsDown.groupings) || [];
+    const groupingAcross = (report && report.groupingsAcross && report.groupingsAcross.groupings) || [];
+    const aggIndexes =
+        Array.isArray(aggIndexOverride) && aggIndexOverride.length
+            ? aggIndexOverride
+            : selectedAggregateIndexes(meta);
+    const aggLabels = aggIndexes.map((i) =>
+        !aggregates[i] || aggregates[i] === 'RowCount'
+            ? 'Record Count'
+            : columnLabel(extended, aggregates[i]) || `Value ${i + 1}`
+    );
+    const empty = { categories: [], series: [] };
+    const ai0 = aggIndexes[0] || 0;
+
+    const hasNested = groupingDown.some((group) => (group.groupings || []).length);
+    if (hasNested && !groupingAcross.length && aggIndexes.length <= 1) {
+        const categories = groupingDown.map(groupLabel);
+        const seriesNames = [];
+        groupingDown.forEach((parent) => {
+            (parent.groupings || []).forEach((child) => {
+                const name = groupLabel(child);
+                if (!seriesNames.includes(name)) seriesNames.push(name);
+            });
+        });
+        if (seriesNames.length) {
+            const series = seriesNames.map((name) => ({
+                name,
+                values: categories.map(() => 0),
+                displays: categories.map(() => '')
+            }));
+            groupingDown.forEach((parent, ci) => {
+                (parent.groupings || []).forEach((child) => {
+                    const si = seriesNames.indexOf(groupLabel(child));
+                    const agg = factAggregate(factMap, child.key, 'T', ai0);
+                    series[si].values[ci] = numericValue(agg);
+                    series[si].displays[ci] = cellLabel(agg);
+                });
+            });
+            return { categories, series };
+        }
     }
-    return [];
+
+    if (groupingDown.length && groupingAcross.length) {
+        const acrossPaths = walkGroupings(groupingAcross);
+        return {
+            categories: groupingDown.map(groupLabel),
+            series: acrossPaths.map((path) => {
+                const acrossKey = path.length ? path[path.length - 1].key : 'T';
+                return {
+                    name: path.map(groupLabel).join(' / ') || 'Total',
+                    values: groupingDown.map((group) =>
+                        numericValue(factAggregate(factMap, group.key, acrossKey, ai0))
+                    ),
+                    displays: groupingDown.map((group) =>
+                        cellLabel(factAggregate(factMap, group.key, acrossKey, ai0))
+                    )
+                };
+            })
+        };
+    }
+
+    if (groupingDown.length && aggIndexes.length > 1) {
+        return {
+            categories: groupingDown.map(groupLabel),
+            series: aggIndexes.map((ai, si) => ({
+                name: aggLabels[si],
+                values: groupingDown.map((group) =>
+                    numericValue(factAggregate(factMap, group.key, 'T', ai))
+                ),
+                displays: groupingDown.map((group) =>
+                    cellLabel(factAggregate(factMap, group.key, 'T', ai))
+                )
+            }))
+        };
+    }
+
+    if (groupingDown.length) {
+        return {
+            categories: groupingDown.map(groupLabel),
+            series: [
+                {
+                    name: aggLabels[0] || 'Value',
+                    values: groupingDown.map((group) =>
+                        numericValue(factAggregate(factMap, group.key, 'T', ai0))
+                    ),
+                    displays: groupingDown.map((group) =>
+                        cellLabel(factAggregate(factMap, group.key, 'T', ai0))
+                    )
+                }
+            ]
+        };
+    }
+
+    if (groupingAcross.length) {
+        return {
+            categories: groupingAcross.map(groupLabel),
+            series: [
+                {
+                    name: aggLabels[0] || 'Value',
+                    values: groupingAcross.map((group) =>
+                        numericValue(factAggregate(factMap, 'T', group.key, ai0))
+                    ),
+                    displays: groupingAcross.map((group) =>
+                        cellLabel(factAggregate(factMap, 'T', group.key, ai0))
+                    )
+                }
+            ]
+        };
+    }
+
+    const grand = factMap['T!T'] || {};
+    const aggs = grand.aggregates || [];
+    if (!aggs.length) return empty;
+    return {
+        categories: aggs.map((_, i) => aggLabels[i] || columnLabel(extended, aggregates[i]) || `Total ${i + 1}`),
+        series: [
+            {
+                name: 'Total',
+                values: aggs.map(numericValue),
+                displays: aggs.map(cellLabel)
+            }
+        ]
+    };
+}
+
+export function extractChartSeries(report) {
+    const data = extractChartData(report);
+    if (!data.categories.length || !data.series.length) return [];
+    return data.categories.map((label, i) => {
+        const value = data.series.reduce((sum, series) => sum + (Number(series.values[i]) || 0), 0);
+        const display =
+            data.series.length === 1
+                ? data.series[0].displays[i]
+                : data.series
+                      .map((series) => series.displays[i])
+                      .filter(Boolean)
+                      .join(', ') || String(value);
+        return { label, value, display };
+    });
+}
+
+export function reportChartType(report) {
+    const chart = report && report.reportMetadata && report.reportMetadata.chart;
+    const type = chart && chart.chartType;
+    if (!type || String(type).toLowerCase() === 'none') return '';
+    return String(type);
+}
+
+export function reportChartLocation(report) {
+    const chart = report && report.reportMetadata && report.reportMetadata.chart;
+    return String((chart && chart.location) || 'CHART_TOP').toUpperCase();
 }
 
 export function extractMetric(report) {
@@ -160,7 +328,7 @@ export function extractMetric(report) {
         const cell = rows[0].dataCells[rows[0].dataCells.length - 1];
         return { value: cellLabel(cell), numeric: numericValue(cell) };
     }
-    return { value: '—', numeric: 0 };
+    return { value: '\u2014', numeric: 0 };
 }
 
 export function tableHtml(table) {

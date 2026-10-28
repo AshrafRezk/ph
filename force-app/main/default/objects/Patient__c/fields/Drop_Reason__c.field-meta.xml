@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Drop_Reason__c</fullName>
+    <label>Drop Reason</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Switched therapy</fullName>
+                <default>false</default>
+                <label>Switched therapy</label>
+            </value>
+            <value>
+                <fullName>Side effects</fullName>
+                <default>false</default>
+                <label>Side effects</label>
+            </value>
+            <value>
+                <fullName>Cost / access</fullName>
+                <default>false</default>
+                <label>Cost / access</label>
+            </value>
+            <value>
+                <fullName>Lost to follow-up</fullName>
+                <default>false</default>
+                <label>Lost to follow-up</label>
+            </value>
+            <value>
+                <fullName>Physician decision</fullName>
+                <default>false</default>
+                <label>Physician decision</label>
+            </value>
+            <value>
+                <fullName>Deceased</fullName>
+                <default>false</default>
+                <label>Deceased</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

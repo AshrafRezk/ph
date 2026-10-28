@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Show_Invitations__c</fullName>
+    <defaultValue>true</defaultValue>
+    <inlineHelpText>Shows the Invitations tab: personal links and QR passes.</inlineHelpText>
+    <label>Invitations</label>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

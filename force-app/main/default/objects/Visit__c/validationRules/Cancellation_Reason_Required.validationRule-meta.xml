@@ -4,6 +4,7 @@
     <active>true</active>
     <description>Require cancellation reason when visit is cancelled.</description>
     <errorConditionFormula>AND(
+  NOT(BEGINS(Client_Visit_Key__c, &quot;PACKV-&quot;)),
   ISPICKVAL(Status__c, &quot;Cancelled&quot;),
   ISBLANK(Cancellation_Reason__c)
 )</errorConditionFormula>

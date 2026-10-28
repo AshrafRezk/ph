@@ -6,6 +6,24 @@
             <template if:true={offlineHint}>
                 <p class="offline-hint">{offlineHint}</p>
             </template>
+            <template if:true={redirectToOffline}>
+                <aside class="offline-redirect-banner" role="status">
+                    <div>
+                        <strong>CLM plays in the Offline Field app</strong>
+                        <p>
+                            Open decks from
+                            <a href={offlineAppUrl} target="_blank" rel="noopener noreferrer"
+                                >salesforceoffline.com</a
+                            >.
+                        </p>
+                    </div>
+                    <lightning-button
+                        label="Open Offline App"
+                        variant="brand"
+                        onclick={handleOpenOfflineApp}
+                    ></lightning-button>
+                </aside>
+            </template>
         </header>
 
         <template if:true={showPlayer}>
@@ -15,6 +33,7 @@
                 presentation-name={activePresentationName}
                 onclose={handlePlayerClose}
                 onsessioncomplete={handleSessionComplete}
+                onswitchpresentation={handleSwitchPresentation}
             ></c-clm-player>
         </template>
 
@@ -52,7 +71,7 @@
                                 <span>Product: {pres.productName}</span>
                             </p>
                             <lightning-button
-                                label="Open"
+                                label={presentButtonLabel}
                                 variant="brand"
                                 data-id={pres.id}
                                 data-name={pres.name}

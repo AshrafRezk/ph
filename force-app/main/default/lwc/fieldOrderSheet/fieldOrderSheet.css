@@ -1,0 +1,190 @@
+.sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(8, 20, 40, 0.45);
+    z-index: 13000;
+}
+.sheet {
+    position: relative;
+    width: min(36rem, 100%);
+    max-height: min(92vh, 46rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border-radius: 0.85rem;
+    box-shadow: 0 18px 48px rgba(8, 20, 40, 0.28);
+    animation: sheet-in 180ms ease;
+}
+
+.sheet:focus {
+    outline: none;
+}
+
+.sheet-handle {
+    display: none;
+}
+.sheet-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem 1.1rem 0.35rem;
+}
+.path {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0.35rem 1.1rem 0.15rem;
+    list-style: none;
+}
+.path-step {
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    background: #f3f3f3;
+    color: #706e6b;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+.path-step.is-now {
+    background: #0176d3;
+    color: #fff;
+}
+.sheet-body {
+    overflow: auto;
+    padding: 0.45rem 1.1rem 0.35rem;
+    --zeta-field-control-height: 2.75rem;
+}
+
+.sheet-body lightning-input,
+.sheet-body lightning-textarea,
+.sheet-body lightning-combobox {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+.sheet-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.sheet-sub { margin: 0.25rem 0 0; color: #706e6b; font-size: 0.8125rem; line-height: 1.35; }
+.hint {
+    margin: 0 0 0.85rem;
+    padding: 0.55rem 0.7rem;
+    background: #f7f8fa;
+    border-radius: 0.6rem;
+    font-size: 0.75rem;
+    color: #706e6b;
+    line-height: 1.35;
+}
+.field { display: block; margin-bottom: 0.75rem; }
+.lines-label,
+.line-note {
+    margin: 0.2rem 0 0.45rem;
+    font-size: 0.78rem;
+    color: #706e6b;
+    line-height: 1.35;
+}
+.line-card {
+    margin: 0 0 0.75rem;
+    padding: 0.75rem 0.75rem 0.2rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    background: #fafbfc;
+    --slds-c-form-element-spacing-block-end: 0.65rem;
+}
+
+.line-main,
+.line-extra {
+    display: grid;
+    gap: 0.65rem;
+    align-items: end;
+}
+
+.line-main {
+    grid-template-columns: minmax(0, 1fr) 6rem;
+}
+
+.line-extra {
+    grid-template-columns: 7.5rem minmax(0, 1fr) 2.75rem;
+}
+
+.line-card lightning-combobox,
+.line-card lightning-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+
+.line-card lightning-button-icon {
+    justify-self: center;
+    margin-bottom: 0.35rem;
+}
+.sheet-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1.1rem 1rem;
+    border-top: 1px solid #eef1f6;
+    background: #fff;
+}
+.error {
+    color: #ba0517;
+    font-size: 0.8125rem;
+    margin: 0 0 0.65rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.5rem;
+    background: #fef1ee;
+}
+
+@media (max-width: 720px) {
+    .sheet-backdrop {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .sheet {
+        width: 100%;
+        max-height: 92dvh;
+        border-radius: 1.15rem 1.15rem 0 0;
+        animation: sheet-up 200ms ease;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 2.5rem;
+        height: 0.25rem;
+        margin: 0.55rem auto 0;
+        border-radius: 999px;
+        background: #d8dde6;
+    }
+
+    .sheet-actions {
+        flex-wrap: wrap;
+        padding-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+    }
+
+    .sheet-actions .primary {
+        flex: 1 1 100%;
+        order: -1;
+    }
+}
+
+@keyframes sheet-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes sheet-up {
+    from { transform: translateY(16px); }
+    to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sheet {
+        animation: none;
+    }
+}

@@ -2,8 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MR_Womens_Health_Sold__c</fullName>
     <defaultValue>0</defaultValue>
-    <description>Misr Radiology — Women's Health Unit Sold</description>
-    <label>Women's Health Unit Sold</label>
+    <description>Misr Radiology — Women&apos;s Health Unit Sold</description>
+    <externalId>false</externalId>
+    <label>Women&apos;s Health Unit Sold</label>
     <precision>16</precision>
     <required>false</required>
     <scale>2</scale>

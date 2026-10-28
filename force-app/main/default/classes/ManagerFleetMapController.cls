@@ -24,13 +24,29 @@ public with sharing class ManagerFleetMapController {
         public Integer stopNumber;
     }
 
+    /** Local copy of location DTO — AuraEnabled fields cannot reference another class's nested type. */
+    public class LocationSnapshotDto {
+        @AuraEnabled public Id userId;
+        @AuraEnabled public Decimal latitude;
+        @AuraEnabled public Decimal longitude;
+        @AuraEnabled public Decimal accuracyMeters;
+        @AuraEnabled public Datetime recordedAt;
+        @AuraEnabled public String source;
+        @AuraEnabled public Boolean isSharing;
+        @AuraEnabled public String status;
+        @AuraEnabled public String deviceModel;
+        @AuraEnabled public String deviceOs;
+        @AuraEnabled public String appVersion;
+        @AuraEnabled public String deviceId;
+    }
+
     public class FleetRepRoute {
         @AuraEnabled
         public Id userId;
         @AuraEnabled
         public String userName;
         @AuraEnabled
-        public RepLocationService.LocationSnapshotDto location;
+        public LocationSnapshotDto location;
         @AuraEnabled
         public List<FleetVisitStop> stops;
         @AuraEnabled
@@ -56,6 +72,9 @@ public with sharing class ManagerFleetMapController {
         public Integer offlineCount;
     }
 
+    @TestVisible
+    static Set<Id> testEmployeeIdsOverride;
+
     @AuraEnabled
     public static FleetMapPayload getFleetMapData(
         String buTerritoryId,
@@ -68,7 +87,9 @@ public with sharing class ManagerFleetMapController {
         Id districtId = parseFilterId(districtTerritoryId);
         Date selectedDate = routeDate == null ? Date.today() : routeDate;
 
-        Set<Id> employeeIds = TerritoryHierarchyService.resolveScopedEmployeeIds(buId, lineId, districtId);
+        Set<Id> employeeIds = testEmployeeIdsOverride != null
+            ? testEmployeeIdsOverride
+            : TerritoryHierarchyService.resolveScopedEmployeeIds(buId, lineId, districtId);
         FleetMapPayload payload = new FleetMapPayload();
         payload.routeDate = selectedDate;
         payload.reps = new List<FleetRepRoute>();
@@ -96,7 +117,7 @@ public with sharing class ManagerFleetMapController {
             FleetRepRoute route = new FleetRepRoute();
             route.userId = userId;
             route.userName = rep.Name;
-            route.location = snapshots.get(userId);
+            route.location = toLocalLocation(snapshots.get(userId));
             route.stops = stopsByRep.containsKey(userId) ? stopsByRep.get(userId) : new List<FleetVisitStop>();
 
             Integer completed = 0;
@@ -177,6 +198,26 @@ public with sharing class ManagerFleetMapController {
         }
 
         return stopsByRep;
+    }
+
+    private static LocationSnapshotDto toLocalLocation(RepLocationService.LocationSnapshotDto source) {
+        if (source == null) {
+            return null;
+        }
+        LocationSnapshotDto dto = new LocationSnapshotDto();
+        dto.userId = source.userId;
+        dto.latitude = source.latitude;
+        dto.longitude = source.longitude;
+        dto.accuracyMeters = source.accuracyMeters;
+        dto.recordedAt = source.recordedAt;
+        dto.source = source.source;
+        dto.isSharing = source.isSharing;
+        dto.status = source.status;
+        dto.deviceModel = source.deviceModel;
+        dto.deviceOs = source.deviceOs;
+        dto.appVersion = source.appVersion;
+        dto.deviceId = source.deviceId;
+        return dto;
     }
 
     private static Id parseFilterId(String raw) {

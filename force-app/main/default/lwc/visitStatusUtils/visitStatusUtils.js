@@ -22,16 +22,29 @@ function startOfDay(date) {
     return copy;
 }
 
-/**
- * BRD working week: Saturday through Wednesday.
- * Non-working days: Thursday (4) and Friday (5).
- */
+// Working-week is configurable per team/position via the Working Calendar
+// metadata (see WorkingCalendarService). Default mirrors the BRD field week:
+// Saturday–Wednesday working; Thursday (4) & Friday (5) off. getDay(): Sun=0..Sat=6.
+const DEFAULT_WORKING_DAYS = [6, 0, 1, 2, 3];
+let WORKING_DAY_SET = new Set(DEFAULT_WORKING_DAYS);
+
+/** Apply a resolved working-day set, e.g. setWorkingDays([0,1,2,3,4]) for Sun–Thu. */
+export function setWorkingDays(days) {
+    if (Array.isArray(days) && days.length) {
+        WORKING_DAY_SET = new Set(days.map(Number).filter((d) => d >= 0 && d <= 6));
+    }
+}
+
+export function getWorkingDays() {
+    return Array.from(WORKING_DAY_SET);
+}
+
 export function isNonWorkingDay(date) {
     if (!date) {
         return false;
     }
     const day = date instanceof Date ? date.getDay() : new Date(date).getDay();
-    return day === 4 || day === 5;
+    return !WORKING_DAY_SET.has(day);
 }
 
 /** @deprecated use isNonWorkingDay */
@@ -54,6 +67,13 @@ export function isFutureVisitStart(startDateTime) {
     const visitDay = startOfDay(new Date(startDateTime));
     const today = startOfDay(new Date());
     return visitDay > today;
+}
+
+export function isPastVisitStart(startDateTime) {
+    if (!startDateTime) {
+        return false;
+    }
+    return startOfDay(new Date(startDateTime)) < startOfDay(new Date());
 }
 
 export function isLockedVisitStatus(status) {
@@ -81,11 +101,12 @@ export function getAllowedStatuses(visitType, currentStatus, isManager = false) 
 
     switch (currentStatus) {
         case VISIT_STATUS_DRAFT:
-            return [VISIT_STATUS_DRAFT, VISIT_STATUS_SUBMITTED, VISIT_STATUS_CANCELLED];
+            // Call report may complete without approval → server converts to Unplanned.
+            return [VISIT_STATUS_DRAFT, VISIT_STATUS_SUBMITTED, VISIT_STATUS_COMPLETED, VISIT_STATUS_CANCELLED];
         case VISIT_STATUS_SUBMITTED:
             return isManager
-                ? [VISIT_STATUS_SUBMITTED, VISIT_STATUS_SCHEDULED, VISIT_STATUS_DRAFT]
-                : [VISIT_STATUS_SUBMITTED];
+                ? [VISIT_STATUS_SUBMITTED, VISIT_STATUS_SCHEDULED, VISIT_STATUS_DRAFT, VISIT_STATUS_COMPLETED]
+                : [VISIT_STATUS_SUBMITTED, VISIT_STATUS_COMPLETED];
         case VISIT_STATUS_SCHEDULED:
             return [
                 VISIT_STATUS_SCHEDULED,
@@ -97,18 +118,19 @@ export function getAllowedStatuses(visitType, currentStatus, isManager = false) 
         case VISIT_STATUS_CANCELLED:
             return [currentStatus];
         default:
-            return [VISIT_STATUS_DRAFT, VISIT_STATUS_SUBMITTED, VISIT_STATUS_SCHEDULED];
+            return [VISIT_STATUS_DRAFT, VISIT_STATUS_SUBMITTED, VISIT_STATUS_SCHEDULED, VISIT_STATUS_COMPLETED];
     }
 }
 
 export function getVisitStatusOptions(startDateTime, visitType, currentStatus, isManager = false) {
-    const future = isFutureVisitStart(startDateTime);
+    // Completed is only valid on the visit's own day.
+    const notToday = isFutureVisitStart(startDateTime) || isPastVisitStart(startDateTime);
     const allowed = new Set(getAllowedStatuses(visitType, currentStatus, isManager));
     return ALL_STATUS_OPTIONS.filter((option) => {
         if (!allowed.has(option.value)) {
             return false;
         }
-        if (future && option.value === VISIT_STATUS_COMPLETED) {
+        if (notToday && option.value === VISIT_STATUS_COMPLETED && currentStatus !== VISIT_STATUS_COMPLETED) {
             return false;
         }
         if (option.value === VISIT_STATUS_SUBMITTED && currentStatus !== VISIT_STATUS_SUBMITTED) {
@@ -129,8 +151,11 @@ export function validateVisitStatusChange(status, startDateTime, cancellationRea
     if (status === VISIT_STATUS_COMPLETED && isFutureVisitStart(startDateTime)) {
         return 'A visit cannot be completed before its scheduled date.';
     }
+    if (status === VISIT_STATUS_COMPLETED && isPastVisitStart(startDateTime)) {
+        return 'A visit can only be completed on its scheduled day.';
+    }
     if (startDateTime && isNonWorkingDay(new Date(startDateTime))) {
-        return 'Visits can only be scheduled on working days (Saturday through Wednesday).';
+        return 'Visits can only be scheduled on your working days.';
     }
     return null;
 }

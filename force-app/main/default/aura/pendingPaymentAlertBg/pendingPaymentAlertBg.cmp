@@ -1,0 +1,4 @@
+<aura:component implements="lightning:backgroundUtilityItem" access="global"
+                description="Background host for Pending Payment alert (Omnichannel-style).">
+    <c:pendingPaymentAlert />
+</aura:component>

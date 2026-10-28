@@ -13,19 +13,22 @@ public with sharing class EmployeeTimeCardFlowHelper {
             return;
         }
         List<Employee_Time_Card_Day_Entry__c> entries = [
-            SELECT Id, Date__c, Employee_Time_Card__r.Employee__c, TOT_Days__c, TOT_Days_Excluding_Weekends__c
+            SELECT Id, Date__c, Employee_Time_Card__c, Employee_Time_Card__r.Employee__c,
+                TOT_Days__c, TOT_Days_Excluding_Weekends__c
             FROM Employee_Time_Card_Day_Entry__c
             WHERE Employee_Time_Card__r.Employee__c = :employeeId
             AND Date__c >= :startDate
             AND Date__c <= :endDate
         ];
+        DateTime rangeStartDt = DateTime.newInstance(startDate, Time.newInstance(0, 0, 0, 0));
+        DateTime rangeEndDt = DateTime.newInstance(endDate, Time.newInstance(23, 59, 59, 0));
         List<Time_Off_Request__c> approved = [
-            SELECT Id, CreatedById, Start_Date_Time__c, End_Date_Time__c, Span_Type__c, Span_Duration__c
+            SELECT Id, CreatedById, OwnerId, Start_Date_Time__c, End_Date_Time__c, Span_Type__c, Span_Duration__c
             FROM Time_Off_Request__c
-            WHERE CreatedById = :employeeId
-            AND Stage__c = 'Approved'
-            AND Start_Date_Time__c <= :endDate
-            AND End_Date_Time__c >= :startDate
+            WHERE Stage__c = 'Approved'
+            AND Start_Date_Time__c <= :rangeEndDt
+            AND End_Date_Time__c >= :rangeStartDt
+            AND (CreatedById = :employeeId OR OwnerId = :employeeId)
         ];
         Map<Date, Decimal> totByDate = new Map<Date, Decimal>();
         Map<Date, Decimal> totWeekdayByDate = new Map<Date, Decimal>();
@@ -35,6 +38,7 @@ public with sharing class EmployeeTimeCardFlowHelper {
         }
         String department = getEmployeeDepartment(employeeId);
         accumulateFromApprovedRequests(approved, startDate, endDate, totByDate, totWeekdayByDate, department);
+        Set<Id> affectedTimeCards = new Set<Id>();
         for (Employee_Time_Card_Day_Entry__c e : entries) {
             Decimal tot = totByDate.get(e.Date__c);
             Decimal totW = totWeekdayByDate.get(e.Date__c);
@@ -44,10 +48,94 @@ public with sharing class EmployeeTimeCardFlowHelper {
             if (totW != null && e.TOT_Days_Excluding_Weekends__c != totW) {
                 e.TOT_Days_Excluding_Weekends__c = totW;
             }
+            if (e.Employee_Time_Card__c != null) {
+                affectedTimeCards.add(e.Employee_Time_Card__c);
+            }
         }
         if (!entries.isEmpty()) {
             update entries;
         }
+        if (!affectedTimeCards.isEmpty()) {
+            EmployeeTimeCardService.reapplyCallTargets(affectedTimeCards);
+            EmployeeTimeCardMetricsService.recalcTimeCardRollups(affectedTimeCards);
+        }
+        Set<Date> monthStarts = new Set<Date>();
+        Date cursor = startDate.toStartOfMonth();
+        Date lastMonth = endDate.toStartOfMonth();
+        while (cursor <= lastMonth) {
+            monthStarts.add(cursor);
+            cursor = cursor.addMonths(1);
+        }
+        for (Date monthStart : monthStarts) {
+            EmployeeTimeCardMetricsService.recalcMonthlyKpis(new Set<Id>{ employeeId }, monthStart);
+        }
+    }
+
+    /**
+     * Leave-type TOT weekday portions by date plus rounded total.
+     * Leave types: Sick Leave, Annual Vacation, Holiday, Conference.
+     */
+    public static LeaveTotals calculateLeaveTotals(
+        Id employeeId,
+        Date monthStart,
+        Date monthEnd,
+        String department
+    ) {
+        LeaveTotals result = new LeaveTotals();
+        if (employeeId == null || monthStart == null || monthEnd == null || monthStart > monthEnd) {
+            return result;
+        }
+        Set<Date> weekdays = weekdaysInRange(monthStart, monthEnd, department);
+        for (Date day : weekdays) {
+            result.leaveByDate.put(day, 0);
+        }
+
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        List<Time_Off_Request__c> approved = [
+            SELECT Type__c, Span_Duration__c, Span_Type__c, Start_Date_Time__c, End_Date_Time__c
+            FROM Time_Off_Request__c
+            WHERE Stage__c = 'Approved'
+            AND Start_Date_Time__c <= :endDt
+            AND End_Date_Time__c >= :startDt
+            AND (CreatedById = :employeeId OR OwnerId = :employeeId)
+        ];
+
+        Decimal total = 0;
+        for (Time_Off_Request__c tot : approved) {
+            if (!isLeaveTotType(tot.Type__c)) {
+                continue;
+            }
+            Map<Date, Decimal> totByDate = new Map<Date, Decimal>();
+            Map<Date, Decimal> totWeekdayByDate = new Map<Date, Decimal>();
+            for (Date day = monthStart; day <= monthEnd; day = day.addDays(1)) {
+                totByDate.put(day, 0);
+                totWeekdayByDate.put(day, 0);
+            }
+            accumulateFromApprovedRequests(
+                new List<Time_Off_Request__c>{ tot },
+                monthStart,
+                monthEnd,
+                totByDate,
+                totWeekdayByDate,
+                department
+            );
+            for (Date day : weekdays) {
+                Decimal amount = totWeekdayByDate.get(day);
+                if (amount == null || amount <= 0) {
+                    continue;
+                }
+                result.leaveByDate.put(day, result.leaveByDate.get(day) + amount);
+                total += amount;
+            }
+        }
+        result.totalLeaveDays = total.setScale(1, System.RoundingMode.HALF_UP);
+        return result;
+    }
+
+    public class LeaveTotals {
+        public Decimal totalLeaveDays = 0;
+        public Map<Date, Decimal> leaveByDate = new Map<Date, Decimal>();
     }
 
     public static void recalcDayDefinitionsForEmployeeAndRange(Id employeeId, Date startDate, Date endDate) {
@@ -82,8 +170,7 @@ public with sharing class EmployeeTimeCardFlowHelper {
         return users.isEmpty() ? null : users[0].Department;
     }
 
-    @TestVisible
-    private static void accumulateFromApprovedRequests(
+    public static void accumulateFromApprovedRequests(
         List<Time_Off_Request__c> approved,
         Date startDate,
         Date endDate,
@@ -145,18 +232,237 @@ public with sharing class EmployeeTimeCardFlowHelper {
         }
     }
 
+    /**
+     * Weekend days come from Planner Rules, the same source the planner uses:
+     * AM = Fri+Sat, PM = Thu+Fri, otherwise the Org planner rule (Thu+Fri unless SFE changed it).
+     */
     public static Boolean isWeekendDay(Date d, String department) {
+        return PlannerRulesService.isWeekendDay(d, department);
+    }
+
+    public static Boolean isLeaveTotType(String typeValue) {
+        return typeValue == 'Sick Leave'
+            || typeValue == 'Annual Vacation'
+            || typeValue == 'Holiday'
+            || typeValue == 'Conference';
+    }
+
+    public static Set<Date> weekdaysInRange(Date startDate, Date endDate, String department) {
+        Set<Date> days = new Set<Date>();
+        if (startDate == null || endDate == null || startDate > endDate) {
+            return days;
+        }
+        for (Date cursor = startDate; cursor <= endDate; cursor = cursor.addDays(1)) {
+            if (!isWeekendDay(cursor, department)) {
+                days.add(cursor);
+            }
+        }
+        return days;
+    }
+
+    public static Set<Date> publicHolidayDatesInRange(Date startDate, Date endDate) {
+        return PublicHolidayService.datesInRange(startDate, endDate);
+    }
+
+    public static Set<Date> standardHolidayDatesInRange(Date startDate, Date endDate) {
+        Set<Date> dates = new Set<Date>();
+        if (startDate == null || endDate == null || startDate > endDate) {
+            return dates;
+        }
+        for (Holiday holiday : loadCompanyHolidays()) {
+            dates.addAll(expandHoliday(holiday, startDate, endDate));
+        }
+        return dates;
+    }
+
+    public static Integer countFieldDays(
+        Date startDate,
+        Date endDate,
+        String department,
+        Map<Date, Decimal> leaveByDate
+    ) {
+        Set<Date> weekdays = weekdaysInRange(startDate, endDate, department);
+        Set<Date> holidays = publicHolidayDatesInRange(startDate, endDate);
+        Decimal remaining = 0;
+        for (Date day : weekdays) {
+            if (holidays.contains(day)) {
+                continue;
+            }
+            Decimal leave = 0;
+            if (leaveByDate != null && leaveByDate.containsKey(day) && leaveByDate.get(day) != null) {
+                leave = leaveByDate.get(day);
+            }
+            remaining += Math.max(0, 1 - leave);
+        }
+        return remaining.setScale(0, System.RoundingMode.HALF_UP).intValue();
+    }
+
+    private static List<Holiday> cachedCompanyHolidays;
+
+    private static List<Holiday> loadCompanyHolidays() {
+        if (cachedCompanyHolidays == null) {
+            cachedCompanyHolidays = [
+                SELECT
+                    ActivityDate,
+                    IsRecurrence,
+                    RecurrenceType,
+                    RecurrenceStartDate,
+                    RecurrenceEndDateOnly,
+                    RecurrenceInterval,
+                    RecurrenceDayOfWeekMask,
+                    RecurrenceDayOfMonth,
+                    RecurrenceInstance,
+                    RecurrenceMonthOfYear
+                FROM Holiday
+            ];
+        }
+        return cachedCompanyHolidays;
+    }
+
+    @TestVisible
+    static Set<Date> expandHoliday(Holiday holiday, Date startDate, Date endDate) {
+        Set<Date> dates = new Set<Date>();
+        if (holiday == null) {
+            return dates;
+        }
+        if (holiday.IsRecurrence != true) {
+            if (holiday.ActivityDate != null && holiday.ActivityDate >= startDate && holiday.ActivityDate <= endDate) {
+                dates.add(holiday.ActivityDate);
+            }
+            return dates;
+        }
+        Date recurStart = holiday.RecurrenceStartDate != null ? holiday.RecurrenceStartDate : startDate;
+        Date recurEnd = holiday.RecurrenceEndDateOnly != null ? holiday.RecurrenceEndDateOnly : endDate;
+        Date windowStart = startDate > recurStart ? startDate : recurStart;
+        Date windowEnd = endDate < recurEnd ? endDate : recurEnd;
+        if (windowStart > windowEnd) {
+            return dates;
+        }
+        String recurType = holiday.RecurrenceType;
+        if (recurType == 'RecursYearly' || recurType == 'RecursYearlyNth') {
+            for (Integer year = windowStart.year(); year <= windowEnd.year(); year++) {
+                Date occurrence = yearlyHolidayDate(holiday, year);
+                if (occurrence != null && occurrence >= windowStart && occurrence <= windowEnd) {
+                    dates.add(occurrence);
+                }
+            }
+        } else if (recurType == 'RecursMonthly' || recurType == 'RecursMonthlyNth') {
+            Date cursor = Date.newInstance(windowStart.year(), windowStart.month(), 1);
+            Date lastMonth = Date.newInstance(windowEnd.year(), windowEnd.month(), 1);
+            while (cursor <= lastMonth) {
+                Date occurrence = monthlyHolidayDate(holiday, cursor.year(), cursor.month());
+                if (occurrence != null && occurrence >= windowStart && occurrence <= windowEnd) {
+                    dates.add(occurrence);
+                }
+                cursor = cursor.addMonths(1);
+            }
+        } else {
+            Integer interval = holiday.RecurrenceInterval == null || holiday.RecurrenceInterval < 1
+                ? 1
+                : holiday.RecurrenceInterval;
+            for (Date cursor = recurStart; cursor <= windowEnd; cursor = cursor.addDays(interval)) {
+                if (cursor >= windowStart && matchesRecurrenceMask(holiday, cursor)) {
+                    dates.add(cursor);
+                }
+            }
+        }
+        return dates;
+    }
+
+    private static Date yearlyHolidayDate(Holiday holiday, Integer year) {
+        Integer month = monthFromName(holiday.RecurrenceMonthOfYear);
+        if (month == null) {
+            month = holiday.RecurrenceStartDate != null ? holiday.RecurrenceStartDate.month() : null;
+        }
+        if (month == null) {
+            return null;
+        }
+        if (holiday.RecurrenceType == 'RecursYearlyNth') {
+            return nthWeekdayInMonth(year, month, holiday.RecurrenceInstance, holiday.RecurrenceDayOfWeekMask);
+        }
+        Integer day = holiday.RecurrenceDayOfMonth;
+        if (day == null && holiday.RecurrenceStartDate != null) {
+            day = holiday.RecurrenceStartDate.day();
+        }
+        if (day == null) {
+            return null;
+        }
+        Integer lastDay = Date.newInstance(year, month, 1).addMonths(1).addDays(-1).day();
+        return Date.newInstance(year, month, Math.min(day, lastDay));
+    }
+
+    private static Date monthlyHolidayDate(Holiday holiday, Integer year, Integer month) {
+        if (holiday.RecurrenceType == 'RecursMonthlyNth') {
+            return nthWeekdayInMonth(year, month, holiday.RecurrenceInstance, holiday.RecurrenceDayOfWeekMask);
+        }
+        Integer day = holiday.RecurrenceDayOfMonth;
+        if (day == null) {
+            return null;
+        }
+        Integer lastDay = Date.newInstance(year, month, 1).addMonths(1).addDays(-1).day();
+        return Date.newInstance(year, month, Math.min(day, lastDay));
+    }
+
+    private static Date nthWeekdayInMonth(Integer year, Integer month, String instance, Integer dayOfWeekMask) {
+        Date first = Date.newInstance(year, month, 1);
+        Date last = first.addMonths(1).addDays(-1);
+        List<Date> matches = new List<Date>();
+        for (Date cursor = first; cursor <= last; cursor = cursor.addDays(1)) {
+            if (matchesDayOfWeekMask(cursor, dayOfWeekMask)) {
+                matches.add(cursor);
+            }
+        }
+        if (matches.isEmpty()) {
+            return null;
+        }
+        if (instance == 'Last') {
+            return matches[matches.size() - 1];
+        }
+        Integer index = instance == 'Second' ? 1 : instance == 'Third' ? 2 : instance == 'Fourth' ? 3 : 0;
+        return index < matches.size() ? matches[index] : null;
+    }
+
+    private static Boolean matchesRecurrenceMask(Holiday holiday, Date day) {
+        if (holiday.RecurrenceDayOfWeekMask == null) {
+            return true;
+        }
+        return matchesDayOfWeekMask(day, holiday.RecurrenceDayOfWeekMask);
+    }
+
+    private static Boolean matchesDayOfWeekMask(Date day, Integer mask) {
+        if (mask == null) {
+            return false;
+        }
+        return (mask & (1 << dayOfWeekIndex(day))) != 0;
+    }
+
+    private static Integer dayOfWeekIndex(Date d) {
         Integer dayOfWeek = Math.mod(Date.newInstance(2000, 1, 2).daysBetween(d), 7);
         if (dayOfWeek < 0) {
             dayOfWeek += 7;
         }
-        if (department == 'AM') {
-            return dayOfWeek == 5 || dayOfWeek == 6;
+        return dayOfWeek;
+    }
+
+    private static Integer monthFromName(String monthName) {
+        if (String.isBlank(monthName)) {
+            return null;
         }
-        if (department == 'PM') {
-            return dayOfWeek == 4 || dayOfWeek == 5;
-        }
-        return dayOfWeek == 5 || dayOfWeek == 6;
+        Map<String, Integer> months = new Map<String, Integer>{
+            'January' => 1,
+            'February' => 2,
+            'March' => 3,
+            'April' => 4,
+            'May' => 5,
+            'June' => 6,
+            'July' => 7,
+            'August' => 8,
+            'September' => 9,
+            'October' => 10,
+            'November' => 11,
+            'December' => 12
+        };
+        return months.get(monthName);
     }
 
     public class GetDatesInMonthRequest {

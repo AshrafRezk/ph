@@ -1,33 +1,94 @@
 public with sharing class WorkingCalendarUtil {
-    /**
-     * BRD working week: Saturday through Wednesday.
-     * Non-working: Thursday (4), Friday (5) in JavaScript Date.getDay() convention.
-     */
+    // Working days for the current user. Prefer Admin Console Planner Rules;
+    // else Working Calendar metadata; else Egypt Sat–Wed.
+    private static Set<Integer> workingDaySet;
+    @TestVisible
+    private static Boolean acknowledgeWarnings = false;
+
+    public static void clearWorkingDayCache() {
+        workingDaySet = null;
+    }
+
+    public static void setAcknowledgeWarnings(Boolean value) {
+        acknowledgeWarnings = value == true;
+    }
+
+    private static Set<Integer> getWorkingDaySet() {
+        if (workingDaySet == null) {
+            workingDaySet = new Set<Integer>();
+            try {
+                Set<Integer> fromRules = PlannerRulesService.workingDaySet();
+                if (fromRules != null && !fromRules.isEmpty()) {
+                    workingDaySet.addAll(fromRules);
+                }
+            } catch (Exception e) {
+                // Planner rules unavailable — try metadata.
+            }
+            if (workingDaySet.isEmpty()) {
+                try {
+                    for (Integer d : WorkingCalendarService.getForCurrentUser().workingDays) {
+                        workingDaySet.add(d);
+                    }
+                } catch (Exception e) {
+                    // Metadata unavailable — fall back to the default below.
+                }
+            }
+            if (workingDaySet.isEmpty()) {
+                workingDaySet = new Set<Integer>{ 6, 0, 1, 2, 3 };
+            }
+        }
+        return workingDaySet;
+    }
+
     public static Boolean isWorkingDay(Date day) {
         if (day == null) {
             return false;
         }
-        Integer dow = Math.mod(Date.newInstance(1900, 1, 7).daysBetween(day), 7);
-        // Salesforce Date.dayOfWeek(): 0=Sun ... 6=Sat in some contexts.
-        // Use explicit day-of-week via Datetime for consistency.
         Datetime dt = Datetime.newInstance(day, Time.newInstance(12, 0, 0, 0));
-        String dayName = dt.format('u'); // ISO: 1=Mon ... 7=Sun
-        Integer isoDow = Integer.valueOf(dayName);
-        // Sat=6, Sun=7, Mon=1, Tue=2, Wed=3 are working
-        return isoDow == 6 || isoDow == 7 || isoDow <= 3;
+        Integer isoDow = Integer.valueOf(dt.format('u')); // ISO: 1=Mon..7=Sun
+        Integer jsDay = Math.mod(isoDow, 7); // Mon(1)->1 .. Sat(6)->6, Sun(7)->0
+        return getWorkingDaySet().contains(jsDay);
     }
 
     public static Boolean isNonWorkingDay(Date day) {
         return !isWorkingDay(day);
     }
 
+    public static Boolean isBlockedDay(Date day) {
+        return isNonWorkingDay(day) || PublicHolidayService.isPublicHoliday(day);
+    }
+
     public static void assertWorkingDay(DateTime startDateTime) {
+        assertWorkingDayForUser(startDateTime, UserInfo.getUserId());
+    }
+
+    /**
+     * Weekend and holiday rules of the given user (the visit's assigned rep), so a manager
+     * planning for a rep is checked against the rep's Planner Rules, not their own.
+     */
+    public static void assertWorkingDayForUser(DateTime startDateTime, Id userId) {
         if (startDateTime == null) {
             return;
         }
-        if (isNonWorkingDay(startDateTime.date())) {
-            throw new AuraHandledException(
-                'Visits can only be scheduled on working days (Saturday through Wednesday).'
+        Id ruleUserId = userId == null ? UserInfo.getUserId() : userId;
+        Date day = startDateTime.date();
+        Boolean nonWorking = ruleUserId == UserInfo.getUserId()
+            ? isNonWorkingDay(day)
+            : !PlannerRulesService.isWorkingDayForUser(day, ruleUserId);
+        if (nonWorking) {
+            PlannerRulesService.enforceForUser(
+                'Weekend',
+                'Visits can only be scheduled on working days. Change the day or ask SFE to adjust Planner Rules weekends.',
+                acknowledgeWarnings,
+                ruleUserId
+            );
+        }
+        if (PublicHolidayService.isPublicHoliday(day)) {
+            PlannerRulesService.enforceForUser(
+                'Visit_Holiday',
+                'Visits cannot be scheduled on a public holiday. Choose another working day.',
+                acknowledgeWarnings,
+                ruleUserId
             );
         }
     }

@@ -156,7 +156,7 @@ public with sharing class AccountCreateQualityService {
       result.missingRequired.add('Governorate');
     }
     if (String.isBlank(input.landmark)) {
-      result.missingRequired.add('????? ?????');
+      result.missingRequired.add('Landmark');
     }
 
     List<String> uniquePhones = uniqueNormalizedPhones(

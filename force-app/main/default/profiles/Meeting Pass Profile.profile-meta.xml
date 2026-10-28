@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Profile xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>MeetingCheckInController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ZetaHcpContentService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ZetaHcpRequestService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ZetaHcpSignInService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>false</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Hcp_Pin_Send__e</object>
+        <viewAllRecords>false</viewAllRecords>
+    </objectPermissions>
+    <custom>true</custom>
+    <pageAccesses>
+        <apexPage>m</apexPage>
+        <enabled>true</enabled>
+    </pageAccesses>
+    <userLicense>Guest User License</userLicense>
+</Profile>

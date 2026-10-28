@@ -3,7 +3,7 @@
         <header class="sales-admin-header">
             <div>
                 <h2 class="sales-admin-title">Sales Data</h2>
-                <p class="sales-admin-subtitle">Import IbnSina / Pharmaoverseas CSV files and review loaded sell-out data.</p>
+                <p class="sales-admin-subtitle">Load sell-out, then set the module SOB or the SOB for one product. Pharmacy mapping stays a later step.</p>
             </div>
             <lightning-button
                 label="Seed Demo Data"
@@ -101,6 +101,79 @@
             </div>
         </template>
 
+        <template if:true={isSobTab}>
+            <div class="panel">
+                <p>{sobNote}</p>
+                <template if:false={canEditSob}>
+                    <p>You can review targets here. Only a super admin can change them.</p>
+                </template>
+                <template if:true={canEditSob}>
+                    <div class="import-actions">
+                        <lightning-input
+                            type="number"
+                            label="Module SOB %"
+                            value={defaultPercent}
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            onchange={handleDefaultPercentChange}
+                        ></lightning-input>
+                        <lightning-button label="Save module SOB" variant="brand" onclick={handleSaveDefault}></lightning-button>
+                    </div>
+                    <h3 class="section-title">SOB for one product</h3>
+                    <div class="import-actions">
+                        <lightning-combobox
+                            label="Product"
+                            value={selectedProductId}
+                            options={productOptions}
+                            placeholder="Search and choose a product"
+                            onchange={handleProductChange}
+                        ></lightning-combobox>
+                        <lightning-input
+                            type="search"
+                            label="Find product"
+                            onchange={handleProductSearch}
+                        ></lightning-input>
+                        <lightning-input
+                            type="number"
+                            label="Item SOB %"
+                            value={itemPercent}
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            onchange={handleItemPercentChange}
+                        ></lightning-input>
+                        <lightning-button label="Save item SOB" variant="brand" onclick={handleSaveItem}></lightning-button>
+                    </div>
+                </template>
+                <h3 class="section-title">Item targets</h3>
+                <template if:true={sobItems.length}>
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>SOB %</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={sobItems} for:item="item">
+                                <tr key={item.id}>
+                                    <td>{item.productName}</td>
+                                    <td>{item.percent}</td>
+                                    <td>
+                                        <template if:true={canEditSob}>
+                                            <button type="button" data-product-id={item.productId} onclick={handleClearItem}>Clear</button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+            </div>
+        </template>
+
         <template if:true={isViewerTab}>
             <div class="panel">
                 <div class="viewer-actions">
@@ -125,6 +198,153 @@
                     columns={batchColumns}
                     hide-checkbox-column
                 ></lightning-datatable>
+            </div>
+        </template>
+
+        <template if:true={isDigestionTab}>
+            <div class="panel digestion-panel">
+                <div class="viewer-actions">
+                    <lightning-button
+                        label="Load example"
+                        variant="brand"
+                        onclick={handleLoadDigestionExample}
+                        disabled={digestionBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Refresh"
+                        onclick={loadDigestionExample}
+                        disabled={digestionBusy}
+                    ></lightning-button>
+                </div>
+
+                <p class="empty-copy">
+                    One brick-sized worked example from the 14 October digestion order. Load is
+                    idempotent and does not reload June.
+                </p>
+
+                <h3 class="section-title">Steps</h3>
+                <ol class="digestion-steps">
+                    <template for:each={digestionSteps} for:item="step">
+                        <li key={step.key}>{step.label}</li>
+                    </template>
+                </ol>
+
+                <template if:false={hasDigestionExample}>
+                    <p class="empty-copy">{digestionExample.message}</p>
+                </template>
+
+                <template if:true={hasDigestionExample}>
+                    <h3 class="section-title">Doctor class change</h3>
+                    <table class="preview-table">
+                        <tbody>
+                            <tr>
+                                <th>Doctor</th>
+                                <td>{digestionExample.doctorName}</td>
+                            </tr>
+                            <tr>
+                                <th>Product</th>
+                                <td>{digestionExample.productName}</td>
+                            </tr>
+                            <tr>
+                                <th>Brick</th>
+                                <td>{digestionExample.brickName}</td>
+                            </tr>
+                            <tr>
+                                <th>Month</th>
+                                <td>{digestionExample.reportMonthLabel}</td>
+                            </tr>
+                            <tr>
+                                <th>Last month class</th>
+                                <td>{digestionExample.lastMonthClass}</td>
+                            </tr>
+                            <tr>
+                                <th>This month class</th>
+                                <td>{digestionExample.thisMonthClass}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3 class="section-title">Pharmacies on the brick</h3>
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                <th>Pharmacy</th>
+                                <th>Exclude from ceiling</th>
+                                <th>Raw qty</th>
+                                <th>Kept</th>
+                                <th>To bulk</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={digestionPharmacies} for:item="row">
+                                <tr key={row.pharmacyName}>
+                                    <td>{row.pharmacyName}</td>
+                                    <td>
+                                        <template if:true={row.excludeFromCeiling}>Yes</template>
+                                        <template if:false={row.excludeFromCeiling}>No</template>
+                                    </td>
+                                    <td>{row.rawQty}</td>
+                                    <td>{row.retainedQty}</td>
+                                    <td>{row.bulkQty}</td>
+                                    <td>{row.note}</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+
+                    <h3 class="section-title">Bulk share</h3>
+                    <table class="preview-table">
+                        <tbody>
+                            <tr>
+                                <th>Total bulk</th>
+                                <td>{digestionExample.totalBulk}</td>
+                            </tr>
+                            <tr>
+                                <th>Actual contribution %</th>
+                                <td>{digestionExample.actualSharePct}</td>
+                            </tr>
+                            <tr>
+                                <th>Target contribution %</th>
+                                <td>{digestionExample.targetSharePct}</td>
+                            </tr>
+                            <tr>
+                                <th>Average %</th>
+                                <td>{digestionExample.averageSharePct}</td>
+                            </tr>
+                            <tr>
+                                <th>Bulk share qty</th>
+                                <td>{digestionExample.bulkShareQty}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3 class="section-title">Item target</h3>
+                    <table class="preview-table">
+                        <tbody>
+                            <tr>
+                                <th>Original</th>
+                                <td>{digestionExample.originalTarget}</td>
+                            </tr>
+                            <tr>
+                                <th>Buffer</th>
+                                <td>{digestionExample.bufferTarget}</td>
+                            </tr>
+                            <tr>
+                                <th>Attained</th>
+                                <td>{digestionExample.attained}</td>
+                            </tr>
+                            <tr>
+                                <th>Effective (shortage off)</th>
+                                <td>{digestionExample.effectiveTargetShortageOff}</td>
+                            </tr>
+                            <tr>
+                                <th>Effective (shortage on)</th>
+                                <td>{digestionExample.effectiveTargetShortageOn}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </template>
             </div>
         </template>
     </section>

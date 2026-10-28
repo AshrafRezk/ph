@@ -1,5 +1,11 @@
-import { LightningElement, track } from 'lwc';
+import { LightningElement, track, wire } from 'lwc';
+import { MessageContext } from 'lightning/messageService';
 import getActiveMessages from '@salesforce/apex/HomeOfficeMessageController.getActiveMessages';
+import {
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
 
 const ROTATE_MS = 6000;
 
@@ -7,15 +13,46 @@ export default class HomeOfficeMessages extends LightningElement {
     @track messages = [];
     @track isLoading = true;
     @track activeIndex = 0;
+    featureEnabled = true;
 
     _rotateTimer = null;
+    _messageContext;
+    territoryContextSubscription;
+
+    @wire(MessageContext)
+    wiredMessageContext(value) {
+        this._messageContext = value;
+        this.subscribeTerritoryContext();
+    }
 
     connectedCallback() {
-        this.loadMessages();
+        this.subscribeTerritoryContext();
+        void this.bootstrap();
+    }
+
+    async bootstrap() {
+        await loadFieldFeatures();
+        this.featureEnabled = isFieldFeatureEnabled('home.officeMessages');
+        if (this.featureEnabled) {
+            this.loadMessages();
+        } else {
+            this.isLoading = false;
+        }
     }
 
     disconnectedCallback() {
         this.stopRotation();
+        unsubscribeTerritoryContext(this.territoryContextSubscription);
+        this.territoryContextSubscription = undefined;
+    }
+
+    subscribeTerritoryContext() {
+        if (this.territoryContextSubscription || !this._messageContext) {
+            return;
+        }
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+            void this.loadMessages();
+        });
     }
 
     get hasMessages() {

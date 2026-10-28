@@ -1,5 +1,5 @@
 .coaching-modal-container {
-    max-width: 52rem;
+    max-width: 58rem;
     width: 95%;
 }
 
@@ -84,8 +84,94 @@
     padding: 0.5rem;
 }
 
+.visit-picker,
+.associated-block {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5rem;
+    padding: 0.875rem 1rem;
+}
+
+.visit-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.visit-count-pill {
+    display: inline-flex;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #0176d3;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.visit-list {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.visit-card {
+    border: 1px solid #d8e6f8;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    background: #f8fbff;
+}
+
+.visit-card-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.visit-card-meta {
+    margin: 0.25rem 0 0 1.75rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+}
+
+.notes-preview {
+    margin: 0.5rem 0 0 1.75rem;
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+    white-space: pre-wrap;
+}
+
+.current-pill,
+.other-event-pill {
+    display: inline-flex;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.current-pill {
+    background: #0176d3;
+    color: #fff;
+}
+
+.other-event-pill {
+    background: #dddbda;
+    color: #3e3e3c;
+}
+
 @media (max-width: 48rem) {
     .coaching-meta-grid {
         grid-template-columns: 1fr;
+    }
+
+    .visit-card-meta,
+    .notes-preview {
+        margin-left: 0;
     }
 }

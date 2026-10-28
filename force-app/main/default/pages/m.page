@@ -1,0 +1,1201 @@
+<apex:page controller="MeetingCheckInController" action="{!logScan}" showHeader="false" sidebar="false" standardStylesheets="false" applyHtmlTag="false" applyBodyTag="false" cache="false" contentType="{!contentType}">
+    <apex:outputText rendered="{!view == 'manifest'}" value="{!manifestJson}" escape="false" />
+    <apex:outputText rendered="{!view == 'sw'}" value="{!swScript}" escape="false" />
+    <apex:outputText rendered="{!view == 'ics'}" value="{!icsText}" escape="false" />
+    <apex:outputText rendered="{!view == 'api'}" value="{!apiJson}" escape="false" />
+    <apex:outputText rendered="{!view == 'status'}" value="{!IF(invalid, 'Invalid', status)}" />
+    <apex:outputPanel rendered="{!view == 'page'}" layout="none">
+    <apex:outputText value="{!html5Doctype}" escape="false" />
+    <html lang="en">
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+            <meta name="robots" content="noindex, nofollow" />
+            <meta name="theme-color" content="#032d60" />
+            <meta name="mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+            <meta name="apple-mobile-web-app-title" content="Zeta" />
+            <link rel="manifest" href="{!manifestUrl}" />
+            <link rel="icon" type="image/png" sizes="192x192" href="{!URLFOR($Resource.MeetingPassIcon192)}" />
+            <link rel="apple-touch-icon" href="{!appleIconDataUri}" />
+            <title>Zeta Pharma</title>
+            <style>
+                :root { color-scheme: light; --brand: #0b5cab; --brand-deep: #032d60; --sky: #0d9dda; --ok: #2e844a; --muted: #6b7280; --line: rgba(3,45,96,0.09); --bg: #f4f7fb; --bar-h: 4.25rem; --stage-h: calc(100dvh - var(--bar-h) - 4.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+                * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+                html, body { overscroll-behavior-y: none; overflow-x: hidden; }
+                body { margin: 0; font-family: "Salesforce Sans", -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: linear-gradient(180deg, #e7f0fa 0, var(--bg) 14rem); color: #181818; min-height: 100vh; }
+                body.is-home { height: 100dvh; min-height: 100dvh; overflow: hidden; background: linear-gradient(165deg, #d5e8fa 0%, #eef4fb 32%, #f4f7fb 58%, #e4f5f2 100%); background-size: 160% 160%; animation: mesh 18s ease-in-out infinite; }
+                html:has(body.is-home) { height: 100%; overflow: hidden; }
+                @keyframes mesh { 0% { background-position: 0% 40%; } 50% { background-position: 100% 60%; } 100% { background-position: 0% 40%; } }
+                body.sheet-open { overflow: hidden; }
+                button { font: inherit; }
+                .wrap { position: relative; z-index: 1; max-width: 30rem; margin: 0 auto; padding: 0 1rem calc(var(--bar-h) + 2rem + env(safe-area-inset-bottom)); }
+                body.is-home .wrap { height: 100%; display: flex; flex-direction: column; padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom)); }
+                .ambient { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
+                body:not(.is-home) .ambient { opacity: 0; }
+
+                .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.6rem; padding: calc(0.7rem + env(safe-area-inset-top)) 0 0.7rem; background: linear-gradient(180deg, rgba(231,240,250,0.96) 70%, rgba(231,240,250,0)); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+                .top img { width: 2.2rem; height: 2.2rem; border-radius: 0.65rem; background: #fff; padding: 0.2rem; box-shadow: 0 2px 6px rgba(3,45,96,0.15); }
+                .top b { font-weight: 800; color: var(--brand-deep); letter-spacing: 0.02em; }
+                .net { margin-left: auto; font-size: 0.72rem; font-weight: 800; background: #fef1e0; color: #a96404; border-radius: 999px; padding: 0.2rem 0.6rem; }
+                .net[hidden] { display: none; }
+
+                .tab[hidden] { display: none; }
+                .tab { animation: fade 0.25s ease; }
+                body.is-home #tab-home { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: none; }
+                .stage { flex: 1; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior-y: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+                .stage::-webkit-scrollbar { display: none; }
+                .stage { scroll-behavior: smooth; }
+                .scene { height: var(--stage-h); min-height: var(--stage-h); scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: center; justify-content: safe center; padding: 0.15rem 0 2.5rem; overflow: hidden; }
+                .scene__in { width: 100%; perspective: 1100px; }
+                .scene--invite .scene__in { animation: riseIn 0.75s cubic-bezier(.16, 1, .3, 1) both; }
+                @keyframes riseIn { from { opacity: 0; transform: translateY(22px) scale(0.985); } to { opacity: 1; transform: none; } }
+                .scene--invite .tab__head { margin: 0 0 0.55rem; }
+                .scene--invite .title { font-size: 1.38rem; }
+                .scene--invite .card { padding: 0.95rem 1rem 1rem; }
+                .scene--invite .card h1 { font-size: 1.25rem; margin: 0.25rem 0 0.15rem; }
+                .scene--invite .hello { margin-bottom: 0.75rem; }
+                .scene--invite .facts { gap: 0.38rem; margin-bottom: 0.75rem; }
+                .scene--invite .facts li { padding: 0.42rem 0.65rem; }
+                .scene--invite .cal { margin-top: 0.75rem; padding-top: 0.7rem; }
+                .scene--pass .pass { padding: 0.95rem 1rem 1rem; }
+                .scene--pass .qr { width: min(15rem, 92%); }
+                .scene--pass .bar { width: min(15rem, 92%); margin-top: 0.65rem; }
+                .cal--solo { margin-top: 0.7rem; background: rgba(255,255,255,0.92); border: 1px solid rgba(3,45,96,0.06); border-radius: 1rem; padding: 0.75rem 0.85rem 0.85rem; box-shadow: 0 10px 24px rgba(3,45,96,0.08); }
+                .scene--pass .cal { border-top: 0; margin-top: 0.7rem; padding-top: 0.75rem; }
+                @media (max-height: 760px) {
+                    .scene--pass .qr, .scene--pass .bar { width: min(11.5rem, 78%); }
+                    .scene--pass .pass { padding: 0.65rem 0.75rem 0.6rem; }
+                    .scene--pass .pass__hint { margin-top: 0.28rem; font-size: 0.74rem; line-height: 1.3; }
+                    .cal--solo { margin-top: 0.4rem; padding: 0.45rem 0.6rem 0.5rem; }
+                }
+                .scene--more { overflow-y: auto; }
+                .scene .card, .scene .pass { position: relative; transform-style: preserve-3d; will-change: transform; }
+                .glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(90% 70% at var(--gx, 50%) var(--gy, 18%), rgba(255,255,255,0.55), transparent 58%); mix-blend-mode: soft-light; opacity: 0.85; }
+                .pass .glare { background: radial-gradient(80% 60% at var(--gx, 32%) var(--gy, 18%), rgba(255,255,255,0.55), transparent 46%), linear-gradient(115deg, transparent 28%, rgba(186, 230, 255, 0.28) 48%, transparent 64%); mix-blend-mode: screen; opacity: 1; }
+                .pass.is-presenting { filter: saturate(1.08) brightness(1.07); box-shadow: 0 28px 60px rgba(3,45,96,0.42); }
+                .pass.is-tick .live i { animation: none; transform: scale(1.35); background: #d8ffe2; }
+                .pass-peek { display: flex; align-items: center; justify-content: center; gap: 0.4rem; width: 100%; margin-top: 0.55rem; border: 0; border-radius: 1rem; padding: 0.62rem 1rem; color: #fff; background: linear-gradient(140deg, #032d60, #0b5cab 68%, #0d9dda); font-weight: 800; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; box-shadow: 0 12px 26px rgba(3,45,96,0.24); cursor: pointer; touch-action: manipulation; }
+                .pass-peek[hidden] { display: none; }
+                .pass-peek svg { animation: bob 1.35s ease-in-out infinite; }
+                @keyframes bob { 50% { transform: translateY(3px); } }
+                .is-tap { animation: tap 0.46s cubic-bezier(.2, 1.4, .32, 1); }
+                @keyframes tap { 0% { transform: scale(1); } 38% { transform: scale(0.955); } 100% { transform: scale(1); } }
+                @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+                .tab__head { margin: 0.3rem 0 0.9rem; }
+                .title { margin: 0; font-size: 1.55rem; line-height: 1.2; color: var(--brand-deep); letter-spacing: -0.01em; }
+                .sub { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+                .section-h { display: flex; align-items: baseline; justify-content: space-between; margin: 1.4rem 0 0.6rem; }
+                .section-h h2 { margin: 0; font-size: 1.05rem; color: var(--brand-deep); }
+                .link { border: 0; background: none; padding: 0; color: var(--brand); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+                .empty { text-align: center; color: var(--muted); font-size: 0.9rem; padding: 1.6rem 1rem; background: #fff; border-radius: 1rem; border: 1px dashed var(--line); }
+                .empty[hidden] { display: none; }
+
+                .card { background: #fff; border-radius: 1.25rem; padding: 1.3rem 1.2rem 1.4rem; box-shadow: 0 10px 30px rgba(3,45,96,0.10); border: 1px solid rgba(3,45,96,0.06); }
+                .card + .card { margin-top: 1rem; }
+                .eyebrow { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--brand); }
+                .card h1 { margin: 0.35rem 0 0.2rem; font-size: 1.4rem; line-height: 1.25; color: var(--brand-deep); }
+                .hello { margin: 0 0 1rem; color: #444; }
+                .facts { list-style: none; margin: 0 0 1.1rem; padding: 0; display: grid; gap: 0.5rem; }
+                .facts li { background: #f6f8fb; border-radius: 0.75rem; padding: 0.6rem 0.75rem; }
+                .facts b { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.1rem; }
+                .pill { display: inline-block; border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.78rem; font-weight: 700; background: #eef4ff; color: var(--brand); }
+                .pill.ok { background: #e6f4ea; color: var(--ok); }
+                .pill.warn { background: #fef1e0; color: #a96404; }
+                .confirm { margin-top: 0.25rem; }
+                .cta { position: relative; display: flex; align-items: center; gap: 0.85rem; width: 100%; padding: 0.8rem 1.1rem 0.8rem 0.8rem; border-radius: 1rem; text-decoration: none; color: #fff; background: linear-gradient(135deg, #0b5cab 0%, #0d9dda 100%); box-shadow: 0 10px 24px rgba(11,92,171,0.32), inset 0 1px 0 rgba(255,255,255,0.25); transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; overflow: hidden; }
+                .cta::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.22) 50%, transparent 65%); transform: translateX(-100%); animation: ctaSheen 3.5s ease-in-out infinite; pointer-events: none; }
+                @keyframes ctaSheen { 60%, 100% { transform: translateX(100%); } }
+                .cta:hover { filter: brightness(1.05); }
+                .cta:active { transform: scale(0.98); }
+                .cta:focus-visible { outline: 3px solid rgba(13,157,218,0.45); outline-offset: 3px; }
+                .cta__icon { flex: none; display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 0.8rem; background: rgba(255,255,255,0.2); }
+                .cta__text { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+                .cta__en { font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; }
+                .cta__ar { direction: rtl; font-size: 0.88rem; opacity: 0.88; margin-top: 0.1rem; align-self: flex-start; }
+                .cta__busy { display: none; font-weight: 800; font-size: 1.05rem; }
+                .cta.is-busy { pointer-events: none; filter: saturate(0.8); }
+                .cta.is-busy .cta__text { display: none; }
+                .cta.is-busy .cta__busy { display: block; }
+                .cta.is-busy .cta__icon svg { display: none; }
+                .cta.is-busy .cta__icon::before { content: ""; width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff; animation: spin 0.7s linear infinite; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .note { margin: 0.8rem 0 0; font-size: 0.85rem; color: var(--muted); text-align: center; }
+                .ar { direction: rtl; text-align: center; color: #444; margin: 0.4rem 0 0; font-size: 0.92rem; }
+                .flash { background: #e6f4ea; color: var(--ok); border-radius: 0.75rem; padding: 0.6rem 0.75rem; margin-bottom: 0.9rem; font-weight: 700; text-align: center; animation: pop 0.45s cubic-bezier(.2,.9,.3,1.2); }
+                .done { text-align: center; padding: 0.4rem 0 0.2rem; }
+                .tick { width: 4.5rem; height: 4.5rem; border-radius: 50%; background: #e6f4ea; color: var(--ok); display: grid; place-items: center; font-size: 2.3rem; margin: 0 auto 0.6rem; animation: pop 0.4s cubic-bezier(.2,.9,.3,1.3); }
+                @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+                .pass { position: relative; overflow: hidden; border-radius: 1.4rem; padding: 1.1rem 1.1rem 1.2rem; color: #fff; background: linear-gradient(140deg, #032d60 0%, #0b5cab 60%, #0d9dda 100%); box-shadow: 0 18px 40px rgba(3,45,96,0.35); margin-top: 0; scroll-margin-top: 4rem; }
+                .pass::before { content: ""; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.16) 50%, transparent 60%); animation: sheen 3.2s linear infinite; pointer-events: none; }
+                @keyframes sheen { from { transform: translateX(-30%); } to { transform: translateX(30%); } }
+                .pass__head { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+                .pass__label { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+                .pass__name { font-size: 1.1rem; font-weight: 800; margin-top: 0.15rem; }
+                .live { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 0.3rem 0.65rem; font-size: 0.78rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+                .live i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #45c65a; box-shadow: 0 0 0 0 rgba(69,198,90,0.7); animation: pulse 1s infinite; }
+                @keyframes pulse { to { box-shadow: 0 0 0 0.5rem rgba(69,198,90,0); } }
+                .qr { position: relative; margin: 0.9rem auto 0; width: min(17.5rem, 100%); aspect-ratio: 1; background: #fff; border-radius: 1.1rem; padding: 0.6rem; }
+                .qr canvas { display: block; width: 100%; height: 100%; -webkit-touch-callout: none; user-select: none; pointer-events: none; }
+                .qr__cover { position: absolute; inset: 0; border-radius: 1.1rem; background: #fff; display: none; place-items: center; color: var(--brand-deep); font-weight: 800; text-align: center; padding: 1rem; }
+                .qr.is-hidden .qr__cover, .qr.is-error .qr__cover { display: grid; }
+                .bar { position: relative; height: 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.22); margin: 0.9rem auto 0; width: min(17.5rem, 100%); overflow: hidden; }
+                .bar span { position: absolute; inset: 0 auto 0 0; width: 0; background: #fff; border-radius: 999px; }
+                .pass__hint { position: relative; text-align: center; font-size: 0.85rem; margin: 0.8rem 0 0; opacity: 0.92; }
+                .pass__hint.ar { color: #fff; }
+                .soon { position: relative; margin-top: 0.75rem; text-align: center; font-size: 0.8rem; background: rgba(255,255,255,0.14); border-radius: 0.7rem; padding: 0.45rem 0.6rem; }
+                .cal { margin-top: 1.1rem; border-top: 1px dashed rgba(3,45,96,0.12); padding-top: 1rem; }
+                .cal__title { display: flex; align-items: center; gap: 0.45rem; font-weight: 800; color: var(--brand-deep); font-size: 0.95rem; }
+                .cal__sub { margin: 0.2rem 0 0.75rem; font-size: 0.82rem; color: var(--muted); }
+                .cal__row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+                .chip { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.7rem 0.6rem; border-radius: 0.9rem; border: 1px solid rgba(3,45,96,0.12); background: #fff; color: var(--brand-deep); font-weight: 700; font-size: 0.9rem; text-decoration: none; box-shadow: 0 2px 6px rgba(3,45,96,0.06); transition: transform 0.15s ease, border-color 0.15s ease; }
+                .chip:active { transform: scale(0.97); }
+                .chip svg { flex: none; }
+
+                .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; border: 0; border-radius: 0.9rem; padding: 0.8rem 1rem; font-weight: 800; font-size: 0.95rem; cursor: pointer; text-decoration: none; transition: transform 0.15s ease, filter 0.15s ease; }
+                .btn:active { transform: scale(0.97); }
+                .btn--primary { color: #fff; background: linear-gradient(135deg, #0b5cab, #0d9dda); box-shadow: 0 8px 18px rgba(11,92,171,0.28); }
+                .btn--soft { color: var(--brand-deep); background: #eef4fb; }
+                .btn--danger { color: #fff; background: linear-gradient(135deg, #b42318, #e0533d); box-shadow: 0 8px 18px rgba(180,35,24,0.25); }
+                .btn--block { width: 100%; }
+                .btn[disabled] { opacity: 0.6; pointer-events: none; }
+                .lbl { display: block; margin-top: 0.85rem; font-size: 0.75rem; font-weight: 800; color: var(--muted); }
+                .field { display: block; width: 100%; margin: 0.35rem 0 0.85rem; border: 1px solid rgba(3,45,96,0.14); background: #f6f8fb; border-radius: 0.9rem; padding: 0.85rem 0.9rem; font: inherit; font-size: 1rem; color: inherit; }
+                .field:focus { outline: 3px solid rgba(13,157,218,0.35); background: #fff; }
+                form[hidden] { display: none; }
+                body.is-public .tabbar__in { grid-template-columns: repeat(4, 1fr); }
+                body.is-public .tabbar [data-go="events"] { display: none; }
+
+                .tabbar { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom)); background: rgba(255,255,255,0.92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(3,45,96,0.06); }
+                .tabbar__in { position: relative; max-width: 30rem; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+                .tabbar__pill { position: absolute; left: 0; top: 0; border-radius: 999px; background: #e3eefb; pointer-events: none; z-index: 0; transition: transform 0.55s cubic-bezier(.18, 1.28, .32, 1), width 0.35s ease, height 0.35s ease; }
+                .tabbar button { position: relative; z-index: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.35rem 0 0.25rem; color: #8a94a6; font-size: 0.68rem; font-weight: 700; cursor: pointer; }
+                .tabbar svg { width: 1.45rem; height: 1.45rem; padding: 0.15rem 0.9rem; box-sizing: content-box; border-radius: 999px; }
+                .tabbar button[aria-current="page"] { color: var(--brand); }
+                .pager { position: fixed; z-index: 22; left: 50%; bottom: calc(var(--bar-h) + 0.15rem + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 0.35rem; margin: 0; padding: 0.42rem 0.55rem; border-radius: 999px; background: rgba(255,255,255,0.78); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 8px 22px rgba(3,45,96,0.12); }
+                .pager[hidden] { display: none; }
+                .pager button { width: 0.42rem; height: 0.42rem; border: 0; padding: 0; border-radius: 999px; background: rgba(3,45,96,0.22); cursor: pointer; transition: width 0.4s cubic-bezier(.2, 1.25, .32, 1), background 0.3s ease; }
+                .pager button[aria-current="true"] { width: 1.15rem; background: var(--brand); }
+                body.sheet-open .pager, body.sheet-open .pass-peek, body:not(.is-home) .pager { display: none; }
+
+                .sheet { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; justify-content: center; background: rgba(3,20,45,0.45); animation: dim 0.2s ease; }
+                .sheet[hidden] { display: none; }
+                @keyframes dim { from { background: rgba(3,20,45,0); } }
+                .sheet__panel { position: relative; width: 100%; max-width: 30rem; max-height: 88vh; overflow-y: auto; background: #fff; border-radius: 1.5rem 1.5rem 0 0; padding: 0.6rem 1.2rem calc(1.4rem + env(safe-area-inset-bottom)); animation: up 0.28s cubic-bezier(.2,.9,.3,1.1); }
+                @keyframes up { from { transform: translateY(100%); } }
+                .sheet__grip { width: 2.6rem; height: 0.3rem; border-radius: 999px; background: #d9dee7; margin: 0 auto 0.6rem; }
+                .sheet__close { position: sticky; top: 0; float: right; width: 2.2rem; height: 2.2rem; border: 0; border-radius: 50%; background: #f1f4f8; color: #4b5563; font-size: 1.3rem; line-height: 1; cursor: pointer; z-index: 1; }
+
+                .toast { position: fixed; z-index: 40; left: 50%; bottom: calc(var(--bar-h) + 1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 2rem); background: #0f1f35; color: #fff; padding: 0.7rem 1rem; border-radius: 0.9rem; font-size: 0.9rem; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: rise2 0.25s ease; }
+                .toast[hidden] { display: none; }
+                @keyframes rise2 { from { opacity: 0; transform: translate(-50%, 0.6rem); } }
+
+                .install { position: fixed; z-index: 15; left: 50%; bottom: calc(var(--bar-h) + 0.7rem + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(28rem, calc(100% - 1.5rem)); display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 0.65rem 0.65rem 0.75rem; border-radius: 1.2rem; background: rgba(255,255,255,0.97); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 14px 34px rgba(3,45,96,0.22); border: 1px solid var(--line); animation: rise 0.4s cubic-bezier(.2,.9,.3,1.15); }
+                .install[hidden] { display: none; }
+                @keyframes rise { from { transform: translate(-50%, 140%); } to { transform: translate(-50%, 0); } }
+                .install img { flex: none; width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; box-shadow: 0 2px 6px rgba(3,45,96,0.18); }
+                .install__text { flex: 1; min-width: 0; line-height: 1.3; }
+                .install__text strong { display: block; color: var(--brand-deep); font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .install__text span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.8rem; color: var(--muted); }
+                .install__btn { flex: none; border: 0; border-radius: 999px; padding: 0.55rem 1.1rem; font-weight: 800; font-size: 0.88rem; color: #fff; background: linear-gradient(135deg, #0b5cab, #0d9dda); box-shadow: 0 6px 14px rgba(11,92,171,0.28); cursor: pointer; }
+                .install__btn[hidden] { display: none; }
+                .install__close { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border: 0; border-radius: 50%; padding: 0; background: #f1f4f8; color: #6b7280; cursor: pointer; }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .pass::before, .live i, .cta::after, .tab, .sheet__panel, .pass-peek svg, .scene--invite .scene__in, body.is-home { animation: none; }
+                    .stage { scroll-behavior: auto; }
+                    .tabbar__pill, .pager button { transition: none; }
+                }
+            </style>
+            <script>
+            window.Zeta = (function () {
+                var data = <apex:outputText value="{!appJson}" escape="false" />;
+                var tabs = {};
+                var current = null;
+                var params = new URLSearchParams(window.location.search);
+                var NAMES = ['home', 'products', 'news', 'events', 'requests'];
+                var movePill = function () {};
+                var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                var PATTERNS = { soft: 8, select: 12, impact: [8, 30, 16], success: [12, 36, 18, 40, 26], tick: 9, rigid: 20 };
+
+                function haptic(kind, el) {
+                    var pattern = PATTERNS[kind] || 10;
+                    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+                    if (!el || !el.classList || el.classList.contains('card') || el.classList.contains('pass')) return;
+                    el.classList.remove('is-tap');
+                    void el.offsetWidth;
+                    el.classList.add('is-tap');
+                }
+
+                var AMP = String.fromCharCode(38);
+                var ENTITIES = { '&': 'amp;', '<': 'lt;', '>': 'gt;', '"': 'quot;', "'": '#39;' };
+                function esc(value) {
+                    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) { return AMP + ENTITIES[c]; });
+                }
+                function paragraphs(text) {
+                    return String(text || '').split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p).replace(/\n/g, '<br/>') + '</p>'; }).join('');
+                }
+                function url(tab) {
+                    var q = [];
+                    if (data.me.code) q.push('c=' + encodeURIComponent(data.me.code));
+                    if (tab && tab !== 'home') q.push('t=' + tab);
+                    return window.location.pathname + (q.length ? '?' + q.join('&') : '');
+                }
+                function go(tab, arg, mode) {
+                    if (NAMES.indexOf(tab) === -1 || (tab === 'events' && !data.me.known)) tab = 'home';
+                    NAMES.forEach(function (name) {
+                        var section = document.getElementById('tab-' + name);
+                        if (section) section.hidden = name !== tab;
+                        var button = document.querySelector('.tabbar [data-go="' + name + '"]');
+                        if (button) {
+                            if (name === tab) button.setAttribute('aria-current', 'page');
+                            else button.removeAttribute('aria-current');
+                        }
+                    });
+                    var changed = current !== tab;
+                    current = tab;
+                    document.body.classList.toggle('is-home', tab === 'home');
+                    if (changed && mode !== 'replace') haptic('select', document.querySelector('.tabbar [data-go="' + tab + '"]'));
+                    movePill();
+                    if (tabs[tab] && tabs[tab].show) tabs[tab].show(arg);
+                    if (mode !== 'pop' && window.history.pushState) {
+                        var target = url(tab);
+                        if (mode === 'replace') window.history.replaceState({ tab: tab }, '', target);
+                        else if (changed) window.history.pushState({ tab: tab }, '', target);
+                    }
+                    if (changed && mode !== 'keep') window.scrollTo(0, 0);
+                    document.dispatchEvent(new CustomEvent('zeta:tab', { detail: tab }));
+                }
+                function sheet(html) {
+                    var host = document.getElementById('sheet');
+                    document.getElementById('sheetBody').innerHTML = html;
+                    host.hidden = false;
+                    document.body.classList.add('sheet-open');
+                    host.querySelector('.sheet__panel').scrollTop = 0;
+                    haptic('soft');
+                }
+                function closeSheet() {
+                    document.getElementById('sheet').hidden = true;
+                    document.body.classList.remove('sheet-open');
+                }
+                var toastTimer;
+                function toast(text) {
+                    var el = document.getElementById('toast');
+                    el.textContent = text;
+                    el.hidden = false;
+                    clearTimeout(toastTimer);
+                    toastTimer = setTimeout(function () { el.hidden = true; }, 3200);
+                }
+                function product(id) {
+                    for (var i = 0; i < data.products.length; i++) if (data.products[i].id === id) return data.products[i];
+                    return null;
+                }
+                function request(type, preset) {
+                    closeSheet();
+                    go('requests', { type: type, preset: preset || {} });
+                }
+                function positionPill() {
+                    var pill = document.getElementById('tabPill');
+                    var btn = document.querySelector('.tabbar [aria-current="page"]');
+                    var icon = btn && btn.querySelector('svg');
+                    var bar = document.querySelector('.tabbar__in');
+                    if (!pill || !icon || !bar) return;
+                    var ir = icon.getBoundingClientRect();
+                    var br = bar.getBoundingClientRect();
+                    if (!positionPill.ready) pill.style.transition = 'none';
+                    pill.style.width = ir.width + 'px';
+                    pill.style.height = ir.height + 'px';
+                    pill.style.transform = 'translate3d(' + (ir.left - br.left) + 'px,' + (ir.top - br.top) + 'px,0)';
+                    if (!positionPill.ready) {
+                        positionPill.ready = true;
+                        window.requestAnimationFrame(function () { pill.style.transition = ''; });
+                    }
+                }
+
+                function fitStage() {
+                    var stage = document.getElementById('homeStage');
+                    if (!stage) return;
+                    var h = stage.clientHeight;
+                    if (h < 80) return;
+                    document.documentElement.style.setProperty('--stage-h', h + 'px');
+                    [].forEach.call(stage.querySelectorAll('.scene'), function (scene) {
+                        scene.style.height = h + 'px';
+                        scene.style.minHeight = h + 'px';
+                        scene.style.overflowY = 'hidden';
+                        if (scene.scrollHeight > h + 8) scene.style.overflowY = 'auto';
+                    });
+                    if (window.Zeta && window.Zeta._realign) window.Zeta._realign();
+                }
+
+                function bindFeel() {
+                    movePill = positionPill;
+                    var stage = document.getElementById('homeStage');
+                    var pager = document.getElementById('homePager');
+                    var peek = document.getElementById('homePeek');
+                    var scenes = stage ? [].slice.call(stage.querySelectorAll('.scene')) : [];
+                    var passScene = stage ? stage.querySelector('.scene--pass') : null;
+                    var pinnedScene = null;
+                    var skipUntil = 0;
+                    var aligning = false;
+                    var syncTimer = 0;
+                    var paint = function () {};
+                    function syncSceneSoon() {
+                        window.clearTimeout(syncTimer);
+                        syncTimer = window.setTimeout(function () {
+                            if (!stage || !scenes.length) return;
+                            var box = stage.getBoundingClientRect();
+                            var best = 0;
+                            var bestTop = Infinity;
+                            scenes.forEach(function (scene, i) {
+                                var top = Math.abs(scene.getBoundingClientRect().top - box.top);
+                                if (top < bestTop) { bestTop = top; best = i; }
+                            });
+                            paint(best);
+                        }, 850);
+                    }
+                    function alignStage(scene) {
+                        if (!stage || !scene || aligning) return;
+                        aligning = true;
+                        pinnedScene = scene;
+                        scene.scrollTop = 0;
+                        // Mandatory snap cancels scrollIntoView, so the QR sometimes never arrives.
+                        stage.style.scrollSnapType = 'none';
+                        stage.scrollTop += scene.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+                        window.requestAnimationFrame(function () {
+                            if (pinnedScene === scene) {
+                                var drift = scene.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+                                if (Math.abs(drift) > 1) stage.scrollTop += drift;
+                            }
+                            window.requestAnimationFrame(function () {
+                                stage.style.scrollSnapType = '';
+                                aligning = false;
+                            });
+                        });
+                    }
+                    window.Zeta._realign = function () {
+                        if (aligning || !pinnedScene || !stage) return;
+                        var drift = pinnedScene.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+                        if (Math.abs(drift) > 1) alignStage(pinnedScene);
+                    };
+                    function showPass() {
+                        if (!passScene) return;
+                        skipUntil = Date.now() + 800;
+                        var i = scenes.indexOf(passScene);
+                        if (i >= 0) paint(i);
+                        else pinnedScene = passScene;
+                        fitStage();
+                        alignStage(passScene);
+                        syncSceneSoon();
+                    }
+                    window.Zeta.showPass = showPass;
+                    fitStage();
+
+                    document.querySelectorAll('#homeStage .card, #homeStage .pass').forEach(function (el) {
+                        if (el.querySelector('.glare')) return;
+                        var glare = document.createElement('div');
+                        glare.className = 'glare';
+                        glare.setAttribute('aria-hidden', 'true');
+                        el.insertBefore(glare, el.firstChild);
+                    });
+
+                    if (pager && scenes.length > 1) {
+                        pager.hidden = false;
+                        pager.innerHTML = scenes.map(function (scene, i) {
+                            return '<button type="button" data-i="' + i + '" aria-label="' + esc(scene.getAttribute('data-scene') || 'Section') + '"' + (i === 0 ? ' aria-current="true"' : '') + '></button>';
+                        }).join('');
+                        var active = 0;
+                        var armed = false;
+                        paint = function (i) {
+                            active = i;
+                            pinnedScene = scenes[i] || null;
+                            [].forEach.call(pager.children, function (btn, n) {
+                                if (n === i) btn.setAttribute('aria-current', 'true');
+                                else btn.removeAttribute('aria-current');
+                            });
+                            if (peek) peek.hidden = !(passScene && i === 0);
+                        };
+                        if ('IntersectionObserver' in window) {
+                            var io = new IntersectionObserver(function (entries) {
+                                if (Date.now() < skipUntil) return;
+                                var best = null;
+                                entries.forEach(function (entry) {
+                                    if (!best || entry.intersectionRatio > best.intersectionRatio) best = entry;
+                                });
+                                if (!best || best.intersectionRatio < 0.55) return;
+                                var i = scenes.indexOf(best.target);
+                                if (i < 0 || i === active) return;
+                                paint(i);
+                                if (armed) haptic('select');
+                            }, { root: stage, threshold: [0.55, 0.8] });
+                            scenes.forEach(function (scene) { io.observe(scene); });
+                            window.setTimeout(function () { armed = true; }, 500);
+                        }
+                        pager.addEventListener('click', function (e) {
+                            var btn = e.target.closest('button');
+                            if (!btn) return;
+                            var i = +btn.getAttribute('data-i');
+                            if (!scenes[i]) return;
+                            skipUntil = Date.now() + 800;
+                            paint(i);
+                            alignStage(scenes[i]);
+                            syncSceneSoon();
+                            haptic('select', btn);
+                        });
+                    }
+                    if (peek) {
+                        peek.hidden = !passScene;
+                        if (passScene) {
+                            var tapX = 0;
+                            var tapY = 0;
+                            var openedAt = 0;
+                            function openPass(e) {
+                                if (e) e.preventDefault();
+                                var now = Date.now();
+                                if (now - openedAt < 400) return;
+                                openedAt = now;
+                                showPass();
+                            }
+                            peek.addEventListener('pointerdown', function (e) {
+                                tapX = e.clientX;
+                                tapY = e.clientY;
+                            });
+                            peek.addEventListener('pointerup', function (e) {
+                                if (Math.abs(e.clientX - tapX) > 12 || Math.abs(e.clientY - tapY) > 12) return;
+                                openPass(e);
+                            });
+                            peek.addEventListener('click', openPass);
+                        }
+                    }
+
+                    if (!reduceMotion) bindTilt();
+                    bindPresent();
+                    if (!reduceMotion) bindAmbient();
+
+                    document.addEventListener('pointerdown', function (e) {
+                        var el = e.target.closest('.cta, .chip, .btn, .action, .mini, .pass-peek, .install__btn, .pcard, .ncard, .rtype, .ev, .filter');
+                        if (!el || el.closest('.tabbar') || el.closest('.pager')) return;
+                        haptic(el.classList.contains('cta') ? 'impact' : 'soft', el);
+                    }, true);
+
+                    if (document.querySelector('#tab-home .flash')) haptic('success');
+                    window.addEventListener('resize', function () { fitStage(); positionPill(); });
+                }
+
+                function bindTilt() {
+                    var nodes = [].slice.call(document.querySelectorAll('#homeStage .card, #homeStage .pass'));
+                    if (!nodes.length) return;
+                    var items = nodes.map(function (el) {
+                        return { el: el, tx: 0, ty: 0, x: 0, y: 0, gx: 50, gy: 18, tgx: 42, tgy: 16, scale: 1, tscale: 1, held: false };
+                    });
+                    var gx = 0;
+                    var gy = 0;
+                    var running = false;
+                    function kick() { if (!running) { running = true; window.requestAnimationFrame(loop); } }
+                    window.Zeta._kick = kick;
+                    function loop() {
+                        var alive = false;
+                        items.forEach(function (it) {
+                            if (!it.held) { it.tx = gx; it.ty = gy; }
+                            it.x += (it.tx - it.x) * 0.16;
+                            it.y += (it.ty - it.y) * 0.16;
+                            it.gx += (it.tgx - it.gx) * 0.16;
+                            it.gy += (it.tgy - it.gy) * 0.16;
+                            it.scale += (it.tscale - it.scale) * 0.16;
+                            if (Math.abs(it.tx - it.x) > 0.04 || Math.abs(it.ty - it.y) > 0.04 || Math.abs(it.tscale - it.scale) > 0.004) alive = true;
+                            it.el.style.transform = 'rotateX(' + it.x.toFixed(2) + 'deg) rotateY(' + it.y.toFixed(2) + 'deg) scale(' + it.scale.toFixed(3) + ')';
+                            it.el.style.setProperty('--gx', it.gx.toFixed(1) + '%');
+                            it.el.style.setProperty('--gy', it.gy.toFixed(1) + '%');
+                        });
+                        if (alive) window.requestAnimationFrame(loop);
+                        else running = false;
+                    }
+                    function point(it, e) {
+                        var r = it.el.getBoundingClientRect();
+                        var px = (e.clientX - r.left) / r.width - 0.5;
+                        var py = (e.clientY - r.top) / r.height - 0.5;
+                        it.ty = Math.max(-8, Math.min(8, px * 10));
+                        it.tx = Math.max(-8, Math.min(8, py * -8));
+                        it.tgx = 50 + px * 70;
+                        it.tgy = 28 + py * 46;
+                        it.held = true;
+                        kick();
+                    }
+                    function release(it) { it.held = false; it.tgx = 42; it.tgy = 16; kick(); }
+                    items.forEach(function (it) {
+                        it.el.addEventListener('pointermove', function (e) {
+                            if (e.pointerType !== 'mouse') return;
+                            point(it, e);
+                        });
+                        it.el.addEventListener('pointerdown', function (e) {
+                            if (e.pointerType === 'mouse' || e.target.closest('a, button')) return;
+                            point(it, e);
+                        });
+                        it.el.addEventListener('pointerleave', function () { release(it); });
+                        it.el.addEventListener('pointerup', function () { release(it); });
+                    });
+                    function onTilt(e) {
+                        if (e.beta == null || e.gamma == null) return;
+                        var beta = Math.max(-30, Math.min(30, e.beta - 35));
+                        var gamma = Math.max(-30, Math.min(30, e.gamma));
+                        gx = beta / 30 * -5;
+                        gy = gamma / 30 * 6;
+                        document.body.style.setProperty('--ax', (gamma * 0.35).toFixed(1) + 'px');
+                        document.body.style.setProperty('--ay', (beta * 0.25).toFixed(1) + 'px');
+                        kick();
+                    }
+                    function listen() { window.addEventListener('deviceorientation', onTilt); }
+                    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        var tiltRoot = document.getElementById('homeStage') || document;
+                        tiltRoot.addEventListener('pointerdown', function once(e) {
+                            if (e.target.closest('a, button, input, textarea, select')) return;
+                            tiltRoot.removeEventListener('pointerdown', once);
+                            DeviceOrientationEvent.requestPermission().then(function (state) {
+                                if (state === 'granted') listen();
+                            }).catch(function () {});
+                        });
+                    } else if (window.DeviceOrientationEvent) listen();
+                    window.Zeta._tilt = items;
+                }
+
+                function bindPresent() {
+                    var pass = document.querySelector('#homeStage .pass');
+                    if (!pass) return;
+                    var timer = 0;
+                    var down = false;
+                    var sx = 0;
+                    var sy = 0;
+                    function tilt() {
+                        return (window.Zeta._tilt || []).filter(function (it) { return it.el === pass; })[0];
+                    }
+                    function begin(e) {
+                        if (e.target.closest('a, button')) return;
+                        down = true;
+                        sx = e.clientX;
+                        sy = e.clientY;
+                        window.clearTimeout(timer);
+                        timer = window.setTimeout(function () {
+                            if (!down) return;
+                            pass.classList.add('is-presenting');
+                            haptic('rigid');
+                            var item = tilt();
+                            if (item) item.tscale = 1.035;
+                            if (window.Zeta._kick) window.Zeta._kick();
+                        }, 190);
+                    }
+                    function end() {
+                        var was = pass.classList.contains('is-presenting');
+                        down = false;
+                        window.clearTimeout(timer);
+                        pass.classList.remove('is-presenting');
+                        var item = tilt();
+                        if (item) item.tscale = 1;
+                        if (window.Zeta._kick) window.Zeta._kick();
+                        if (was) haptic('soft');
+                    }
+                    pass.addEventListener('pointerdown', begin);
+                    pass.addEventListener('pointermove', function (e) {
+                        if (!down) return;
+                        if (Math.abs(e.clientX - sx) > 12 || Math.abs(e.clientY - sy) > 12) {
+                            down = false;
+                            window.clearTimeout(timer);
+                        }
+                    });
+                    pass.addEventListener('pointerup', end);
+                    pass.addEventListener('pointercancel', end);
+                    pass.addEventListener('pointerleave', end);
+                }
+
+                function bindAmbient() {
+                    var canvas = document.createElement('canvas');
+                    canvas.className = 'ambient';
+                    canvas.setAttribute('aria-hidden', 'true');
+                    document.body.insertBefore(canvas, document.body.firstChild);
+                    var ctx = canvas.getContext('2d');
+                    if (!ctx) return;
+                    var dpr = 1;
+                    var dots = [];
+                    function resize() {
+                        dpr = Math.min(window.devicePixelRatio || 1, 2);
+                        canvas.width = Math.floor(window.innerWidth * dpr);
+                        canvas.height = Math.floor(window.innerHeight * dpr);
+                        canvas.style.width = window.innerWidth + 'px';
+                        canvas.style.height = window.innerHeight + 'px';
+                    }
+                    resize();
+                    window.addEventListener('resize', resize);
+                    var i;
+                    for (i = 0; i < 18; i++) {
+                        dots.push({
+                            x: Math.random(),
+                            y: Math.random(),
+                            r: 1.1 + Math.random() * 2.4,
+                            v: 0.008 + Math.random() * 0.02,
+                            a: 0.12 + Math.random() * 0.28,
+                            w: Math.random() * Math.PI * 2
+                        });
+                    }
+                    var raf = 0;
+                    function frame(t) {
+                        if (!document.body.classList.contains('is-home') || document.hidden) {
+                            raf = 0;
+                            return;
+                        }
+                        var w = window.innerWidth;
+                        var h = window.innerHeight;
+                        var span = h + 40;
+                        var ax = parseFloat(document.body.style.getPropertyValue('--ax')) || 0;
+                        var ay = parseFloat(document.body.style.getPropertyValue('--ay')) || 0;
+                        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                        ctx.clearRect(0, 0, w, h);
+                        dots.forEach(function (d) {
+                            var y = (d.y * span - t * d.v) % span;
+                            if (y < 0) y += span;
+                            var x = d.x * w + Math.sin(t * 0.0003 + d.w) * 14 + ax * 1.4;
+                            ctx.beginPath();
+                            ctx.fillStyle = 'rgba(11,92,171,' + d.a + ')';
+                            ctx.arc(x, y + ay * 0.4, d.r, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                        raf = window.requestAnimationFrame(frame);
+                    }
+                    function wake() {
+                        if (!raf && document.body.classList.contains('is-home') && !document.hidden) raf = window.requestAnimationFrame(frame);
+                    }
+                    document.addEventListener('zeta:tab', wake);
+                    document.addEventListener('visibilitychange', wake);
+                    wake();
+                }
+
+                function start() {
+                    bindFeel();
+                    Object.keys(tabs).forEach(function (name) { if (tabs[name].render) tabs[name].render(); });
+                    document.querySelectorAll('[data-go]').forEach(function (el) {
+                        el.addEventListener('click', function () { go(el.getAttribute('data-go')); });
+                    });
+                    document.getElementById('sheet').addEventListener('click', function (e) {
+                        if (e.target.id === 'sheet' || e.target.closest('.sheet__close')) closeSheet();
+                    });
+                    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+                    window.addEventListener('popstate', function (e) {
+                        closeSheet();
+                        go((e.state && e.state.tab) || new URLSearchParams(window.location.search).get('t') || 'home', null, 'pop');
+                    });
+                    go(params.get('t') || 'home', null, 'replace');
+                    fitStage();
+                    window.requestAnimationFrame(function () { fitStage(); positionPill(); });
+                }
+                return { data: data, tabs: tabs, esc: esc, paragraphs: paragraphs, go: go, sheet: sheet, closeSheet: closeSheet, toast: toast, product: product, request: request, start: start, haptic: haptic };
+            })();
+            </script>
+        </head>
+        <body class="is-home{!IF(showEvents, '', ' is-public')}">
+            <div class="wrap">
+                <header class="top">
+                    <img src="{!logoDataUri}" alt="Zeta" />
+                    <b>Zeta Pharma</b>
+                    <span class="net" id="net" hidden="hidden">Offline</span>
+                </header>
+
+                <section class="tab" id="tab-home" data-tab="home">
+                    <div class="stage" id="homeStage">
+                    <div class="scene scene--invite" data-scene="Invitation">
+                    <div class="scene__in">
+                    <div class="tab__head">
+                        <h1 class="title" id="homeHello">Welcome to Zeta</h1>
+                        <p class="sub">{!IF(showEvents, 'Your events, our products and your Zeta team in one place.', 'Our products and the latest from Zeta.')}</p>
+                    </div>
+
+                    <apex:outputPanel rendered="{!AND(hasCode, invalid)}" layout="block" styleClass="card">
+                        <div class="eyebrow">Invitation</div>
+                        <h1>This link is not valid</h1>
+                        <p class="hello">Ask the person who invited you to send the invitation again.</p>
+                        <p class="ar">هذا الرابط غير صالح. برجاء طلب دعوة جديدة.</p>
+                    </apex:outputPanel>
+
+                    <apex:outputPanel rendered="{!AND(NOT(invalid), cancelled)}" layout="block" styleClass="card">
+                        <div class="eyebrow">Invitation</div>
+                        <h1>{!meetingTitle}</h1>
+                        <p class="hello">This meeting has been cancelled. Thank you for your interest.</p>
+                        <p class="ar">تم إلغاء هذا الاجتماع.</p>
+                    </apex:outputPanel>
+
+                    <apex:outputPanel rendered="{!AND(NOT(invalid), NOT(cancelled))}" layout="block" styleClass="card">
+                        <apex:outputPanel rendered="{!NOT(ISBLANK(message))}" layout="block" styleClass="flash">{!message}</apex:outputPanel>
+                        <div class="eyebrow">You are invited</div>
+                        <h1>{!meetingTitle}</h1>
+                        <p class="hello">Hello {!guestName}</p>
+                        <ul class="facts">
+                            <apex:outputPanel rendered="{!NOT(ISBLANK(whenText))}" layout="none">
+                                <li><b>When</b>{!whenText}</li>
+                            </apex:outputPanel>
+                            <apex:outputPanel rendered="{!NOT(ISBLANK(venue))}" layout="none">
+                                <li><b>Where</b>{!venue}</li>
+                            </apex:outputPanel>
+                            <li><b>Your status</b><span class="pill {!IF(OR(checkedIn, status == 'Confirmed'), 'ok', '')}">{!statusLabel}</span></li>
+                        </ul>
+
+                        <apex:outputPanel rendered="{!checkedIn}" layout="block" styleClass="done">
+                            <div class="tick">&#10003;</div>
+                            <strong>Checked in at {!checkedInText}</strong>
+                            <p class="note">Welcome. Enjoy the meeting.</p>
+                            <p class="ar">تم تسجيل حضورك. أهلاً بك.</p>
+                        </apex:outputPanel>
+
+                        <apex:outputPanel rendered="{!canConfirm}" layout="block" styleClass="confirm">
+                            <a href="{!confirmUrl}" class="cta" rel="nofollow" onclick="this.classList.add('is-busy');">
+                                <span class="cta__icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                </span>
+                                <span class="cta__text">
+                                    <span class="cta__en">Confirm I will attend</span>
+                                    <span class="cta__ar">أكّد حضورك</span>
+                                </span>
+                                <span class="cta__busy">Confirming…</span>
+                            </a>
+                            <p class="note">One tap lets the organizer know to expect you.</p>
+                        </apex:outputPanel>
+
+                        <apex:outputPanel rendered="{!AND(hasCalendar, NOT(showQr))}" layout="block" styleClass="cal">
+                            <div class="cal__title">
+                                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2" /><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+                                Add to your calendar
+                            </div>
+                            <p class="cal__sub">Get reminded the day before and 2 hours before.</p>
+                            <div class="cal__row">
+                                <a class="chip" href="{!icsUrl}">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.5-1-2.5-4zM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.6 2.8-1.4z" /></svg>
+                                    Apple / Outlook
+                                </a>
+                                <a class="chip" href="{!googleCalendarUrl}" target="_blank" rel="noopener">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" /><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z" /><path fill="#FBBC05" d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9z" /><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" /></svg>
+                                    Google
+                                </a>
+                            </div>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+
+                    <apex:outputPanel rendered="{!NOT(showEvents)}" layout="none">
+                    <div class="card" id="signInCard">
+                        <div class="eyebrow">Sign in</div>
+                        <h1>Enter your HCP code or mobile number</h1>
+                        <p class="hello">We will send a PIN to the email or mobile number we have for you.</p>
+                        <p class="ar">أدخل كود الطبيب أو رقم الموبايل، وهنرسل لك رمز على الإيميل أو الموبايل.</p>
+                        <form id="pinForm">
+                            <label class="lbl" for="pinId">HCP code or mobile number</label>
+                            <input id="pinId" class="field" name="who" maxlength="80" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required="required" />
+                            <button type="submit" class="btn btn--primary btn--block">Send PIN</button>
+                        </form>
+                        <form id="pinCheck" hidden="hidden">
+                            <label class="lbl" for="pinValue">PIN</label>
+                            <input id="pinValue" class="field" name="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required="required" />
+                            <button type="submit" class="btn btn--primary btn--block">Continue</button>
+                            <button type="button" class="btn btn--soft btn--block" id="pinBack" style="margin-top:0.55rem">Use a different code</button>
+                        </form>
+                        <p class="note" id="pinMsg" hidden="hidden"></p>
+                    </div>
+                    </apex:outputPanel>
+
+                    <button type="button" class="pass-peek" id="homePeek" hidden="hidden">
+                        Entry pass
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    </div>
+                    </div>
+
+                    <apex:outputPanel rendered="{!AND(NOT(invalid), showQr)}" layout="none">
+                    <div class="scene scene--pass" data-scene="Entry pass">
+                    <div class="scene__in">
+                    <div class="pass">
+                        <div class="pass__head" id="pass">
+                            <div>
+                                <div class="pass__label">Entry pass</div>
+                                <div class="pass__name">{!guestName}</div>
+                            </div>
+                            <span class="live"><i></i><span id="clock">--:--:--</span></span>
+                        </div>
+                        <div class="qr" id="qrBox">
+                            <canvas id="qr" width="640" height="640" aria-label="Live check-in code"></canvas>
+                            <div class="qr__cover" id="qrCover">Tap to show your code</div>
+                        </div>
+                        <div class="bar"><span id="bar"></span></div>
+                        <p class="pass__hint">Show this live code at the entrance. It changes every minute, so screenshots will not work.</p>
+                        <p class="pass__hint ar">اعرض هذا الرمز عند الدخول. يتغير كل دقيقة ولا تصلح لقطات الشاشة.</p>
+                        <apex:outputPanel rendered="{!AND(NOT(doorOpen), NOT(checkedIn))}" layout="block" styleClass="soon">Check-in opens on the day of the meeting.</apex:outputPanel>
+                    </div>
+                    <apex:outputPanel rendered="{!hasCalendar}" layout="block" styleClass="cal cal--solo">
+                        <div class="cal__title">
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2" /><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+                            Add to your calendar
+                        </div>
+                        <p class="cal__sub">Get reminded the day before and 2 hours before.</p>
+                        <div class="cal__row">
+                            <a class="chip" href="{!icsUrl}">
+                                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.5-1-2.5-4zM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.6 2.8-1.4z" /></svg>
+                                Apple / Outlook
+                            </a>
+                            <a class="chip" href="{!googleCalendarUrl}" target="_blank" rel="noopener">
+                                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z" /><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z" /><path fill="#FBBC05" d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9z" /><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" /></svg>
+                                Google
+                            </a>
+                        </div>
+                    </apex:outputPanel>
+                    </div>
+                    </div>
+                    </apex:outputPanel>
+
+                    <apex:outputPanel rendered="{!showHcpHome}" layout="none">
+                    <div class="scene scene--more" data-scene="Shortcuts">
+                        <div class="scene__in">
+                            <c:hcpHome />
+                        </div>
+                    </div>
+                    </apex:outputPanel>
+                    </div>
+                </section>
+
+                <apex:outputPanel rendered="{!showHcpProducts}" layout="none">
+                    <c:hcpProducts />
+                </apex:outputPanel>
+                <apex:outputPanel rendered="{!showHcpNews}" layout="none">
+                    <c:hcpNews />
+                </apex:outputPanel>
+                <apex:outputPanel rendered="{!showEvents}" layout="none">
+                    <c:hcpEvents />
+                </apex:outputPanel>
+                <apex:outputPanel rendered="{!showHcpRequests}" layout="none">
+                    <c:hcpRequests />
+                </apex:outputPanel>
+            </div>
+
+            <nav class="tabbar" aria-label="Sections">
+                <div class="tabbar__in">
+                    <span class="tabbar__pill" id="tabPill" aria-hidden="true"></span>
+                    <apex:outputPanel rendered="{!showHcpProducts}" layout="none">
+                        <button type="button" data-go="products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="7" rx="3.5" transform="rotate(-45 12 12.5)" /><path d="m9.2 9.7 5 5" /></svg>Products</button>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!showHcpNews}" layout="none">
+                        <button type="button" data-go="news"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z" /><path d="M17 8h3v9a2 2 0 0 1-2 2" /><path d="M8 9h5M8 13h5" /></svg>News</button>
+                    </apex:outputPanel>
+                    <button type="button" data-go="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg>Home</button>
+                    <apex:outputPanel rendered="{!showEvents}" layout="none">
+                        <button type="button" data-go="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>Events</button>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!showHcpRequests}" layout="none">
+                        <button type="button" data-go="requests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /><path d="M9 11h6M9 14h4" /></svg>Requests</button>
+                    </apex:outputPanel>
+                </div>
+            </nav>
+            <div class="pager" id="homePager" hidden="hidden" role="navigation" aria-label="Home sections"></div>
+
+            <div class="sheet" id="sheet" hidden="hidden" role="dialog" aria-modal="true">
+                <div class="sheet__panel">
+                    <div class="sheet__grip"></div>
+                    <button type="button" class="sheet__close" aria-label="Close">&times;</button>
+                    <div id="sheetBody"></div>
+                </div>
+            </div>
+            <div class="toast" id="toast" hidden="hidden" role="status"></div>
+
+            <section class="install" id="install" hidden="hidden">
+                <img src="{!appleIconDataUri}" alt="" />
+                <div class="install__text">
+                    <strong>Install the Zeta app</strong>
+                    <span id="installHint">Opens instantly, even without signal.</span>
+                </div>
+                <button type="button" class="install__btn" id="installBtn">Install</button>
+                <button type="button" class="install__close" id="installClose" aria-label="Dismiss">
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+                </button>
+            </section>
+
+            <apex:outputPanel rendered="{!AND(NOT(invalid), showQr)}" layout="none">
+                <script><apex:outputText value="{!qrLibScript}" escape="false" /></script>
+                <script>
+                (function () {
+                    var secret = '{!JSENCODE(qrSecret)}';
+                    var code = '{!JSENCODE(code)}';
+                    var prefix = '{!JSENCODE(tokenPrefix)}';
+                    var skew = {!serverMillis} - Date.now();
+                    var offset = Math.abs(skew) < 600000 ? skew : 0;
+                    var canvas = document.getElementById('qr');
+                    var box = document.getElementById('qrBox');
+                    var cover = document.getElementById('qrCover');
+                    var bar = document.getElementById('bar');
+                    var clock = document.getElementById('clock');
+                    var ctx = canvas.getContext('2d');
+                    var enc = new TextEncoder();
+                    var logo = new Image();
+                    var logoReady = false;
+                    var shown = -1;
+                    logo.onload = function () { logoReady = true; shown = -1; };
+                    logo.src = '{!JSENCODE(logoDataUri)}';
+
+                    if (!window.crypto || !window.crypto.subtle || !secret) {
+                        box.classList.add('is-error');
+                        cover.textContent = 'Open this link in Chrome or Safari to show your code.';
+                        return;
+                    }
+                    var keyPromise = crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+
+                    function hex(buffer) {
+                        var bytes = new Uint8Array(buffer), out = '';
+                        for (var i = 0; i < 8; i++) { out += ('0' + bytes[i].toString(16)).slice(-2); }
+                        return out;
+                    }
+
+                    function roundRect(x, y, w, h, r) {
+                        ctx.moveTo(x + r, y);
+                        ctx.arcTo(x + w, y, x + w, y + h, r);
+                        ctx.arcTo(x + w, y + h, x, y + h, r);
+                        ctx.arcTo(x, y + h, x, y, r);
+                        ctx.arcTo(x, y, x + w, y, r);
+                        ctx.closePath();
+                    }
+
+                    function draw(text) {
+                        var qr = qrcode(0, 'H');
+                        qr.addData(text);
+                        qr.make();
+                        var n = qr.getModuleCount();
+                        var size = canvas.width;
+                        var quiet = 2;
+                        var cell = size / (n + quiet * 2);
+                        var logoCells = Math.ceil((n * 0.2) / 2) * 2 + 1;
+                        var lo = Math.floor((n - logoCells) / 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, size, size);
+                        ctx.fillStyle = '#032d60';
+                        ctx.beginPath();
+                        for (var r = 0; r < n; r++) {
+                            for (var c = 0; c < n; c++) {
+                                if (!qr.isDark(r, c)) continue;
+                                if ((r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7)) continue;
+                                if (r >= lo && r < lo + logoCells && c >= lo && c < lo + logoCells) continue;
+                                roundRect((c + quiet) * cell + 0.5, (r + quiet) * cell + 0.5, cell - 1, cell - 1, cell * 0.3);
+                            }
+                        }
+                        ctx.fill();
+                        [[0, 0], [0, n - 7], [n - 7, 0]].forEach(function (p) {
+                            var x = (p[1] + quiet) * cell, y = (p[0] + quiet) * cell;
+                            ctx.beginPath();
+                            roundRect(x, y, cell * 7, cell * 7, cell * 2);
+                            roundRect(x + cell, y + cell, cell * 5, cell * 5, cell);
+                            ctx.fill('evenodd');
+                            ctx.beginPath();
+                            roundRect(x + cell * 2, y + cell * 2, cell * 3, cell * 3, cell * 1.1);
+                            ctx.fill();
+                        });
+                        var bx = (lo + quiet) * cell, bw = logoCells * cell, pad = cell * 0.6;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        roundRect(bx, bx, bw, bw, cell * 1.4);
+                        ctx.fill();
+                        if (logoReady) {
+                            var inner = bw - pad * 2;
+                            var scale = Math.min(inner / logo.width, inner / logo.height);
+                            var w = logo.width * scale, h = logo.height * scale;
+                            ctx.drawImage(logo, bx + (bw - w) / 2, bx + (bw - h) / 2, w, h);
+                        }
+                    }
+
+                    function two(v) { return (v < 10 ? '0' : '') + v; }
+
+                    var alreadyIn = {!IF(checkedIn, 'true', 'false')};
+                    var stepMs = {!tokenStepSeconds} * 1000;
+                    var ticked = -1;
+                    function frame() {
+                        var now = Date.now() + offset;
+                        var step = Math.floor(now / stepMs);
+                        var second = Math.floor(now / 1000);
+                        bar.style.width = ((now % stepMs) / stepMs * 100).toFixed(2) + '%';
+                        if (second !== ticked) {
+                            ticked = second;
+                            var d = new Date(now);
+                            clock.textContent = two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds());
+                        }
+                        if (step !== shown) {
+                            var firstCode = shown < 0;
+                            shown = step;
+                            keyPromise
+                                .then(function (key) { return crypto.subtle.sign('HMAC', key, enc.encode(code + ':' + step)); })
+                                .then(function (sig) { if (step === shown) draw(prefix + ':' + code + ':' + step + ':' + hex(sig)); });
+                            if (!firstCode) {
+                                var passEl = document.querySelector('#homeStage .pass');
+                                if (passEl) {
+                                    passEl.classList.add('is-tick');
+                                    window.setTimeout(function () { passEl.classList.remove('is-tick'); }, 600);
+                                }
+                                if (window.Zeta && window.Zeta.haptic) window.Zeta.haptic('tick');
+                            }
+                        }
+                        window.requestAnimationFrame(frame);
+                    }
+                    window.requestAnimationFrame(frame);
+
+                    document.addEventListener('visibilitychange', function () {
+                        box.classList.toggle('is-hidden', document.hidden);
+                    });
+                    box.addEventListener('click', function () { box.classList.remove('is-hidden'); });
+
+                    var self = window.location.pathname + '?c=' + encodeURIComponent(code);
+                    function poll() {
+                        if (document.hidden || !window.fetch || !navigator.onLine) return;
+                        fetch(self + '&s=1', { cache: 'no-store', credentials: 'same-origin' })
+                            .then(function (res) { return res.ok ? res.text() : ''; })
+                            .then(function (text) { if (!alreadyIn && text.indexOf('Checked In') !== -1) window.location.replace(self); })
+                            .catch(function () {});
+                    }
+                    window.setInterval(poll, 4000);
+                })();
+                </script>
+            </apex:outputPanel>
+
+            <script>
+            (function () {
+                var LAST = 'zetaPass.last';
+                var DISMISSED = 'zetaPass.installDismissed';
+                var code = '{!IF(invalid, '', JSENCODE(code))}';
+                var store = window.localStorage;
+                var params = new URLSearchParams(window.location.search);
+
+                if (code) {
+                    try { store.setItem(LAST, code); } catch (e) {}
+                } else if (!params.get('c')) {
+                    var last = null;
+                    try { last = store.getItem(LAST); } catch (e) {}
+                    if (last) {
+                        window.location.replace(window.location.pathname + '?c=' + encodeURIComponent(last) + (params.get('t') ? '&t=' + encodeURIComponent(params.get('t')) : ''));
+                        return;
+                    }
+                }
+
+                window.Zeta.start();
+                bindPin();
+
+                if ('serviceWorker' in navigator && window.location.pathname.indexOf('/apex/') !== 0) {
+                    navigator.serviceWorker.register(window.location.pathname + '?f=sw', { scope: window.location.pathname }).catch(function () {});
+                }
+
+                var netBadge = document.getElementById('net');
+                function showNet() { netBadge.hidden = navigator.onLine; }
+                window.addEventListener('online', showNet);
+                window.addEventListener('offline', showNet);
+                showNet();
+
+                var bar = document.getElementById('install');
+                var btn = document.getElementById('installBtn');
+                var hint = document.getElementById('installHint');
+                var qrBox = document.getElementById('qrBox');
+                var deferred = null;
+                var wanted = false;
+                var qrInView = false;
+                var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+                var ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                function dismissed() { try { return !!store.getItem(DISMISSED); } catch (e) { return false; } }
+                function sync() { bar.hidden = !wanted || qrInView || document.body.classList.contains('sheet-open'); }
+                function offer() {
+                    if (standalone || dismissed()) return;
+                    if (deferred) {
+                        btn.hidden = false;
+                        wanted = true;
+                    } else if (ios) {
+                        hint.textContent = 'Tap Share, then "Add to Home Screen".';
+                        btn.hidden = true;
+                        wanted = true;
+                    }
+                    sync();
+                }
+                if (qrBox && 'IntersectionObserver' in window) {
+                    new IntersectionObserver(function (entries) {
+                        qrInView = entries[0].isIntersecting && !document.getElementById('tab-home').hidden;
+                        sync();
+                    }).observe(qrBox);
+                    document.addEventListener('zeta:tab', function (e) {
+                        if (e.detail !== 'home') { qrInView = false; sync(); }
+                    });
+                }
+                window.addEventListener('beforeinstallprompt', function (e) {
+                    e.preventDefault();
+                    deferred = e;
+                    offer();
+                });
+                btn.addEventListener('click', function () {
+                    if (!deferred) return;
+                    deferred.prompt();
+                    deferred.userChoice.then(function () { deferred = null; wanted = false; sync(); });
+                });
+                document.getElementById('installClose').addEventListener('click', function () {
+                    wanted = false;
+                    sync();
+                    try { store.setItem(DISMISSED, '1'); } catch (e) {}
+                });
+                window.addEventListener('appinstalled', function () { wanted = false; sync(); });
+                setTimeout(offer, 3000);
+
+                function bindPin() {
+                    var form = document.getElementById('pinForm');
+                    var check = document.getElementById('pinCheck');
+                    var msg = document.getElementById('pinMsg');
+                    if (!form || !check || !msg) return;
+                    var ident = '';
+                    function say(text) {
+                        msg.hidden = !text;
+                        msg.textContent = text || '';
+                    }
+                    function post(data) {
+                        return fetch(window.location.pathname + '?a=pin', {
+                            method: 'POST',
+                            body: new URLSearchParams(data),
+                            credentials: 'same-origin',
+                            cache: 'no-store'
+                        }).then(function (res) { return res.json(); });
+                    }
+                    form.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        ident = form.querySelector('input').value.trim();
+                        if (!ident) { say('Enter your HCP code or mobile number.'); return; }
+                        var btn = form.querySelector('button');
+                        btn.disabled = true;
+                        post({ step: 'send', who: ident }).then(function (res) {
+                            btn.disabled = false;
+                            if (!res || !res.ok) { say((res && res.message) || 'Please try again.'); return; }
+                            form.hidden = true;
+                            check.hidden = false;
+                            say(res.message);
+                            check.querySelector('input').focus();
+                        }).catch(function () {
+                            btn.disabled = false;
+                            say('Please try again.');
+                        });
+                    });
+                    check.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        var pin = check.querySelector('input').value.trim();
+                        if (!/^\d{6}$/.test(pin)) { say('Enter the 6-digit PIN.'); return; }
+                        var btn = check.querySelector('button[type="submit"]');
+                        btn.disabled = true;
+                        post({ step: 'check', who: ident, pin: pin }).then(function (res) {
+                            if (res && res.ok) { window.location.replace(window.location.pathname); return; }
+                            btn.disabled = false;
+                            say((res && res.message) || 'That PIN is not right, or it has expired.');
+                        }).catch(function () {
+                            btn.disabled = false;
+                            say('Please try again.');
+                        });
+                    });
+                    document.getElementById('pinBack').addEventListener('click', function () {
+                        check.hidden = true;
+                        check.querySelector('input').value = '';
+                        form.hidden = false;
+                        say('');
+                        form.querySelector('input').focus();
+                    });
+                }
+            })();
+            </script>
+        </body>
+    </html>
+    </apex:outputPanel>
+</apex:page>

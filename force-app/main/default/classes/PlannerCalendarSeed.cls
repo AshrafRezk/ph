@@ -554,6 +554,252 @@ public without sharing class PlannerCalendarSeed {
         return created;
     }
 
+    /**
+     * Ensures CLM decks for products aligned to training territories are
+     * product-linked and targeted at every training territory.
+     */
+    public static Integer linkPresentationsToTrainingTerritories() {
+        Map<String, Id> trainingTerritories = new Map<String, Id>();
+        for (Territory2 territory : [
+            SELECT Id, External_ID__c
+            FROM Territory2
+            WHERE External_ID__c LIKE '%TRAINING%'
+            WITH SYSTEM_MODE
+        ]) {
+            trainingTerritories.put(territory.External_ID__c, territory.Id);
+        }
+        if (trainingTerritories.isEmpty()) {
+            return 0;
+        }
+
+        Set<Id> territoryIds = new Set<Id>(trainingTerritories.values());
+        alignDispenseSiblingsOnTerritories(territoryIds);
+        Map<Id, List<Product2>> productsByTerritory = loadProductsByTerritory(new List<Id>(territoryIds));
+
+        Map<Id, Product2> detailsById = new Map<Id, Product2>();
+        for (List<Product2> products : productsByTerritory.values()) {
+            if (products == null) {
+                continue;
+            }
+            for (Product2 product : products) {
+                String productType = product.Product_Type__c;
+                if (productType == 'Sample' || productType == 'Brand Reminder' || productType == 'Brand') {
+                    continue;
+                }
+                detailsById.put(product.Id, product);
+            }
+        }
+        if (detailsById.isEmpty()) {
+            return 0;
+        }
+
+        List<String> territoryIdList = new List<String>();
+        for (Id territoryId : territoryIds) {
+            territoryIdList.add(String.valueOf(territoryId));
+        }
+        Map<Id, CLM_Presentation__c> byProduct = new Map<Id, CLM_Presentation__c>();
+        for (CLM_Presentation__c existing : [
+            SELECT Id, Product__c, Territory_Ids__c, Status__c
+            FROM CLM_Presentation__c
+            WHERE Product__c IN :detailsById.keySet()
+            WITH SYSTEM_MODE
+        ]) {
+            byProduct.put(existing.Product__c, existing);
+        }
+
+        List<CLM_Presentation__c> toInsert = new List<CLM_Presentation__c>();
+        List<CLM_Presentation__c> toUpdate = new List<CLM_Presentation__c>();
+        for (Product2 product : detailsById.values()) {
+            CLM_Presentation__c presentation = byProduct.get(product.Id);
+            if (presentation == null) {
+                toInsert.add(new CLM_Presentation__c(
+                    Name = product.Name + ' Deck',
+                    Status__c = 'Available',
+                    Format__c = 'HTML',
+                    Product__c = product.Id,
+                    Products__c = buildProductsJson(new List<Product2>{ product }),
+                    Territory_Ids__c = JSON.serialize(territoryIdList),
+                    Allow_Unaligned__c = false,
+                    Slide_Count__c = 2
+                ));
+                continue;
+            }
+            Boolean dirty = false;
+            if (presentation.Status__c != 'Available') {
+                presentation.Status__c = 'Available';
+                dirty = true;
+            }
+            String merged = mergeTerritoryIdsJson(presentation.Territory_Ids__c, territoryIdList);
+            if (merged != presentation.Territory_Ids__c) {
+                presentation.Territory_Ids__c = merged;
+                dirty = true;
+            }
+            if (dirty) {
+                toUpdate.add(presentation);
+            }
+        }
+
+        Integer changed = 0;
+        if (!toInsert.isEmpty()) {
+            insert as system toInsert;
+            changed += toInsert.size();
+            List<CLM_Sequence__c> sequences = new List<CLM_Sequence__c>();
+            for (CLM_Presentation__c pres : toInsert) {
+                sequences.add(new CLM_Sequence__c(
+                    CLM_Presentation__c = pres.Id,
+                    Sequence_Order__c = 1,
+                    Sequence_Name__c = 'Introduction',
+                    File_Name__c = 'slide-1.html'
+                ));
+                sequences.add(new CLM_Sequence__c(
+                    CLM_Presentation__c = pres.Id,
+                    Sequence_Order__c = 2,
+                    Sequence_Name__c = 'Product Detail',
+                    File_Name__c = 'slide-2.html'
+                ));
+            }
+            insert as system sequences;
+        }
+        if (!toUpdate.isEmpty()) {
+            update as system toUpdate;
+            changed += toUpdate.size();
+        }
+        return changed;
+    }
+
+    private static String mergeTerritoryIdsJson(String existingJson, List<String> addIds) {
+        Set<String> merged = new Set<String>();
+        if (String.isNotBlank(existingJson)) {
+            try {
+                List<Object> parsed = (List<Object>) JSON.deserializeUntyped(existingJson);
+                for (Object item : parsed) {
+                    if (item != null) {
+                        merged.add(String.valueOf(item));
+                    }
+                }
+            } catch (Exception ex) {
+                for (String part : existingJson.split('[;,]')) {
+                    if (String.isNotBlank(part)) {
+                        merged.add(part.trim());
+                    }
+                }
+            }
+        }
+        if (addIds != null) {
+            merged.addAll(addIds);
+        }
+        return JSON.serialize(new List<String>(merged));
+    }
+
+    private static void alignDispenseSiblingsOnTerritories(Set<Id> territoryIds) {
+        if (territoryIds == null || territoryIds.isEmpty()) {
+            return;
+        }
+        Set<String> territoryKeys = new Set<String>();
+        for (Id territoryId : territoryIds) {
+            territoryKeys.add(String.valueOf(territoryId));
+        }
+        Set<Id> productIds = new Set<Id>();
+        Map<Id, Set<Id>> territoriesByProduct = new Map<Id, Set<Id>>();
+        for (Product_Territory_Alignment__c pta : [
+            SELECT Product2_Id__c, Territory2_Id__c
+            FROM Product_Territory_Alignment__c
+            WHERE Territory2_Id__c IN :territoryKeys AND Is_Active__c = TRUE
+            WITH SYSTEM_MODE
+        ]) {
+            try {
+                Id productId = (Id) pta.Product2_Id__c;
+                Id territoryId = (Id) pta.Territory2_Id__c;
+                if (productId == null || territoryId == null) {
+                    continue;
+                }
+                productIds.add(productId);
+                if (!territoriesByProduct.containsKey(productId)) {
+                    territoriesByProduct.put(productId, new Set<Id>());
+                }
+                territoriesByProduct.get(productId).add(territoryId);
+            } catch (Exception ex) {
+                // Skip invalid alignment rows.
+            }
+        }
+        if (productIds.isEmpty()) {
+            return;
+        }
+
+        Set<Id> parentIds = new Set<Id>();
+        Map<Id, Set<Id>> territoriesByParent = new Map<Id, Set<Id>>();
+        for (Product2 product : [
+            SELECT Id, Parent_Product__c
+            FROM Product2
+            WHERE Id IN :productIds
+            WITH SYSTEM_MODE
+        ]) {
+            Set<Id> terrIds = territoriesByProduct.get(product.Id);
+            if (terrIds == null || terrIds.isEmpty()) {
+                continue;
+            }
+            parentIds.add(product.Id);
+            if (!territoriesByParent.containsKey(product.Id)) {
+                territoriesByParent.put(product.Id, new Set<Id>());
+            }
+            territoriesByParent.get(product.Id).addAll(terrIds);
+            if (product.Parent_Product__c != null) {
+                parentIds.add(product.Parent_Product__c);
+                if (!territoriesByParent.containsKey(product.Parent_Product__c)) {
+                    territoriesByParent.put(product.Parent_Product__c, new Set<Id>());
+                }
+                territoriesByParent.get(product.Parent_Product__c).addAll(terrIds);
+            }
+        }
+        if (parentIds.isEmpty()) {
+            return;
+        }
+
+        Set<String> existingKeys = new Set<String>();
+        for (Product_Territory_Alignment__c existing : [
+            SELECT Product2_Id__c, Territory2_Id__c
+            FROM Product_Territory_Alignment__c
+            WHERE Territory2_Id__c IN :territoryKeys AND Is_Active__c = TRUE
+            WITH SYSTEM_MODE
+        ]) {
+            if (existing.Product2_Id__c != null && existing.Territory2_Id__c != null) {
+                existingKeys.add(existing.Product2_Id__c + ':' + existing.Territory2_Id__c);
+            }
+        }
+
+        List<Product_Territory_Alignment__c> toInsert = new List<Product_Territory_Alignment__c>();
+        for (Product2 sibling : [
+            SELECT Id, Parent_Product__c
+            FROM Product2
+            WHERE IsActive = TRUE
+                AND Product_Type__c IN ('Sample', 'Brand Reminder')
+                AND Parent_Product__c IN :parentIds
+            WITH SYSTEM_MODE
+        ]) {
+            Set<Id> terrIds = territoriesByParent.get(sibling.Parent_Product__c);
+            if (terrIds == null) {
+                continue;
+            }
+            String productKey = String.valueOf(sibling.Id);
+            for (Id territoryId : terrIds) {
+                String key = productKey + ':' + String.valueOf(territoryId);
+                if (existingKeys.contains(key)) {
+                    continue;
+                }
+                toInsert.add(new Product_Territory_Alignment__c(
+                    Product2_Id__c = productKey,
+                    Territory2_Id__c = String.valueOf(territoryId),
+                    Is_Active__c = true,
+                    Effective_Start_Date__c = Date.today().addMonths(-1)
+                ));
+                existingKeys.add(key);
+            }
+        }
+        if (!toInsert.isEmpty()) {
+            insertInBatches(toInsert);
+        }
+    }
+
     private static String buildProductsJson(List<Product2> products) {
         List<String> productIds = new List<String>();
         List<String> productNames = new List<String>();
@@ -793,7 +1039,7 @@ public without sharing class PlannerCalendarSeed {
         }
 
         for (Product2 product : [
-            SELECT Id, Name, External_ID__c, Therapy_Area__c
+            SELECT Id, Name, External_ID__c, Therapy_Area__c, Product_Type__c
             FROM Product2
             WHERE Id IN :productIds AND IsActive = TRUE
             WITH SYSTEM_MODE

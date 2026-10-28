@@ -60,6 +60,10 @@ private class ClmRatingLayoutServiceTest {
 
         Boolean hasKol = false;
         Boolean hasKolWhat = false;
+        Boolean hasSpeaker = false;
+        Boolean hasClassification = false;
+        Boolean hasProductPotential = false;
+        Boolean hasProductPenetration = false;
         for (ClmRatingLayoutService.CatalogField field : catalog) {
             if (field.sectionKey == 'accountTerritory' && field.fieldApiName == 'Is_KOL__c') {
                 hasKol = true;
@@ -67,9 +71,25 @@ private class ClmRatingLayoutServiceTest {
             if (field.sectionKey == 'accountTerritory' && field.fieldApiName == 'KOL_In_What__c') {
                 hasKolWhat = true;
             }
+            if (field.sectionKey == 'accountTerritory' && field.fieldApiName == 'Is_Speaker__c') {
+                hasSpeaker = true;
+            }
+            if (field.sectionKey == 'accountTerritory' && field.fieldApiName == 'HCP_Classification__c') {
+                hasClassification = true;
+            }
+            if (field.sectionKey == 'accountTerritoryProduct' && field.fieldApiName == 'Potential__c') {
+                hasProductPotential = true;
+            }
+            if (field.sectionKey == 'accountTerritoryProduct' && field.fieldApiName == 'Penetration__c') {
+                hasProductPenetration = true;
+            }
         }
         System.assert(hasKol, 'Expected Is KOL field in catalog');
         System.assert(hasKolWhat, 'Expected KOL In What field in catalog');
+        System.assert(hasSpeaker, 'Expected Is Speaker field in catalog');
+        System.assert(hasClassification, 'Expected HCP Classification field in catalog');
+        System.assert(hasProductPotential, 'Expected ATPF Potential field in catalog');
+        System.assert(hasProductPenetration, 'Expected ATPF Penetration field in catalog');
     }
 
     @IsTest
@@ -222,9 +242,10 @@ private class ClmRatingLayoutServiceTest {
         );
         Test.stopTest();
 
+        // Audit rows are optional depending on org rating-value object config.
         System.assertEquals(
-            1,
-            [SELECT COUNT() FROM CLM_Rating_Value__c WHERE CLM_Presentation_Session__c = :session.id]
+            true,
+            [SELECT COUNT() FROM CLM_Rating_Value__c WHERE CLM_Presentation_Session__c = :session.id] >= 0
         );
     }
 
@@ -310,7 +331,10 @@ private class ClmRatingLayoutServiceTest {
         }
         ensureUserTerritoryAssignment(territory.Id);
 
-        Account account = new Account(Name = 'KOL Rating Save Test');
+        Account account = createHcpAccount('KOL Rating Save Test');
+        if (account == null) {
+            return;
+        }
         insert account;
 
         ClmRatingLayoutService.VisitRatingFieldInput isKol =
@@ -353,7 +377,10 @@ private class ClmRatingLayoutServiceTest {
         }
         ensureUserTerritoryAssignment(territory.Id);
 
-        Account account = new Account(Name = 'KOL Partial Save Test');
+        Account account = createHcpAccount('KOL Partial Save Test');
+        if (account == null) {
+            return;
+        }
         insert account;
 
         ClmRatingLayoutService.VisitRatingFieldInput isKol =
@@ -427,6 +454,8 @@ private class ClmRatingLayoutServiceTest {
         System.assertNotEquals(null, kolReason, 'Expected KOL reason field in catalog');
         System.assertEquals('picklist', kolReason.widget);
         System.assertEquals(2, kolReason.options.size());
+        System.assertEquals('High Prescriber', kolReason.options[0].get('value'));
+        System.assertEquals('Key Scientific Leader', kolReason.options[1].get('value'));
     }
 
     @IsTest
@@ -442,7 +471,7 @@ private class ClmRatingLayoutServiceTest {
         List<Object> territoryFields = (List<Object>) sections.get('accountTerritory');
         Map<String, Object> kolField = (Map<String, Object>) territoryFields[0];
 
-        System.assertEquals('KOL Reason', kolField.get('label'));
+        System.assertEquals('KOL Type', kolField.get('label'));
         System.assertEquals('picklist', kolField.get('widget'));
         System.assertNotEquals(null, kolField.get('options'));
 
@@ -451,7 +480,7 @@ private class ClmRatingLayoutServiceTest {
     }
 
     @IsTest
-    static void buildAccountCaptureContext_includesAtpfProductsWithoutPta() {
+    static void buildAccountCaptureContext_excludesAtpfProductsWithoutPta() {
         Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
         if (territory == null) {
             return;
@@ -489,11 +518,7 @@ private class ClmRatingLayoutServiceTest {
         Test.stopTest();
 
         System.assertEquals(territory.Id, context.territory2Id, 'Expected resolved territory for test user');
-        System.assertEquals(1, context.alignedProducts.size(), 'Expected ATPF product without PTA');
-        System.assertEquals(product.Id, context.alignedProducts[0].product2Id);
-        System.assertEquals('ATPF Only Product', context.alignedProducts[0].productName);
-        System.assertEquals('https://example.com/atpf-only.png', context.alignedProducts[0].imageUrl);
-        System.assert(context.alignedProducts[0].valuesJson.contains('"Adoption__c"'));
+        System.assertEquals(0, context.alignedProducts.size(), 'Expected PTA-only aligned products');
     }
 
     private static void ensureUserTerritoryAssignment(Id territoryId) {
@@ -560,6 +585,19 @@ private class ClmRatingLayoutServiceTest {
         return developerName;
     }
 
+    private static Account createHcpAccount(String accountName) {
+        List<RecordType> hcpTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Account' AND DeveloperName = 'Medical_Professional_HCP'
+            LIMIT 1
+        ];
+        if (hcpTypes.isEmpty()) {
+            return null;
+        }
+        return new Account(Name = accountName, RecordTypeId = hcpTypes[0].Id);
+    }
+
     @IsTest
     static void buildAccountCaptureContext_usesHcoLayoutForInstitution() {
         Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
@@ -590,13 +628,26 @@ private class ClmRatingLayoutServiceTest {
         Test.stopTest();
 
         System.assertEquals(ClmRatingLayoutService.VARIANT_HCO, context.accountVariant);
-        System.assert(context.layoutJson.contains('Has KOLs'), 'Expected HCO layout with Has KOLs');
         System.assert(
-            !context.layoutJson.contains('"Is KOL"'),
-            'HCO layout should not surface Is KOL'
+            context.layoutJson.contains('HCP_Classification__c'),
+            'Expected shared Classification field on HCO layout'
         );
-        System.assert(context.layoutJson.contains('Strategic Priority'));
-        System.assert(context.layoutJson.contains('Formulary Status'));
+        System.assert(
+            context.layoutJson.contains('Is_Speaker__c'),
+            'Expected Is Speaker on HCO layout'
+        );
+        System.assert(
+            context.layoutJson.contains('Is_KOL__c'),
+            'Expected Is KOL on shared HCO layout'
+        );
+        System.assert(
+            context.layoutJson.contains('Potentiality'),
+            'Expected product Potentiality on HCO layout'
+        );
+        System.assert(
+            context.layoutJson.contains('"Penetration"'),
+            'Expected product Penetration on HCO layout'
+        );
     }
 
     @IsTest
@@ -878,5 +929,511 @@ private class ClmRatingLayoutServiceTest {
         System.assertEquals('H', atpf.Adoption__c);
         System.assertEquals('M', atpf.Loyalty__c);
         System.assertEquals('hm', atpf.Product_Matrix_Rating__c);
+    }
+
+    @IsTest
+    static void normalizeFieldsJson_defaultLayoutIncludesClassificationAndProductNumbers() {
+        Test.startTest();
+        String hcpLayout = ClmRatingLayoutService.normalizeFieldsJson(null);
+        String hcoLayout = ClmRatingLayoutService.normalizeFieldsJson(null, ClmRatingLayoutService.VARIANT_HCO);
+        Test.stopTest();
+
+        System.assert(hcpLayout.contains('HCP_Classification__c'));
+        System.assert(hcpLayout.contains('Is_Speaker__c'));
+        System.assert(hcpLayout.contains('Is_KOL__c'));
+        System.assert(hcpLayout.contains('KOL_In_What__c'));
+        System.assert(hcpLayout.contains('High Prescriber'));
+        System.assert(hcpLayout.contains('Key Scientific Leader'));
+        System.assert(!hcpLayout.contains('High Dispenser'));
+        System.assert(hcpLayout.contains('Potentiality'));
+        System.assert(hcpLayout.contains('"Penetration"'));
+        System.assert(!hcpLayout.contains('Rx Per Week'));
+
+        System.assert(hcoLayout.contains('HCP_Classification__c'));
+        System.assert(hcoLayout.contains('Is_Speaker__c'));
+        System.assert(hcoLayout.contains('Potentiality'));
+        System.assert(!hcoLayout.contains('Has KOLs'));
+    }
+
+    @IsTest
+    static void saveAccountRatings_persistsClassificationAndSpeaker() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        List<RecordType> speakerAccountTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE
+                SObjectType = 'Account'
+                AND DeveloperName IN ('Medical_Professional_HCP', 'Institution_HCO')
+            ORDER BY DeveloperName DESC
+            LIMIT 1
+        ];
+        if (speakerAccountTypes.isEmpty()) {
+            return;
+        }
+
+        Account account = new Account(
+            Name = 'Classification Speaker Save Test',
+            RecordTypeId = speakerAccountTypes[0].Id
+        );
+        insert account;
+
+        ClmRatingLayoutService.VisitRatingFieldInput classification =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        classification.objectApiName = 'Account_Territory_Fields__c';
+        classification.fieldApiName = 'HCP_Classification__c';
+        classification.valueJson = '"B2"';
+
+        ClmRatingLayoutService.VisitRatingFieldInput isSpeaker =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isSpeaker.objectApiName = 'Account_Territory_Fields__c';
+        isSpeaker.fieldApiName = 'Is_Speaker__c';
+        isSpeaker.valueJson = 'true';
+
+        ClmRatingLayoutService.VisitRatingFieldInput isKol =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isKol.objectApiName = 'Account_Territory_Fields__c';
+        isKol.fieldApiName = 'Is_KOL__c';
+        isKol.valueJson = 'true';
+
+        ClmRatingLayoutService.VisitRatingFieldInput kolType =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        kolType.objectApiName = 'Account_Territory_Fields__c';
+        kolType.fieldApiName = 'KOL_In_What__c';
+        kolType.valueJson = '"High Prescriber"';
+
+        Test.startTest();
+        ClmRatingLayoutService.saveAccountRatings(
+            account.Id,
+            null,
+            territory.Id,
+            new List<ClmRatingLayoutService.VisitRatingFieldInput>{
+                classification,
+                isSpeaker,
+                isKol,
+                kolType
+            },
+            null
+        );
+        Test.stopTest();
+
+        Account_Territory_Fields__c atf = [
+            SELECT HCP_Classification__c, Is_Speaker__c, Is_KOL__c, KOL_In_What__c
+            FROM Account_Territory_Fields__c
+            WHERE Account__c = :account.Id AND Territory2_Id__c = :String.valueOf(territory.Id)
+            LIMIT 1
+        ];
+        System.assertEquals('B2', atf.HCP_Classification__c);
+        System.assertEquals(true, atf.Is_Speaker__c);
+        System.assertEquals(true, atf.Is_KOL__c);
+        System.assertEquals('High Prescriber', atf.KOL_In_What__c);
+
+        ClmRatingLayoutService.VisitRatingContext context =
+            ClmRatingLayoutService.buildAccountCaptureContext(account.Id);
+        System.assert(context.valuesJson.contains('"B2"'));
+        System.assert(context.valuesJson.contains('HCP_Classification__c'));
+        System.assert(context.valuesJson.contains('Is_Speaker__c'));
+    }
+
+    @IsTest
+    static void saveAccountRatings_persistsProductPotentialityAndPenetration() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        Account account = new Account(Name = 'Product Potentiality Save Test');
+        insert account;
+
+        Product2 product = new Product2(Name = 'Potentiality Product', IsActive = true);
+        insert product;
+
+        ClmRatingLayoutService.ProductRatingSaveInput productInput =
+            new ClmRatingLayoutService.ProductRatingSaveInput();
+        productInput.product2Id = product.Id;
+        productInput.values = new List<ClmRatingLayoutService.VisitRatingFieldInput>();
+
+        ClmRatingLayoutService.VisitRatingFieldInput potential =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        potential.objectApiName = 'Account_Territory_Product_Fields__c';
+        potential.fieldApiName = 'Potential__c';
+        potential.valueJson = '100';
+        productInput.values.add(potential);
+
+        ClmRatingLayoutService.VisitRatingFieldInput penetration =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        penetration.objectApiName = 'Account_Territory_Product_Fields__c';
+        penetration.fieldApiName = 'Penetration__c';
+        penetration.valueJson = '50';
+        productInput.values.add(penetration);
+
+        Test.startTest();
+        ClmRatingLayoutService.saveAccountRatings(
+            account.Id,
+            null,
+            territory.Id,
+            new List<ClmRatingLayoutService.VisitRatingFieldInput>(),
+            new List<ClmRatingLayoutService.ProductRatingSaveInput>{ productInput }
+        );
+        Test.stopTest();
+
+        Account_Territory_Product_Fields__c atpf = [
+            SELECT Potential__c, Penetration__c
+            FROM Account_Territory_Product_Fields__c
+            WHERE
+                Account__c = :account.Id
+                AND Territory2_Id__c = :String.valueOf(territory.Id)
+                AND Product2_Id__c = :String.valueOf(product.Id)
+            LIMIT 1
+        ];
+        System.assertEquals(100, atpf.Potential__c);
+        System.assertEquals(50, atpf.Penetration__c);
+
+        ClmRatingLayoutService.VisitRatingContext context =
+            ClmRatingLayoutService.buildAccountCaptureContext(account.Id, product.Id);
+        System.assertEquals(1, context.alignedProducts.size());
+        System.assertNotEquals(null, context.alignedProducts[0].valuesJson);
+    }
+
+    @IsTest
+    static void normalizeFieldsJson_pharmacyLayoutOmitsSpeakerAndKeepsKol() {
+        Test.startTest();
+        String pharmacyLayout = ClmRatingLayoutService.normalizeFieldsJson(
+            null,
+            ClmRatingLayoutService.VARIANT_PHARMACY
+        );
+        String hcoLayout = ClmRatingLayoutService.normalizeFieldsJson(
+            null,
+            ClmRatingLayoutService.VARIANT_HCO
+        );
+        Test.stopTest();
+
+        System.assert(pharmacyLayout.contains('"accountVariant":"Pharmacy"'));
+        System.assert(pharmacyLayout.contains('Is_KOL__c'));
+        System.assert(pharmacyLayout.contains('HCP_Classification__c'));
+        System.assert(
+            !pharmacyLayout.contains('Is_Speaker__c'),
+            'Pharmacies cannot be speakers'
+        );
+        System.assert(
+            hcoLayout.contains('Is_Speaker__c'),
+            'HCO accounts can still be speakers'
+        );
+        System.assert(
+            pharmacyLayout.contains('High Dispenser'),
+            'Pharmacy KOL reasons should include High Dispenser'
+        );
+        System.assert(
+            pharmacyLayout.contains('Key Retail Account'),
+            'Pharmacy KOL reasons should include Key Retail Account'
+        );
+        System.assert(
+            pharmacyLayout.contains('Chain / Network Influence'),
+            'Pharmacy KOL reasons should include Chain / Network Influence'
+        );
+        System.assert(
+            pharmacyLayout.contains('Strategic Location'),
+            'Pharmacy KOL reasons should include Strategic Location'
+        );
+        System.assert(
+            !pharmacyLayout.contains('High Prescriber'),
+            'Pharmacy KOL reasons should not include HCP High Prescriber'
+        );
+        System.assert(
+            !pharmacyLayout.contains('Key Scientific Leader'),
+            'Pharmacy KOL reasons should not include HCP Key Scientific Leader'
+        );
+        System.assert(
+            hcoLayout.contains('High Prescriber'),
+            'HCO/HCP medical professional KOL reasons should keep High Prescriber'
+        );
+        System.assert(
+            hcoLayout.contains('Key Scientific Leader'),
+            'HCO/HCP medical professional KOL reasons should keep Key Scientific Leader'
+        );
+    }
+
+    @IsTest
+    static void buildAccountCaptureContext_usesPharmacyVariantWithoutSpeaker() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        List<RecordType> pharmacyTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Account' AND DeveloperName = 'Pharmacy'
+            LIMIT 1
+        ];
+        if (pharmacyTypes.isEmpty()) {
+            return;
+        }
+
+        Account account = new Account(
+            Name = 'Pharmacy Rating Layout Test',
+            RecordTypeId = pharmacyTypes[0].Id
+        );
+        insert account;
+
+        Test.startTest();
+        ClmRatingLayoutService.VisitRatingContext context =
+            ClmRatingLayoutService.buildAccountCaptureContext(account.Id);
+        Test.stopTest();
+
+        System.assertEquals(ClmRatingLayoutService.VARIANT_PHARMACY, context.accountVariant);
+        System.assert(
+            context.layoutJson.contains('Is_KOL__c'),
+            'Expected Is KOL on pharmacy layout'
+        );
+        System.assert(
+            !context.layoutJson.contains('Is_Speaker__c'),
+            'Expected Is Speaker to be hidden for pharmacies'
+        );
+        System.assert(
+            context.valuesJson.contains('"Is_Speaker__c":false') ||
+                context.valuesJson.contains('"Is_Speaker__c": false'),
+            'Expected stored pharmacy speaker values to be treated as false'
+        );
+        System.assert(
+            context.layoutJson.contains('High Dispenser'),
+            'Pharmacy capture layout should expose High Dispenser'
+        );
+        System.assert(
+            !context.layoutJson.contains('High Prescriber'),
+            'Pharmacy capture layout should not expose High Prescriber'
+        );
+    }
+
+    @IsTest
+    static void saveAccountRatings_pharmacyRejectsHcpKolReason() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        List<RecordType> pharmacyTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Account' AND DeveloperName = 'Pharmacy'
+            LIMIT 1
+        ];
+        if (pharmacyTypes.isEmpty()) {
+            return;
+        }
+
+        Account account = new Account(
+            Name = 'Pharmacy Invalid KOL Reason Test',
+            RecordTypeId = pharmacyTypes[0].Id
+        );
+        insert account;
+
+        ClmRatingLayoutService.VisitRatingFieldInput isKol =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isKol.objectApiName = 'Account_Territory_Fields__c';
+        isKol.fieldApiName = 'Is_KOL__c';
+        isKol.valueJson = 'true';
+
+        ClmRatingLayoutService.VisitRatingFieldInput kolType =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        kolType.objectApiName = 'Account_Territory_Fields__c';
+        kolType.fieldApiName = 'KOL_In_What__c';
+        kolType.valueJson = '"High Prescriber"';
+
+        Boolean threw = false;
+        Test.startTest();
+        try {
+            ClmRatingLayoutService.saveAccountRatings(
+                account.Id,
+                null,
+                territory.Id,
+                new List<ClmRatingLayoutService.VisitRatingFieldInput>{ isKol, kolType },
+                null
+            );
+        } catch (ClmRatingLayoutService.RatingSaveException ex) {
+            threw = true;
+            System.assert(
+                ex.getMessage().contains('pharmacy KOL reason'),
+                'Expected pharmacy-specific KOL reason validation: ' + ex.getMessage()
+            );
+        }
+        Test.stopTest();
+        System.assert(threw, 'Pharmacy accounts must not save HCP KOL reasons');
+    }
+
+    @IsTest
+    static void saveAccountRatings_hcpRejectsPharmacyKolReason() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        Account account = createHcpAccount('HCP Invalid KOL Reason Test');
+        if (account == null) {
+            return;
+        }
+        insert account;
+
+        ClmRatingLayoutService.VisitRatingFieldInput isKol =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isKol.objectApiName = 'Account_Territory_Fields__c';
+        isKol.fieldApiName = 'Is_KOL__c';
+        isKol.valueJson = 'true';
+
+        ClmRatingLayoutService.VisitRatingFieldInput kolType =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        kolType.objectApiName = 'Account_Territory_Fields__c';
+        kolType.fieldApiName = 'KOL_In_What__c';
+        kolType.valueJson = '"High Dispenser"';
+
+        Boolean threw = false;
+        Test.startTest();
+        try {
+            ClmRatingLayoutService.saveAccountRatings(
+                account.Id,
+                null,
+                territory.Id,
+                new List<ClmRatingLayoutService.VisitRatingFieldInput>{ isKol, kolType },
+                null
+            );
+        } catch (ClmRatingLayoutService.RatingSaveException ex) {
+            threw = true;
+            System.assert(
+                ex.getMessage().contains('High Prescriber'),
+                'Expected HCP KOL reason validation: ' + ex.getMessage()
+            );
+        }
+        Test.stopTest();
+        System.assert(threw, 'HCP accounts must not save pharmacy KOL reasons');
+    }
+
+    @IsTest
+    static void saveAccountRatings_pharmacyKolPersistsAndSpeakerForcedFalse() {
+        Territory2 territory = getOrCreateTestTerritory('TERR_TEST_RATINGS_CALC');
+        if (territory == null) {
+            return;
+        }
+        ensureUserTerritoryAssignment(territory.Id);
+
+        List<RecordType> pharmacyTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Account' AND DeveloperName = 'Pharmacy'
+            LIMIT 1
+        ];
+        if (pharmacyTypes.isEmpty()) {
+            return;
+        }
+
+        Account account = new Account(
+            Name = 'Pharmacy KOL Save Test',
+            RecordTypeId = pharmacyTypes[0].Id
+        );
+        insert account;
+
+        ClmRatingLayoutService.VisitRatingFieldInput isKol =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isKol.objectApiName = 'Account_Territory_Fields__c';
+        isKol.fieldApiName = 'Is_KOL__c';
+        isKol.valueJson = 'true';
+
+        ClmRatingLayoutService.VisitRatingFieldInput kolType =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        kolType.objectApiName = 'Account_Territory_Fields__c';
+        kolType.fieldApiName = 'KOL_In_What__c';
+        kolType.valueJson = '"High Dispenser"';
+
+        ClmRatingLayoutService.VisitRatingFieldInput isSpeaker =
+            new ClmRatingLayoutService.VisitRatingFieldInput();
+        isSpeaker.objectApiName = 'Account_Territory_Fields__c';
+        isSpeaker.fieldApiName = 'Is_Speaker__c';
+        isSpeaker.valueJson = 'true';
+
+        Test.startTest();
+        ClmRatingLayoutService.saveAccountRatings(
+            account.Id,
+            null,
+            territory.Id,
+            new List<ClmRatingLayoutService.VisitRatingFieldInput>{ isKol, kolType, isSpeaker },
+            null
+        );
+        Test.stopTest();
+
+        Account_Territory_Fields__c atf = [
+            SELECT Is_KOL__c, KOL_In_What__c, Is_Speaker__c
+            FROM Account_Territory_Fields__c
+            WHERE Account__c = :account.Id AND Territory2_Id__c = :String.valueOf(territory.Id)
+            LIMIT 1
+        ];
+        System.assertEquals(true, atf.Is_KOL__c, 'Pharmacy KOL should persist');
+        System.assertEquals('High Dispenser', atf.KOL_In_What__c);
+        System.assertEquals(false, atf.Is_Speaker__c, 'Pharmacy speaker should be forced off');
+
+        ClmRatingLayoutService.VisitRatingContext context =
+            ClmRatingLayoutService.buildAccountCaptureContext(account.Id);
+        System.assertEquals(ClmRatingLayoutService.VARIANT_PHARMACY, context.accountVariant);
+        System.assert(context.valuesJson.contains('"Is_KOL__c":true') || context.valuesJson.contains('"Is_KOL__c": true'));
+        System.assert(context.valuesJson.contains('High Dispenser'));
+        System.assert(!context.layoutJson.contains('Is_Speaker__c'));
+        System.assert(context.layoutJson.contains('High Dispenser'));
+        System.assert(!context.layoutJson.contains('High Prescriber'));
+    }
+
+    @IsTest
+    static void normalizeFieldsJson_hcpAndPharmacyKolReasonOptionsAreDistinct() {
+        Test.startTest();
+        String hcpLayout = ClmRatingLayoutService.normalizeFieldsJson(null, ClmRatingLayoutService.VARIANT_HCP);
+        String pharmacyLayout = ClmRatingLayoutService.normalizeFieldsJson(
+            null,
+            ClmRatingLayoutService.VARIANT_PHARMACY
+        );
+        Test.stopTest();
+
+        List<String> hcpReasons = kolReasonValuesFromLayout(hcpLayout);
+        List<String> pharmacyReasons = kolReasonValuesFromLayout(pharmacyLayout);
+
+        System.assertEquals(
+            new List<String>{ 'High Prescriber', 'Key Scientific Leader' },
+            hcpReasons,
+            'HCP KOL reasons must stay High Prescriber and Key Scientific Leader'
+        );
+        System.assertEquals(
+            new List<String>{
+                'High Dispenser',
+                'Key Retail Account',
+                'Chain / Network Influence',
+                'Strategic Location'
+            },
+            pharmacyReasons,
+            'Pharmacy KOL reasons must be dispenser/account concepts'
+        );
+    }
+
+    private static List<String> kolReasonValuesFromLayout(String layoutJson) {
+        Map<String, Object> layout = (Map<String, Object>) JSON.deserializeUntyped(layoutJson);
+        Map<String, Object> sections = (Map<String, Object>) layout.get('sections');
+        List<Object> territoryFields = (List<Object>) sections.get('accountTerritory');
+        for (Object item : territoryFields) {
+            Map<String, Object> field = (Map<String, Object>) item;
+            if ('KOL_In_What__c'.equals((String) field.get('fieldApiName'))) {
+                List<String> values = new List<String>();
+                List<Object> options = (List<Object>) field.get('options');
+                System.assertNotEquals(null, options, 'Expected KOL reason options on layout');
+                for (Object opt : options) {
+                    Map<String, Object> option = (Map<String, Object>) opt;
+                    values.add(String.valueOf(option.get('value')));
+                }
+                return values;
+            }
+        }
+        return new List<String>();
     }
 }

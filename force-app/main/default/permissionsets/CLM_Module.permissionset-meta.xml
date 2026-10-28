@@ -400,6 +400,16 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Product_Fields__c.Potential__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Account_Territory_Product_Fields__c.Penetration__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
         <editable>false</editable>
         <field>Account_Territory_Product_Fields__c.Product_Matrix_Rating__c</field>
         <readable>true</readable>

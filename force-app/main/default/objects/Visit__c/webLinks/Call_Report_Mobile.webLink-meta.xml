@@ -16,5 +16,5 @@
     <protected>false</protected>
     <showsLocation>false</showsLocation>
     <showsStatus>false</showsStatus>
-    <url>/apex/VisitCallReport?id={!Visit__c.Id}</url>
+    <url>/lightning/r/Visit__c/{!Visit__c.Id}/view</url>
 </WebLink>

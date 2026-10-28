@@ -1,0 +1,84 @@
+<template>
+    <lightning-card title="Team Coverage & Frequency" icon-name="standard:metrics">
+        <div slot="actions">
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={handleRefresh}
+            ></lightning-button-icon>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+
+            <template if:true={errorMessage}>
+                <div class="slds-text-color_error">{errorMessage}</div>
+            </template>
+
+            <template if:true={hasSummary}>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">
+                    Period: {periodLabel} · Available days exclude approved TOT so coverage and frequency stay accurate.
+                </p>
+
+                <div class="slds-grid slds-gutters slds-wrap slds-m-bottom_medium">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <div class="kpi-tile">
+                            <div class="kpi-label">Available Working Days</div>
+                            <div class="kpi-value">{availableDaysDisplay}</div>
+                            <div class="kpi-hint">{availableDaysHint}</div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <div class="kpi-tile">
+                            <div class="kpi-label">Coverage</div>
+                            <div class="kpi-value">{coverageDisplay}</div>
+                            <div class="kpi-hint">{coverageHint}</div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <div class="kpi-tile">
+                            <div class="kpi-label">Frequency Impact</div>
+                            <div class={frequencyBadgeClass}>{frequencyLabel}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <template if:true={hasReps}>
+                    <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                        <thead>
+                            <tr class="slds-line-height_reset">
+                                <th scope="col"><div class="slds-truncate">Rep</div></th>
+                                <th scope="col"><div class="slds-truncate">TOT Days</div></th>
+                                <th scope="col"><div class="slds-truncate">Available Days</div></th>
+                                <th scope="col"><div class="slds-truncate">Coverage %</div></th>
+                                <th scope="col"><div class="slds-truncate">Frequency Status</div></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={repRows} for:item="row">
+                                <tr key={row.key} class={row.rowClass}>
+                                    <td>
+                                        <div class="slds-truncate">{row.repName}</div>
+                                        <template if:true={row.longTermLeave}>
+                                            <span class="long-leave-chip">{row.longTermLeaveLabel}</span>
+                                        </template>
+                                    </td>
+                                    <td><div class="slds-truncate">{row.totDisplay}</div></td>
+                                    <td><div class="slds-truncate">{row.availableDisplay}</div></td>
+                                    <td><div class="slds-truncate">{row.coverageDisplay}</div></td>
+                                    <td><div class="slds-truncate">{row.frequencyStatus}</div></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+                <template if:false={hasReps}>
+                    <p class="slds-text-color_weak">{emptyMessage}</p>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

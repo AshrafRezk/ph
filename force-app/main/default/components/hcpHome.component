@@ -1,0 +1,82 @@
+<apex:component>
+    <style>
+        .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem; margin-top: 1.2rem; }
+        .action { display: flex; flex-direction: column; align-items: flex-start; gap: 0.55rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 1.1rem; background: #fff; text-align: left; cursor: pointer; box-shadow: 0 4px 14px rgba(3,45,96,0.06); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .action:active { transform: scale(0.97); }
+        .action__icon { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 0.8rem; background: #e8f1fb; color: var(--brand); }
+        .action__icon--alert { background: #fdecea; color: #b42318; }
+        .action__icon--med { background: #e9f7f0; color: var(--ok); }
+        .action__icon--visit { background: #f1ecfd; color: #6941c6; }
+        .action b { font-size: 0.9rem; color: var(--brand-deep); line-height: 1.25; }
+        .action span { font-size: 0.76rem; color: var(--muted); line-height: 1.3; }
+        .hscroll { display: flex; gap: 0.7rem; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -1rem; padding: 0.15rem 1rem 0.4rem; scrollbar-width: none; }
+        .hscroll::-webkit-scrollbar { display: none; }
+        .hscroll > * { scroll-snap-align: start; flex: none; }
+        .mini { width: 8.4rem; border: 1px solid var(--line); background: #fff; border-radius: 1rem; padding: 0.6rem; text-align: left; cursor: pointer; }
+        .mini__img { display: grid; place-items: center; height: 6rem; border-radius: 0.7rem; background: linear-gradient(180deg, #f7fafd, #eef3f9); overflow: hidden; }
+        .mini__img img { display: block; width: auto; height: auto; max-width: 92%; max-height: 5.4rem; object-fit: contain; }
+        .mini b { display: block; margin-top: 0.45rem; font-size: 0.82rem; color: var(--brand-deep); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mini span { font-size: 0.72rem; color: var(--muted); }
+    </style>
+
+    <div class="actions">
+        <button type="button" class="action" data-request="samples">
+            <span class="action__icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z" /><path d="m3 8 9 5 9-5M12 13v8" /></svg></span>
+            <b>Request samples</b><span>Delivered by your Zeta rep</span>
+        </button>
+        <button type="button" class="action" data-request="medical">
+            <span class="action__icon action__icon--med"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.3M12 17h.01" /></svg></span>
+            <b>Ask a medical question</b><span>Answered by Medical Affairs</span>
+        </button>
+        <button type="button" class="action" data-request="visit">
+            <span class="action__icon action__icon--visit"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 11h5M19.5 8.5v5" /></svg></span>
+            <b>Ask for a visit</b><span>Or a call back</span>
+        </button>
+        <button type="button" class="action" data-request="side_effect">
+            <span class="action__icon action__icon--alert"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg></span>
+            <b>Report a side effect</b><span>Goes to our safety team</span>
+        </button>
+    </div>
+
+    <div id="homeNewsBlock" hidden="hidden">
+        <div class="section-h"><h2>Latest news</h2><button type="button" class="link" data-go="news">See all</button></div>
+        <div id="homeNews"></div>
+    </div>
+
+    <div id="homeProductsBlock" hidden="hidden">
+        <div class="section-h"><h2>Our products</h2><button type="button" class="link" data-go="products">See all</button></div>
+        <div class="hscroll" id="homeProducts"></div>
+    </div>
+
+    <script>
+    window.Zeta.tabs.home = (function () {
+        var Z = window.Zeta;
+        function greeting() {
+            var h = new Date().getHours();
+            var part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+            return Z.data.me.name ? part + ', ' + Z.data.me.name : 'Welcome to Zeta';
+        }
+        function render() {
+            document.getElementById('homeHello').textContent = greeting();
+            document.querySelectorAll('[data-request]').forEach(function (el) {
+                el.addEventListener('click', function () { Z.request(el.getAttribute('data-request')); });
+            });
+            var news = Z.data.news.slice(0, 2);
+            if (news.length) {
+                document.getElementById('homeNewsBlock').hidden = false;
+                document.getElementById('homeNews').innerHTML = news.map(Z.tabs.news.card).join('');
+            }
+            var products = Z.data.products.filter(function (p) { return p.image; }).slice(0, 8);
+            if (products.length) {
+                document.getElementById('homeProductsBlock').hidden = false;
+                document.getElementById('homeProducts').innerHTML = products.map(function (p) {
+                    return '<button type="button" class="mini" data-product="' + Z.esc(p.id) + '">'
+                        + '<span class="mini__img"><img loading="lazy" alt="" src="' + Z.esc(p.image) + '"/></span>'
+                        + '<b>' + Z.esc(p.name) + '</b><span>' + Z.esc(p.area) + '</span></button>';
+                }).join('');
+            }
+        }
+        return { render: render };
+    })();
+    </script>
+</apex:component>

@@ -1,10 +1,15 @@
 <template>
+    <template if:true={featureEnabled}>
     <article class="nbc-card">
         <header class="nbc-header">
             <div class="nbc-heading-row">
                 <div>
-                    <h2 class="nbc-title">Top 5 NBC</h2>
+                    <div class="nbc-title-row">
+                        <h2 class="nbc-title">Top NBC</h2>
+                        <lightning-helptext content="Urgent customers you need to plan for"></lightning-helptext>
+                    </div>
                     <p class="nbc-subtitle">(Next best customers)</p>
+                    <p class="nbc-help-line">Urgent customers you need to plan for</p>
                 </div>
                 <template if:true={showSyncChip}>
                     <span class={syncChipClass} aria-live="polite">{syncChipLabel}</span>
@@ -22,10 +27,15 @@
 
             <div class="nbc-list">
                 <template if:true={hasRows}>
-                    <template for:each={rows} for:item="row">
+                    <template for:each={visibleRows} for:item="row">
                         <div key={row.accountId} class="nbc-row">
                             <div class={row.rankIconClass} title={row.rankLabel} aria-label={row.rankLabel}>
-                                <span class="rank-glyph" aria-hidden="true">{row.rankGlyph}</span>
+                                <template if:true={row.hasMedal}>
+                                    <img class="rank-medal" src={row.rankIconUrl} alt="" />
+                                </template>
+                                <template if:false={row.hasMedal}>
+                                    <span class="rank-number">{row.rankNumber}</span>
+                                </template>
                             </div>
 
                             <div class="cell account">
@@ -60,12 +70,18 @@
                                 <div class="cell-label">ACTION</div>
                                 <button
                                     type="button"
-                                    class="plan-btn plan-btn-neutral"
+                                    class="plan-btn"
                                     title="Create a draft call for this account"
                                     data-account-id={row.accountId}
                                     onclick={handleCall}
                                 >
-                                    Plan call
+                                    <svg class="plan-btn-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                                        <path
+                                            fill="currentColor"
+                                            d="M6 2.5a.75.75 0 0 1 .75.75V4h6.5V3.25a.75.75 0 0 1 1.5 0V4h.5A2.25 2.25 0 0 1 17.5 6.25v9.5A2.25 2.25 0 0 1 15.25 18h-10.5A2.25 2.25 0 0 1 2.5 15.75v-9.5A2.25 2.25 0 0 1 4.75 4h.5V3.25A.75.75 0 0 1 6 2.5ZM4 8v7.75c0 .414.336.75.75.75h10.5a.75.75 0 0 0 .75-.75V8H4Zm6.25 1.5a.75.75 0 0 1 .75.75v1.25h1.25a.75.75 0 0 1 0 1.5H11v1.25a.75.75 0 0 1-1.5 0v-1.25H8.25a.75.75 0 0 1 0-1.5H9.5V10.25a.75.75 0 0 1 .75-.75Z"
+                                        />
+                                    </svg>
+                                    <span>Plan call</span>
                                 </button>
                             </div>
                         </div>
@@ -75,7 +91,14 @@
                 <template if:false={hasRows}>
                     <div class="empty-state">No next best customers available.</div>
                 </template>
+                <template if:true={showViewMore}>
+                    <button type="button" class="nbc-more-btn" onclick={handleViewMore}>{viewMoreLabel}</button>
+                </template>
+                <template if:true={showViewLess}>
+                    <button type="button" class="nbc-more-btn" onclick={handleViewLess}>Show top 5</button>
+                </template>
             </div>
         </div>
     </article>
+    </template>
 </template>

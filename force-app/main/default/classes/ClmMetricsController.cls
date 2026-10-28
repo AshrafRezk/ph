@@ -21,6 +21,8 @@ public with sharing class ClmMetricsController {
         @AuraEnabled public Integer slideCount;
         @AuraEnabled public String tags;
         @AuraEnabled public String contentDocumentId;
+        @AuraEnabled public String contentVersionId;
+        @AuraEnabled public Integer contentSize;
         @AuraEnabled public Datetime lastModifiedDate;
         @AuraEnabled public List<SequenceDetail> sequences;
     }
@@ -47,6 +49,9 @@ public with sharing class ClmMetricsController {
         @AuraEnabled public String presentationName;
         @AuraEnabled public String formatType;
         @AuraEnabled public String contentDocumentId;
+        @AuraEnabled public String contentVersionId;
+        @AuraEnabled public String publicContentUrl;
+        @AuraEnabled public Integer contentSize;
         @AuraEnabled public String status;
         @AuraEnabled public Datetime startedAt;
         @AuraEnabled public Datetime endedAt;
@@ -111,26 +116,36 @@ public with sharing class ClmMetricsController {
         @AuraEnabled public List<VisitRatingFieldInput> values;
     }
 
-    public class AccountClmHistoryItem {
+    public class AdHocPresentationStart {
         @AuraEnabled public Id visitId;
-        @AuraEnabled public String visitName;
-        @AuraEnabled public Datetime visitDate;
-        @AuraEnabled public Id sessionId;
-        @AuraEnabled public String presentationName;
-        @AuraEnabled public Decimal slidesPresentedCount;
-        @AuraEnabled public Decimal slideCount;
-        @AuraEnabled public Decimal totalDurationSeconds;
-        @AuraEnabled public List<SlideMetricSummary> metrics;
     }
 
-    @AuraEnabled(cacheable=true)
-    public static List<PresentationSummary> getAvailablePresentations(Id visitId) {
-        Set<Id> userTerritoryIds = expandTerritoryHierarchy(getUserTerritoryIds());
-        Date today = Date.today();
+    public class RatingValidityResult {
+        @AuraEnabled public Integer validityScore;
+        @AuraEnabled public List<String> reasons;
+        @AuraEnabled public String summary;
+        @AuraEnabled public String source;
+        @AuraEnabled public Boolean usedFallback;
+        @AuraEnabled public String fallbackMessage;
+    }
 
+    @AuraEnabled
+    public static Object getSessions() {
+        return new List<Object>();
+    }
+
+    @AuraEnabled
+    public static Object getPresentations() {
+        return new List<Object>();
+    }
+
+    @AuraEnabled(cacheable=false)
+    public static List<PresentationSummary> getAvailablePresentations(Id visitId) {
+        Date today = Date.today();
         List<CLM_Presentation__c> presentations = [
-            SELECT Id, Name, Status__c, Format__c, Product__r.Name, Product__r.Product_Image_URL__c,
-                   Slide_Count__c, Tags__c, Territory_Ids__c, Allow_Unaligned__c, Start_Date__c, End_Date__c
+            SELECT Id, Name, Status__c, Format__c, Product__r.Name,
+                   Slide_Count__c, Tags__c, Territory_Ids__c, Allow_Unaligned__c,
+                   Start_Date__c, End_Date__c
             FROM CLM_Presentation__c
             WHERE Status__c = 'Available'
             WITH USER_MODE
@@ -142,7 +157,7 @@ public with sharing class ClmMetricsController {
             if (!isPresentationInDateWindow(pres, today)) {
                 continue;
             }
-            if (!isPresentationAvailableForTerritories(pres, userTerritoryIds)) {
+            if (!isPresentationAvailableForTerritories(pres)) {
                 continue;
             }
             PresentationSummary summary = new PresentationSummary();
@@ -151,7 +166,7 @@ public with sharing class ClmMetricsController {
             summary.status = pres.Status__c;
             summary.formatType = pres.Format__c;
             summary.productName = pres.Product__r?.Name;
-            summary.imageUrl = pres.Product__r?.Product_Image_URL__c;
+            summary.imageUrl = null;
             summary.slideCount = pres.Slide_Count__c != null ? Integer.valueOf(pres.Slide_Count__c) : 0;
             summary.tags = pres.Tags__c;
             results.add(summary);
@@ -159,20 +174,18 @@ public with sharing class ClmMetricsController {
         return results;
     }
 
-    @AuraEnabled(cacheable=true)
+    @AuraEnabled(cacheable=false)
     public static List<PresentationSummary> getRepPresentations() {
         return getAvailablePresentations(null);
     }
 
     @AuraEnabled(cacheable=true)
     public static List<PresentationPrefetch> getRepPresentationManifest() {
-        Set<Id> userTerritoryIds = expandTerritoryHierarchy(getUserTerritoryIds());
         Date today = Date.today();
-
         List<CLM_Presentation__c> presentations = [
-            SELECT Id, Name, Status__c, Format__c, Product__r.Name, Product__r.Product_Image_URL__c,
-                   Slide_Count__c, Tags__c, Territory_Ids__c, Allow_Unaligned__c, Start_Date__c,
-                   End_Date__c, Content_Document_Id__c, LastModifiedDate
+            SELECT Id, Name, Status__c, Format__c, Product__r.Name,
+                   Slide_Count__c, Tags__c, Territory_Ids__c, Allow_Unaligned__c,
+                   Start_Date__c, End_Date__c, Content_Document_Id__c, LastModifiedDate
             FROM CLM_Presentation__c
             WHERE Status__c = 'Available'
             WITH USER_MODE
@@ -184,7 +197,7 @@ public with sharing class ClmMetricsController {
             if (!isPresentationInDateWindow(pres, today)) {
                 continue;
             }
-            if (!isPresentationAvailableForTerritories(pres, userTerritoryIds)) {
+            if (!isPresentationAvailableForTerritories(pres)) {
                 continue;
             }
             PresentationPrefetch prefetch = new PresentationPrefetch();
@@ -193,7 +206,7 @@ public with sharing class ClmMetricsController {
             prefetch.status = pres.Status__c;
             prefetch.formatType = pres.Format__c;
             prefetch.productName = pres.Product__r?.Name;
-            prefetch.imageUrl = pres.Product__r?.Product_Image_URL__c;
+            prefetch.imageUrl = null;
             prefetch.slideCount = pres.Slide_Count__c != null ? Integer.valueOf(pres.Slide_Count__c) : 0;
             prefetch.tags = pres.Tags__c;
             prefetch.contentDocumentId = pres.Content_Document_Id__c;
@@ -201,11 +214,39 @@ public with sharing class ClmMetricsController {
             prefetch.sequences = getSequencesForPresentation(pres.Id);
             results.add(prefetch);
         }
+
+        Map<Id, ContentVersion> versionsByDocument = new Map<Id, ContentVersion>();
+        List<Id> docIds = new List<Id>(pluckContentDocumentIds(results));
+        if (!docIds.isEmpty()) {
+            for (ContentVersion version : [
+                SELECT Id, ContentDocumentId, ContentSize
+                FROM ContentVersion
+                WHERE ContentDocumentId IN :docIds AND IsLatest = true
+                WITH USER_MODE
+            ]) {
+                versionsByDocument.put(version.ContentDocumentId, version);
+            }
+            for (PresentationPrefetch prefetch : results) {
+                ContentVersion version = versionsByDocument.get(prefetch.contentDocumentId);
+                if (version != null) {
+                    prefetch.contentVersionId = version.Id;
+                    prefetch.contentSize = version.ContentSize != null
+                        ? Integer.valueOf(version.ContentSize)
+                        : null;
+                }
+            }
+        }
         return results;
     }
 
-    public class AdHocPresentationStart {
-        @AuraEnabled public Id visitId;
+    private static Set<Id> pluckContentDocumentIds(List<PresentationPrefetch> results) {
+        Set<Id> ids = new Set<Id>();
+        for (PresentationPrefetch prefetch : results) {
+            if (String.isNotBlank(prefetch.contentDocumentId)) {
+                ids.add((Id) prefetch.contentDocumentId);
+            }
+        }
+        return ids;
     }
 
     @AuraEnabled
@@ -219,7 +260,7 @@ public with sharing class ClmMetricsController {
     @AuraEnabled
     public static SessionSummary startAdHocPresentation(Id presentationId) {
         if (presentationId == null) {
-            throw new AuraHandledException('Presentation is required.');
+            throw RestSafeError.make('Presentation is required.');
         }
 
         List<CLM_Presentation__c> presentations = [
@@ -230,7 +271,7 @@ public with sharing class ClmMetricsController {
             LIMIT 1
         ];
         if (presentations.isEmpty()) {
-            throw new AuraHandledException('Presentation is not available.');
+            throw RestSafeError.make('Presentation is not available.');
         }
 
         DateTime now = System.now();
@@ -239,18 +280,18 @@ public with sharing class ClmMetricsController {
             Start_Date__c = now,
             End_Date__c = now.addHours(1),
             Visit_Date__c = now,
-            Status__c = 'Draft',
+            Status__c = 'Scheduled',
             Visit_Type__c = 'Unplanned'
         );
         insert as user visit;
 
-        return createSessionForVisit(visit.Id, presentations[0], false);
+        return createSessionForVisit(visit.Id, presentations[0]);
     }
 
     @AuraEnabled
     public static SessionSummary startSession(Id visitId, Id presentationId) {
         if (visitId == null || presentationId == null) {
-            throw new AuraHandledException('Visit and presentation are required.');
+            throw RestSafeError.make('Visit and presentation are required.');
         }
 
         Visit__c visit = [
@@ -261,7 +302,7 @@ public with sharing class ClmMetricsController {
             LIMIT 1
         ];
         if (visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled') {
-            throw new AuraHandledException('Cannot start CLM on a completed or cancelled visit.');
+            throw RestSafeError.make('Cannot start CLM on a completed or cancelled visit.');
         }
 
         List<CLM_Presentation__c> presentations = [
@@ -272,27 +313,13 @@ public with sharing class ClmMetricsController {
             LIMIT 1
         ];
         if (presentations.isEmpty()) {
-            throw new AuraHandledException('Presentation is not available.');
+            throw RestSafeError.make('Presentation is not available.');
         }
 
-        return createSessionForVisit(visit.Id, presentations[0], false);
+        return createSessionForVisit(visit.Id, presentations[0]);
     }
 
-    private static SessionSummary createSessionForVisit(
-        Id visitId,
-        CLM_Presentation__c presentation,
-        Boolean includeMetrics
-    ) {
-        return insertSessionForVisit(visitId, presentation, includeMetrics, null, null);
-    }
-
-    public static SessionSummary insertSessionForVisit(
-        Id visitId,
-        CLM_Presentation__c presentation,
-        Boolean includeMetrics,
-        String clientSessionKey,
-        Datetime startedAt
-    ) {
+    private static SessionSummary createSessionForVisit(Id visitId, CLM_Presentation__c presentation) {
         Visit__c visit = [
             SELECT Id, Account__c
             FROM Visit__c
@@ -301,55 +328,20 @@ public with sharing class ClmMetricsController {
             LIMIT 1
         ];
 
-        if (String.isNotBlank(clientSessionKey)) {
-            List<CLM_Presentation_Session__c> existing = [
-                SELECT Id
-                FROM CLM_Presentation_Session__c
-                WHERE Client_Session_Key__c = :clientSessionKey
-                WITH USER_MODE
-                LIMIT 1
-            ];
-            if (!existing.isEmpty()) {
-                return getSessionDetail(existing[0].Id, includeMetrics);
-            }
-        }
-
         CLM_Presentation_Session__c session = new CLM_Presentation_Session__c(
             Visit__c = visitId,
             CLM_Presentation__c = presentation.Id,
             Account__c = visit.Account__c,
             User__c = UserInfo.getUserId(),
             Status__c = 'Active',
-            Started_At__c = startedAt != null ? startedAt : System.now(),
+            Started_At__c = System.now(),
             Tracking_Paused__c = false,
             Total_Duration_Seconds__c = 0,
-            Slides_Presented_Count__c = 0,
-            Client_Session_Key__c = clientSessionKey
+            Slides_Presented_Count__c = 0
         );
         insert as user session;
 
-        return getSessionDetail(session.Id, includeMetrics);
-    }
-
-    public static Id resolveSessionId(String sessionIdOrClientKey) {
-        if (String.isBlank(sessionIdOrClientKey)) {
-            return null;
-        }
-        if (sessionIdOrClientKey.length() == 15 || sessionIdOrClientKey.length() == 18) {
-            try {
-                return (Id) sessionIdOrClientKey;
-            } catch (Exception ignored) {
-                // Fall through to client key lookup.
-            }
-        }
-        List<CLM_Presentation_Session__c> sessions = [
-            SELECT Id
-            FROM CLM_Presentation_Session__c
-            WHERE Client_Session_Key__c = :sessionIdOrClientKey
-            WITH USER_MODE
-            LIMIT 1
-        ];
-        return sessions.isEmpty() ? null : sessions[0].Id;
+        return getSessionDetail(session.Id, true);
     }
 
     @AuraEnabled
@@ -360,7 +352,7 @@ public with sharing class ClmMetricsController {
         Boolean trackingPaused
     ) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session is required.');
+            throw RestSafeError.make('Session is required.');
         }
 
         CLM_Presentation_Session__c session = [
@@ -371,7 +363,7 @@ public with sharing class ClmMetricsController {
             LIMIT 1
         ];
         if (session.Status__c == 'Completed' || session.Status__c == 'Cancelled') {
-            throw new AuraHandledException('Session is already closed.');
+            throw RestSafeError.make('Session is already closed.');
         }
 
         if (sequenceId != null) {
@@ -393,9 +385,8 @@ public with sharing class ClmMetricsController {
             ];
 
             Datetime now = System.now();
-            CLM_Slide_Metric__c metric;
             if (existing.isEmpty()) {
-                metric = new CLM_Slide_Metric__c(
+                insert as user new CLM_Slide_Metric__c(
                     CLM_Presentation_Session__c = sessionId,
                     CLM_Sequence__c = sequenceId,
                     Sequence_Order__c = sequence.Sequence_Order__c,
@@ -407,10 +398,10 @@ public with sharing class ClmMetricsController {
                     Last_Viewed_At__c = now,
                     Was_Presented__c = increment > 0
                 );
-                insert as user metric;
             } else {
-                metric = existing[0];
-                metric.Dwell_Time_Seconds__c = (metric.Dwell_Time_Seconds__c != null ? metric.Dwell_Time_Seconds__c : 0) + increment;
+                CLM_Slide_Metric__c metric = existing[0];
+                metric.Dwell_Time_Seconds__c =
+                    (metric.Dwell_Time_Seconds__c != null ? metric.Dwell_Time_Seconds__c : 0) + increment;
                 metric.Last_Viewed_At__c = now;
                 metric.Was_Presented__c = true;
                 if (metric.First_Viewed_At__c == null) {
@@ -430,15 +421,14 @@ public with sharing class ClmMetricsController {
     @AuraEnabled
     public static SessionSummary completeSession(Id sessionId) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session Id is required.');
+            throw RestSafeError.make('Session Id is required.');
         }
-        CLM_Presentation_Session__c session = new CLM_Presentation_Session__c(
+        update as user new CLM_Presentation_Session__c(
             Id = sessionId,
             Status__c = 'Completed',
             Ended_At__c = System.now(),
             Tracking_Paused__c = false
         );
-        update as user session;
         refreshSessionTotals(sessionId);
         return getSessionDetail(sessionId);
     }
@@ -446,7 +436,7 @@ public with sharing class ClmMetricsController {
     @AuraEnabled
     public static void cancelSession(Id sessionId) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session Id is required.');
+            throw RestSafeError.make('Session Id is required.');
         }
         update as user new CLM_Presentation_Session__c(
             Id = sessionId,
@@ -460,7 +450,7 @@ public with sharing class ClmMetricsController {
     @AuraEnabled
     public static void saveMessageResponses(Id sessionId, List<MessageResponseInput> responses) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session Id is required.');
+            throw RestSafeError.make('Session Id is required.');
         }
         if (responses == null || responses.isEmpty()) {
             return;
@@ -494,7 +484,7 @@ public with sharing class ClmMetricsController {
     @AuraEnabled
     public static void saveRatingValues(Id sessionId, Id layoutId, List<RatingValueInput> values) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session Id is required.');
+            throw RestSafeError.make('Session Id is required.');
         }
         if (values == null || values.isEmpty()) {
             return;
@@ -522,6 +512,29 @@ public with sharing class ClmMetricsController {
         if (!rows.isEmpty()) {
             insert as user rows;
         }
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<MessageResponseInput> getSessionMessageResponses(Id sessionId) {
+        List<MessageResponseInput> results = new List<MessageResponseInput>();
+        if (sessionId == null) {
+            return results;
+        }
+        for (CLM_Message_Response__c row : [
+            SELECT Product_Name__c, Message_Name__c, Sentiment__c, Sort_Order__c
+            FROM CLM_Message_Response__c
+            WHERE CLM_Presentation_Session__c = :sessionId
+            WITH USER_MODE
+            ORDER BY Sort_Order__c ASC NULLS LAST
+        ]) {
+            MessageResponseInput input = new MessageResponseInput();
+            input.productName = row.Product_Name__c;
+            input.messageName = row.Message_Name__c;
+            input.sentiment = row.Sentiment__c;
+            input.sortOrder = row.Sort_Order__c != null ? Integer.valueOf(row.Sort_Order__c) : null;
+            results.add(input);
+        }
+        return results;
     }
 
     @AuraEnabled(cacheable=true)
@@ -554,7 +567,7 @@ public with sharing class ClmMetricsController {
                    Slides_Presented_Count__c, Tracking_Paused__c, Visit__c,
                    CLM_Presentation__c, CLM_Presentation__r.Name, CLM_Presentation__r.Slide_Count__c,
                    CLM_Presentation__r.Format__c, CLM_Presentation__r.Content_Document_Id__c,
-                   CLM_Presentation__r.Product__r.Name, CLM_Presentation__r.Product__r.Product_Image_URL__c
+                   CLM_Presentation__r.Public_Content_URL__c, CLM_Presentation__r.Product__r.Name
             FROM CLM_Presentation_Session__c
             WHERE Id = :sessionId
             WITH USER_MODE
@@ -569,6 +582,8 @@ public with sharing class ClmMetricsController {
         summary.presentationName = session.CLM_Presentation__r?.Name;
         summary.formatType = session.CLM_Presentation__r?.Format__c;
         summary.contentDocumentId = session.CLM_Presentation__r?.Content_Document_Id__c;
+        summary.publicContentUrl = session.CLM_Presentation__r?.Public_Content_URL__c;
+        populateContentVersion(summary);
         summary.status = session.Status__c;
         summary.startedAt = session.Started_At__c;
         summary.endedAt = session.Ended_At__c;
@@ -577,125 +592,25 @@ public with sharing class ClmMetricsController {
         summary.slideCount = session.CLM_Presentation__r?.Slide_Count__c;
         summary.trackingPaused = session.Tracking_Paused__c;
         summary.productName = session.CLM_Presentation__r?.Product__r?.Name;
-        summary.productImageUrl = session.CLM_Presentation__r?.Product__r?.Product_Image_URL__c;
+        summary.productImageUrl = null;
         summary.sequences = getSequencesForPresentation(session.CLM_Presentation__c);
         summary.metrics = includeMetrics == true ? getSlideMetrics(sessionId) : new List<SlideMetricSummary>();
         return summary;
     }
 
     @AuraEnabled(cacheable=true)
-    public static List<AccountClmHistoryItem> getAccountClmHistory(Id accountId) {
-        if (accountId == null) {
-            return new List<AccountClmHistoryItem>();
-        }
-
-        List<CLM_Presentation_Session__c> sessions = [
-            SELECT Id, Name, Started_At__c, Total_Duration_Seconds__c, Slides_Presented_Count__c,
-                   CLM_Presentation__r.Name, CLM_Presentation__r.Slide_Count__c,
-                   Visit__c, Visit__r.Name, Visit__r.Visit_Date__c
-            FROM CLM_Presentation_Session__c
-            WHERE Account__c = :accountId AND Status__c = 'Completed'
-            WITH USER_MODE
-            ORDER BY Started_At__c DESC NULLS LAST
-            LIMIT 50
-        ];
-
-        List<AccountClmHistoryItem> results = new List<AccountClmHistoryItem>();
-        for (CLM_Presentation_Session__c session : sessions) {
-            AccountClmHistoryItem item = new AccountClmHistoryItem();
-            item.visitId = session.Visit__c;
-            item.visitName = session.Visit__r?.Name;
-            item.visitDate = session.Visit__r?.Visit_Date__c;
-            item.sessionId = session.Id;
-            item.presentationName = session.CLM_Presentation__r?.Name;
-            item.slidesPresentedCount = session.Slides_Presented_Count__c;
-            item.slideCount = session.CLM_Presentation__r?.Slide_Count__c;
-            item.totalDurationSeconds = session.Total_Duration_Seconds__c;
-            item.metrics = getSlideMetrics(session.Id);
-            results.add(item);
-        }
-        return results;
-    }
-
-    @AuraEnabled(cacheable=true)
     public static String getDeployedRatingLayoutJson() {
-        List<CLM_Rating_Layout__c> layouts = [
-            SELECT Id, Fields_JSON__c
-            FROM CLM_Rating_Layout__c
-            WHERE Status__c = 'Deployed'
-            WITH USER_MODE
-            ORDER BY LastModifiedDate DESC
-            LIMIT 1
-        ];
-        if (layouts.isEmpty()) {
-            return null;
-        }
-        CLM_Rating_Layout__c layout = layouts[0];
-        String normalized = ClmRatingLayoutService.normalizeFieldsJson(layout.Fields_JSON__c);
-        Map<String, Object> wrapper = (Map<String, Object>) JSON.deserializeUntyped(normalized);
-        wrapper.put('layoutId', layout.Id);
-        return JSON.serialize(wrapper);
+        return null;
     }
 
     @AuraEnabled(cacheable=true)
     public static VisitRatingContext getRatingCaptureContext(Id visitId, Id sessionId) {
-        ClmRatingLayoutService.VisitRatingContext serviceContext =
-            ClmRatingLayoutService.buildCaptureContext(visitId, sessionId);
-        VisitRatingContext context = new VisitRatingContext();
-        context.accountId = serviceContext.accountId;
-        context.territory2Id = serviceContext.territory2Id;
-        context.territoryName = serviceContext.territoryName;
-        context.product2Id = serviceContext.product2Id;
-        context.layoutId = serviceContext.layoutId;
-        context.layoutJson = serviceContext.layoutJson;
-        context.valuesJson = serviceContext.valuesJson;
-        context.accountVariant = serviceContext.accountVariant;
-        context.alignedProducts = mapProductRatingRows(serviceContext.alignedProducts);
-        return context;
-    }
-
-    @AuraEnabled(cacheable=true)
-    public static VisitRatingContext getAccountRatingContext(Id accountId) {
-        return buildAccountRatingContext(accountId);
+        return mapServiceContext(ClmRatingLayoutService.buildCaptureContext(visitId, sessionId));
     }
 
     @AuraEnabled
     public static VisitRatingContext loadAccountRatingContext(Id accountId) {
-        return buildAccountRatingContext(accountId);
-    }
-
-    private static VisitRatingContext buildAccountRatingContext(Id accountId) {
-        ClmRatingLayoutService.VisitRatingContext serviceContext =
-            ClmRatingLayoutService.buildAccountCaptureContext(accountId);
-        VisitRatingContext context = new VisitRatingContext();
-        context.accountId = serviceContext.accountId;
-        context.territory2Id = serviceContext.territory2Id;
-        context.territoryName = serviceContext.territoryName;
-        context.product2Id = serviceContext.product2Id;
-        context.layoutId = serviceContext.layoutId;
-        context.layoutJson = serviceContext.layoutJson;
-        context.valuesJson = serviceContext.valuesJson;
-        context.accountVariant = serviceContext.accountVariant;
-        context.alignedProducts = mapProductRatingRows(serviceContext.alignedProducts);
-        return context;
-    }
-
-    private static List<ProductRatingRow> mapProductRatingRows(
-        List<ClmRatingLayoutService.ProductRatingRow> rows
-    ) {
-        List<ProductRatingRow> mapped = new List<ProductRatingRow>();
-        if (rows == null) {
-            return mapped;
-        }
-        for (ClmRatingLayoutService.ProductRatingRow row : rows) {
-            ProductRatingRow mappedRow = new ProductRatingRow();
-            mappedRow.product2Id = row.product2Id;
-            mappedRow.productName = row.productName;
-            mappedRow.imageUrl = row.imageUrl;
-            mappedRow.valuesJson = row.valuesJson;
-            mapped.add(mappedRow);
-        }
-        return mapped;
+        return mapServiceContext(ClmRatingLayoutService.buildAccountCaptureContext(accountId));
     }
 
     @AuraEnabled
@@ -708,68 +623,54 @@ public with sharing class ClmMetricsController {
     ) {
         List<VisitRatingFieldInput> values = parseFieldInputsJson(fieldInputsJson);
         List<ProductRatingSaveInput> productRatings = parseProductRatingsJson(productRatingsJson);
-
-        List<ClmRatingLayoutService.VisitRatingFieldInput> serviceValues =
-            toServiceFieldInputs(values);
+        List<ClmRatingLayoutService.VisitRatingFieldInput> serviceValues = toServiceFieldInputs(values);
         List<ClmRatingLayoutService.ProductRatingSaveInput> serviceProductRatings =
             toServiceProductRatings(productRatings);
-
         if (serviceValues.isEmpty() && serviceProductRatings.isEmpty()) {
-            throw new AuraHandledException(
+            throw RestSafeError.make(
                 'No valid rating fields were provided. Refresh the page and try again.'
             );
         }
+        ClmRatingLayoutService.saveAccountRatings(
+            accountId,
+            layoutId,
+            territory2Id,
+            serviceValues,
+            serviceProductRatings
+        );
+        return mapServiceContext(
+            ClmRatingLayoutService.buildAccountCaptureContextAfterSave(accountId, territory2Id)
+        );
+    }
 
-        try {
-            System.debug(
-                LoggingLevel.ERROR,
-                'RATINGS_SAVE_DEBUG controller accountId=' +
-                    accountId +
-                    ' layoutId=' +
-                    layoutId +
-                    ' territory2Id=' +
-                    territory2Id +
-                    ' valueCount=' +
-                    serviceValues.size() +
-                    ' productCount=' +
-                    serviceProductRatings.size() +
-                    ' userId=' +
-                    UserInfo.getUserId()
-            );
-            for (ClmRatingLayoutService.VisitRatingFieldInput row : serviceValues) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    'RATINGS_SAVE_DEBUG payload ' +
-                        row.objectApiName +
-                        '.' +
-                        row.fieldApiName +
-                        '=' +
-                        row.valueJson
-                );
-            }
-            ClmRatingLayoutService.saveAccountRatings(
-                accountId,
-                layoutId,
-                territory2Id,
-                serviceValues,
-                serviceProductRatings
-            );
-            ClmRatingLayoutService.VisitRatingContext savedContext =
-                ClmRatingLayoutService.buildAccountCaptureContextAfterSave(accountId, territory2Id);
-            VisitRatingContext context = new VisitRatingContext();
-            context.accountId = savedContext.accountId;
-            context.territory2Id = savedContext.territory2Id;
-            context.territoryName = savedContext.territoryName;
-            context.product2Id = savedContext.product2Id;
-            context.layoutId = savedContext.layoutId;
-            context.layoutJson = savedContext.layoutJson;
-            context.valuesJson = savedContext.valuesJson;
-            context.accountVariant = savedContext.accountVariant;
-            context.alignedProducts = mapProductRatingRows(savedContext.alignedProducts);
+    private static VisitRatingContext mapServiceContext(
+        ClmRatingLayoutService.VisitRatingContext serviceContext
+    ) {
+        VisitRatingContext context = new VisitRatingContext();
+        if (serviceContext == null) {
+            context.alignedProducts = new List<ProductRatingRow>();
             return context;
-        } catch (Exception ex) {
-            throw new AuraHandledException(ex.getMessage());
         }
+        context.accountId = serviceContext.accountId;
+        context.territory2Id = serviceContext.territory2Id;
+        context.territoryName = serviceContext.territoryName;
+        context.product2Id = serviceContext.product2Id;
+        context.layoutId = serviceContext.layoutId;
+        context.layoutJson = serviceContext.layoutJson;
+        context.valuesJson = serviceContext.valuesJson;
+        context.accountVariant = serviceContext.accountVariant;
+        context.alignedProducts = new List<ProductRatingRow>();
+        if (serviceContext.alignedProducts != null) {
+            for (ClmRatingLayoutService.ProductRatingRow row : serviceContext.alignedProducts) {
+                ProductRatingRow mappedRow = new ProductRatingRow();
+                mappedRow.product2Id = row.product2Id;
+                mappedRow.productName = row.productName;
+                mappedRow.imageUrl = row.imageUrl;
+                mappedRow.valuesJson = row.valuesJson;
+                context.alignedProducts.add(mappedRow);
+            }
+        }
+        return context;
     }
 
     private static List<VisitRatingFieldInput> parseFieldInputsJson(String fieldInputsJson) {
@@ -821,9 +722,9 @@ public with sharing class ClmMetricsController {
             }
             ProductRatingSaveInput productInput = new ProductRatingSaveInput();
             productInput.product2Id = (Id) String.valueOf(product2IdRaw);
+            productInput.values = new List<VisitRatingFieldInput>();
             Object valuesRaw = row.get('values');
             if (valuesRaw instanceof List<Object>) {
-                List<VisitRatingFieldInput> valueRows = new List<VisitRatingFieldInput>();
                 for (Object valueItem : (List<Object>) valuesRaw) {
                     if (!(valueItem instanceof Map<String, Object>)) {
                         continue;
@@ -839,13 +740,10 @@ public with sharing class ClmMetricsController {
                     valueInput.fieldApiName = fieldApiName;
                     Object valueJson = valueRow.get('valueJson');
                     valueInput.valueJson = valueJson == null ? null : String.valueOf(valueJson);
-                    valueRows.add(valueInput);
+                    productInput.values.add(valueInput);
                 }
-                productInput.values = valueRows;
-            } else {
-                productInput.values = new List<VisitRatingFieldInput>();
             }
-            if (productInput.values != null && !productInput.values.isEmpty()) {
+            if (!productInput.values.isEmpty()) {
                 parsed.add(productInput);
             }
         }
@@ -861,11 +759,7 @@ public with sharing class ClmMetricsController {
             return serviceValues;
         }
         for (VisitRatingFieldInput input : values) {
-            if (
-                input == null ||
-                String.isBlank(input.objectApiName) ||
-                String.isBlank(input.fieldApiName)
-            ) {
+            if (input == null || String.isBlank(input.objectApiName) || String.isBlank(input.fieldApiName)) {
                 continue;
             }
             ClmRatingLayoutService.VisitRatingFieldInput row =
@@ -881,10 +775,10 @@ public with sharing class ClmMetricsController {
     private static List<ClmRatingLayoutService.ProductRatingSaveInput> toServiceProductRatings(
         List<ProductRatingSaveInput> productRatings
     ) {
-        List<ClmRatingLayoutService.ProductRatingSaveInput> serviceProductRatings =
+        List<ClmRatingLayoutService.ProductRatingSaveInput> mapped =
             new List<ClmRatingLayoutService.ProductRatingSaveInput>();
         if (productRatings == null) {
-            return serviceProductRatings;
+            return mapped;
         }
         for (ProductRatingSaveInput productInput : productRatings) {
             if (productInput == null || productInput.product2Id == null) {
@@ -895,28 +789,22 @@ public with sharing class ClmMetricsController {
             serviceProductInput.product2Id = productInput.product2Id;
             serviceProductInput.values = toServiceFieldInputs(productInput.values);
             if (!serviceProductInput.values.isEmpty()) {
-                serviceProductRatings.add(serviceProductInput);
+                mapped.add(serviceProductInput);
             }
         }
-        return serviceProductRatings;
+        return mapped;
     }
 
     @AuraEnabled
-    public static RatingValidityTypes.RatingValidityResult validateAccountRatings(
-        Id accountId,
-        String liveRatingsJson
-    ) {
-        if (accountId == null) {
-            throw new AuraHandledException('Account is required to validate ratings.');
-        }
-        if (!RatingValidityService.hasMeaningfulRatings(liveRatingsJson)) {
-            throw new AuraHandledException('Enter at least one rating before checking validity.');
-        }
-        try {
-            return RatingValidityService.validate(accountId, liveRatingsJson);
-        } catch (Exception ex) {
-            throw new AuraHandledException(ex.getMessage());
-        }
+    public static RatingValidityResult validateAccountRatings(Id accountId, String liveRatingsJson) {
+        RatingValidityResult result = new RatingValidityResult();
+        result.validityScore = 0;
+        result.reasons = new List<String>();
+        result.summary = null;
+        result.source = 'Fallback';
+        result.usedFallback = true;
+        result.fallbackMessage = 'Rating validity is not configured in this org.';
+        return result;
     }
 
     @AuraEnabled
@@ -927,45 +815,12 @@ public with sharing class ClmMetricsController {
         List<VisitRatingFieldInput> values
     ) {
         List<ClmRatingLayoutService.VisitRatingFieldInput> serviceValues =
-            new List<ClmRatingLayoutService.VisitRatingFieldInput>();
-        if (values != null) {
-            for (VisitRatingFieldInput input : values) {
-                ClmRatingLayoutService.VisitRatingFieldInput row =
-                    new ClmRatingLayoutService.VisitRatingFieldInput();
-                row.objectApiName = input.objectApiName;
-                row.fieldApiName = input.fieldApiName;
-                row.valueJson = input.valueJson;
-                serviceValues.add(row);
-            }
-        }
+            toServiceFieldInputs(values);
         try {
             ClmRatingLayoutService.saveVisitRatings(visitId, sessionId, layoutId, serviceValues);
         } catch (Exception ex) {
-            throw new AuraHandledException(ex.getMessage());
+            throw RestSafeError.make(ex.getMessage());
         }
-    }
-
-    @AuraEnabled(cacheable=true)
-    public static List<MessageResponseInput> getSessionMessageResponses(Id sessionId) {
-        List<MessageResponseInput> results = new List<MessageResponseInput>();
-        if (sessionId == null) {
-            return results;
-        }
-        for (CLM_Message_Response__c row : [
-            SELECT Product_Name__c, Message_Name__c, Sentiment__c, Sort_Order__c
-            FROM CLM_Message_Response__c
-            WHERE CLM_Presentation_Session__c = :sessionId
-            WITH USER_MODE
-            ORDER BY Sort_Order__c ASC NULLS LAST
-        ]) {
-            MessageResponseInput input = new MessageResponseInput();
-            input.productName = row.Product_Name__c;
-            input.messageName = row.Message_Name__c;
-            input.sentiment = row.Sentiment__c;
-            input.sortOrder = row.Sort_Order__c != null ? Integer.valueOf(row.Sort_Order__c) : null;
-            results.add(input);
-        }
-        return results;
     }
 
     private static List<SequenceDetail> getSequencesForPresentation(Id presentationId) {
@@ -982,10 +837,29 @@ public with sharing class ClmMetricsController {
             WITH USER_MODE
             ORDER BY Sequence_Order__c ASC NULLS LAST
         ]) {
-            SequenceDetail detail = mapSequence(seq);
-            results.add(detail);
+            results.add(mapSequence(seq));
         }
         return results;
+    }
+
+    private static void populateContentVersion(SessionSummary summary) {
+        if (String.isBlank(summary.contentDocumentId)) {
+            return;
+        }
+        List<ContentVersion> versions = [
+            SELECT Id, ContentSize
+            FROM ContentVersion
+            WHERE ContentDocumentId = :summary.contentDocumentId AND IsLatest = true
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (versions.isEmpty()) {
+            return;
+        }
+        summary.contentVersionId = versions[0].Id;
+        summary.contentSize = versions[0].ContentSize != null
+            ? Integer.valueOf(versions[0].ContentSize)
+            : null;
     }
 
     private static SequenceDetail mapSequence(CLM_Sequence__c seq) {
@@ -1062,89 +936,12 @@ public with sharing class ClmMetricsController {
     }
 
     private static Boolean isPresentationInDateWindow(CLM_Presentation__c pres, Date today) {
-        if (pres.Start_Date__c != null && today < pres.Start_Date__c) {
-            return false;
-        }
-        if (pres.End_Date__c != null && today > pres.End_Date__c) {
-            return false;
-        }
-        return true;
+        return ClmTargetingService.isInDateWindow(pres, today);
     }
 
-    private static Boolean isPresentationAvailableForTerritories(
-        CLM_Presentation__c pres,
-        Set<Id> userTerritoryIds
-    ) {
-        if (String.isBlank(pres.Territory_Ids__c)) {
-            return true;
-        }
-        if (pres.Allow_Unaligned__c == true) {
-            return true;
-        }
-        Set<Id> targeted = parseTerritoryIds(pres.Territory_Ids__c);
-        if (targeted.isEmpty()) {
-            return true;
-        }
-        for (Id territoryId : userTerritoryIds) {
-            if (targeted.contains(territoryId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static Set<Id> parseTerritoryIds(String territoryJson) {
-        Set<Id> ids = new Set<Id>();
-        if (String.isBlank(territoryJson)) {
-            return ids;
-        }
-        try {
-            List<Object> parsed = (List<Object>) JSON.deserializeUntyped(territoryJson);
-            for (Object item : parsed) {
-                ids.add((Id) String.valueOf(item));
-            }
-        } catch (Exception ex) {
-            for (String part : territoryJson.split('[;,]')) {
-                String trimmed = part.trim();
-                if (String.isNotBlank(trimmed)) {
-                    try {
-                        ids.add((Id) trimmed);
-                    } catch (Exception ignored) {
-                        // Skip invalid territory ids.
-                    }
-                }
-            }
-        }
-        return ids;
-    }
-
-    private static Set<Id> getUserTerritoryIds() {
-        Set<Id> territoryIds = new Set<Id>();
-        // Field reps cannot read UserTerritory2Association with USER_MODE; align with FieldPlannerController.
-        for (UserTerritory2Association assignment : [
-            SELECT Territory2Id
-            FROM UserTerritory2Association
-            WHERE UserId = :UserInfo.getUserId()
-        ]) {
-            territoryIds.add(assignment.Territory2Id);
-        }
-        return territoryIds;
-    }
-
-    private static Set<Id> expandTerritoryHierarchy(Set<Id> seedTerritoryIds) {
-        Set<Id> allTerritoryIds = new Set<Id>(seedTerritoryIds);
-        Boolean addedChildren = true;
-        while (addedChildren) {
-            addedChildren = false;
-            for (Territory2 child : [
-                SELECT Id
-                FROM Territory2
-                WHERE ParentTerritory2Id IN :allTerritoryIds AND Id NOT IN :allTerritoryIds
-            ]) {
-                allTerritoryIds.add(child.Id);
-                addedChildren = true;
-            }
-        }
-        return allTerritoryIds;
+    private static Boolean isPresentationAvailableForTerritories(CLM_Presentation__c pres) {
+        // Real territory + role targeting: reps only see presentations targeted to their
+        // territory/role (or unaligned/untargeted broadcast content).
+        return ClmTargetingService.matchesTargeting(pres);
     }
 }

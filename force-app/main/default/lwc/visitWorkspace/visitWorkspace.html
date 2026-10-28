@@ -1,5 +1,5 @@
 <template>
-    <div class="visit-workspace">
+    <div class={workspaceClass} style={themeStyle}>
         <template if:true={isLoading}>
             <lightning-spinner alternative-text="Loading visit" size="medium"></lightning-spinner>
         </template>
@@ -9,8 +9,11 @@
         </template>
 
         <template if:true={visit}>
-            <section class="visit-hero">
+            <section class={heroClass}>
                 <div class="visit-hero-top">
+                    <template if:true={accountTypeIconUrl}>
+                        <img class="account-type-mark" src={accountTypeIconUrl} alt="" />
+                    </template>
                     <span class={accountBadgeClass}>{accountBadgeLabel}</span>
                     <span class={statusBadgeClass}>{visit.status}</span>
                 </div>
@@ -87,6 +90,12 @@
                                             <dd>{visit.assignedToName}</dd>
                                         </div>
                                     </dl>
+                                    <template if:true={planRejectionReason}>
+                                        <div class="slds-notify slds-notify_alert slds-theme_warning slds-m-bottom_small" role="alert">
+                                            <h2>Plan rejected</h2>
+                                            <p>{planRejectionReason}</p>
+                                        </div>
+                                    </template>
                                     <lightning-combobox
                                         class="slds-m-top_small"
                                         label="Status"
@@ -165,6 +174,27 @@
 
                     <template if:true={showPresentations}>
                         <c-clm-visit-presentations record-id={recordId} is-locked={isLocked}></c-clm-visit-presentations>
+                    </template>
+
+                    <template if:true={showStoreCheck}>
+                        <c-visit-store-check-gallery
+                            visit-id={recordId}
+                            disabled={isLocked}
+                        ></c-visit-store-check-gallery>
+                    </template>
+
+                    <template if:true={showOrder}>
+                        <c-visit-pharmacy-order
+                            visit-id={recordId}
+                            disabled={isLocked}
+                        ></c-visit-pharmacy-order>
+                    </template>
+
+                    <template if:true={showRequests}>
+                        <c-visit-sales-requests
+                            visit-id={recordId}
+                            account-id={accountId}
+                        ></c-visit-sales-requests>
                     </template>
 
                     <template if:true={showPlaceholderTab}>

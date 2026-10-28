@@ -2,8 +2,8 @@
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>62.0</apiVersion>
     <isExposed>true</isExposed>
-    <masterLabel>HCP Product ROI</masterLabel>
-    <description>Prescribed product ranking, org rank, potential gap, dual growth charts, and engagement spend ROI.</description>
+    <masterLabel>APM</masterLabel>
+    <description>ROI ranking, potential gap, sell-out/rating charts, engagement spend, and absolute physician movement.</description>
     <targets>
         <target>lightning__RecordPage</target>
     </targets>

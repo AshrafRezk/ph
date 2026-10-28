@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Admin-managed distributor registry for sales ingest (includes Zeta Direct).</description>
+    <enableActivities>false</enableActivities>
+    <enableReports>true</enableReports>
+    <label>Sales Distributor</label>
+    <nameField>
+        <label>Distributor Name</label>
+        <type>Text</type>
+    </nameField>
+    <pluralLabel>Sales Distributors</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

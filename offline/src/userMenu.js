@@ -93,17 +93,25 @@ function writeCachedProfile(profile) {
 function readCachedTerritory() {
     try {
         const raw = window.localStorage.getItem(TERRITORY_CACHE_KEY);
-        if (raw) return JSON.parse(raw);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            // Full SwitcherContext from REST has a tree array. Ignore slim
+            // pharma-territory-context event blobs (no tree) so the panel does
+            // not render a false "No territory assignment" state.
+            if (parsed && Array.isArray(parsed.tree)) {
+                return parsed;
+            }
+        }
     } catch {
         /* ignore */
     }
-    return getStoredTerritoryContext();
+    return null;
 }
 
 function writeCachedTerritory(context) {
     territoryCache = context;
     try {
-        if (context) {
+        if (context && Array.isArray(context.tree)) {
             window.localStorage.setItem(TERRITORY_CACHE_KEY, JSON.stringify(context));
         } else {
             window.localStorage.removeItem(TERRITORY_CACHE_KEY);
@@ -113,8 +121,16 @@ function writeCachedTerritory(context) {
     }
 }
 
+function clearSlimTerritoryContext() {
+    try {
+        window.localStorage.removeItem('pharma-territory-context');
+    } catch {
+        /* ignore */
+    }
+}
+
 function formatDateTime(value) {
-    if (!value) return 'ù';
+    if (!value) return '?';
     try {
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return String(value);
@@ -151,7 +167,11 @@ function setTerritoryPanelOpen(open) {
     if (open) {
         panel.removeAttribute('hidden');
         panel.classList.add('is-open');
-        void renderTerritoryPanel();
+        renderTerritoryPanel();
+        void (async () => {
+            await loadTerritoryContext({ force: !isOfflineMode() });
+            if (!panel.hidden) renderTerritoryPanel();
+        })();
     } else {
         panel.setAttribute('hidden', '');
         panel.classList.remove('is-open');
@@ -184,10 +204,11 @@ export function paintUserAvatars() {
     const name = displayNameFromProfile(profile, identity);
     const photo = photoUrlFromProfile(profile, identity);
     const initials = initialsFromName(name);
+    const slim = getStoredTerritoryContext() || {};
     const territoryName =
         territoryCache?.selectedTerritoryName ||
-        readCachedTerritory()?.territoryName ||
         readCachedTerritory()?.selectedTerritoryName ||
+        slim.territoryName ||
         'All assigned territories';
 
     document.querySelectorAll('[data-user-avatar]').forEach((btn) => {
@@ -307,15 +328,22 @@ async function loadTerritoryContext({ force = false } = {}) {
         return territoryCache;
     }
     try {
-        const context = await plannerApiFetch('/services/apexrest/planner/v1/territory-context');
+        // Fresh: the saved GET copy predates any switch (the POST does not update it), and writing it
+        // back would flip the app to the old territory. Offline still falls back to that copy.
+        const previous = territoryCache || readCachedTerritory();
+        const context = await plannerApiFetch('/services/apexrest/planner/v1/territory-context', { fresh: true });
         territoryCache = context;
         writeCachedTerritory(context);
-        publishTerritoryContextChanged(null, {
-            territoryId: context.selectedTerritoryId || '',
-            territoryName: context.selectedTerritoryName || 'All assigned territories',
-            usingAllAssigned: context.usingAllAssigned !== false
-        });
+        if (!previous || (previous.selectedTerritoryId || '') !== (context.selectedTerritoryId || '')) {
+            publishTerritoryContextChanged(null, {
+                territoryId: context.selectedTerritoryId || '',
+                territoryName: context.selectedTerritoryName || 'All assigned territories',
+                usingAllAssigned: context.usingAllAssigned !== false
+            });
+        }
         paintUserAvatars();
+        const panel = $('territory-switcher-panel');
+        if (panel && !panel.hidden) renderTerritoryPanel();
         return context;
     } catch (error) {
         console.warn('[UserMenu] territory context load failed', error);
@@ -388,7 +416,7 @@ function renderTerritoryPanel() {
                 <div class="row-inner" style="${pad}">
                     ${
                         row.hasChildren
-                            ? `<button class="toggle-btn" type="button" data-toggle-id="${escapeHtml(row.id)}" title="Expand or collapse">${row.expanded ? '?' : '?'}</button>`
+                            ? `<button class="toggle-btn" type="button" data-toggle-id="${escapeHtml(row.id)}" title="Expand or collapse">${row.expanded ? '\u25BE' : '\u25B8'}</button>`
                             : '<span class="toggle-spacer"></span>'
                     }
                     <button class="select-btn" type="button" data-territory-id="${escapeHtml(row.id)}" data-territory-name="${escapeHtml(row.name)}" ${disabled ? 'disabled' : ''}>
@@ -409,7 +437,7 @@ function profileField(label, value) {
     return `
         <div class="profile-field">
             <dt>${escapeHtml(label)}</dt>
-            <dd>${escapeHtml(value || 'ù')}</dd>
+            <dd>${escapeHtml(value || '?')}</dd>
         </div>
     `;
 }
@@ -417,7 +445,7 @@ function profileField(label, value) {
 async function renderProfilePanel() {
     const body = $('user-profile-body');
     if (!body) return;
-    body.innerHTML = '<p class="profile-loading">Loading profileù</p>';
+    body.innerHTML = '<p class="profile-loading">Loading profile?</p>';
     const profile = (await loadUserProfile({ force: !isOfflineMode() })) || {};
     const identity = callbacks.getIdentity() || {};
     const name = displayNameFromProfile(profile, identity);
@@ -515,7 +543,7 @@ async function uploadProfilePhoto(file) {
     }
     if (status) {
         status.hidden = false;
-        status.textContent = 'Uploading photoù';
+        status.textContent = 'Uploading photo?';
     }
     try {
         const payload = await compressImage(file);
@@ -553,7 +581,7 @@ async function uploadProfilePhoto(file) {
     }
 }
 
-async function selectTerritory(territoryId, territoryName) {
+async function selectTerritory(territoryId, territoryName, { quiet = false } = {}) {
     if (isSavingTerritory || isOfflineMode()) return;
     isSavingTerritory = true;
     const errorEl = $('territory-error');
@@ -576,8 +604,9 @@ async function selectTerritory(territoryId, territoryName) {
         setSheetOpen(false);
     } catch (error) {
         console.error('[UserMenu] territory switch failed', error);
-        if (errorEl) errorEl.textContent = error?.message || 'Could not switch territory.';
-        renderTerritoryPanel();
+        if (!quiet && errorEl) errorEl.textContent = error?.message || 'Could not switch territory.';
+        if (!quiet) renderTerritoryPanel();
+        if (quiet) throw error;
     } finally {
         isSavingTerritory = false;
     }
@@ -672,8 +701,8 @@ export function initUserMenu(options = {}) {
                 setProfilePanelOpen(false);
                 setTerritoryPanelOpen(false);
                 setSheetOpen(true);
-                void loadUserProfile();
-                void loadTerritoryContext();
+                void loadUserProfile({ force: true });
+                void loadTerritoryContext({ force: !isOfflineMode() });
             } else {
                 setSheetOpen(false);
             }
@@ -700,9 +729,14 @@ export function clearUserMenuCache() {
     territoryCache = null;
     writeCachedProfile(null);
     writeCachedTerritory(null);
+    clearSlimTerritoryContext();
     paintUserAvatars();
 }
 
 export function closeUserMenu() {
     closeAllOverlays();
+}
+
+export function switchWorkingTerritory(territoryId, territoryName) {
+    return selectTerritory(territoryId, territoryName, { quiet: true });
 }

@@ -246,10 +246,7 @@ private class AccountsTabControllerTest {
       Date.today().addDays(-14),
       Time.newInstance(11, 0, 0, 0)
     );
-    DateTime futureVisit = DateTime.newInstance(
-      Date.today().addDays(3),
-      Time.newInstance(14, 0, 0, 0)
-    );
+    DateTime futureVisit = futureInPlanMonth(3, 14);
     insert new List<Visit__c>{
       new Visit__c(
         Account__c = ahead.Id,
@@ -498,7 +495,40 @@ private class AccountsTabControllerTest {
     System.assertEquals(1, page.totalCount, 'Expected one A-class account.');
     System.assertEquals(1, page.rows.size());
     System.assertEquals('Dr Account Ahead', page.rows[0].accountName);
-    System.assertEquals('A', page.rows[0].classification);
+    System.assertEquals('A1', page.rows[0].classification);
+  }
+
+  // Production rows carry the class in HCP_Classification__c with no matrix rating (B1-02).
+  @IsTest
+  static void getAccountsTabPage_classificationFilter_hcpClassWithoutMatrix() {
+    List<Account_Territory_Fields__c> atfs = [SELECT Id FROM Account_Territory_Fields__c];
+    for (Account_Territory_Fields__c atf : atfs) {
+      atf.Matrix_Rating__c = null;
+      atf.HCP_Classification__c = 'C3';
+    }
+    Account ahead = [SELECT Id FROM Account WHERE Name = 'Dr Account Ahead' LIMIT 1];
+    Account_Territory_Fields__c aheadAtf = [
+      SELECT Id
+      FROM Account_Territory_Fields__c
+      WHERE Account__c = :ahead.Id
+      LIMIT 1
+    ];
+    for (Account_Territory_Fields__c atf : atfs) {
+      if (atf.Id == aheadAtf.Id) {
+        atf.HCP_Classification__c = 'B2';
+      }
+    }
+    update atfs;
+
+    AccountsTabController.AccountsTabQuery q = newQuery();
+    q.classification = 'B2';
+    q.sortBy = 'name';
+    q.sortDirection = 'asc';
+
+    AccountsTabController.AccountsTabPage page = invokePage(q);
+
+    System.assertEquals(1, page.totalCount, 'Expected the one B2 account.');
+    System.assertEquals('Dr Account Ahead', page.rows[0].accountName);
   }
 
   @IsTest
@@ -825,6 +855,61 @@ private class AccountsTabControllerTest {
   }
 
   @IsTest
+  static void exportAccountsCsv_appliesScopeAndFilters() {
+    Test.startTest();
+    String inPlanCsv = AccountsTabController.exportAccountsCsv(
+      'in',
+      'Ahead',
+      'All',
+      'A',
+      'name',
+      'asc',
+      Date.today().toStartOfMonth(),
+      UserInfo.getUserId(),
+      null,
+      'Cardiology'
+    );
+    String outPlanCsv = AccountsTabController.exportAccountsCsv(
+      'out',
+      null,
+      'All',
+      'All',
+      'name',
+      'asc',
+      Date.today().toStartOfMonth(),
+      UserInfo.getUserId(),
+      UserInfo.getUserId(),
+      null
+    );
+    Test.stopTest();
+    System.assert(inPlanCsv.startsWith('Account Id,Name,Record Type,Specialty'));
+    System.assert(outPlanCsv.startsWith('Account Id,Name,Record Type,Specialty'));
+  }
+
+  @IsTest
+  static void exportAccountsCsvChunk_fullBookPagesById() {
+    // The test runner is a system administrator, which counts as SFE: full book.
+    Test.startTest();
+    AccountsTabController.ExportChunk first = AccountsTabController.exportAccountsCsvChunk(
+      'both', null, 'All', null, null, null, null, true, null
+    );
+    AccountsTabController.ExportChunk next = AccountsTabController.exportAccountsCsvChunk(
+      'both', null, 'All', null, null, null, null, true, first.nextAfterId
+    );
+    AccountsTabController.ExportChunk searched = AccountsTabController.exportAccountsCsvChunk(
+      'both', 'Ahead', 'All', 'A', null, null, null, true, null
+    );
+    Test.stopTest();
+
+    System.assert(first.csv.startsWith('Account Id,Name,Record Type,Specialty'), 'First chunk carries the header.');
+    System.assert(first.csv.contains('Dr Account Ahead'), 'Expected accounts in the full-book chunk.');
+    System.assertEquals(true, first.done, 'A small book fits in one chunk.');
+    System.assert(!next.csv.startsWith('Account Id'), 'Later chunks have no header.');
+    System.assert(!next.csv.contains('Dr Account Ahead'), 'Later chunks start after the last Id.');
+    System.assert(searched.csv.split('\n').size() >= 1);
+  }
+
+  @IsTest
   static void exportAccountsCsv_returnsHeaderAndRows() {
     AccountsTabController.AccountsTabQuery q = newQuery();
     Test.startTest();
@@ -842,13 +927,19 @@ private class AccountsTabControllerTest {
     );
     Test.stopTest();
 
-    System.assert(csv.startsWith('Account,Class,Plan'), 'Expected CSV header row.');
-    System.assert(csv.contains('Dr Account Ahead'), 'Expected filtered account in CSV export.');
+    System.assert(csv.startsWith('Account Id,Name,Record Type,Specialty'), 'Expected CSV header row.');
+    System.assert(csv.contains('Dr Account Ahead'), 'Expected territory account in CSV export.');
+    System.assert(csv.contains('Dr Account On Track'), 'Expected every territory account, not one page.');
+    System.assert(csv.contains('Dr Account Out Of Plan'), 'Expected out-of-plan territory accounts in the export.');
+    System.assert(csv.contains(',No,'), 'Expected KOL column for the current territory.');
+    List<String> csvLines = csv.split('\n');
+    System.assert(csvLines.size() >= 6, 'Expected the header plus every account on the territory.');
   }
 
   @IsTest
   static void getAccountsTabPage_newSortOptions() {
     AccountsTabController.AccountsTabQuery q = newQuery();
+    Test.startTest();
     q.sortBy = 'health';
     q.sortDirection = 'desc';
     System.assertNotEquals(null, invokePage(q).rows);
@@ -858,6 +949,83 @@ private class AccountsTabControllerTest {
     System.assertNotEquals(null, invokePage(q).rows);
     q.sortBy = 'lastVisit';
     System.assertNotEquals(null, invokePage(q).rows);
+    Test.stopTest();
+  }
+
+  @IsTest
+  static void getAccountsTabPage_countsSubmittedAndCompletedByVisitDate() {
+    Account ahead = [
+      SELECT Id
+      FROM Account
+      WHERE Name = 'Dr Account Ahead'
+      LIMIT 1
+    ];
+    Id userId = UserInfo.getUserId();
+    Date monthStart = Date.today().toStartOfMonth();
+    DateTime completedInMonth = DateTime.newInstance(
+      monthStart.addDays(2),
+      Time.newInstance(10, 0, 0, 0)
+    );
+    DateTime submittedFuture = futureInPlanMonth(5, 15);
+    insert new List<Visit__c>{
+      new Visit__c(
+        Account__c = ahead.Id,
+        Assigned_To__c = userId,
+        Visit_Date__c = completedInMonth,
+        Start_Date__c = completedInMonth.addDays(-40),
+        End_Date__c = completedInMonth.addDays(-40).addMinutes(30),
+        Status__c = 'Completed',
+        Visit_Type__c = 'Planned (Automatically)'
+      ),
+      new Visit__c(
+        Account__c = ahead.Id,
+        Assigned_To__c = userId,
+        Visit_Date__c = submittedFuture,
+        Start_Date__c = submittedFuture,
+        End_Date__c = submittedFuture.addMinutes(30),
+        Status__c = 'Submitted',
+        Visit_Type__c = 'Planned (Automatically)'
+      )
+    };
+
+    AccountsTabController.AccountsTabQuery q = newQuery();
+    q.scope = 'both';
+    q.searchTerm = 'Ahead';
+    q.sortBy = 'name';
+    q.sortDirection = 'asc';
+
+    Test.startTest();
+    AccountsTabController.AccountsTabPage page = invokePage(q);
+    Test.stopTest();
+
+    AccountsTabController.AccountsTabRow aheadRow;
+    for (AccountsTabController.AccountsTabRow row : page.rows) {
+      if (row.accountName == 'Dr Account Ahead') {
+        aheadRow = row;
+        break;
+      }
+    }
+    System.assertNotEquals(null, aheadRow, 'Expected ahead account row.');
+    System.assert(
+      aheadRow.plannedVisits != null && aheadRow.plannedVisits >= 1,
+      'Submitted visits should count as planned.'
+    );
+  }
+
+  @IsTest
+  static void loadCompletedVisitCounts_handlesEmptyInputs() {
+    System.assertEquals(
+      0,
+      AccountsTabController.loadCompletedVisitCounts(new Set<Id>(), UserInfo.getUserId(), Date.today(), Date.today()).size()
+    );
+    System.assertEquals(
+      0,
+      AccountsTabController.loadCompletedVisitCounts(null, UserInfo.getUserId(), Date.today(), Date.today()).size()
+    );
+    System.assertEquals(
+      0,
+      AccountsTabController.loadCompletedVisitCounts(new Set<Id>{ UserInfo.getUserId() }, null, Date.today(), Date.today()).size()
+    );
   }
 
   @IsTest
@@ -877,7 +1045,10 @@ private class AccountsTabControllerTest {
       UserInfo.getUserId(),
       null,
       null,
-      'Cardiology'
+      'Cardiology',
+      null,
+      null,
+      false
     );
     String csv = AccountsTabController.exportAccountsCsv(
       'both',
@@ -894,7 +1065,7 @@ private class AccountsTabControllerTest {
     Test.stopTest();
 
     System.assertNotEquals(null, page);
-    System.assert(csv.startsWith('Account,Class,Plan'));
+    System.assert(csv.startsWith('Account Id,Name,Record Type,Specialty'));
   }
 
   @IsTest
@@ -917,54 +1088,13 @@ private class AccountsTabControllerTest {
     }
   }
 
-  @IsTest
-  static void getAccountHealthInsight_returnsHistoryAndAffiliations() {
-    Account hcp = [
-      SELECT Id
-      FROM Account
-      WHERE Name = 'Dr Account Ahead'
-      LIMIT 1
-    ];
-    Account related = [
-      SELECT Id, Name
-      FROM Account
-      WHERE Name = 'Dr Account On Track'
-      LIMIT 1
-    ];
-    Id userId = UserInfo.getUserId();
-    DateTime completedVisit = DateTime.newInstance(
-      Date.today().addDays(-10),
-      Time.newInstance(11, 0, 0, 0)
-    );
-    insert new Visit__c(
-      Account__c = hcp.Id,
-      Assigned_To__c = userId,
-      Visit_Date__c = completedVisit.date(),
-      Start_Date__c = completedVisit,
-      End_Date__c = completedVisit.addMinutes(30),
-      Status__c = 'Completed',
-      Visit_Type__c = 'Planned (Automatically)',
-      CLM_Presentation__c = 'CLM1'
-    );
-    insert as system new Account_Affiliation__c(
-      Primary_Account__c = hcp.Id,
-      Related_Account__c = related.Id,
-      Affiliation_Type__c = 'Practice',
-      Role__c = 'Physician',
-      Is_Active__c = true
-    );
-
-    Test.startTest();
-    AccountsTabController.AccountHealthInsight insight =
-      AccountsTabController.getAccountHealthInsight(hcp.Id);
-    Test.stopTest();
-
-    System.assertNotEquals(null, insight);
-    System.assertEquals(false, insight.history.isEmpty(), 'Expected visit history for the account.');
-    System.assertEquals('Completed', insight.history[0].status);
-    System.assertEquals(false, insight.affiliations.isEmpty(), 'Expected an active affiliation.');
-    System.assertEquals(related.Name, insight.affiliations[0].name);
-    System.assertEquals('Practice', insight.affiliations[0].relationType);
+  private static DateTime futureInPlanMonth(Integer preferredDaysOut, Integer hour) {
+    Date monthEnd = Date.today().toStartOfMonth().addMonths(1).addDays(-1);
+    Date day = Date.today().addDays(preferredDaysOut == null ? 1 : preferredDaysOut);
+    if (day > monthEnd) {
+      day = monthEnd;
+    }
+    return DateTime.newInstance(day, Time.newInstance(hour == null ? 12 : hour, 0, 0, 0));
   }
 
   private static AccountsTabController.AccountsTabQuery newQuery() {
@@ -999,7 +1129,10 @@ private class AccountsTabControllerTest {
       q.contextUserId,
       q.accountIds,
       q.brickId,
-      q.specialtyFilter
+      q.specialtyFilter,
+      q.approvalScope,
+      q.nurtureLane,
+      false
     );
   }
 
@@ -1020,7 +1153,8 @@ private class AccountsTabControllerTest {
       q.contextUserId,
       q.accountIds,
       q.brickId,
-      q.specialtyFilter
+      q.specialtyFilter,
+      false
     );
   }
 
@@ -1455,6 +1589,7 @@ private class AccountsTabControllerTest {
     input.longitude = 31.2357;
     input.brick148Id = brick148.Id;
     input.brick702Id = brick702.Id;
+    input.website = 'https://www.vezeeta.com/en/dr/doctor-yasmine-nabil-dermatology';
 
     Test.startTest();
     AccountsTabController.WizardCreateResult result = AccountsTabController.createAccountFromWizard(
@@ -1477,7 +1612,8 @@ private class AccountsTabControllerTest {
         Building__c,
         Governorate__c,
         Landmark__c,
-        WhatsApp_Number__c
+        WhatsApp_Number__c,
+        Website
       FROM Account
       WHERE Id = :result.accountId
     ];
@@ -1489,6 +1625,10 @@ private class AccountsTabControllerTest {
     System.assertEquals('Clinic Tower', saved.Building__c);
     System.assertEquals('Cairo', saved.Governorate__c);
     System.assertEquals('Tahrir Square', saved.Landmark__c);
+    System.assertEquals(
+      'https://www.vezeeta.com/en/dr/doctor-yasmine-nabil-dermatology',
+      saved.Website
+    );
   }
 
   @IsTest
@@ -1581,5 +1721,129 @@ private class AccountsTabControllerTest {
     System.assertNotEquals(null, result.centerLng);
     System.assert(result.radiusMeters <= 50000);
   }
-}
 
+  @IsTest
+  static void getAccountsTabPage_nurturingLane() {
+    Id recordTypeId = resolveFirstAccountRecordTypeId(new Set<String>{
+      'Medical_Professional_HCP',
+      'SDO_PersonAccounts',
+      'Institution_HCO'
+    });
+    Account ahead = buildAccount('Nurture Lane Account', recordTypeId, 30.05, 31.24, 'Cairo');
+    ahead.Account_Stage__c = AccountStageService.STAGE_DM;
+    insert ahead;
+
+    VisitActorAccess.testCanViewServiceRequests = true;
+    AccountApprovalAccess.testTeamRepIds = new Set<Id>();
+
+    Test.startTest();
+    AccountApprovalAccess.NurtureSummary summary = AccountsTabController.getAccountNurtureSummary();
+    AccountsTabController.AccountsTabQuery q = newQuery();
+    q.approvalScope = 'nurturing';
+    AccountsTabController.AccountsTabPage page = invokePage(q);
+    Test.stopTest();
+
+    System.assert(summary.withManager >= 1, 'Own pending account should wait on the manager.');
+    System.assertEquals(summary.needsYou, page.nurtureNeedsYouCount);
+    System.assertEquals(summary.withManager, page.nurtureWithManagerCount);
+    AccountsTabController.AccountsTabRow match;
+    for (AccountsTabController.AccountsTabRow row : page.rows) {
+      if (row.accountId == ahead.Id) {
+        match = row;
+      }
+    }
+    System.assertNotEquals(null, match, 'Nurturing list should include the pending account.');
+    System.assertEquals(AccountApprovalAccess.LANE_WITH_MANAGER, match.nurtureLane);
+    System.assertEquals(false, match.showApprovalActions);
+    System.assert(match.nurtureWaitLabel != null && match.nurtureWaitLabel.contains('manager'));
+
+    VisitActorAccess.testCanViewServiceRequests = null;
+    AccountApprovalAccess.testTeamRepIds = null;
+  }
+
+  @IsTest
+  static void accountApprovalWrappers_smoke() {
+    VisitActorAccess.testCanViewServiceRequests = false;
+    Test.startTest();
+    System.assertEquals(false, AccountsTabController.isAccountApprovalManager());
+    List<AccountApprovalAccess.ApprovalRow> rows = AccountsTabController.getPendingAccountApprovals();
+    System.assertNotEquals(null, rows);
+    System.assertEquals(rows.size(), AccountsTabController.getPendingAccountApprovalCount());
+    for (AccountApprovalAccess.ApprovalRow row : rows) {
+      System.assertEquals(true, row.createdByMe);
+      System.assertEquals(false, row.canAct);
+    }
+    Test.stopTest();
+    VisitActorAccess.testCanViewServiceRequests = null;
+  }
+
+  @IsTest
+  static void accountApprovalMutations_useAccessLayer() {
+    VisitActorAccess.testCanViewServiceRequests = true;
+    AccountApprovalAccess.testTeamRepIds = new Set<Id>{ UserInfo.getUserId() };
+    Account pending = new Account(
+      Name = 'Wrapper Approve',
+      Account_Stage__c = AccountStageService.STAGE_DM
+    );
+    insert pending;
+
+    Test.startTest();
+    AccountsTabController.approveAccountSubmission(pending.Id);
+    Test.stopTest();
+
+    Account refreshed = [
+      SELECT Account_Stage__c
+      FROM Account
+      WHERE Id = :pending.Id
+    ];
+    System.assertEquals(AccountStageService.STAGE_SFE, refreshed.Account_Stage__c);
+    VisitActorAccess.testCanViewServiceRequests = null;
+    AccountApprovalAccess.testTeamRepIds = null;
+  }
+
+  @IsTest
+  static void accountApprovalRejectWrapper_usesAccessLayer() {
+    VisitActorAccess.testCanViewServiceRequests = true;
+    AccountApprovalAccess.testTeamRepIds = new Set<Id>{ UserInfo.getUserId() };
+    Account pending = new Account(
+      Name = 'Wrapper Reject',
+      Account_Stage__c = AccountStageService.STAGE_DM
+    );
+    insert pending;
+
+    Test.startTest();
+    AccountsTabController.rejectAccountSubmission(pending.Id, 'Incomplete profile');
+    Test.stopTest();
+
+    Account refreshed = [
+      SELECT Account_Stage__c
+      FROM Account
+      WHERE Id = :pending.Id
+    ];
+    System.assertEquals(AccountStageService.STAGE_DRAFT, refreshed.Account_Stage__c);
+    VisitActorAccess.testCanViewServiceRequests = null;
+    AccountApprovalAccess.testTeamRepIds = null;
+  }
+
+  @IsTest
+  static void searchMasterList_findsPharmacyByZetaCode() {
+    Id pharmacyRt = AccountMasterImportUtil.recordTypeId('Pharmacy');
+    Account pharmacy = new Account(
+      Name = 'Code Search Pharmacy',
+      RecordTypeId = pharmacyRt,
+      External_ID__c = '98765',
+      Pharmacy_Code__c = '1000098765',
+      BillingCountry = 'Egypt'
+    );
+    insert pharmacy;
+
+    Test.startTest();
+    List<AccountsTabController.MasterSearchRow> byZetaCode = AccountsTabController.searchMasterList('1000098765', pharmacyRt, false);
+    List<AccountsTabController.MasterSearchRow> byCode = AccountsTabController.searchMasterList('98765', pharmacyRt, false);
+    Test.stopTest();
+
+    System.assertEquals(1, byZetaCode.size(), 'Pharmacy found by its Zeta pharmacy code');
+    System.assertEquals(pharmacy.Id, byZetaCode[0].accountId);
+    System.assert(!byCode.isEmpty(), 'Pharmacy found by its master-list code');
+  }
+}

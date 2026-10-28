@@ -6,16 +6,28 @@ import getVisitDetail from '@salesforce/apex/FieldPlannerController.getVisitDeta
 import getPlannerProducts from '@salesforce/apex/FieldPlannerController.getPlannerProducts';
 import saveVisitWorkspace from '@salesforce/apex/FieldPlannerController.saveVisitWorkspace';
 import { getVisitStatusOptions, validateVisitStatusChange } from 'c/visitStatusUtils';
+import { accountThemeFor, accountThemeStyle } from 'c/accountTypeTheme';
 
 const NAV_ITEMS = [
     { key: 'details', label: 'Details' },
+    { key: 'order', label: 'Order' },
     { key: 'presentations', label: 'Presentations' },
-    { key: 'samples', label: 'Samples' },
+    { key: 'samples', label: 'Dispense' },
     { key: 'items', label: 'Items' },
+    { key: 'requests', label: 'Requests' },
     { key: 'attachments', label: 'Attachments' }
 ];
 
+const PHARMACY_NAV_ITEMS = [
+    { key: 'details', label: 'Details' },
+    { key: 'storeCheck', label: 'Store Check' },
+    { key: 'order', label: 'Order' },
+    { key: 'presentations', label: 'Presentations' },
+    { key: 'requests', label: 'Requests' }
+];
+
 const HCP_RECORD_TYPES = new Set(['SDO_PersonAccounts', 'Medical_Professional_HCP', 'PersonAccount', 'Business_Contact']);
+const PHARMACY_RECORD_TYPES = new Set(['Pharmacy']);
 
 function formatDateTime(value) {
     if (!value) {
@@ -92,15 +104,52 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
     }
 
     get statusOptions() {
-        return getVisitStatusOptions(this.visit?.startDateTime);
+        return getVisitStatusOptions(
+            this.visit?.startDateTime,
+            this.visit?.visitType,
+            this.visit?.status
+        );
     }
 
     get clmOptions() {
         return [];
     }
 
+    get isPharmacyVisit() {
+        const devName = this.visit?.accountRecordTypeDeveloperName || '';
+        if (PHARMACY_RECORD_TYPES.has(devName)) {
+            return true;
+        }
+        return (this.visit?.accountRecordTypeName || '').toLowerCase() === 'pharmacy';
+    }
+
+    get accountTheme() {
+        return accountThemeFor(
+            this.visit?.accountRecordTypeDeveloperName,
+            this.visit?.accountRecordTypeName
+        );
+    }
+
+    get themeStyle() {
+        return accountThemeStyle(this.accountTheme);
+    }
+
+    get accountTypeIconUrl() {
+        return this.accountTheme.iconUrl;
+    }
+
+    get workspaceClass() {
+        const pharmacy = this.isPharmacyVisit ? ' visit-workspace-pharmacy' : '';
+        return `visit-workspace theme-${this.accountTheme.kind}${pharmacy}`;
+    }
+
+    get heroClass() {
+        return 'visit-hero';
+    }
+
     get navItems() {
-        return NAV_ITEMS.map((item) => ({
+        const items = this.isPharmacyVisit ? PHARMACY_NAV_ITEMS : NAV_ITEMS;
+        return items.map((item) => ({
             ...item,
             className: item.key === this.activeNav ? 'nav-item nav-item-active' : 'nav-item'
         }));
@@ -114,12 +163,29 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
         return this.activeNav === 'presentations';
     }
 
+    get showStoreCheck() {
+        return this.activeNav === 'storeCheck';
+    }
+
+    get showOrder() {
+        return this.activeNav === 'order';
+    }
+
+    get showRequests() {
+        return this.activeNav === 'requests';
+    }
+
+    get accountId() {
+        return this.visit?.accountId;
+    }
+
     get showPlaceholderTab() {
-        return ['samples', 'items', 'attachments'].includes(this.activeNav);
+        return !this.isPharmacyVisit && ['samples', 'items', 'attachments'].includes(this.activeNav);
     }
 
     get placeholderLabel() {
-        const item = NAV_ITEMS.find((nav) => nav.key === this.activeNav);
+        const items = this.isPharmacyVisit ? PHARMACY_NAV_ITEMS : NAV_ITEMS;
+        const item = items.find((nav) => nav.key === this.activeNav);
         return item ? item.label : 'Section';
     }
 
@@ -132,20 +198,13 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
     }
 
     get accountBadgeLabel() {
-        const devName = this.visit?.accountRecordTypeDeveloperName || '';
-        if (HCP_RECORD_TYPES.has(devName)) {
-            return 'HCP';
-        }
-        if (devName === 'Institution_HCO' || (this.visit?.accountRecordTypeName || '').toLowerCase().includes('hco')) {
-            return 'HCO';
-        }
-        return this.visit?.accountRecordTypeName || 'Account';
+        return this.accountTheme.kind === 'account'
+            ? this.visit?.accountRecordTypeName || 'Account'
+            : this.accountTheme.label;
     }
 
     get accountBadgeClass() {
-        return HCP_RECORD_TYPES.has(this.visit?.accountRecordTypeDeveloperName || '')
-            ? 'account-badge account-badge-hcp'
-            : 'account-badge account-badge-hco';
+        return `account-badge account-badge-${this.accountTheme.kind}`;
     }
 
     get statusBadgeClass() {
@@ -167,11 +226,17 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
 
     get pathSteps() {
         const current = this.visit?.status || 'Draft';
-        const steps = [
-            { key: 'Draft', label: 'Draft' },
-            { key: 'Scheduled', label: 'Scheduled' },
-            { key: 'Completed', label: 'Completed' }
-        ];
+        const isUnplanned = (this.visit?.visitType || '') === 'Unplanned';
+        const steps = isUnplanned
+            ? [
+                  { key: 'Scheduled', label: 'Scheduled' },
+                  { key: 'Completed', label: 'Completed' }
+              ]
+            : [
+                  { key: 'Draft', label: 'Draft' },
+                  { key: 'Scheduled', label: 'Scheduled' },
+                  { key: 'Completed', label: 'Completed' }
+              ];
         if (current === 'Cancelled') {
             return steps
                 .map((step) => ({
@@ -188,7 +253,7 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
                     isComplete: false
                 });
         }
-        const order = ['Draft', 'Scheduled', 'Completed'];
+        const order = steps.map((step) => step.key);
         const currentIndex = order.indexOf(current);
         return steps.map((step, index) => {
             const isCurrent = step.key === current;
@@ -203,6 +268,10 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
         });
     }
 
+    get planRejectionReason() {
+        return this.visit?.planRejectionReason || '';
+    }
+
     applyVisit(data) {
         this.visit = data;
         this.statusValue = data.status || 'Draft';
@@ -214,6 +283,12 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
         this.selectedProducts = parseProductSelection(data.productsDiscussed);
         this.nextVisitDate = formatDate(data.nextVisitDate);
         this.cancellationReason = data.cancellationReason || '';
+        const allowed = new Set(
+            (this.isPharmacyVisit ? PHARMACY_NAV_ITEMS : NAV_ITEMS).map((item) => item.key)
+        );
+        if (!allowed.has(this.activeNav)) {
+            this.activeNav = 'details';
+        }
     }
 
     handleStatusChange(event) {
@@ -289,8 +364,17 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
         }
     }
 
+    get isPwaContext() {
+        const p = window?.location?.pathname || '';
+        return p === '/' || p.endsWith('/index.html') || p.endsWith('/accounts.html') || p.endsWith('/visits.html');
+    }
+
     handleOpenAccount() {
         if (!this.visit?.accountId) {
+            return;
+        }
+        if (this.isPwaContext) {
+            window.location.href = `/accounts.html?accountId=${this.visit.accountId}`;
             return;
         }
         this[NavigationMixin.Navigate]({
@@ -304,6 +388,10 @@ export default class VisitWorkspace extends NavigationMixin(LightningElement) {
     }
 
     handleOpenPlanner() {
+        if (this.isPwaContext) {
+            window.location.href = '/index.html';
+            return;
+        }
         this[NavigationMixin.Navigate]({
             type: 'standard__navItemPage',
             attributes: {

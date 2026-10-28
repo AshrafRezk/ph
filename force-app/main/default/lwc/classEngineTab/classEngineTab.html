@@ -1,228 +1,683 @@
 <template>
+    <template if:true={showDisabledState}>
+        <div class="ce-shell ce-shell--off">
+            <div class="ce-off">
+                <h2 class="ce-off-title">Class Engine is turned off</h2>
+                <p class="ce-off-copy">
+                    SFE turned Class Engine off for all field users in Field App Manager.
+                </p>
+            </div>
+        </div>
+    </template>
+    <template if:true={showEngine}>
     <div class="ce-shell">
-        <header class="ce-header">
-            <div>
-                <h1 class="ce-title">Class Engine</h1>
-                <template if:true={page}>
-                    <p class="ce-subtitle">
-                        {page.territoryName} · Line {page.lineTerritoryName} ·
-                        {page.dailyVisitRate} visits/day · Status {cycleStatus}
-                    </p>
-                </template>
-                <p class="ce-capacity">{capacitySummary}</p>
+        <template if:true={hasTeam}>
+            <div class="ce-view-switch" role="group" aria-label="Class Engine view">
+                <button type="button" class={cycleViewClass} aria-pressed={isCycleViewPressed} onclick={handleShowCycle}>Class cycle</button>
+                <button type="button" class={targetListViewClass} aria-pressed={isTargetListViewPressed} onclick={handleShowTargetList}>Team target list</button>
             </div>
-            <div class="ce-actions">
-                <template if:true={showRepSwitcher}>
-                    <lightning-combobox
-                        label="Rep"
-                        value={selectedEmployeeId}
-                        options={teamRepOptions}
-                        onchange={handleRepChange}
-                        class="ce-rep"
-                    ></lightning-combobox>
+        </template>
+        <template if:true={isTargetListView}>
+            <c-team-target-list rep-id={teamRepId} quarter={quarter}></c-team-target-list>
+        </template>
+        <template if:false={isTargetListView}>
+        <header class="ce-header" aria-label="Class Engine">
+            <template if:true={showTerritoryNav}>
+                <div class="ce-seg" aria-label="Territory">
+                    <button
+                        type="button"
+                        class="ce-icon-btn"
+                        onclick={handlePrevTerritory}
+                        disabled={prevTerritoryDisabled}
+                        aria-label="Previous territory"
+                    >
+                        ‹
+                    </button>
+                    <label class="ce-pill ce-pill--territory">
+                        <span class="ce-pill-kicker">Territory</span>
+                        <select
+                            class="ce-pill-select"
+                            value={territoryPickerValue}
+                            onchange={handleTerritoryChange}
+                            disabled={isBusy}
+                            aria-label="Territory"
+                        >
+                            <template for:each={territoryOptions} for:item="opt">
+                                <option key={opt.value} value={opt.value} selected={opt.selected}>{opt.label}</option>
+                            </template>
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        class="ce-icon-btn"
+                        onclick={handleNextTerritory}
+                        disabled={nextTerritoryDisabled}
+                        aria-label="Next territory"
+                    >
+                        ›
+                    </button>
+                    <span class="ce-pos">{territoryPositionLabel}</span>
+                </div>
+            </template>
+
+            <div class="ce-seg" aria-label="Quarter">
+                <button
+                    type="button"
+                    class="ce-icon-btn"
+                    onclick={handlePrevQuarter}
+                    disabled={isBusy}
+                    aria-label="Previous quarter"
+                >
+                    ‹
+                </button>
+                <label class="ce-pill">
+                    <span class="ce-pill-kicker">Quarter</span>
+                    <select class="ce-pill-select" value={quarter} onchange={handleQuarterChange} disabled={isBusy} aria-label="Quarter">
+                        <template for:each={quarterMenuOptions} for:item="opt">
+                            <option key={opt.value} value={opt.value} selected={opt.selected}>{opt.label}</option>
+                        </template>
+                    </select>
+                </label>
+                <button
+                    type="button"
+                    class="ce-icon-btn"
+                    onclick={handleNextQuarter}
+                    disabled={isBusy}
+                    aria-label="Next quarter"
+                >
+                    ›
+                </button>
+            </div>
+
+            <span class={statusChipClass}>{cycleStatus}</span>
+            <template if:true={teamPendingTotal}>
+                <span class="ce-team-pending">{teamPendingLabel}</span>
+            </template>
+            <template if:true={livePreviewActive}>
+                <span class="ce-chip live">Live</span>
+            </template>
+
+            <div class="ce-header-actions">
+                <button type="button" class="ce-action" onclick={openPromoModal} disabled={promoModalDisabled}>
+                    Promo Grid
+                </button>
+                <button type="button" class="ce-action ce-action--primary" onclick={handleClassify} disabled={classifyDisabled}>
+                    Classify
+                </button>
+                <template if:false={isReviewingRep}>
+                    <button type="button" class="ce-action" onclick={handleSubmit} disabled={submitDisabled}>
+                        Submit
+                    </button>
                 </template>
-                <lightning-input
-                    type="text"
-                    label="Quarter"
-                    value={quarter}
-                    onchange={handleQuarterChange}
-                    class="ce-quarter"
-                ></lightning-input>
-                <lightning-button
-                    label="Promo Grid Settings"
-                    onclick={toggleSettings}
-                ></lightning-button>
-                <lightning-button
-                    label="Promo Grid Classify"
-                    variant="brand"
-                    disabled={isBusy}
-                    onclick={handleClassify}
-                ></lightning-button>
-                <lightning-button
-                    label="Submit for Approval"
-                    disabled={isBusy}
-                    onclick={handleSubmit}
-                ></lightning-button>
                 <template if:true={canApprove}>
-                    <lightning-button
-                        label="Approve"
-                        variant="success"
-                        disabled={isBusy}
-                        onclick={handleApprove}
-                    ></lightning-button>
-                    <lightning-button
-                        label="Reject"
-                        variant="destructive"
-                        disabled={isBusy}
-                        onclick={handleReject}
-                    ></lightning-button>
+                    <button type="button" class="ce-action ce-action--approve" onclick={handleApprove} disabled={isBusy}>
+                        Approve
+                    </button>
+                    <button type="button" class="ce-action ce-action--reject" onclick={handleReject} disabled={isBusy}>
+                        Reject
+                    </button>
                 </template>
+                <button
+                    type="button"
+                    class="ce-info-btn"
+                    onclick={openInfoModal}
+                    title="How the Class Engine works"
+                    aria-label="How the Class Engine works"
+                    aria-haspopup="dialog"
+                >
+                    i
+                </button>
             </div>
+
+            <label class="ce-pill ce-pill--search">
+                <input
+                    class="ce-search"
+                    type="search"
+                    placeholder="Search accounts"
+                    aria-label="Search accounts"
+                    value={searchTerm}
+                    oninput={handleSearch}
+                />
+            </label>
+            <label class="ce-pill">
+                <span class="ce-pill-kicker">Specialty</span>
+                <select
+                    class="ce-pill-select"
+                    value={specialtyFilter}
+                    onchange={handleSpecialtyFilter}
+                    aria-label="Specialty"
+                >
+                    <template for:each={specialtyMenuOptions} for:item="opt">
+                        <option key={opt.value} value={opt.value} selected={opt.selected}>{opt.label}</option>
+                    </template>
+                </select>
+            </label>
+            <span class="ce-count">{accountCountLabel}</span>
+            <template if:true={showTerritoryNav}>
+                <p class="ce-header-hint" title={reviewHint}>{reviewHint}</p>
+            </template>
         </header>
 
-        <template if:true={hasPending}>
-            <section class="ce-pending">
-                <h2>Pending approval</h2>
-                <ul>
-                    <template for:each={pendingCycles} for:item="cycle">
-                        <li key={cycle.id}>
-                            <button
-                                type="button"
-                                class="pending-link"
-                                data-employee={cycle.employeeId}
-                                data-quarter={cycle.quarter}
-                                onclick={handleOpenPending}
-                            >
-                                {cycle.employeeName} · {cycle.quarter}
-                            </button>
-                        </li>
+        <article class="ce-card ce-hero-card">
+            <header class="ce-card-header">
+                <div>
+                    <p class="ce-eyebrow">Promo Grid · Classification</p>
+                    <template if:true={page}>
+                        <div class="ce-meta">
+                            <span class="ce-chip strong">
+                                <template if:true={page.territoryName}>{page.territoryName}</template>
+                                <template if:false={page.territoryName}>No territory</template>
+                            </span>
+                            <span class="ce-chip">
+                                Line
+                                <template if:true={page.lineTerritoryName}>
+                                    &nbsp;{page.lineTerritoryName}
+                                </template>
+                                <template if:false={page.lineTerritoryName}>&nbsp;—</template>
+                            </span>
+                            <span class="ce-chip">{page.dailyVisitRate} visits / day</span>
+                            <span class={statusChipClass}>{cycleStatus}</span>
+                            <template if:true={livePreviewActive}>
+                                <span class="ce-chip live">Live preview</span>
+                            </template>
+                        </div>
                     </template>
-                </ul>
-            </section>
-        </template>
+                </div>
+            </header>
+            <p class="ce-help">
+                Edit Rx potential / penetration on brand products — scores, class and capacity update live for
+                this quarter’s months (feeds plan-cycle / home targets on approve). Class is calculated, not
+                picked: to see a doctor more or less often, enter a monthly frequency exception — the DM
+                approves it.
+            </p>
+        </article>
 
-        <template if:true={showSettings}>
-            <section class="ce-settings">
-                <h2>Promo Grid Settings (read-only)</h2>
-                <template if:true={promoGrid}>
-                    <div class="settings-grid">
-                        <div>
-                            <h3>Products</h3>
-                            <template for:each={promoGrid.productWeights} for:item="row">
-                                <div key={row.id} class="settings-row">
-                                    {row.productName}: {row.weightPercentage}%
-                                </div>
-                            </template>
+        <template if:true={hasCapacityMonths}>
+            <section class="ce-capacity" aria-label="Quarter monthly capacity">
+                <template for:each={capacityCards} for:item="card">
+                    <article key={card.key} class="cap-card">
+                        <div class="cap-top">
+                            <span class="cap-label">{card.label}</span>
+                            <span class="cap-ratio">{card.ratio}</span>
                         </div>
-                        <div>
-                            <h3>Specialties</h3>
-                            <template for:each={promoGrid.specialtyFocus} for:item="row">
-                                <div key={row.id} class="settings-row">
-                                    {row.specialtyLabel}: {row.listPercentage}%
-                                </div>
-                            </template>
+                        <div class="cap-ring-wrap" aria-hidden="true">
+                            <div class="cap-ring" style={card.ringStyle}>
+                                <span class="cap-ring-hole">{card.pctLabel}</span>
+                            </div>
                         </div>
-                        <div>
-                            <h3>Classes</h3>
-                            <template for:each={promoGrid.classTargeting} for:item="row">
-                                <div key={row.id} class="settings-row">
-                                    {row.classCode}: {row.listPercentage}% ·
-                                    {row.targetMonthlyVisits} visits
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </template>
-                <template if:false={promoGrid}>
-                    <p>No Line promo grid found for this territory.</p>
+                        <p class="cap-sub">{card.sub}</p>
+                    </article>
                 </template>
             </section>
         </template>
+        <template if:false={hasCapacityMonths}>
+            <p class="ce-capacity-hint">Classify (or edit Rx) to project this quarter’s monthly capacity.</p>
+        </template>
 
-        <section class="ce-filters">
-            <lightning-input
-                type="search"
-                label="Search"
-                value={searchTerm}
-                onchange={handleSearch}
-            ></lightning-input>
-            <lightning-combobox
-                label="Specialty"
-                value={specialtyFilter}
-                options={specialtyOptions}
-                onchange={handleSpecialtyFilter}
-            ></lightning-combobox>
-        </section>
+        <template if:true={scopeNote}>
+            <p class="ce-capacity-hint ce-scope-note" role="status">{scopeNote}</p>
+        </template>
+
+        <template if:true={hasPending}>
+            <section class="ce-pending ce-card">
+                <h2>Pending approval</h2>
+                <div class="pending-row">
+                    <template for:each={pendingCycles} for:item="cycle">
+                        <button
+                            key={cycle.id}
+                            type="button"
+                            class="pending-pill"
+                            data-employee={cycle.employeeId}
+                            data-territory={cycle.territoryId}
+                            data-quarter={cycle.quarter}
+                            onclick={handleOpenPending}
+                        >
+                            {cycle.employeeName} · {cycle.quarter}
+                        </button>
+                    </template>
+                </div>
+            </section>
+        </template>
 
         <template if:true={isBusy}>
-            <lightning-spinner alternative-text="Loading"></lightning-spinner>
+            <div class="ce-spinner">
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </div>
         </template>
 
         <template if:true={hasAccounts}>
-            <div class="ce-table">
-                <div class="ce-table-head">
+            <div class="ce-list ce-card">
+                <div class="ce-list-head">
                     <span></span>
                     <span>Account</span>
                     <span>Specialty</span>
+                    <span>Rx score</span>
                     <span>Rx</span>
                     <span>Sales</span>
-                    <span>Chosen</span>
+                    <span>Class</span>
                     <span>Grid</span>
-                    <span>Month</span>
+                    <template for:each={monthHeaders} for:item="month">
+                        <span key={month.key} class="exc-head" title="Visits exception for this month · rep suggests, DM approves">{month.label}</span>
+                    </template>
                 </div>
                 <template for:each={filteredAccounts} for:item="row">
-                    <div key={row.accountId} class={row.rowClass}>
+                    <article key={row.accountId} class={row.rowClass}>
                         <button
                             type="button"
                             class="expand-btn"
                             data-id={row.accountId}
                             onclick={toggleRow}
-                            aria-label="Expand"
+                            aria-expanded={row.expanded}
+                            title="Brand products"
                         >
-                            <template if:true={row.expanded}>▼</template>
-                            <template if:false={row.expanded}>▶</template>
+                            <template if:true={row.expanded}>▾</template>
+                            <template if:false={row.expanded}>▸</template>
                         </button>
-                        <span class="name">{row.accountName}</span>
-                        <span>{row.specialty}</span>
-                        <span>{row.rxClass}</span>
-                        <span>{row.salesClass}</span>
+                        <div class="acct">
+                            <span
+                                class={row.typeIconClass}
+                                title={row.typeIconLabel}
+                                aria-hidden="true"
+                            >
+                                <template if:true={row.typeIconUrl}>
+                                    <img class="account-type-glyph" src={row.typeIconUrl} alt="" />
+                                </template>
+                                <template if:false={row.typeIconUrl}>
+                                    <lightning-icon
+                                        icon-name={row.typeIconName}
+                                        size="x-small"
+                                        alternative-text={row.typeIconLabel}
+                                    ></lightning-icon>
+                                </template>
+                            </span>
+                            <div>
+                                <div class="name">{row.accountName}</div>
+                                <div class="acct-sub">
+                                    {row.productCount} brands · rank {row.liveRankLabel}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="specialty">{row.specialty}</span>
+                        <span class="score" title="Live weighted Rx score">{row.liveScoreLabel}</span>
                         <span>
-                            <lightning-combobox
-                                variant="label-hidden"
-                                label="Chosen class"
-                                value={row.chosenClass}
-                                options={classOptions}
-                                data-id={row.accountId}
-                                onchange={handleChosenClass}
-                                disabled={isBusy}
-                            ></lightning-combobox>
+                            <template if:true={row.rxClass}
+                                ><span class="class-pill">{row.rxClass}</span></template
+                            >
+                            <template if:false={row.rxClass}><span class="dash">—</span></template>
                         </span>
-                        <span>{row.gridFrequencyLabel}</span>
-                        <span>{row.monthFrequencyLabel}</span>
+                        <span>
+                            <template if:true={row.salesClass}
+                                ><span class="class-pill sales">{row.salesClass}</span></template
+                            >
+                            <template if:false={row.salesClass}
+                                ><span class="dash">—</span></template
+                            >
+                        </span>
+                        <span>
+                            <template if:true={canOverrideClass}>
+                                <lightning-combobox
+                                    variant="label-hidden"
+                                    label="Class override (SFE)"
+                                    placeholder="Select"
+                                    value={row.chosenClass}
+                                    options={classOptions}
+                                    data-id={row.accountId}
+                                    onchange={handleChosenClass}
+                                    disabled={isBusy}
+                                ></lightning-combobox>
+                            </template>
+                            <template if:false={canOverrideClass}>
+                                <template if:true={row.chosenClass}
+                                    ><span class="class-pill" title="Calculated from Rx potential and penetration">{row.chosenClass}</span></template
+                                >
+                                <template if:false={row.chosenClass}><span class="dash">—</span></template>
+                            </template>
+                        </span>
+                        <span class="num">{row.gridFrequencyLabel}</span>
+                        <template for:each={row.monthCells} for:item="cell">
+                            <span key={cell.key} class="exc">
+                                <template if:true={frequencyEditable}>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="99"
+                                        step="1"
+                                        class={cell.inputClass}
+                                        value={cell.value}
+                                        placeholder={cell.placeholder}
+                                        data-id={row.accountId}
+                                        data-month={cell.monthStart}
+                                        onchange={handleExceptionFrequency}
+                                        disabled={isBusy}
+                                        title={cell.title}
+                                        aria-label={cell.ariaLabel}
+                                    />
+                                </template>
+                                <template if:false={frequencyEditable}>
+                                    <template if:true={cell.hasValue}
+                                        ><span class={cell.pillClass} title={cell.title}>{cell.value}</span></template
+                                    >
+                                    <template if:false={cell.hasValue}><span class="num dash" title={cell.title}>{cell.placeholder}</span></template>
+                                </template>
+                                <template if:true={cell.note}>
+                                    <span class="exc-note">{cell.note}</span>
+                                </template>
+                            </span>
+                        </template>
+
                         <template if:true={row.expanded}>
                             <div class="product-panel">
-                                <template for:each={row.products} for:item="product">
-                                    <div key={product.key} class="product-row">
-                                        <strong>{product.productName}</strong>
-                                        <label>
-                                            Potential (Rx)
-                                            <input
-                                                type="number"
-                                                value={product.rxPotential}
-                                                data-product={product.product2Id}
-                                                data-account={row.accountId}
-                                                data-field="potential"
-                                                onchange={handleSaveRating}
-                                            />
-                                        </label>
-                                        <label>
-                                            Penetration (Rx)
-                                            <input
-                                                type="number"
-                                                value={product.rxPenetration}
-                                                data-product={product.product2Id}
-                                                data-account={row.accountId}
-                                                data-field="penetration"
-                                                onchange={handleSaveRating}
-                                            />
-                                        </label>
-                                        <span
-                                            >Potential (Sales): {product.salesPotential}</span
-                                        >
-                                        <span
-                                            >Penetration (Sales):
-                                            {product.salesPenetration}</span
-                                        >
+                                <div class="product-panel-head">
+                                    <h3>Brand products</h3>
+                                    <span class="hint">Promo grid brands only · live Rx impact</span>
+                                </div>
+                                <template if:true={row.hasProducts}>
+                                    <div class="product-grid">
+                                        <template for:each={row.products} for:item="product">
+                                            <div key={product.key} class="product-card">
+                                                <div class="product-media">
+                                                    <template if:true={product.hasImage}>
+                                                        <img
+                                                            src={product.imageUrl}
+                                                            alt={product.productName}
+                                                            loading="lazy"
+                                                            onerror={handleProductImgError}
+                                                            data-key={product.key}
+                                                        />
+                                                    </template>
+                                                    <template if:false={product.hasImage}>
+                                                        <div class="product-fallback" aria-hidden="true">
+                                                            {product.initials}
+                                                        </div>
+                                                    </template>
+                                                    <span class="wt-badge">{product.weightLabel}%</span>
+                                                </div>
+                                                <div class="product-body">
+                                                    <h4>{product.productName}</h4>
+                                                    <div class="metric-grid">
+                                                        <label>
+                                                            <span title="Rx potential">Rx pot.</span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="1"
+                                                                value={product.rxPotential}
+                                                                disabled={ratingDisabled}
+                                                                data-product={product.product2Id}
+                                                                data-account={row.accountId}
+                                                                data-field="potential"
+                                                                oninput={handleRatingInput}
+                                                                onchange={handleSaveRating}
+                                                                aria-label="Rx potential"
+                                                            />
+                                                        </label>
+                                                        <label>
+                                                            <span title="Rx penetration">Rx pen.</span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="1"
+                                                                value={product.rxPenetration}
+                                                                disabled={ratingDisabled}
+                                                                data-product={product.product2Id}
+                                                                data-account={row.accountId}
+                                                                data-field="penetration"
+                                                                oninput={handleRatingInput}
+                                                                onchange={handleSaveRating}
+                                                                aria-label="Rx penetration"
+                                                            />
+                                                        </label>
+                                                        <div class="metric-ro">
+                                                            <span title="Sales potential">Sales pot.</span>
+                                                            <strong>{product.salesPotentialLabel}</strong>
+                                                        </div>
+                                                        <div class="metric-ro">
+                                                            <span title="Sales penetration">Sales pen.</span>
+                                                            <strong>{product.salesPenetrationLabel}</strong>
+                                                        </div>
+                                                    </div>
+                                                    <p class="product-score">
+                                                        Contrib. {product.contribLabel}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </template>
                                     </div>
+                                </template>
+                                <template if:false={row.hasProducts}>
+                                    <p class="empty-inline">No brand products on this line promo grid.</p>
                                 </template>
                             </div>
                         </template>
-                    </div>
+                    </article>
                 </template>
             </div>
         </template>
         <template if:false={hasAccounts}>
-            <p class="ce-empty">No territory accounts found for Class Engine.</p>
+            <div class="ce-empty ce-card">
+                <p>{emptyAccountsMessage}</p>
+            </div>
+        </template>
+        </template>
+
+        <template if:true={showPromoModal}>
+            <div class="modal-root" role="presentation">
+                <div class="modal-backdrop" onclick={closePromoModal}></div>
+                <section
+                    class="modal-panel"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="ce-promo-title"
+                    onclick={stopModalBubble}
+                >
+                    <header class="modal-hero">
+                        <div>
+                            <p class="ce-eyebrow light">Line promo grid · brands</p>
+                            <h2 id="ce-promo-title">{promoModalTitle}</h2>
+                            <p class="modal-sub">{promoModalSubtitle}</p>
+                        </div>
+                        <button type="button" class="modal-close" onclick={closePromoModal} title="Close">
+                            ✕
+                        </button>
+                    </header>
+                    <div class="modal-body">
+                        <template if:true={promoGrid}>
+                            <section class="modal-section">
+                                <div class="section-head">
+                                    <h3>Brand products</h3>
+                                    <span>{promoProductRows.length} weighted</span>
+                                </div>
+                                <div class="promo-product-grid">
+                                    <template for:each={promoProductCards} for:item="card">
+                                        <article key={card.id} class="promo-product-card">
+                                            <div class="ppc-media">
+                                                <template if:true={card.hasImage}>
+                                                    <img
+                                                        src={card.imageUrl}
+                                                        alt={card.productName}
+                                                        loading="lazy"
+                                                        onerror={handlePromoImgError}
+                                                        data-id={card.id}
+                                                    />
+                                                </template>
+                                                <template if:false={card.hasImage}>
+                                                    <div class="ppc-fallback">{card.initials}</div>
+                                                </template>
+                                                <div class="ppc-ring" style={card.ringStyle} aria-hidden="true"></div>
+                                            </div>
+                                            <div class="ppc-copy">
+                                                <h4>{card.productName}</h4>
+                                                <div class="ppc-weight">
+                                                    <span class="ppc-pct">{card.weightLabel}%</span>
+                                                    <div class="ppc-bar">
+                                                        <span style={card.barStyle}></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    </template>
+                                </div>
+                            </section>
+                            <div class="modal-split">
+                                <section class="modal-section">
+                                    <div class="section-head">
+                                        <h3>Specialty focus</h3>
+                                        <span>{specialtyTotalLabel}</span>
+                                    </div>
+                                    <ul class="bar-list">
+                                        <template for:each={specialtyCards} for:item="row">
+                                            <li key={row.id}>
+                                                <div class="bar-label">
+                                                    <span>{row.specialtyLabel}</span>
+                                                    <span>{row.listPercentage}%</span>
+                                                </div>
+                                                <div class="bar-track">
+                                                    <span class="bar-fill specialty" style={row.barStyle}></span>
+                                                </div>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </section>
+                                <section class="modal-section">
+                                    <div class="section-head">
+                                        <h3>Class targeting</h3>
+                                        <span>{classTotalLabel}</span>
+                                    </div>
+                                    <div class="class-cards">
+                                        <template for:each={classCards} for:item="row">
+                                            <article key={row.id} class="class-card">
+                                                <span class="class-code">{row.classCode}</span>
+                                                <strong>{row.targetMonthlyVisits}</strong>
+                                                <span class="class-meta">visits / mo</span>
+                                                <div class="bar-track thin">
+                                                    <span class="bar-fill class" style={row.barStyle}></span>
+                                                </div>
+                                                <span class="class-pct">{row.listPercentage}% list</span>
+                                            </article>
+                                        </template>
+                                    </div>
+                                </section>
+                            </div>
+                        </template>
+                        <template if:false={promoGrid}>
+                            <p class="empty-inline">No line promo grid for this territory.</p>
+                        </template>
+                    </div>
+                </section>
+            </div>
+        </template>
+
+        <template if:true={showInfoModal}>
+            <div class="modal-root" role="presentation">
+                <div class="modal-backdrop" onclick={closeInfoModal}></div>
+                <section
+                    class="modal-panel info-panel"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="ce-info-title"
+                    onclick={stopModalBubble}
+                >
+                    <header class="modal-hero">
+                        <div>
+                            <p class="ce-eyebrow light">Class Engine</p>
+                            <h2 id="ce-info-title">How scoring works</h2>
+                            <p class="modal-sub">
+                                On-ground ratings become a call plan that grows sales.
+                            </p>
+                        </div>
+                        <button type="button" class="modal-close" onclick={closeInfoModal} title="Close">
+                            ✕
+                        </button>
+                    </header>
+                    <div class="modal-body info-body">
+                        <section class="modal-section">
+                            <h3>From the field to the plan</h3>
+                            <p>
+                                Reps record what they see with each doctor: how large the opportunity is,
+                                and how much of it is already Zeta. The Class Engine turns that on-ground
+                                data into strategy — a ranked list, a class, and a visit frequency — so the
+                                team spends calls where they can grow sales. Approving the cycle writes
+                                those classes into the plan.
+                            </p>
+                        </section>
+
+                        <section class="modal-section">
+                            <h3>Potential</h3>
+                            <p>
+                                Potential is the size of the opportunity. It is the number of prescriptions
+                                the doctor writes, in the period the business agreed, for the therapy or
+                                indication of that brand.
+                            </p>
+                        </section>
+
+                        <section class="modal-section">
+                            <h3>Penetration</h3>
+                            <p>
+                                Penetration is how much of that opportunity is already yours. It is the
+                                number of prescriptions the doctor writes for Zeta products in the same
+                                period.
+                            </p>
+                        </section>
+
+                        <section class="modal-section">
+                            <h3>The equation</h3>
+                            <p>
+                                Each brand on the promo grid has a weight. The doctor’s Rx score adds
+                                those brands together.
+                            </p>
+                            <p class="formula">
+                                Share = Penetration / Potential
+                                <br />
+                                Brand contribution = (Brand weight % / 100) × Potential × Share
+                                <br />
+                                Doctor score = sum of every brand contribution
+                            </p>
+                            <p>
+                                A potential of 0 means that brand contributes 0. When potential is above
+                                zero, it cancels out, and the contribution is the weighted penetration:
+                            </p>
+                            <p class="formula">
+                                Brand contribution = (Brand weight % / 100) × Penetration
+                            </p>
+                            <p class="example">
+                                <strong>Example.</strong> Weight 60%, potential 100, penetration 40.
+                                Share = 40 / 100 = 0.40. Contribution = 0.60 × 100 × 0.40 = 24, which is
+                                the same as 0.60 × 40.
+                            </p>
+                        </section>
+
+                        <section class="modal-section">
+                            <h3>How a doctor ranks higher</h3>
+                            <p>
+                                Doctors are ordered by this Rx score, highest first. The promo grid then
+                                gives the top scores the highest classes — A1, A2, A3, then B, then C —
+                                inside the specialty mix and the visits the territory can make. A higher
+                                class means more planned visits.
+                            </p>
+                            <ul class="info-list">
+                                <li>
+                                    Raise penetration on the brands with the highest weight. The same
+                                    extra prescriptions move the score more on a heavy brand than on a
+                                    light one.
+                                </li>
+                                <li>
+                                    Enter a potential above zero so the brand is included in the score.
+                                </li>
+                                <li>
+                                    In the example, lifting Zeta prescriptions on the 60% brand from 40 to
+                                    50 lifts that brand’s contribution from 24 to 30. That higher score
+                                    can pass other doctors and land a higher class.
+                                </li>
+                            </ul>
+                            <p>
+                                Sales potential and sales penetration use the same equation and set the
+                                Sales class. The rank on each row is the Rx score.
+                            </p>
+                        </section>
+                    </div>
+                </section>
+            </div>
         </template>
     </div>
+    </template>
 </template>

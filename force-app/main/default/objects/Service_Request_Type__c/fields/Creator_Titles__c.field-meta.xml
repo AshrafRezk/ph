@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Creator_Titles__c</fullName>
+    <description>Semicolon-separated titles allowed to raise this request (same pattern as Meeting_Type__c.Creator_Titles__c).</description>
+    <label>Creator Titles</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

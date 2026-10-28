@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Scope_Key__c</fullName>
+    <description>Line name, title, profile name, or User Id for scoped KPI overrides.</description>
+    <externalId>false</externalId>
+    <label>Scope Key</label>
+    <length>80</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

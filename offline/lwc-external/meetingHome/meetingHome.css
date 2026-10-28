@@ -1,0 +1,181 @@
+@import 'c/meetingStyles';
+
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: linear-gradient(135deg, #032d60 0%, #0b5cab 70%, #0d9dda 100%);
+    color: #fff;
+    border: 0;
+}
+
+.hero .mx-eyebrow,
+.hero .mx-h1 {
+    color: #fff;
+}
+
+.hero .mx-sub {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.hero__new {
+    background: #fff;
+    color: var(--mx-navy);
+    border-color: #fff;
+    flex: none;
+}
+
+.kpi-btn {
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+
+.cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+    gap: 0.75rem;
+}
+
+.card {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 26px rgba(3, 45, 96, 0.12);
+}
+
+.card__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.card__pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.card__title {
+    font-size: 0.98rem;
+    line-height: 1.3;
+}
+
+.card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.card__waiting {
+    color: var(--mx-warn);
+    font-weight: 700;
+}
+
+.card__cost {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+}
+
+.approval {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.approval__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+
+.approval__actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-top: 1px solid var(--mx-line);
+    padding-top: 0.7rem;
+}
+
+.date-tile {
+    flex: none;
+    width: 3.2rem;
+    border-radius: 12px;
+    background: var(--mx-brand-soft);
+    color: var(--mx-brand);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0;
+}
+
+.date-tile__day {
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.date-tile__month {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    background: rgba(3, 20, 45, 0.4);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.drawer__panel {
+    width: min(60rem, 100%);
+    height: 100%;
+    overflow-y: auto;
+    background: var(--mx-surface);
+    padding: 1rem;
+    box-shadow: -12px 0 40px rgba(3, 20, 45, 0.25);
+}
+
+@media (max-width: 720px) {
+    .hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .approval__actions .mx-btn {
+        flex: 1 1 auto;
+    }
+
+    .drawer__panel {
+        padding: 0.6rem;
+    }
+}

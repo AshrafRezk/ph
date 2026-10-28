@@ -1,3 +1,42 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.apm-shell {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.35rem;
+}
+
+.apm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem 0.15rem;
+}
+
+.apm-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.apm-refresh {
+    border: 0;
+    background: transparent;
+    color: #0176d3;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.apm-refresh:hover {
+    text-decoration: underline;
+}
+
 .roi-body {
     padding: 0.75rem 1rem 1rem;
 }
@@ -9,14 +48,23 @@
 
 .toolbar {
     display: flex;
-    align-items: flex-end;
-    gap: 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     margin-bottom: 0.75rem;
 }
 
 .product-picker {
+    flex: 1 1 20rem;
+    max-width: 36rem;
     min-width: 16rem;
-    flex: 1;
+}
+
+.product-primary-hint {
+    margin: 0.25rem 0 0.75rem;
+    font-size: 0.75rem;
+    color: #706e6b;
 }
 
 .roi-badge {
@@ -117,8 +165,141 @@
 
 .charts-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 1rem;
+}
+
+.combined-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    margin-bottom: 0.55rem;
+}
+
+.combined-legend .legend-item.sellout::before {
+    background: #0176d3;
+}
+
+.combined-legend .legend-item.classification::before {
+    background: #2e844a;
+}
+
+.combined-legend .legend-item.divergence::before {
+    background: #fe9339;
+    border-radius: 0.15rem;
+    opacity: 0.7;
+}
+
+.combined-chart {
+    overflow: visible;
+    min-height: 16rem;
+}
+
+.axis-tick.sellout {
+    fill: #0176d3;
+}
+
+.axis-tick.classification {
+    fill: #2e844a;
+    font-weight: 700;
+}
+
+.grid-line {
+    stroke: #ecebea;
+    stroke-width: 1;
+}
+
+.gap-fill {
+    fill: #fe9339;
+    fill-opacity: 0.18;
+    stroke: none;
+}
+
+.chart-note {
+    margin: 0.4rem 0 0;
+    color: #706e6b;
+    font-size: 0.75rem;
+}
+
+.divergence-banner {
+    margin-top: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.35rem;
+    border-left: 3px solid #0176d3;
+    background: #f3f3f3;
+}
+
+.divergence-banner p {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #3e3e3c;
+}
+
+.divergence-banner.warning {
+    border-left-color: #fe9339;
+    background: #fbf3ea;
+}
+
+.divergence-banner.error {
+    border-left-color: #ba0517;
+    background: #fef1ee;
+}
+
+.divergence-banner.success {
+    border-left-color: #2e844a;
+    background: #f3f8f4;
+}
+
+.divergence-banner.info {
+    border-left-color: #0176d3;
+    background: #f3f9ff;
+}
+
+.reason-list {
+    list-style: none;
+    margin: 0.65rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.reason-item {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.35rem;
+    background: #fff;
+    border-left: 3px solid #706e6b;
+}
+
+.reason-item.warning {
+    border-left-color: #fe9339;
+}
+
+.reason-item.error {
+    border-left-color: #ba0517;
+}
+
+.reason-item.info {
+    border-left-color: #0176d3;
+}
+
+.reason-item.success {
+    border-left-color: #2e844a;
+}
+
+.reason-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.reason-detail {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #3e3e3c;
 }
 
 .chart {
@@ -132,6 +313,10 @@
 .axis-label {
     fill: #706e6b;
     font-size: 10px;
+}
+
+.axis-tick {
+    transform: none;
 }
 
 .spend-list {
@@ -201,6 +386,14 @@
 
 .legend-item.brochures::before {
     background: #706e6b;
+}
+
+.legend-item.visits::before {
+    background: #2e844a;
+}
+
+.legend-item.meetings::before {
+    background: #8b5cf6;
 }
 
 .legend-item.today::before {
@@ -279,6 +472,14 @@
     background: #f7f7f7;
 }
 
+.lane-track.visits {
+    background: #f3faf5;
+}
+
+.lane-track.meetings {
+    background: #f6f3ff;
+}
+
 .lane-fill {
     position: absolute;
     inset: 0.7rem 0.4rem;
@@ -296,6 +497,14 @@
 
 .lane-track.brochures .lane-fill {
     background: #d4d4d4;
+}
+
+.lane-track.visits .lane-fill {
+    background: #b7dfc4;
+}
+
+.lane-track.meetings .lane-fill {
+    background: #d4c4f7;
 }
 
 .event-marker {
@@ -351,6 +560,14 @@
 
 .event-marker.brochures {
     color: #706e6b;
+}
+
+.event-marker.visits {
+    color: #2e844a;
+}
+
+.event-marker.meetings {
+    color: #8b5cf6;
 }
 
 .event-marker.selected .event-bubble {

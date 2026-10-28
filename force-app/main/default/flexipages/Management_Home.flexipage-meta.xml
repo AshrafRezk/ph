@@ -3,8 +3,20 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
+                <componentName>pendingPaymentAlert</componentName>
+                <identifier>pendingPaymentAlert</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
                 <componentName>managementTeamKpiDashboard</componentName>
                 <identifier>managementTeamKpiDashboard</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>reportsHub</componentName>
+                <identifier>reportsHub</identifier>
             </componentInstance>
         </itemInstances>
         <name>main</name>

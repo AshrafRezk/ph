@@ -125,8 +125,24 @@
 .integration-desc {
     font-size: 0.8125rem;
     color: var(--int-muted);
-    margin: 0 0 0.75rem;
+    margin: 0 0 0.5rem;
     line-height: 1.45;
+}
+
+.integration-detail {
+    font-size: 0.75rem;
+    color: #475569;
+    margin: 0 0 0.75rem;
+    line-height: 1.4;
+}
+
+.integrations-error {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: #fef2f2;
+    color: #b42318;
+    font-size: 0.8125rem;
 }
 
 .integration-meta {

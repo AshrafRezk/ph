@@ -29,8 +29,26 @@
 .visit-list-item-top { display: flex; gap: 0.5rem; margin-bottom: 0.25rem; align-items: center; }
 
 .account-badge { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; }
-.account-badge-hcp { background: #e3f2fd; color: #0176d3; }
-.account-badge-hco { background: #f3e5f5; color: #6a1b9a; }
+.account-badge-hcp { background: #3f7de5; color: #fff; }
+.account-badge-hco { background: #fdbf29; color: #3a2a00; }
+.account-badge-pharmacy { background: #176935; color: #fff; }
+.account-badge-account { background: #eef2f6; color: #032d60; }
+.visit-type-icon { width: 1.35rem; height: 1.35rem; object-fit: contain; }
+#visit-detail-view.is-themed .visit-hero {
+    background: linear-gradient(135deg, var(--account-theme-soft) 0%, #fff 70%);
+    border-color: var(--account-theme-border);
+    border-left: 4px solid var(--account-theme);
+}
+#visit-detail-view.is-themed .path-step-current {
+    border-color: var(--account-theme);
+    background: var(--account-theme);
+    color: var(--account-theme-ink);
+}
+#visit-detail-view.is-themed .nav-item-active {
+    background: var(--account-theme);
+    border-color: var(--account-theme);
+    color: var(--account-theme-ink);
+}
 
 .status-badge { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; }
 .status-badge-draft { background: #f3f3f3; color: #444; }

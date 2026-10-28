@@ -7,7 +7,8 @@ export default async function classify(params = {}) {
         method: 'POST',
         body: JSON.stringify({
             employeeId: params.employeeId || null,
-            quarter: params.quarter || null
+            quarter: params.quarter || null,
+            territoryId: params.territoryId || null
         })
     });
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>DelegationController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ManagementKpiController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ManagerFleetMapController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>VisitValidationController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <description>DM-only controllers: delegation, team KPIs and the manager fleet map.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Pharma DM Manager Access</label>
+</PermissionSet>

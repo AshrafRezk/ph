@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_148__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>148 commercial brick for this distributor client's location: the parent of the 702 brick, or the 148 region that contains the location when no 702 region does.</description>
+    <label>148 Brick</label>
+    <lookupFilter>
+        <active>true</active>
+        <errorMessage>Choose a 148 brick.</errorMessage>
+        <filterItems>
+            <field>Brick__c.Brick_Level__c</field>
+            <operation>equals</operation>
+            <value>148</value>
+        </filterItems>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Brick__c</referenceTo>
+    <relationshipLabel>Distributor Clients (148)</relationshipLabel>
+    <relationshipName>Sellout_Aliases_148</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

@@ -1,4 +1,5 @@
-import { LightningElement, track } from 'lwc';
+import { LightningElement, track, wire } from 'lwc';
+import { MessageContext } from 'lightning/messageService';
 import getNextBestCustomersPayload from '@salesforce/apex/PlannerMobileRestService.getNextBestCustomersPayload';
 import upsertVisit from '@salesforce/apex/FieldPlannerController.upsertVisit';
 import {
@@ -9,18 +10,26 @@ import {
     putHomeMetrics
 } from 'c/clmOfflineStore';
 import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
+import {
+    subscribeTerritoryContext,
+    unsubscribeTerritoryContext
+} from 'c/territoryContextClient';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
+import NBC_MEDALS from '@salesforce/resourceUrl/NbcRankMedals';
 
 const NBC_PATH = '/services/apexrest/planner/v1/home/next-best-customers';
 const VISITS_UPSERT_PATH = '/services/apexrest/planner/v1/visits/upsert';
 const CACHE_USER_FALLBACK = 'me';
+// Managers Demo MoM: show the top 5, then View more reveals the rest of the list.
 const NBC_LIMIT = 5;
+const NBC_FETCH_LIMIT = 25;
 
 const RANK_META = [
-    { glyph: '🥇', iconClass: 'rank-icon rank-icon--first', label: '1st place' },
-    { glyph: '🥈', iconClass: 'rank-icon rank-icon--second', label: '2nd place' },
-    { glyph: '🥉', iconClass: 'rank-icon rank-icon--third', label: '3rd place' },
-    { glyph: '4️⃣', iconClass: 'rank-icon rank-icon--fourth', label: '4th place' },
-    { glyph: '5️⃣', iconClass: 'rank-icon rank-icon--fifth', label: '5th place' }
+    { file: 'first.gif', iconClass: 'rank-icon rank-icon--first', label: '1st place' },
+    { file: 'second.gif', iconClass: 'rank-icon rank-icon--second', label: '2nd place' },
+    { file: 'third.gif', iconClass: 'rank-icon rank-icon--third', label: '3rd place' },
+    { file: 'fourth.svg', iconClass: 'rank-icon rank-icon--fourth', label: '4th place' },
+    { file: 'fifth.svg', iconClass: 'rank-icon rank-icon--fifth', label: '5th place' }
 ];
 
 const DAY_START_HOUR = 6;
@@ -54,18 +63,37 @@ function clampToWorkingHours(date) {
 
 export default class FieldRepHomeNextBestCustomer extends LightningElement {
     @track rows = [];
+    showAll = false;
     @track syncStatus = 'idle';
     @track errorMessage = '';
     @track noticeMessage = '';
     @track noticeVariant = 'success';
     @track hasCachedData = false;
+    featureEnabled = true;
 
     cacheUserKey = CACHE_USER_FALLBACK;
     refreshAbort;
     _connectivityBound = false;
+    _messageContext;
+    territoryContextSubscription;
+
+    @wire(MessageContext)
+    wiredMessageContext(value) {
+        this._messageContext = value;
+        this.subscribeTerritoryContext();
+    }
 
     connectedCallback() {
-        this.init();
+        this.subscribeTerritoryContext();
+        void this.bootstrapWithFeatures();
+    }
+
+    async bootstrapWithFeatures() {
+        await loadFieldFeatures();
+        this.featureEnabled = isFieldFeatureEnabled('home.nextBestCustomer');
+        if (this.featureEnabled) {
+            this.init();
+        }
     }
 
     disconnectedCallback() {
@@ -82,10 +110,47 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
         if (this._noticeTimer) {
             clearTimeout(this._noticeTimer);
         }
+        unsubscribeTerritoryContext(this.territoryContextSubscription);
+        this.territoryContextSubscription = undefined;
+    }
+
+    subscribeTerritoryContext() {
+        if (this.territoryContextSubscription) {
+            return;
+        }
+        // Subscribe even when LMS MessageContext is missing (PWA stub / LWS); window + BroadcastChannel still fire.
+        this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
+            void this.init();
+        });
     }
 
     get hasRows() {
         return (this.rows || []).length > 0;
+    }
+
+    get visibleRows() {
+        const rows = this.rows || [];
+        return this.showAll ? rows : rows.slice(0, NBC_LIMIT);
+    }
+
+    get showViewMore() {
+        return !this.showAll && (this.rows || []).length > NBC_LIMIT;
+    }
+
+    get showViewLess() {
+        return this.showAll && (this.rows || []).length > NBC_LIMIT;
+    }
+
+    get viewMoreLabel() {
+        return `View more (${(this.rows || []).length - NBC_LIMIT})`;
+    }
+
+    handleViewMore() {
+        this.showAll = true;
+    }
+
+    handleViewLess() {
+        this.showAll = false;
     }
 
     get showSyncChip() {
@@ -174,15 +239,17 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
 
     decorateRows(rows) {
         return (rows || []).map((row, index) => {
-            const rankMeta = RANK_META[Math.min(index, RANK_META.length - 1)];
+            const rankMeta = RANK_META[index];
             return {
                 ...row,
                 callPlanLabel: `${Math.round(row.actualVisits || 0)}/${Math.round(row.targetVisits || 0)}`,
                 plannedLabel: row.planned ? 'Yes' : 'No',
                 scoreDisplay: Math.round(row.score || 0),
-                rankGlyph: rankMeta.glyph,
-                rankIconClass: rankMeta.iconClass,
-                rankLabel: rankMeta.label
+                hasMedal: Boolean(rankMeta),
+                rankNumber: index + 1,
+                rankIconUrl: rankMeta ? `${NBC_MEDALS}/${rankMeta.file}` : null,
+                rankIconClass: rankMeta ? rankMeta.iconClass : 'rank-icon rank-icon--plain',
+                rankLabel: rankMeta ? rankMeta.label : `Rank ${index + 1}`
             };
         });
     }
@@ -232,12 +299,12 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
         if (restBase) {
             return this.fetchNbcRest(restBase);
         }
-        return getNextBestCustomersPayload({ contextUserId: null, limitSize: NBC_LIMIT });
+        return getNextBestCustomersPayload({ contextUserId: null, limitSize: NBC_FETCH_LIMIT });
     }
 
     async fetchNbcRest(restBase) {
         const params = new URLSearchParams();
-        params.set('limitSize', String(NBC_LIMIT));
+        params.set('limitSize', String(NBC_FETCH_LIMIT));
         return this.plannerFetch(`${NBC_PATH}?${params.toString()}`, { method: 'GET' }, restBase);
     }
 
@@ -389,7 +456,10 @@ export default class FieldRepHomeNextBestCustomer extends LightningElement {
             endDateTime: payload.endDateTime,
             status: payload.status,
             visitType: payload.visitType,
-            cancellationReason: null
+            cancellationReason: null,
+            zetaProjectId: null,
+            visitObjective: null,
+            acknowledgeWarnings: false
         });
     }
 

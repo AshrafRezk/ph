@@ -1,134 +1,117 @@
 @IsTest
 private class PharmacySalesDataAdminControllerTest {
-    @TestSetup
-    static void setup() {
-        Account pharmacy = new Account(
-            Name = 'Admin Test Pharmacy',
-            External_ID__c = 'PHARM_TEST_ADMIN'
-        );
-        Database.insert(pharmacy, AccessLevel.SYSTEM_MODE);
-
-        Brick__c brick = new Brick__c(
-            Name = 'Admin Test Brick',
-            External_ID__c = 'BRICK_TEST_ADMIN',
-            Is_Active__c = true
-        );
-        Database.insert(brick, AccessLevel.SYSTEM_MODE);
-
-        Database.insert(
-            new Brick_Pharmacy__c(
-                Brick__c = brick.Id,
-                Pharmacy_Account__c = pharmacy.Id,
-                Unique_Key__c = brick.Id + ':' + pharmacy.Id,
-                Is_Active__c = true
-            ),
-            AccessLevel.SYSTEM_MODE
-        );
-
-        Product2 product = new Product2(
-            Name = 'Admin Test Product',
-            ProductCode = 'TEST-ADMIN',
-            External_ID__c = 'ZETA_TEST_ADMIN',
-            Family = 'Empacoza',
-            Therapy_Area__c = 'Diabetes',
-            IsActive = true
-        );
-        Database.insert(product, AccessLevel.SYSTEM_MODE);
-
-        Id standardPbId = Test.getStandardPricebookId();
-        Database.insert(
-            new PricebookEntry(
-                Pricebook2Id = standardPbId,
-                Product2Id = product.Id,
-                UnitPrice = 200,
-                IsActive = true
-            ),
-            AccessLevel.SYSTEM_MODE
-        );
-    }
-
     @IsTest
-    static void getCsvTemplate_returnsHeader() {
-        String template = PharmacySalesDataAdminController.getCsvTemplate();
-        System.assert(template.contains('data_source'));
-        System.assert(template.contains('pharmacy_external_id'));
-    }
-
-    @IsTest
-    static void importSalesDataCsv_upsertsRows() {
-        String csv = 'data_source,report_month,pharmacy_external_id,product_external_id,quantity_withdrawn,unit_price,external_id\n' +
-            'IbnSina,2026-01,PHARM_TEST_ADMIN,ZETA_TEST_ADMIN,25,200,EXT_TEST_1';
-
-        Test.startTest();
-        PharmacySalesDataAdminController.ImportResult result =
-            PharmacySalesDataAdminController.importSalesDataCsv(csv, 'test.csv');
-        Test.stopTest();
-
-        System.assertNotEquals(null, result.batchId);
-        System.assertEquals(1, result.rowsInserted + result.rowsUpdated);
-        List<Pharmacy_Sales_Withdrawal__c> rows = [
-            SELECT Id, Quantity_Withdrawn__c
-            FROM Pharmacy_Sales_Withdrawal__c
-            WITH SYSTEM_MODE
-        ];
-        System.assertEquals(1, rows.size());
-        System.assertEquals(25, rows[0].Quantity_Withdrawn__c);
-    }
-
-    @IsTest
-    static void previewSalesDataCsv_validatesRows() {
-        String csv = 'data_source,report_month,pharmacy_external_id,product_external_id,quantity_withdrawn\n' +
-            'BadSource,2026-01,PHARM_TEST_ADMIN,ZETA_TEST_ADMIN,10';
-
+    static void previewRejectsARowMissingQuantity() {
         PharmacySalesDataAdminController.ImportResult preview =
-            PharmacySalesDataAdminController.previewSalesDataCsv(csv);
+            PharmacySalesDataAdminController.previewSalesDataCsv(
+                'Data_Source,Report_Month,Pharmacy_External_Id,Product_External_Id,Quantity,Unit_Price\n' +
+                'IbnSina,2026-10,PHARM-001,PROD-001,,25\n'
+            );
         System.assertEquals(1, preview.rowsFailed);
+        System.assertEquals(false, preview.previewRows[0].isValid);
     }
 
     @IsTest
-    static void brickMembership_crud() {
-        Account pharmacy = [
-            SELECT Id
-            FROM Account
-            WHERE External_ID__c = 'PHARM_TEST_ADMIN'
-            WITH SYSTEM_MODE
-            LIMIT 1
-        ];
-        Brick__c brick = [
-            SELECT Id
-            FROM Brick__c
-            WHERE External_ID__c = 'BRICK_TEST_ADMIN'
-            WITH SYSTEM_MODE
-            LIMIT 1
-        ];
+    static void importViewerAndDeleteRoundTrip() {
+        Account pharmacy = new Account(Name = 'Import Pharmacy', External_ID__c = 'PHARM-IMP-1');
+        insert pharmacy;
+        Product2 product = new Product2(
+            Name = 'Import Product',
+            ProductCode = 'IMP-1',
+            IsActive = true,
+            External_ID__c = 'PROD-IMP-1'
+        );
+        insert product;
 
-        List<PharmacySalesDataAdminController.BrickSummaryRow> summaries =
-            PharmacySalesDataAdminController.getBrickSummaries();
-        System.assert(!summaries.isEmpty());
+        String csv =
+            'Data_Source,Report_Month,Pharmacy_External_Id,Product_External_Id,Quantity,Unit_Price\n' +
+            'IbnSina,2026-10,PHARM-IMP-1,PROD-IMP-1,4,10\n';
+        PharmacySalesDataAdminController.ImportResult imported =
+            PharmacySalesDataAdminController.importSalesDataCsv(csv, 'test.csv');
+        System.assertEquals(1, imported.rowsInserted);
+        System.assertEquals(0, imported.rowsFailed);
 
-        List<PharmacySalesDataAdminController.BrickPharmacyRow> members =
-            PharmacySalesDataAdminController.getBrickPharmacies(brick.Id);
-        System.assertEquals(1, members.size());
-
-        PharmacySalesDataAdminController.removePharmacyFromBrick(members[0].membershipId);
-        Id membershipId = PharmacySalesDataAdminController.addPharmacyToBrick(brick.Id, pharmacy.Id);
-        System.assertNotEquals(null, membershipId);
-    }
-
-    @IsTest
-    static void getWithdrawalRows_and_delete() {
-        String csv = 'data_source,report_month,pharmacy_external_id,product_external_id,quantity_withdrawn\n' +
-            'Pharmaoverseas,2026-02,PHARM_TEST_ADMIN,ZETA_TEST_ADMIN,15';
-        PharmacySalesDataAdminController.importSalesDataCsv(csv, 'viewer.csv');
-
-        List<PharmacySalesDataAdminController.WithdrawalViewerRow> rows =
-            PharmacySalesDataAdminController.getWithdrawalRows(null, null, 'All', null, 50);
+        List<PharmacySalesDataAdminController.WithdrawalRow> rows =
+            PharmacySalesDataAdminController.getWithdrawalRows(
+                Date.newInstance(2026, 10, 1),
+                Date.newInstance(2026, 10, 31),
+                null,
+                null,
+                50
+            );
         System.assertEquals(1, rows.size());
+        System.assertEquals(4, rows[0].quantity);
 
         PharmacySalesDataAdminController.deleteWithdrawalRows(new List<Id>{ rows[0].recordId });
-        System.assertEquals(
-            0,
-            [SELECT COUNT() FROM Pharmacy_Sales_Withdrawal__c WITH SYSTEM_MODE]
+        List<PharmacySalesDataAdminController.WithdrawalRow> afterDelete =
+            PharmacySalesDataAdminController.getWithdrawalRows(
+                Date.newInstance(2026, 10, 1),
+                Date.newInstance(2026, 10, 31),
+                null,
+                null,
+                50
+            );
+        System.assertEquals(0, afterDelete.size());
+    }
+
+    @IsTest
+    static void digestionExample_loadsTwiceWithoutDuplicates_andBulkShareIsInPercentTerms() {
+        Profile adminProfile = [SELECT Id FROM Profile WHERE Name = 'System Administrator' LIMIT 1];
+        String uniq = String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+        User admin = new User(
+            Alias = 'dgex',
+            Email = 'dgex' + uniq + '@example.com',
+            Username = 'dgex' + uniq + '@example.com.zeta',
+            LastName = 'Admin',
+            ProfileId = adminProfile.Id,
+            TimeZoneSidKey = 'Africa/Cairo',
+            LocaleSidKey = 'en_US',
+            EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US'
         );
+        insert admin;
+        SalesDigestionExampleService.DigestionExample first;
+        SalesDigestionExampleService.DigestionExample second;
+        SalesDigestionExampleService.DigestionExample saved;
+        System.runAs(admin) {
+            first = PharmacySalesDataAdminController.seedDigestionExample();
+            second = PharmacySalesDataAdminController.seedDigestionExample();
+            saved = PharmacySalesDataAdminController.getDigestionExample();
+        }
+        System.assertEquals(true, first.seeded);
+        System.assertEquals(first.totalBulk, second.totalBulk);
+        System.assertEquals(1, [SELECT COUNT() FROM Item_Ceiling__c WHERE Unique_Key__c = 'DIGEST_EX_CEIL_PRIVATE']);
+        System.assertEquals(1, [SELECT COUNT() FROM Sales_Brick_Share__c WHERE Unique_Key__c = 'DIGEST_EX_SHARE']);
+        System.assertEquals(1, [SELECT COUNT() FROM Sales_Item_Target__c WHERE Product__r.External_ID__c = 'DIGEST_EX_NEX']);
+        // Percent in, percent out: average of actual and target, applied once to the bulk quantity.
+        System.assertEquals((first.actualSharePct + first.targetSharePct) / 2, first.averageSharePct);
+        System.assertEquals(first.averageSharePct / 100 * first.totalBulk, first.bulkShareQty);
+        System.assertEquals(true, saved.seeded);
+    }
+
+    @IsTest
+    static void templateDemoSeedAndBatchesWork_andUnknownRowsAreReported() {
+        System.assert(PharmacySalesDataAdminController.getCsvTemplate().startsWith('Data_Source'));
+
+        PharmacySalesDataAdminController.SeedResult seeded = PharmacySalesDataAdminController.seedDemoData();
+        System.assert(seeded.message.contains('Demo pharmacy'));
+        PharmacySalesDataAdminController.seedDemoData();
+        System.assertEquals(
+            1,
+            [SELECT COUNT() FROM Pharmacy_Sales_Withdrawal__c WHERE Pharmacy_Account__r.External_ID__c = 'DEMO-PHARM-SOB']
+        );
+
+        PharmacySalesDataAdminController.ImportResult imported = PharmacySalesDataAdminController.importSalesDataCsv(
+            'Data_Source,Report_Month,Pharmacy_External_Id,Product_External_Id,Quantity,Unit_Price\n' +
+            'IbnSina,2026-10,NO-SUCH-PHARM,NO-SUCH-PROD,3,10\n' +
+            'NotASource,2026-10,DEMO-PHARM-SOB,DEMO-PROD-SOB,3,10\n',
+            'unknown.csv'
+        );
+        System.assertEquals(0, imported.rowsInserted);
+        System.assertEquals(2, imported.rowsFailed);
+        System.assertNotEquals(null, imported.errorLog);
+
+        System.assertNotEquals(null, PharmacySalesDataAdminController.getImportBatches(5));
+        PharmacySalesDataAdminController.deleteWithdrawalRows(null);
     }
 }

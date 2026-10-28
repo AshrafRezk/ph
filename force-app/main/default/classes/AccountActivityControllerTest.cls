@@ -19,13 +19,15 @@ private class AccountActivityControllerTest {
       Assigned_To__c = UserInfo.getUserId(),
       Start_Date__c = visitStart,
       End_Date__c = visitStart.addHours(1),
-      Status__c = 'Completed',
+      Status__c = 'Scheduled',
       Visit_Type__c = 'Unplanned',
       Visit_Objective__c = 'Discuss treatment updates',
       Visit_Notes__c = 'Positive engagement on clinical data.',
       Products_Discussed__c = 'Timeline Product'
     );
     insert visit;
+    visit.Status__c = 'Completed';
+    update visit;
 
     Visit_Product_Detail__c productDetail = new Visit_Product_Detail__c(
       Visit__c = visit.Id,
@@ -218,6 +220,71 @@ private class AccountActivityControllerTest {
     System.assertEquals('AI headline', insights.headline);
     System.assertEquals(AccountActivityInsightsTypes.SOURCE_AGENTFORCE, insights.source);
     AccountActivityEinsteinClient.testResponseJson = null;
+
+    AccountActivityEinsteinClient.testForceFailure = true;
+    AccountActivityInsightsTypes.AccountVisitInsights failed =
+      AccountActivityController.getAccountVisitInsights(hcp.Id);
+    System.assertEquals(AccountActivityInsightsTypes.SOURCE_STRUCTURED, failed.source);
+    AccountActivityEinsteinClient.testForceFailure = false;
+
+    AccountActivityEinsteinClient.testResponseJson = 'not-json';
+    AccountActivityInsightsTypes.AccountVisitInsights invalid =
+      AccountActivityController.getAccountVisitInsights(hcp.Id);
+    System.assertEquals(AccountActivityInsightsTypes.SOURCE_STRUCTURED, invalid.source);
+    AccountActivityEinsteinClient.testResponseJson = null;
+  }
+
+  @IsTest
+  static void getAccountActivityTimeline_includesCurrentYearMeeting() {
+    Account hcp = getHcpAccount();
+    List<RecordType> meetingTypes = [
+      SELECT Id
+      FROM RecordType
+      WHERE SObjectType = 'Meeting__c' AND DeveloperName = 'RTD' AND IsActive = TRUE
+      LIMIT 1
+    ];
+    List<RecordType> memberTypes = [
+      SELECT Id
+      FROM RecordType
+      WHERE SObjectType = 'Meeting_Member__c' AND DeveloperName = 'Attendee' AND IsActive = TRUE
+      LIMIT 1
+    ];
+    if (meetingTypes.isEmpty() || memberTypes.isEmpty()) {
+      return;
+    }
+
+    DateTime startDt = Datetime.now();
+    Meeting__c meeting = new Meeting__c(
+      RecordTypeId = meetingTypes[0].Id,
+      Status__c = 'Approved',
+      Objectives__c = 'Timeline RTD',
+      Start_Date_Time__c = startDt,
+      End_Date_Time__c = startDt.addHours(2)
+    );
+    insert meeting;
+    insert new Meeting_Member__c(
+      Meeting__c = meeting.Id,
+      RecordTypeId = memberTypes[0].Id,
+      Customer__c = hcp.Id,
+      Type__c = 'Participant',
+      Status__c = 'Invited',
+      Attendance_Status__c = 'Attended'
+    );
+
+    Test.startTest();
+    List<AccountActivityController.TimelineItem> timeline =
+      AccountActivityController.getAccountActivityTimeline(hcp.Id, 50);
+    Test.stopTest();
+
+    Boolean foundMeeting = false;
+    for (AccountActivityController.TimelineItem item : timeline) {
+      if (item.type == 'meeting' && item.recordId == meeting.Id) {
+        foundMeeting = true;
+        System.assertEquals('Timeline RTD', item.title);
+        break;
+      }
+    }
+    System.assertEquals(true, foundMeeting, 'Expected meeting on HCP activity timeline.');
   }
 
   @IsTest
@@ -236,6 +303,7 @@ private class AccountActivityControllerTest {
 
   private static Account buildHcpAccount(String label) {
     Account account = new Account(
+      Name = label,
       BillingCity = 'Cairo',
       BillingStreet = '1 Nile St',
       Specialty_1__c = 'Cardiology',
@@ -243,24 +311,21 @@ private class AccountActivityControllerTest {
       Professional_Designation__c = 'MD',
       Account_Status__c = 'Active'
     );
-    Id personRecordTypeId = getPersonAccountRecordTypeId();
-    if (personRecordTypeId != null) {
-      account.RecordTypeId = personRecordTypeId;
-      account.LastName = label;
-    } else {
-      account.Name = label;
+    Id hcpRecordTypeId = getHcpRecordTypeId();
+    if (hcpRecordTypeId != null) {
+      account.RecordTypeId = hcpRecordTypeId;
     }
     return account;
   }
 
-  private static Id getPersonAccountRecordTypeId() {
+  private static Id getHcpRecordTypeId() {
     List<RecordType> hcpTypes = [
       SELECT Id
       FROM RecordType
       WHERE
         SObjectType = 'Account'
         AND IsActive = TRUE
-        AND DeveloperName IN ('SDO_PersonAccounts', 'Medical_Professional_HCP')
+        AND DeveloperName = 'Medical_Professional_HCP'
       LIMIT 1
     ];
     return hcpTypes.isEmpty() ? null : hcpTypes[0].Id;

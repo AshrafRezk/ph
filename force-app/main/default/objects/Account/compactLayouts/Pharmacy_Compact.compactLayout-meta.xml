@@ -3,7 +3,8 @@
     <fullName>Pharmacy_Compact</fullName>
     <fields>Name</fields>
     <fields>Pharmacy_Type__c</fields>
-    <fields>Account_Status__c</fields>
     <fields>Phone</fields>
+    <fields>Brick__c</fields>
+    <fields>Account_Status__c</fields>
     <label>Pharmacy Compact</label>
 </CompactLayout>

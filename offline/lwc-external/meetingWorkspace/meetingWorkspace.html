@@ -1,0 +1,839 @@
+<template>
+    <div class="mx-root ws">
+        <template lwc:if={showSpinner}>
+            <div class="mx-spinner" role="status" aria-label="Loading"></div>
+        </template>
+
+        <template lwc:if={loadError}>
+            <div class="mx-banner mx-banner_bad">
+                <span>{loadError}</span>
+                <button class="mx-btn mx-btn_small" onclick={handleRefresh}>Try again</button>
+            </div>
+        </template>
+
+        <!-- Create / edit -->
+        <template lwc:if={editing}>
+            <section class="mx-card">
+                <div class="mx-card__head">
+                    <div class="mx-row">
+                        <template lwc:if={embedded}>
+                            <button class="mx-btn mx-btn_icon" onclick={handleCancelEdit} title="Back" aria-label="Back">
+                                <svg class="mx-icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+                            </button>
+                        </template>
+                        <div>
+                            <div class="mx-eyebrow">Meeting plan</div>
+                            <h2 class="mx-h1">{formTitle}</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="mx-grid2">
+                    <label class="mx-field mx-span2">
+                        <span class="mx-label">Title</span>
+                        <input class="mx-input" data-field="title" value={form.title} oninput={handleFormInput} placeholder="e.g. Cardiology evening symposium" />
+                    </label>
+                    <template lwc:if={noTypesAvailable}>
+                        <div class="mx-banner mx-banner_warn mx-span2">No meeting types are open to you. Ask SFE to check Meetings Setup for your title and territory.</div>
+                    </template>
+                    <label class="mx-field">
+                        <span class="mx-label">Activity type</span>
+                        <select class="mx-select" data-field="activityType" onchange={handleFormInput}>
+                            <option value="">Choose…</option>
+                            <template for:each={activityOptions} for:item="o">
+                                <option key={o.value} value={o.value} selected={o.selected}>{o.label}</option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="mx-field">
+                        <span class="mx-label">Originating department</span>
+                        <select class="mx-select" data-field="department" onchange={handleFormInput}>
+                            <option value="">Choose…</option>
+                            <template for:each={departmentOptions} for:item="o">
+                                <option key={o.value} value={o.value} selected={o.selected}>{o.label}</option>
+                            </template>
+                        </select>
+                    </label>
+                    <template lwc:if={formTypeDescription}>
+                        <div class="mx-small mx-muted mx-span2">{formTypeDescription}</div>
+                    </template>
+                    <template lwc:if={hcpTypeHint}>
+                        <div class="mx-banner mx-banner_info mx-span2">{hcpTypeHint}</div>
+                    </template>
+                    <label class="mx-field">
+                        <span class="mx-label">Starts</span>
+                        <input class="mx-input" type="datetime-local" data-field="start" value={form.start} onchange={handleFormInput} />
+                    </label>
+                    <label class="mx-field">
+                        <span class="mx-label">Ends</span>
+                        <input class="mx-input" type="datetime-local" data-field="end" value={form.end} onchange={handleFormInput} />
+                    </label>
+                    <label class="mx-field">
+                        <span class="mx-label">Venue</span>
+                        <input class="mx-input" data-field="venue" value={form.venue} oninput={handleFormInput} placeholder="Hotel, clinic, or online" />
+                    </label>
+                    <label class="mx-field">
+                        <span class="mx-label">Brand</span>
+                        <select class="mx-select" data-field="brandId" onchange={handleFormInput}>
+                            <option value="">No brand</option>
+                            <template for:each={brandOptions} for:item="o">
+                                <option key={o.value} value={o.value} selected={o.selected}>{o.label}</option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="mx-field">
+                        <span class="mx-label">Expected attendees</span>
+                        <input class="mx-input" type="number" min="0" data-field="estimatedParticipants" value={form.estimatedParticipants} oninput={handleFormInput} />
+                    </label>
+                    <label class="mx-field mx-span2">
+                        <span class="mx-label">Agenda and objectives</span>
+                        <textarea class="mx-textarea" data-field="agenda" value={form.agenda} oninput={handleFormInput}></textarea>
+                    </label>
+                </div>
+                <div class="mx-modal__actions">
+                    <button class="mx-btn" onclick={handleCancelEdit}>Cancel</button>
+                    <button class="mx-btn mx-btn_primary" onclick={handleSave} disabled={busy}>Save plan</button>
+                </div>
+            </section>
+        </template>
+
+        <template lwc:if={hasWorkspace}>
+            <!-- Header -->
+            <section class="mx-card hero">
+                <div class="mx-row mx-row_between">
+                    <div class="mx-row">
+                        <button class="mx-btn mx-btn_icon" onclick={handleBack} title="Back to meetings" aria-label="Back to meetings">
+                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+                        </button>
+                        <span class="mx-eyebrow">{m.name} · {m.activityType}</span>
+                    </div>
+                    <button class="mx-btn mx-btn_icon" onclick={handleRefresh} title="Refresh" aria-label="Refresh">
+                        <svg class="mx-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg>
+                    </button>
+                </div>
+                <h1 class="mx-h1 hero__title">{m.title}</h1>
+                <div class="hero__meta">
+                    <span class="hero__fact">
+                        <svg class="mx-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+                        {whenText}
+                    </span>
+                    <template lwc:if={m.venue}>
+                        <span class="hero__fact">
+                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+                            {m.venue}
+                        </span>
+                    </template>
+                    <span class="hero__fact">
+                        <svg class="mx-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>
+                        {m.ownerName}
+                    </span>
+                </div>
+                <div class="mx-row hero__pills">
+                    <span class={statusPill}>{statusText}</span>
+                    <template lwc:if={m.approvalStatus}><span class={approvalPill}>{m.approvalStatus}</span></template>
+                    <template lwc:if={showPaymentPill}><span class={paymentPill}>{m.paymentStatus}</span></template>
+                    <template lwc:if={m.department}><span class="mx-pill mx-pill_dept">{m.department}</span></template>
+                    <template lwc:if={m.brandName}><span class="mx-pill mx-pill_info">{m.brandName}</span></template>
+                </div>
+
+                <template lwc:if={nextStepHint}>
+                    <div class="mx-banner mx-banner_info hero__hint">
+                        <svg class="mx-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+                        <span>{nextStepHint}</span>
+                    </div>
+                </template>
+                <template lwc:if={isLegacy}>
+                    <div class="mx-banner mx-banner_warn hero__hint">
+                        This meeting was planned before the department approval process. Edit it and choose a department to use the new flow.
+                    </div>
+                </template>
+
+                <div class="mx-row hero__actions">
+                    <template lwc:if={actions.canApprove}>
+                        <button class="mx-btn mx-btn_ok" data-modal="approve" onclick={openModal} disabled={busy}>
+                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg>Approve
+                        </button>
+                        <button class="mx-btn mx-btn_danger" data-modal="reject" onclick={openModal} disabled={busy}>Reject</button>
+                    </template>
+                    <template lwc:if={actions.canSubmit}>
+                        <button class="mx-btn mx-btn_primary" onclick={handleSubmit} disabled={busy}>
+                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4 20-7z"></path></svg>Submit for approval
+                        </button>
+                    </template>
+                    <template lwc:if={actions.canScan}>
+                        <button class="mx-btn mx-btn_primary" onclick={handleOpenScanner} disabled={busy}>
+                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg>Scan attendees
+                        </button>
+                    </template>
+                    <template lwc:if={actions.canExecute}>
+                        <button class="mx-btn mx-btn_primary" onclick={handleExecute} disabled={busy}>Mark as held</button>
+                    </template>
+                    <template lwc:if={actions.canActualCost}>
+                        <button class="mx-btn mx-btn_primary" data-modal="actual" onclick={openModal} disabled={busy}>Enter actual cost</button>
+                    </template>
+                    <template lwc:if={actions.canDeposit}>
+                        <button class="mx-btn" data-modal="deposit" onclick={openModal} disabled={busy}>Request deposit</button>
+                    </template>
+                    <template lwc:if={actions.canPay}>
+                        <button class="mx-btn mx-btn_ok" data-modal="pay" onclick={openModal} disabled={busy}>Record payment</button>
+                        <button class="mx-btn mx-btn_danger" data-modal="sendback" onclick={openModal} disabled={busy}>Send back</button>
+                    </template>
+                    <template lwc:if={actions.canClose}>
+                        <button class="mx-btn mx-btn_ok" onclick={handleClose} disabled={busy}>Close meeting</button>
+                    </template>
+                    <template lwc:if={actions.canEdit}>
+                        <button class="mx-btn" onclick={handleEdit} disabled={busy}>Edit plan</button>
+                    </template>
+                    <template lwc:if={actions.canCancel}>
+                        <button class="mx-btn mx-btn_danger" data-modal="cancel" onclick={openModal} disabled={busy}>Cancel meeting</button>
+                    </template>
+                </div>
+                <template lwc:if={ws.submitBlocker}>
+                    <div class="mx-banner mx-banner_warn hero__hint">{ws.submitBlocker}</div>
+                </template>
+            </section>
+
+            <!-- Lifecycle tracker -->
+            <template lwc:if={isCancelled}>
+                <div class="mx-banner mx-banner_bad">This meeting was cancelled.</div>
+            </template>
+            <template lwc:else>
+                <ol class="mx-card track">
+                    <template for:each={track} for:item="step">
+                        <li key={step.key} class={step.cls}>
+                            <span class="track__dot">{step.number}</span>
+                            <span class="track__label">{step.label}</span>
+                        </li>
+                    </template>
+                </ol>
+            </template>
+
+            <!-- Tabs -->
+            <nav class="mx-tabs" role="tablist">
+                <template for:each={tabs} for:item="t">
+                    <button key={t.key} class={t.cls} data-key={t.key} onclick={handleTab} role="tab">
+                        {t.label}
+                        <template lwc:if={t.hasCount}><span class="tab__count">{t.count}</span></template>
+                    </button>
+                </template>
+            </nav>
+
+            <!-- Overview -->
+            <template lwc:if={isOverview}>
+                <div class="overview">
+                    <section class="mx-card">
+                        <div class="mx-card__head">
+                            <h2 class="mx-h2">Approval path</h2>
+                            <template lwc:if={ws.currentRound}><span class="mx-pill mx-pill_neutral">Round {ws.currentRound}</span></template>
+                        </div>
+                        <template lwc:if={hasSteps}>
+                            <ol class="path">
+                                <template for:each={steps} for:item="s">
+                                    <li key={s.key} class="path__item">
+                                        <span class={s.dotCls}></span>
+                                        <div class="path__body">
+                                            <div class="mx-row mx-row_between">
+                                                <span class="mx-strong">{s.role}</span>
+                                                <span class={s.pill}>{s.status}</span>
+                                            </div>
+                                            <div class="mx-small mx-muted">{s.who}<template lwc:if={s.when}> · {s.when}</template></div>
+                                            <template lwc:if={s.comments}><div class="path__comment">{s.comments}</div></template>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ol>
+                        </template>
+                        <template lwc:else>
+                            <div class="mx-empty">
+                                <div class="mx-empty__title">Not submitted yet</div>
+                                The approvers are chosen from the department and the planned cost when you submit.
+                            </div>
+                        </template>
+                        <template lwc:if={hasEarlierSteps}>
+                            <p class="mx-small mx-muted">{earlierRoundsText}</p>
+                        </template>
+                    </section>
+
+                    <section class="mx-card">
+                        <div class="mx-card__head">
+                            <h2 class="mx-h2">Cost</h2>
+                            <span class="mx-small mx-muted">{currency}</span>
+                        </div>
+                        <dl class="cost">
+                            <template for:each={costRows} for:item="row">
+                                <div key={row.key} class="cost__row">
+                                    <dt class="cost__label">{row.label}</dt>
+                                    <dd class={row.cls}>
+                                        {row.value}
+                                        <template lwc:if={row.note}><span class="cost__note">{row.note}</span></template>
+                                    </dd>
+                                </div>
+                            </template>
+                        </dl>
+                        <div class="cost__bar">
+                            <div class="mx-row mx-row_between mx-small mx-muted"><span>Paid</span><span>{paidPct}%</span></div>
+                            <div class="mx-progress"><div class="mx-progress__bar" style={paidBarStyle}></div></div>
+                        </div>
+                        <template lwc:if={hasAccountingNotes}>
+                            <div class="mx-banner mx-banner_warn notes">
+                                <div>
+                                    <div class="mx-strong">Accounting notes</div>
+                                    <div class="notes__text">{ws.accountingNotes}</div>
+                                </div>
+                            </div>
+                        </template>
+                    </section>
+
+                    <section class="mx-card overview__wide">
+                        <div class="mx-card__head"><h2 class="mx-h2">At a glance</h2></div>
+                        <div class="glance">
+                            <div class="glance__item"><span class="glance__value">{members.length}</span><span class="glance__label">People</span></div>
+                            <template lwc:if={showHcpGlance}><div class="glance__item"><span class="glance__value">{hcpCount}</span><span class="glance__label">HCPs</span></div></template>
+                            <div class="glance__item"><span class="glance__value">{attendedCount}</span><span class="glance__label">Attended</span></div>
+                            <div class="glance__item"><span class="glance__value">{services.length}</span><span class="glance__label">Services</span></div>
+                            <template lwc:if={showInviteGlance}><div class="glance__item"><span class="glance__value">{confirmedCount}</span><span class="glance__label">Confirmed</span></div></template>
+                        </div>
+                        <template lwc:if={ws.agenda}>
+                            <h3 class="mx-label agenda__title">Agenda</h3>
+                            <p class="agenda">{ws.agenda}</p>
+                        </template>
+                    </section>
+                </div>
+            </template>
+
+            <!-- Plan assistant -->
+            <template lwc:if={isPlan}>
+                <section class="mx-card">
+                    <div class="mx-card__head">
+                        <div>
+                            <h2 class="mx-h2">Suggestions</h2>
+                            <p class="mx-sub">{suggestBasis}</p>
+                        </div>
+                        <button class="mx-btn mx-btn_small" onclick={handleRefreshSuggestions} disabled={suggesting}>Refresh</button>
+                    </div>
+                    <template lwc:if={suggesting}>
+                        <div class="mx-small mx-muted">Looking at your past meetings…</div>
+                    </template>
+                    <template lwc:elseif={suggestError}>
+                        <div class="mx-banner mx-banner_bad">{suggestError}</div>
+                    </template>
+                    <template lwc:else>
+                        <template lwc:if={budgetHint}>
+                            <div class={budgetHint.cls}>
+                                <div>
+                                    <div class="mx-strong">Budget</div>
+                                    <div>{budgetHint.message}</div>
+                                    <div class="mx-small mx-muted">{budgetHint.perGuest}</div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="mx-row mx-row_between suggest__head">
+                            <h3 class="mx-label">Who to invite</h3>
+                            <template lwc:if={hasSuggestedInvitees}>
+                                <button class="mx-btn mx-btn_small mx-btn_primary" onclick={handleSuggestTopInvitees} disabled={busy}>{topInviteeLabel}</button>
+                            </template>
+                        </div>
+                        <template lwc:if={hasSuggestedInvitees}>
+                            <ul class="mx-list">
+                                <template for:each={suggestedInvitees} for:item="s">
+                                    <li key={s.key} class="mx-list__item">
+                                        <span class="mx-avatar mx-avatar_hcp">{s.initials}</span>
+                                        <div class="mx-list__main">
+                                            <div class="mx-row">
+                                                <span class="mx-strong mx-truncate">{s.name}</span>
+                                                <span class={s.scoreCls}>{s.score}</span>
+                                            </div>
+                                            <div class="mx-small mx-muted">{s.reason}</div>
+                                        </div>
+                                        <button class="mx-btn mx-btn_small" data-id={s.accountId} onclick={handleSuggestInvitee} disabled={busy}>Add</button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <div class="mx-small mx-muted">No HCP suggestions. HCPs come from your call-plan target list and your past meetings.</div>
+                        </template>
+
+                        <div class="mx-row mx-row_between suggest__head">
+                            <h3 class="mx-label">Services similar meetings used</h3>
+                        </div>
+                        <template lwc:if={hasSuggestedServices}>
+                            <ul class="mx-list">
+                                <template for:each={suggestedServices} for:item="s">
+                                    <li key={s.key} class="mx-list__item">
+                                        <div class="mx-list__main">
+                                            <div class="mx-row mx-row_between">
+                                                <span class="mx-strong mx-truncate">{s.serviceName}</span>
+                                                <span class="mx-strong">{s.total}</span>
+                                            </div>
+                                            <div class="mx-small">{s.line}</div>
+                                            <div class="mx-small mx-muted">{s.reason}</div>
+                                        </div>
+                                        <button class="mx-btn mx-btn_small" data-id={s.serviceId} onclick={handleSuggestService} disabled={busy}>Add</button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <div class="mx-small mx-muted">No service suggestions yet.</div>
+                        </template>
+                    </template>
+                </section>
+            </template>
+
+            <!-- People -->
+            <template lwc:if={isPeople}>
+                <section class="mx-card">
+                    <div class="mx-card__head">
+                        <div>
+                            <h2 class="mx-h2">People</h2>
+                            <p class="mx-sub">{peopleSubtitle}</p>
+                        </div>
+                    </div>
+
+                    <template lwc:if={attendanceBanner}>
+                        <div class={attendanceBanner.cls}>{attendanceBanner.text}</div>
+                    </template>
+                    <template lwc:if={actions.canManageAttendees}>
+                        <div class="adder">
+                            <template lwc:if={showKindChips}>
+                                <div class="mx-chips">
+                                    <template for:each={personKinds} for:item="k">
+                                        <button key={k.value} class={k.cls} data-value={k.value} onclick={handlePersonKind}>{k.label}</button>
+                                    </template>
+                                </div>
+                            </template>
+                            <template lwc:if={isGuestKind}>
+                                <div class="mx-row">
+                                    <input class="mx-input adder__input" placeholder="Guest name" value={guestName} oninput={handleGuestName} />
+                                    <button class="mx-btn mx-btn_primary" onclick={handleAddGuest} disabled={busy}>Add guest</button>
+                                </div>
+                            </template>
+                            <template lwc:else>
+                                <div class="mx-search">
+                                    <svg class="mx-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                                    <input class="mx-input" type="search" placeholder={personPlaceholder} value={personTerm} oninput={handlePersonSearch} />
+                                </div>
+                                <template lwc:if={searching}><div class="mx-small mx-muted">Searching…</div></template>
+                                <template lwc:if={hasPersonResults}>
+                                    <ul class="mx-list results">
+                                        <template for:each={personResults} for:item="r">
+                                            <li key={r.key} class="mx-list__item">
+                                                <span class="mx-avatar">{r.initials}</span>
+                                                <div class="mx-list__main">
+                                                    <div class="mx-strong mx-truncate">{r.name}</div>
+                                                    <div class="mx-small mx-muted mx-truncate">{r.detail}</div>
+                                                </div>
+                                                <button class="mx-btn mx-btn_small mx-btn_primary" data-id={r.id} onclick={handleAddPerson} disabled={busy}>Add</button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                                <template lwc:if={showNoPersonResults}>
+                                    <div class="mx-small mx-muted">{noMatchText}</div>
+                                </template>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template lwc:if={hasMembers}>
+                        <ul class="mx-list">
+                            <template for:each={members} for:item="p">
+                                <li key={p.key} class="mx-list__item">
+                                    <span class={p.avatarCls}>{p.initials}</span>
+                                    <div class="mx-list__main">
+                                        <div class="mx-row">
+                                            <span class="mx-strong mx-truncate">{p.name}</span>
+                                            <span class="mx-pill mx-pill_neutral">{p.kindLabel}</span>
+                                        </div>
+                                        <div class="mx-small mx-muted mx-truncate">{p.detail}</div>
+                                    </div>
+                                    <template lwc:if={actions.canMarkAttendance}>
+                                        <div class="mx-row">
+                                            <button class={p.attendedCls} data-id={p.id} data-value="Attended" onclick={handleAttendance} disabled={busy}>Attended</button>
+                                            <button class={p.missedCls} data-id={p.id} data-value="Did Not Attend" onclick={handleAttendance} disabled={busy}>Absent</button>
+                                        </div>
+                                    </template>
+                                    <template lwc:else>
+                                        <template lwc:if={p.attendance}><span class={p.attendancePill}>{p.attendance}</span></template>
+                                        <template lwc:else><span class={p.statusPill}>{p.status}</span></template>
+                                    </template>
+                                    <template lwc:if={actions.canManageAttendees}>
+                                        <button class="mx-btn mx-btn_icon" data-id={p.id} onclick={handleRemovePerson} title="Remove" aria-label="Remove" disabled={busy}>
+                                            <svg class="mx-icon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                                        </button>
+                                    </template>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template lwc:else>
+                        <div class="mx-empty">
+                            <div class="mx-empty__title">No one added yet</div>
+                            {peopleEmptyText}
+                        </div>
+                    </template>
+                </section>
+            </template>
+
+            <!-- Services & cost -->
+            <template lwc:if={isCost}>
+                <section class="mx-card">
+                    <div class="mx-card__head">
+                        <div>
+                            <h2 class="mx-h2">Planned services</h2>
+                            <p class="mx-sub">Planned total {plannedTotal}</p>
+                        </div>
+                    </div>
+                    <template lwc:if={hasServices}>
+                        <div class="table-wrap">
+                            <table class="mx-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Vendor</th>
+                                        <th class="mx-num">Qty</th>
+                                        <th class="mx-num">Unit</th>
+                                        <th class="mx-num">Amount</th>
+                                        <template lwc:if={actions.canEdit}><th></th></template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={services} for:item="s">
+                                        <tr key={s.key}>
+                                            <td>
+                                                <div class="mx-strong">{s.serviceName}</div>
+                                                <div class="mx-small mx-muted">{s.description}</div>
+                                            </td>
+                                            <td>{s.vendorName}</td>
+                                            <td class="mx-num">{s.quantity}</td>
+                                            <td class="mx-num">{s.unitText}</td>
+                                            <td class="mx-num mx-strong">{s.amountText}</td>
+                                            <template lwc:if={actions.canEdit}>
+                                                <td class="mx-num">
+                                                    <button class="mx-btn mx-btn_icon" data-id={s.id} onclick={handleRemoveService} title="Remove" aria-label="Remove" disabled={busy}>
+                                                        <svg class="mx-icon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                                                    </button>
+                                                </td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <div class="mx-empty">
+                            <div class="mx-empty__title">No services planned</div>
+                            Add the venue, catering, speaker fees, and other services to build the planned cost.
+                        </div>
+                    </template>
+
+                    <template lwc:if={actions.canEdit}>
+                        <div class="service-form">
+                            <template lwc:if={noServiceCatalog}>
+                                <div class="mx-banner mx-banner_warn">The services catalog is empty. Ask a meeting admin to add services and vendors.</div>
+                            </template>
+                            <div class="mx-grid3">
+                                <label class="mx-field">
+                                    <span class="mx-label">Service</span>
+                                    <select class="mx-select" data-field="serviceId" onchange={handleServiceInput}>
+                                        <option value="">Choose…</option>
+                                        <template for:each={serviceOptions} for:item="o">
+                                            <option key={o.value} value={o.value} selected={o.selected}>{o.label}</option>
+                                        </template>
+                                    </select>
+                                </label>
+                                <label class="mx-field">
+                                    <span class="mx-label">Vendor</span>
+                                    <select class="mx-select" data-field="vendorId" onchange={handleServiceInput}>
+                                        <option value="">No vendor</option>
+                                        <template for:each={vendorOptions} for:item="o">
+                                            <option key={o.value} value={o.value} selected={o.selected}>{o.text}</option>
+                                        </template>
+                                    </select>
+                                </label>
+                                <label class="mx-field">
+                                    <span class="mx-label">Description</span>
+                                    <input class="mx-input" data-field="description" value={serviceForm.description} oninput={handleServiceInput} />
+                                </label>
+                                <label class="mx-field">
+                                    <span class="mx-label">Quantity</span>
+                                    <input class="mx-input" type="number" min="1" step="1" data-field="quantity" value={serviceForm.quantity} oninput={handleServiceInput} />
+                                </label>
+                                <label class="mx-field">
+                                    <span class="mx-label">Unit cost ({currency})</span>
+                                    <input class="mx-input" type="number" min="0" step="0.01" data-field="unitCost" value={serviceForm.unitCost} oninput={handleServiceInput} />
+                                </label>
+                                <div class="mx-field service-form__total">
+                                    <span class="mx-label">Line total</span>
+                                    <div class="mx-row mx-row_between">
+                                        <span class="mx-strong">{serviceLineTotal}</span>
+                                        <button class="mx-btn mx-btn_primary" onclick={handleAddService} disabled={busy}>Add</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
+                <div class="overview">
+                    <section class="mx-card">
+                        <div class="mx-card__head">
+                            <div>
+                                <h2 class="mx-h2">Invoices and files</h2>
+                                <p class="mx-sub">{invoiceNote}</p>
+                            </div>
+                            <template lwc:if={ws.isOwner}>
+                                <label class="mx-btn mx-btn_small upload">
+                                    <svg class="mx-icon" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"></path><path d="M4 20h16"></path></svg>
+                                    Upload
+                                    <input type="file" accept="application/pdf,image/*" onchange={handleInvoiceUpload} />
+                                </label>
+                            </template>
+                        </div>
+                        <template lwc:if={hasFiles}>
+                            <ul class="mx-list">
+                                <template for:each={files} for:item="f">
+                                    <li key={f.key} class="mx-list__item">
+                                        <span class="file__icon">{f.extension}</span>
+                                        <div class="mx-list__main">
+                                            <a class="mx-strong mx-truncate file__link" href={f.downloadUrl} target="_blank">{f.label}</a>
+                                            <div class="mx-small mx-muted">{f.sizeText} · {f.when}</div>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <div class="mx-empty">No invoices yet.</div>
+                        </template>
+                    </section>
+
+                    <section class="mx-card">
+                        <div class="mx-card__head"><h2 class="mx-h2">Payments</h2></div>
+                        <template lwc:if={hasPayments}>
+                            <ul class="mx-list">
+                                <template for:each={payments} for:item="p">
+                                    <li key={p.key} class="mx-list__item">
+                                        <div class="mx-list__main">
+                                            <div class="mx-strong">{p.amountText}</div>
+                                            <div class="mx-small mx-muted">{p.paymentFor} · {p.when}<template lwc:if={p.reference}> · Ref {p.reference}</template></div>
+                                        </div>
+                                        <span class="mx-pill mx-pill_ok">Paid</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:else>
+                            <div class="mx-empty">No payments yet.</div>
+                        </template>
+                    </section>
+                </div>
+            </template>
+
+            <!-- Invitations -->
+            <template lwc:if={isInvites}>
+                <section class="mx-card">
+                    <div class="mx-card__head">
+                        <div>
+                            <h2 class="mx-h2">Invitations</h2>
+                            <p class="mx-sub">{invitations.length} invited · {confirmedCount} confirmed · {checkedInCount} checked in</p>
+                        </div>
+                        <div class="mx-row">
+                            <template lwc:if={actions.canScan}>
+                                <button class="mx-btn mx-btn_ok" onclick={handleOpenScanner} disabled={busy}>
+                                    <svg class="mx-icon" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg>Scan attendees
+                                </button>
+                            </template>
+                            <template lwc:if={actions.canInvite}>
+                                <button class="mx-btn mx-btn_primary" onclick={handleInviteAll} disabled={busy}>Invite everyone on the list</button>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="invite-explainer">
+                        <svg class="mx-icon" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"></rect><path d="M9 7h2v2H9zM13 7h2v2h-2zM9 11h2v2H9zM13 13h2v2h-2z"></path></svg>
+                        <span>Guests get a personal link by WhatsApp or email. At the door they open it and show a live QR that changes every minute, and you scan it to check them in.</span>
+                    </div>
+                    <template lwc:if={siteMissing}>
+                        <div class="mx-banner mx-banner_warn">The public check-in site is not active, so invitation links cannot be created.</div>
+                    </template>
+
+                    <template lwc:if={actions.canInvite}>
+                        <div class="mx-row invite-form">
+                            <input class="mx-input" data-field="inviteName" placeholder="Walk-in guest name" value={inviteName} oninput={handleInviteInput} />
+                            <input class="mx-input" type="tel" data-field="invitePhone" placeholder="Mobile (01x…)" value={invitePhone} oninput={handleInviteInput} />
+                            <input class="mx-input" type="email" data-field="inviteEmail" placeholder="Email (optional)" value={inviteEmail} oninput={handleInviteInput} />
+                            <button class="mx-btn" onclick={handleAddInvite} disabled={busy}>Add invitation</button>
+                        </div>
+                    </template>
+
+                    <template lwc:if={hasInvitations}>
+                        <ul class="mx-list">
+                            <template for:each={invitations} for:item="i">
+                                <li key={i.key} class={i.rowCls}>
+                                    <span class="mx-avatar">{i.initials}</span>
+                                    <div class="mx-list__main">
+                                        <div class="mx-row">
+                                            <span class="mx-strong mx-truncate">{i.guestName}</span>
+                                            <span class={i.pill}>{i.status}</span>
+                                            <template lwc:if={i.arrivedText}>
+                                                <span class="arrived" title={i.arrivedTitle}>
+                                                    <svg class="mx-icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></svg>{i.arrivedText}
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <div class="mx-small mx-muted mx-truncate">
+                                            {i.scansText}<template lwc:if={i.sentText}> · {i.sentText}</template><template lwc:if={i.phone}> · {i.phone}</template><template lwc:if={i.email}> · {i.email}</template>
+                                        </div>
+                                    </div>
+                                    <template lwc:if={i.synced}>
+                                    <div class="mx-row invite__actions">
+                                        <button class="mx-btn mx-btn_small mx-btn_whatsapp" data-id={i.id} onclick={handleWhatsApp} disabled={i.inactive}>
+                                            <svg class="mx-icon mx-icon_fill" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.8-1.1-4.6-4-4.8-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.1.1.6-.1 1.1z"></path></svg>
+                                            WhatsApp
+                                        </button>
+                                        <template lwc:if={actions.canInvite}>
+                                            <button class="mx-btn mx-btn_small" data-id={i.id} onclick={handleEmailInvite} disabled={i.inactive}>
+                                                <svg class="mx-icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-10 6L2 7"></path></svg>
+                                                Email
+                                            </button>
+                                        </template>
+                                        <button class="mx-btn mx-btn_small" data-id={i.id} onclick={handleShowQr} disabled={i.inactive}>QR</button>
+                                        <button class="mx-btn mx-btn_small" data-link={i.link} onclick={handleCopyLink}>Copy link</button>
+                                        <template lwc:if={actions.canInvite}>
+                                            <button class="mx-btn mx-btn_small" data-id={i.id} onclick={handleToggleInvite} disabled={busy}>{i.toggleLabel}</button>
+                                        </template>
+                                    </div>
+                                    </template>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template lwc:else>
+                        <div class="mx-empty">
+                            <div class="mx-empty__title">No invitations yet</div>
+                            Each guest gets a personal link and QR. They confirm before the day and check in at the door.
+                        </div>
+                    </template>
+                </section>
+            </template>
+
+            <!-- History -->
+            <template lwc:if={isHistory}>
+                <section class="mx-card">
+                    <div class="mx-card__head"><h2 class="mx-h2">History</h2></div>
+                    <template lwc:if={hasHistory}>
+                        <ol class="timeline">
+                            <template for:each={history} for:item="h">
+                                <li key={h.key} class="timeline__item">
+                                    <span class="timeline__dot"></span>
+                                    <div>
+                                        <div class="mx-strong">{h.title}</div>
+                                        <template lwc:if={h.reason}><div class="mx-small">{h.reason}</div></template>
+                                        <div class="mx-small mx-muted">{h.changedBy} · {h.when}</div>
+                                    </div>
+                                </li>
+                            </template>
+                        </ol>
+                    </template>
+                    <template lwc:else>
+                        <div class="mx-empty">No history yet.</div>
+                    </template>
+                </section>
+            </template>
+
+            <!-- HCP APM glance -->
+            <template lwc:if={isApm}>
+                <section class="mx-card">
+                    <div class="mx-card__head">
+                        <div>
+                            <h2 class="mx-h2">HCP APM glance</h2>
+                            <p class="mx-sub">Sell-out curve, samples/brochures/events spend, visits, and meetings (past + planned) per invited HCP.</p>
+                        </div>
+                    </div>
+                    <c-meeting-invitee-apm invitees={hcpInvitees}></c-meeting-invitee-apm>
+                </section>
+            </template>
+        </template>
+
+        <!-- Modal -->
+        <template lwc:if={isModal}>
+            <div class="mx-overlay" onclick={closeModal}>
+                <div class="mx-modal" role="dialog" aria-modal="true" onclick={stop}>
+                    <h2 class="mx-h2 modal__title">{modalTitle}</h2>
+
+                    <template lwc:if={isQrModal}>
+                        <c-meeting-qr-code value={qrLink} caption={qrCaption} file-name={qrFileName}></c-meeting-qr-code>
+                        <p class="mx-small mx-muted modal__center">This QR opens the guest's invitation page. Print it or share it. At the door, the guest shows the live code from that page.</p>
+                        <div class="mx-modal__actions"><button class="mx-btn" onclick={closeModal}>Done</button></div>
+                    </template>
+
+                    <template lwc:if={isEmailModal}>
+                        <p class="mx-sub">{emailGuestName} gets a branded email with their personal invitation link.</p>
+                        <label class="mx-field">
+                            <span class="mx-label">Email address</span>
+                            <input class="mx-input" type="email" value={emailAddress} oninput={handleEmailAddress} placeholder="name@example.com" />
+                        </label>
+                    </template>
+
+                    <template lwc:if={isTextModal}>
+                        <label class="mx-field">
+                            <span class="mx-label">{modalTextLabel}</span>
+                            <textarea class="mx-textarea" oninput={handleModalText}></textarea>
+                        </label>
+                    </template>
+
+                    <template lwc:if={isMoneyModal}>
+                        <div class="mx-stack">
+                            <label class="mx-field">
+                                <span class="mx-label">Amount ({currency})</span>
+                                <input class="mx-input" type="number" min="0" step="0.01" data-field="amount" value={moneyForm.amount} oninput={handleMoneyInput} />
+                            </label>
+                            <template lwc:if={actualPreview}>
+                                <div class={actualPreview.cls}>{actualPreview.text}</div>
+                            </template>
+                            <template lwc:if={isPayModal}>
+                                <div class="mx-grid2">
+                                    <label class="mx-field">
+                                        <span class="mx-label">Paid on</span>
+                                        <input class="mx-input" type="date" data-field="paidOn" value={moneyForm.paidOn} onchange={handleMoneyInput} />
+                                    </label>
+                                    <label class="mx-field">
+                                        <span class="mx-label">Reference</span>
+                                        <input class="mx-input" data-field="reference" value={moneyForm.reference} oninput={handleMoneyInput} />
+                                    </label>
+                                </div>
+                                <p class="mx-small mx-muted">Remaining before this payment: {remainingText}</p>
+                            </template>
+                            <template lwc:if={isFileModal}>
+                                <label class="dropzone">
+                                    <svg class="mx-icon" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"></path><path d="M4 20h16"></path></svg>
+                                    <span>{fileHint}</span>
+                                    <input type="file" accept="application/pdf,image/*" onchange={handleMoneyFile} />
+                                </label>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template lwc:if={modalConfirmLabel}>
+                        <div class="mx-modal__actions">
+                            <button class="mx-btn" onclick={closeModal}>Back</button>
+                            <button class={modalConfirmCls} onclick={handleModalConfirm} disabled={busy}>{modalConfirmLabel}</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={showScanner}>
+            <c-meeting-scanner
+                meeting-id={currentId}
+                meeting-title={m.title}
+                checked-in-count={checkedInCount}
+                invited-count={activeInviteCount}
+                onclose={handleScannerClose}
+            ></c-meeting-scanner>
+        </template>
+    </div>
+</template>

@@ -2,9 +2,9 @@
     <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open coaching-modal">
         <div class="slds-modal__container coaching-modal-container">
             <header class="slds-modal__header">
-                <h2 class="slds-text-heading_medium">Coaching Form — Double Visit</h2>
+                <h2 class="slds-text-heading_medium">Coach</h2>
                 <p class="slds-text-body_small slds-m-top_x-small coaching-subtitle">
-                    Creates a coaching event, flags this visit as a double visit, and routes to your manager for review.
+                    Include this visit and any other same-day visits for this rep. Scoring starts as soon as the coaching event is created, whether or not the visit is already a double visit.
                 </p>
             </header>
 
@@ -58,6 +58,67 @@
                             <p class="prefill-hint">
                                 Prefill seeds manager comments on the first competency using this visit&apos;s objective and notes.
                             </p>
+
+                            <div class="visit-picker slds-m-top_medium">
+                                <div class="visit-picker-header">
+                                    <h3 class="slds-text-heading_small">Same-day visits</h3>
+                                    <span class="visit-count-pill">{visitCountLabel}</span>
+                                </div>
+                                <p class="prefill-hint">
+                                    Visits created by or assigned to this rep on the same calendar day. This visit stays selected.
+                                </p>
+                                <template if:true={hasSameDayVisits}>
+                                    <lightning-input
+                                        class="slds-m-top_small"
+                                        type="checkbox"
+                                        label="Select all available visits"
+                                        checked={allSelectableSelected}
+                                        onchange={handleSelectAll}
+                                    ></lightning-input>
+                                    <ul class="visit-list">
+                                        <template for:each={visits} for:item="row">
+                                            <li key={row.visitId} class="visit-card">
+                                                <div class="visit-card-top">
+                                                    <lightning-input
+                                                        type="checkbox"
+                                                        label={row.visitName}
+                                                        checked={row.selected}
+                                                        disabled={row.checkboxDisabled}
+                                                        data-visit-id={row.visitId}
+                                                        onchange={handleVisitToggle}
+                                                    ></lightning-input>
+                                                    <template if:true={row.isCurrent}>
+                                                        <span class="current-pill">This visit</span>
+                                                    </template>
+                                                    <template if:true={row.alreadyOnOtherEvent}>
+                                                        <span class="other-event-pill">Already coached</span>
+                                                    </template>
+                                                    <lightning-button
+                                                        variant="base"
+                                                        label="Open"
+                                                        icon-name="utility:new_window"
+                                                        data-visit-id={row.visitId}
+                                                        onclick={handleOpenVisit}
+                                                    ></lightning-button>
+                                                </div>
+                                                <p class="visit-card-meta">
+                                                    {row.accountName} · {row.startLabel} · {row.status}
+                                                </p>
+                                                <template if:true={row.selected}>
+                                                    <lightning-textarea
+                                                        class="slds-m-top_small"
+                                                        label="Manager notes"
+                                                        value={row.managerNotes}
+                                                        data-visit-id={row.visitId}
+                                                        onchange={handleNotesChange}
+                                                        placeholder="Notes for this visit in this coaching session"
+                                                    ></lightning-textarea>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </div>
                         </template>
 
                         <template if:true={hasCoachingEvent}>
@@ -73,9 +134,41 @@
                                     ></lightning-button>
                                 </template>
                             </div>
-                            <div class="evaluation-wrap slds-m-top_medium">
-                                <c-coaching-event-evaluation record-id={coachingEventId}></c-coaching-event-evaluation>
-                            </div>
+                            <template if:true={hasAssociatedVisits}>
+                                <div class="associated-block slds-m-top_medium">
+                                    <h3 class="slds-text-heading_small">Associated visits</h3>
+                                    <ul class="visit-list">
+                                        <template for:each={associatedVisits} for:item="row">
+                                            <li key={row.visitId} class="visit-card">
+                                                <div class="visit-card-top">
+                                                    <strong>{row.visitName}</strong>
+                                                    <template if:true={row.isOrigin}>
+                                                        <span class="current-pill">Origin</span>
+                                                    </template>
+                                                    <lightning-button
+                                                        variant="base"
+                                                        label="Open visit"
+                                                        icon-name="utility:new_window"
+                                                        data-visit-id={row.visitId}
+                                                        onclick={handleOpenVisit}
+                                                    ></lightning-button>
+                                                </div>
+                                                <p class="visit-card-meta">
+                                                    {row.accountName} · {row.startLabel} · {row.status}
+                                                </p>
+                                                <template if:true={row.managerNotes}>
+                                                    <p class="notes-preview">{row.managerNotes}</p>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                            <template if:true={canOpenEvent}>
+                                <div class="evaluation-wrap slds-m-top_medium">
+                                    <c-coaching-event-evaluation record-id={coachingEventId}></c-coaching-event-evaluation>
+                                </div>
+                            </template>
                         </template>
                     </template>
                 </template>
@@ -86,7 +179,7 @@
                 <template if:false={hasCoachingEvent}>
                     <lightning-button
                         class="slds-m-left_x-small"
-                        label="Create Coaching Event"
+                        label="Coach"
                         variant="brand"
                         onclick={handleCreate}
                         disabled={createDisabled}

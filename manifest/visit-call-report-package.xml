@@ -70,6 +70,7 @@
         <members>Visit__c.Visit_Objective__c</members>
         <members>Visit__c.Visit_Type__c</members>
         <members>Visit__c.Is_Double_Visit__c</members>
+        <members>Visit__c.Double_Visit_With__c</members>
         <members>Visit__c.Coaching_Event__c</members>
         <members>Coaching_Event__c.Visit__c</members>
         <members>Visit_Attendee__c.Account__c</members>

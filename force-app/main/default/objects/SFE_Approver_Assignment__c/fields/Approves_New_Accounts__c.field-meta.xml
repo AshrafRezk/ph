@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Approves_New_Accounts__c</fullName>
+    <defaultValue>true</defaultValue>
+    <inlineHelpText>New accounts from these lines wait on this approver at Pending SFE.</inlineHelpText>
+    <label>Approves New Accounts</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

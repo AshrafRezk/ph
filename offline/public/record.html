@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0176d3" />
-    <title>Record — Pharma Field PWA</title>
+    <title data-brand-screen="Record">Record — Salesforce</title>
+    <script src="/shell-brand.js"></script>
     <link rel="stylesheet" href="shell.css" />
     <link rel="stylesheet" href="account.css" />
     <link rel="stylesheet" href="record.css" />
@@ -44,37 +45,51 @@
     <div id="record-error" class="error-banner" style="display:none" role="alert"></div>
     <div id="record-loading" class="loading-msg" style="display:none">Loading record…</div>
 
-    <div id="record-result" style="display:none">
-        <div class="record-highlights">
-            <div class="record-highlights-icon" id="record-icon" aria-hidden="true">—</div>
-            <div class="record-highlights-body">
-                <div class="record-highlights-eyebrow">
-                    <span id="record-object-badge">—</span>
-                    <span id="record-type-badge" style="display:none">—</span>
+    <div id="record-result" class="osr-record" style="display:none">
+        <header class="osr-record-header">
+            <div class="osr-identity">
+                <div class="osr-avatar" id="record-icon" aria-hidden="true">—</div>
+                <div class="osr-identity-body">
+                    <div class="osr-kicker" id="record-object-badge">—</div>
+                    <h1 id="record-title" class="osr-title">—</h1>
+                    <p id="record-subtitle" class="osr-subtitle"></p>
+                    <div id="record-contact" class="osr-contact"></div>
                 </div>
-                <h1 id="record-title" class="record-highlights-title">—</h1>
-                <p id="record-subtitle" class="record-highlights-sub">—</p>
-                <span id="record-id-badge" class="record-highlights-id">—</span>
+                <span id="record-status-pill" class="osr-status-pill" hidden></span>
             </div>
+            <div id="record-actions" class="osr-action-bar"></div>
+        </header>
+        <div id="record-path" class="osr-path" hidden></div>
+        <div id="record-sync" class="osr-sync" aria-live="polite"></div>
+        <div id="record-tabs" class="osr-tabbar" hidden>
+            <button type="button" class="osr-tab is-active" data-tab="overview">Overview</button>
+            <button type="button" class="osr-tab" data-tab="activity">Activity</button>
         </div>
-
-        <div class="record-toolbar">
-            <input id="record-filter" class="record-filter" type="search"
-                placeholder="Search this record…" spellcheck="false" />
+        <div class="osr-layout">
+            <div class="osr-main">
+                <div class="record-toolbar">
+                    <input id="record-filter" class="record-filter" type="search"
+                        placeholder="Search this record…" spellcheck="false" />
+                </div>
+                <div id="record-sections" class="record-sections"></div>
+                <button type="button" id="record-show-all" class="osr-show-all" hidden>Show all details</button>
+                <div id="record-all-details" hidden></div>
+                <div class="record-table-wrap" id="record-table-wrap" style="display:none">
+                    <table id="record-table" class="record-table">
+                        <thead>
+                            <tr><th>Field</th><th>Value</th></tr>
+                        </thead>
+                        <tbody id="record-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <aside id="record-activity" class="osr-activity" hidden>
+                <h2>Activity</h2>
+                <div id="record-activity-list"></div>
+            </aside>
         </div>
-
-        <!-- SLDS-style page-layout view (UI API) -->
-        <div id="record-sections" class="record-sections"></div>
-
-        <!-- Fallback flat field dump (raw describe) -->
-        <div class="record-table-wrap" id="record-table-wrap" style="display:none">
-            <table id="record-table" class="record-table">
-                <thead>
-                    <tr><th>Field</th><th>Value</th></tr>
-                </thead>
-                <tbody id="record-tbody"></tbody>
-            </table>
-        </div>
+        <span id="record-id-badge" class="record-highlights-id" hidden></span>
+        <span id="record-type-badge" style="display:none"></span>
     </div>
 
     <script type="module" src="record.js"></script>

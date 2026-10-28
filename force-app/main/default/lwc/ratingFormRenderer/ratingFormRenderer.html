@@ -17,12 +17,13 @@
                                             type="checkbox"
                                             class="toggle-input"
                                             checked={field.rawValue}
+                                            aria-checked={field.rawValue}
                                             data-field={field.fieldApiName}
                                             disabled={field.isReadOnly}
                                             onchange={handleToggle}
                                         />
                                         <span class="toggle-track"></span>
-                                        <span class="toggle-text">{field.rawValue}</span>
+                                        <span class={field.toggleTextClass}>{field.displayValue}</span>
                                     </label>
                                 </template>
 
@@ -80,7 +81,7 @@
                                             label={field.label}
                                             value={field.rawValue}
                                             options={field.picklistOptions}
-                                            placeholder="Select KOL reason"
+                                            placeholder={field.picklistPlaceholder}
                                             data-field={field.fieldApiName}
                                             onchange={handleInputChange}
                                         ></lightning-combobox>

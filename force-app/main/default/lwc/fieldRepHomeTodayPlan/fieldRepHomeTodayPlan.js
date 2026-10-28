@@ -9,6 +9,7 @@ import {
     subscribeTerritoryContext,
     unsubscribeTerritoryContext
 } from 'c/territoryContextClient';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
 
 import LEAFLET from '@salesforce/resourceUrl/leaflet';
 import fetchPlannerData from '@salesforce/apex/FieldPlannerController.fetchPlannerData';
@@ -30,6 +31,7 @@ import {
 } from 'c/clmOfflineStore';
 import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
 import { addOsmTileLayer } from 'c/plannerMapPins';
+import { accountThemeFor, accountTypeIconUrl } from 'c/accountTypeTheme';
 
 const OSRM_BASE = 'https://router.project-osrm.org';
 const DEFAULT_MAP_CENTER = [30.0444, 31.2357];
@@ -37,21 +39,6 @@ const DEFAULT_MAP_ZOOM = 12;
 const PLANNER_TAB_API = 'Field_Rep_Planner';
 const GOOGLE_MAPS_MAX_STOPS_WITH_ORIGIN = 10;
 const GOOGLE_MAPS_MAX_STOPS_WITHOUT_ORIGIN = 11;
-
-const HCP_RECORD_TYPES = new Set([
-    'SDO_PersonAccounts',
-    'Medical_Professional_HCP',
-    'PersonAccount',
-    'Business_Contact'
-]);
-
-const HCO_RECORD_TYPES = new Set(['Institution_HCO', 'Pharmacy']);
-
-const HCP_PIN_SVG =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>';
-
-const HCO_PIN_SVG =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 7V3H2v18h20V7H12zm-2 12H6v-2h4v2zm0-4H6v-2h4v2zm0-4H6V9h4v2zm0-4H6V5h4v2zm6 12h-4v-2h4v2zm0-4h-4v-2h4v2zm0-4h-4V9h4v2zm0-4h-4V5h4v2zm8 12h-6v-2h2v-2h-2v-2h2v-2h-2V9h6v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>';
 
 function parseSalesforceDateTime(value) {
     if (!value) {
@@ -77,6 +64,11 @@ function toApexDateTime(value) {
     return date.toISOString();
 }
 
+function toDatetimeLocalValue(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function startOfWeek(date) {
     const d = new Date(date);
     d.setDate(d.getDate() - d.getDay());
@@ -97,6 +89,21 @@ function sameSalesforceId(left, right) {
     return String(left).substring(0, 15) === String(right).substring(0, 15);
 }
 
+function isViewerOwnTerritory(option, defaultUserId, assignedTerritoryIds) {
+    const userId = option?.userId || option?.value;
+    if (defaultUserId && userId && sameSalesforceId(userId, defaultUserId)) {
+        return true;
+    }
+    if (option?.assigned === true) {
+        return true;
+    }
+    const territoryId = option?.territoryId;
+    if (!territoryId || !Array.isArray(assignedTerritoryIds)) {
+        return false;
+    }
+    return assignedTerritoryIds.some((id) => sameSalesforceId(id, territoryId));
+}
+
 function formatTime(date) {
     if (!date) {
         return '';
@@ -109,35 +116,32 @@ function buildCoordPath(points) {
 }
 
 function resolveAccountPinKind(recordTypeDeveloperName, recordTypeName) {
-    const developerName = recordTypeDeveloperName || '';
-    if (HCP_RECORD_TYPES.has(developerName)) {
-        return 'hcp';
-    }
-    if (HCO_RECORD_TYPES.has(developerName)) {
-        return 'hco';
-    }
-    const label = (recordTypeName || '').toLowerCase();
-    if (label.includes('hcp') || label.includes('professional') || label.includes('person')) {
-        return 'hcp';
-    }
-    if (label.includes('hco') || label.includes('institution') || label.includes('pharmacy')) {
-        return 'hco';
-    }
-    return 'hcp';
+    const kind = accountThemeFor(recordTypeDeveloperName, recordTypeName).kind;
+    return kind === 'account' ? 'hcp' : kind;
 }
 
 function resolveAccountTypeLabel(pinKind, recordTypeName) {
     if (recordTypeName) {
         return recordTypeName;
     }
+    if (pinKind === 'pharmacy') {
+        return 'Pharmacy';
+    }
     return pinKind === 'hco' ? 'Healthcare organization' : 'Healthcare professional';
 }
 
 function createVisitPinIcon(pinKind) {
-    const svg = pinKind === 'hco' ? HCO_PIN_SVG : HCP_PIN_SVG;
+    const kind = pinKind === 'pharmacy' || pinKind === 'hco' || pinKind === 'hcp' ? pinKind : 'hcp';
+    const colors = { pharmacy: '#176935', hco: '#fdbf29', hcp: '#3f7de5' };
+    const titles = { pharmacy: 'Pharmacy', hco: 'HCO', hcp: 'HCP' };
+    const glyph = accountTypeIconUrl(kind);
     return window.L.divIcon({
         className: 'map-pin-icon-shell',
-        html: `<div class="map-pin-marker map-pin-marker-${pinKind}" title="${pinKind === 'hco' ? 'HCO' : 'HCP'}">${svg}</div>`,
+        html:
+            `<div class="map-pin-marker map-pin-marker-${kind}" title="${titles[kind]}" ` +
+            `style="width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid ${colors[kind]};` +
+            `box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;">` +
+            `<img src="${glyph}" alt="" style="width:20px;height:20px;object-fit:contain;" /></div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15],
         popupAnchor: [0, -16]
@@ -281,7 +285,15 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
     @track unlinkedVisitCount = 0;
     @track plannerViewerContext;
     @track selectedContextUserId;
+    @track selectedTerritoryId;
+    @track showViewerMenu = false;
     @track isMutatingVisit = false;
+    @track showPostponeModal = false;
+    postponeVisitId = '';
+    postponeAccountLabel = '';
+    postponeDateTime = '';
+    postponeDurationMs = 0;
+    featureEnabled = true;
 
     leafletReady = false;
     mapInstance;
@@ -301,10 +313,21 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
 
     connectedCallback() {
         this.subscribeTerritoryContext();
-        this.bootstrap();
+        void this.bootstrapWithFeatures();
+    }
+
+    async bootstrapWithFeatures() {
+        await loadFieldFeatures();
+        this.featureEnabled = isFieldFeatureEnabled('home.todayPlan');
+        if (this.featureEnabled) {
+            this.bootstrap();
+        } else {
+            this.isLoading = false;
+        }
     }
 
     disconnectedCallback() {
+        this.closeViewerMenu();
         this.destroyMap();
         unsubscribeTerritoryContext(this.territoryContextSubscription);
         this.territoryContextSubscription = undefined;
@@ -333,11 +356,125 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
     }
 
     get viewerOptions() {
-        const options = [{ label: 'My plan', value: this.plannerViewerContext?.defaultUserId }];
+        const defaultUserId = this.plannerViewerContext?.defaultUserId;
+        const assignedTerritoryIds = this.plannerViewerContext?.assignedTerritoryIds;
+        const options = [
+            {
+                label: 'My territory',
+                value: defaultUserId,
+                territoryId: '',
+                assigned: true,
+                pendingApprovalCount: 0
+            }
+        ];
+        const seen = new Set();
         (this.plannerViewerContext?.options || []).forEach((option) => {
-            options.push({ label: option.label, value: option.userId });
+            const val = option.userId;
+            if (!val || isViewerOwnTerritory(option, defaultUserId, assignedTerritoryIds)) {
+                return;
+            }
+            const territoryId = option.territoryId || '';
+            const key = `${String(territoryId).substring(0, 15)}:${String(val).substring(0, 15)}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            const territoryName = option.territoryName || '';
+            const person = option.userName || '';
+            options.push({
+                label: option.label || [territoryName, person].filter(Boolean).join(' — '),
+                value: val,
+                territoryId,
+                assigned: false,
+                userName: person,
+                pendingApprovalCount: Number(option.pendingApprovalCount) || 0
+            });
         });
         return options;
+    }
+
+    get viewerMenuItems() {
+        return this.viewerOptions.map((option, index) => {
+            let selected = false;
+            if (option.assigned) {
+                selected = this.isViewingSelf;
+            } else if (option.territoryId && this.selectedTerritoryId) {
+                selected = sameSalesforceId(option.territoryId, this.selectedTerritoryId);
+            } else {
+                selected = Boolean(option.value) && sameSalesforceId(option.value, this.selectedContextUserId);
+            }
+            const pending = option.assigned ? 0 : option.pendingApprovalCount;
+            return {
+                key: `${option.territoryId || 'mine'}-${option.value || 'self'}-${index}`,
+                value: option.value || '',
+                territoryId: option.territoryId || '',
+                label: option.label,
+                hasPending: pending > 0,
+                pendingLabel: pending > 99 ? '99+' : String(pending),
+                pendingTitle: `${pending} item${pending === 1 ? '' : 's'} to approve`,
+                ariaSelected: selected ? 'true' : 'false',
+                className: `today-plan-viewer-option${selected ? ' is-selected' : ''}`
+            };
+        });
+    }
+
+    get selectedViewerLabel() {
+        if (this.isViewingSelf) {
+            return 'My territory';
+        }
+        return this.selectedTerritoryOption?.label || 'My territory';
+    }
+
+    get selectedTerritoryOption() {
+        if (this.selectedTerritoryId) {
+            const byTerritory = this.viewerOptions.find(
+                (option) =>
+                    option.territoryId && sameSalesforceId(option.territoryId, this.selectedTerritoryId)
+            );
+            if (byTerritory) {
+                return byTerritory;
+            }
+        }
+        return this.viewerOptions.find(
+            (option) => option.value && sameSalesforceId(option.value, this.selectedContextUserId)
+        );
+    }
+
+    get viewerPendingTotal() {
+        const seen = new Set();
+        return this.viewerOptions.reduce((sum, option) => {
+            if (option.assigned) {
+                return sum;
+            }
+            const key = option.value ? String(option.value).substring(0, 15) : '';
+            if (!key || seen.has(key)) {
+                return sum;
+            }
+            seen.add(key);
+            return sum + (Number(option.pendingApprovalCount) || 0);
+        }, 0);
+    }
+
+    get hasViewerPendingTotal() {
+        return this.viewerPendingTotal > 0;
+    }
+
+    get viewerPendingTotalLabel() {
+        const total = this.viewerPendingTotal;
+        return total > 99 ? '99+' : String(total);
+    }
+
+    get viewerPendingTotalTitle() {
+        const total = this.viewerPendingTotal;
+        return `${total} item${total === 1 ? '' : 's'} pending your approval`;
+    }
+
+    get viewerMenuTriggerClass() {
+        return `today-plan-viewer-trigger${this.showViewerMenu ? ' is-open' : ''}`;
+    }
+
+    get viewerMenuExpanded() {
+        return this.showViewerMenu ? 'true' : 'false';
     }
 
     get isViewingSelf() {
@@ -360,9 +497,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
         if (this.isViewingSelf) {
             return null;
         }
-        const option = (this.plannerViewerContext?.options || []).find(
-            (item) => item.userId === this.selectedContextUserId
-        );
+        const option = this.selectedTerritoryOption;
         return option?.userName || option?.label || 'Selected rep';
     }
 
@@ -494,6 +629,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
 
     async bootstrap() {
         if (isOfflineMode()) {
+            await this.loadViewerContext();
             await this.loadCachedTodayPlan();
             await waitForDom();
             await this.initializeMapView();
@@ -507,6 +643,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
         try {
             this.plannerViewerContext = await getPlannerViewerContext();
             this.selectedContextUserId = this.plannerViewerContext?.defaultUserId;
+            this.selectedTerritoryId = null;
         } catch (e) {
             this.plannerViewerContext = null;
             this.selectedContextUserId = null;
@@ -516,8 +653,77 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
 
     async handleContextUserChange(event) {
         this.selectedContextUserId = event.detail.value;
+        if (Object.prototype.hasOwnProperty.call(event.detail || {}, 'territoryId')) {
+            this.selectedTerritoryId = event.detail.territoryId || null;
+        }
         this.destroyMap();
         await this.loadTodayPlan();
+    }
+
+    handleToggleViewerMenu(event) {
+        event.stopPropagation();
+        if (this.showViewerMenu) {
+            this.closeViewerMenu();
+            return;
+        }
+        this.showViewerMenu = true;
+        this.unbindViewerMenuOutside();
+        this._onViewerMenuOutside = (outsideEvent) => {
+            const wrap = this.template.querySelector('.today-plan-rep-picker');
+            const path = typeof outsideEvent.composedPath === 'function' ? outsideEvent.composedPath() : [];
+            if (wrap && (wrap.contains(outsideEvent.target) || path.includes(wrap))) {
+                return;
+            }
+            this.closeViewerMenu();
+        };
+        window.setTimeout(() => {
+            if (this._onViewerMenuOutside) {
+                window.addEventListener('click', this._onViewerMenuOutside, true);
+            }
+        }, 0);
+    }
+
+    handleViewerMenuKeydown(event) {
+        if (event.key === 'Escape' && this.showViewerMenu) {
+            event.stopPropagation();
+            this.closeViewerMenu();
+        }
+    }
+
+    handleViewerOptionKeydown(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.handleViewerMenuSelect(event);
+        }
+    }
+
+    unbindViewerMenuOutside() {
+        if (this._onViewerMenuOutside && typeof window !== 'undefined') {
+            window.removeEventListener('click', this._onViewerMenuOutside, true);
+        }
+        this._onViewerMenuOutside = undefined;
+    }
+
+    closeViewerMenu() {
+        this.showViewerMenu = false;
+        this.unbindViewerMenuOutside();
+    }
+
+    async handleViewerMenuSelect(event) {
+        const value = event.currentTarget.dataset.value;
+        const territoryId = event.currentTarget.dataset.territoryId || '';
+        this.closeViewerMenu();
+        if (!value) {
+            return;
+        }
+        const sameUser = this.isViewingSelf
+            ? sameSalesforceId(value, this.plannerViewerContext?.defaultUserId)
+            : sameSalesforceId(value, this.selectedContextUserId);
+        const sameTerritory = !territoryId || sameSalesforceId(territoryId, this.selectedTerritoryId);
+        if (sameUser && (this.isViewingSelf || sameTerritory)) {
+            return;
+        }
+        await this.handleContextUserChange({ detail: { value, territoryId } });
     }
 
     async loadTodayPlan() {
@@ -625,6 +831,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
             accountRecordTypeDeveloperName: v.accountRecordTypeDeveloperName,
             accountRecordTypeName: v.accountRecordTypeName,
             pinKind,
+            typeIconUrl: accountTypeIconUrl(pinKind),
             accountTypeLabel: resolveAccountTypeLabel(pinKind, v.accountRecordTypeName),
             startDateTime: v.startDateTime,
             endDateTime: v.endDateTime,
@@ -816,8 +1023,7 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
         const points = geoStops.map((v) => ({ latitude: v.latitude, longitude: v.longitude }));
 
         if (points.length < 2) {
-            infoIdeas.push('Add more geocoded account visits in Planner to see route optimization.');
-            this.setOptimizationIdeas(infoIdeas);
+            this.setOptimizationIdeas([]);
             return;
         }
 
@@ -837,29 +1043,22 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
 
             const tripResponse = await fetchOsrmTrip(coordPath);
             const trip = tripResponse?.trips?.[0];
-            if (!trip) {
-                infoIdeas.push('Open the route in Planner to review optimization options.');
-            } else {
+            if (trip) {
                 const originalVisitIds = this.upNextVisits.map((v) => v.id);
                 const optimizedOrder = parseOptimizedVisitOrder(tripResponse, originalVisitIds);
                 const isSameOrder =
                     optimizedOrder?.length === originalVisitIds.length &&
                     optimizedOrder.every((id, idx) => id === originalVisitIds[idx]);
+                const savingsMin = Math.round((selectedRoute.duration - trip.duration) / 60);
 
-                if (isSameOrder) {
+                if (!isSameOrder && savingsMin >= 1) {
                     infoIdeas.push(
-                        'The current stop order is already near-optimal for estimated drive time.'
-                    );
-                } else {
-                    const savingsMin = Math.max(0, Math.round((selectedRoute.duration - trip.duration) / 60));
-                    infoIdeas.push(
-                        `Reordering stops could reduce estimated travel time by about ${savingsMin} minutes.`,
-                        'Open Planner to apply the suggested stop order.'
+                        `Reordering stops could reduce estimated travel time by about ${savingsMin} minutes. Open Planner to apply the suggested stop order.`
                     );
                 }
             }
         } catch (e) {
-            infoIdeas.push('Route optimization is unavailable right now. Try again later.');
+            // Keep the route estimate; skip placeholder ideas when optimization is unavailable.
         }
 
         this.setOptimizationIdeas(infoIdeas);
@@ -901,20 +1100,48 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
             this.showToast('Postpone failed', 'Visit times are missing.', 'error');
             return;
         }
-        const label = visit.accountName || 'this visit';
-        const confirmed = await LightningConfirm.open({
-            message: `Postpone ${label} to tomorrow at the same time?`,
-            variant: 'headerless',
-            label: 'Postpone visit?'
-        });
-        if (!confirmed) {
+        const defaultStart = new Date(start);
+        defaultStart.setDate(defaultStart.getDate() + 1);
+        this.postponeVisitId = visit.id;
+        this.postponeAccountLabel = visit.accountName || 'this visit';
+        this.postponeDurationMs = Math.max(end.getTime() - start.getTime(), 30 * 60 * 1000);
+        this.postponeDateTime = toDatetimeLocalValue(defaultStart);
+        this.showPostponeModal = true;
+    }
+
+    handlePostponeDateTimeChange(event) {
+        this.postponeDateTime = event.detail.value;
+    }
+
+    handleClosePostponeModal() {
+        this.showPostponeModal = false;
+        this.postponeVisitId = '';
+        this.postponeAccountLabel = '';
+        this.postponeDateTime = '';
+        this.postponeDurationMs = 0;
+    }
+
+    handlePostponeModalContentClick(event) {
+        event.stopPropagation();
+    }
+
+    async handleConfirmPostpone() {
+        if (!this.postponeVisitId || !this.canMutatePlan) {
             return;
         }
-
-        const tomorrowStart = new Date(start);
-        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-        const tomorrowEnd = new Date(end);
-        tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+        const newStart = this.postponeDateTime ? new Date(this.postponeDateTime) : null;
+        if (!newStart || Number.isNaN(newStart.getTime())) {
+            this.showToast('Postpone failed', 'Choose a valid date and time.', 'error');
+            return;
+        }
+        const newEnd = new Date(newStart.getTime() + (this.postponeDurationMs || 30 * 60 * 1000));
+        const label = this.postponeAccountLabel || 'this visit';
+        const whenLabel = newStart.toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
 
         this.isMutatingVisit = true;
         try {
@@ -923,26 +1150,28 @@ export default class FieldRepHomeTodayPlan extends NavigationMixin(LightningElem
                     actionType: 'RESCHEDULE_VISITS',
                     clientActionKey: newClientKey('reschedule'),
                     payloadJson: JSON.stringify({
-                        visitIds: [visit.id],
-                        startDateTimes: [tomorrowStart.toISOString()],
-                        endDateTimes: [tomorrowEnd.toISOString()]
+                        visitIds: [this.postponeVisitId],
+                        startDateTimes: [newStart.toISOString()],
+                        endDateTimes: [newEnd.toISOString()]
                     })
                 });
-                this.upNextVisits = (this.upNextVisits || []).filter((row) => row.id !== visit.id);
+                this.upNextVisits = (this.upNextVisits || []).filter((row) => row.id !== this.postponeVisitId);
                 await putTodayPlan(getUserTodayPlanKey(Id), this.upNextVisits);
+                this.handleClosePostponeModal();
                 this.showToast(
                     'Queued offline',
-                    `${label} will move to tomorrow when you sync.`,
+                    `${label} will move to ${whenLabel} when you sync.`,
                     'success'
                 );
                 return;
             }
             await rescheduleVisits({
-                visitIds: [visit.id],
-                startDateTimes: [toApexDateTime(tomorrowStart)],
-                endDateTimes: [toApexDateTime(tomorrowEnd)]
+                visitIds: [this.postponeVisitId],
+                startDateTimes: [toApexDateTime(newStart)],
+                endDateTimes: [toApexDateTime(newEnd)]
             });
-            this.showToast('Visit postponed', `${label} moved to tomorrow.`, 'success');
+            this.handleClosePostponeModal();
+            this.showToast('Visit postponed', `${label} moved to ${whenLabel}.`, 'success');
             await this.loadTodayPlan();
         } catch (error) {
             this.showToast('Postpone failed', this.reduceError(error), 'error');

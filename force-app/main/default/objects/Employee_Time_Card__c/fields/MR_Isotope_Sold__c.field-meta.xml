@@ -3,6 +3,7 @@
     <fullName>MR_Isotope_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Isotope Sold</description>
+    <externalId>false</externalId>
     <label>Isotope Sold</label>
     <precision>16</precision>
     <required>false</required>

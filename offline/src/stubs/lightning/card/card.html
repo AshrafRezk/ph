@@ -1,17 +1,24 @@
 <template>
     <article class="slds-card">
-        <header class="slds-card__header slds-grid">
-            <div class="slds-media slds-media_center slds-has-flexi-truncate">
-                <div class="slds-media__body">
-                    <h2 class="slds-card__header-title">
-                        <slot name="title">{title}</slot>
-                    </h2>
+        <template if:true={hasHeader}>
+            <header class="slds-card__header slds-grid">
+                <div class="slds-media slds-media_center slds-has-flexi-truncate">
+                    <template if:true={hasIcon}>
+                        <div class="slds-media__figure">
+                            <lightning-icon icon-name={iconName} size="small" alternative-text=""></lightning-icon>
+                        </div>
+                    </template>
+                    <div class="slds-media__body">
+                        <h2 class="slds-card__header-title">
+                            <slot name="title">{title}</slot>
+                        </h2>
+                    </div>
+                    <div class="slds-no-flex">
+                        <slot name="actions"></slot>
+                    </div>
                 </div>
-                <div class="slds-no-flex">
-                    <slot name="actions"></slot>
-                </div>
-            </div>
-        </header>
+            </header>
+        </template>
         <div class="slds-card__body">
             <slot></slot>
         </div>

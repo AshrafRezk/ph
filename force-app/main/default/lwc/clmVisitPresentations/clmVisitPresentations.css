@@ -27,6 +27,40 @@
     font-weight: 600;
 }
 
+.offline-redirect-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid #c9e6f2;
+    border-radius: 0.5rem;
+    background: #f0f9fc;
+}
+
+.offline-redirect-banner strong {
+    display: block;
+    font-size: 0.8125rem;
+    color: #032d60;
+}
+
+.offline-redirect-banner p {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
+    color: #444;
+    line-height: 1.4;
+}
+
+.offline-redirect-banner a {
+    color: #0176d3;
+    font-weight: 600;
+}
+
+.offline-redirect-banner lightning-button {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 .panel,
 .feedback-panel {
     background: #fff;

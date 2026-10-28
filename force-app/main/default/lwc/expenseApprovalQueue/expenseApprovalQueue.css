@@ -1,0 +1,71 @@
+.approval-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.approval-header {
+    margin-bottom: 0.75rem;
+}
+
+.approval-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #032d60;
+}
+
+.approval-subtitle,
+.approval-empty {
+    margin: 0.125rem 0 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+.approval-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 0.625rem;
+    background: #f8fafc;
+}
+
+.approval-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.8125rem;
+    color: #0f172a;
+}
+
+.approval-meta {
+    color: #64748b;
+}
+
+.approval-desc {
+    margin: 0.375rem 0 0;
+    font-size: 0.8125rem;
+    color: #475569;
+}
+
+.approval-actions {
+    margin-top: 0.625rem;
+}
+
+.pending-pill {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.approval-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}

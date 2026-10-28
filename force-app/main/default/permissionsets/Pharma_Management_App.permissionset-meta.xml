@@ -57,10 +57,22 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>TerritorySwitcherController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritoryContextService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>FieldAppFeatureController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>PharmacySalesAnalyticsController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
-    <description>Pharma Management app for DMs and RMs — KPI home, reports, admin console, pharmacy sales.</description>
+    <description>Lead Co-pilot for DMs and RMs — KPI home, reports, admin console, pharmacy sales.</description>
     <fieldPermissions>
         <editable>false</editable>
         <field>Employee_Time_Card__c.Territory_BU__c</field>
@@ -89,6 +101,41 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>Employee_Time_Card__c.Coaching_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Field_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Leave_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Potential_Visits_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Completed_Meetings_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Potential_Meetings_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Coached_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Coaching_Days_Delivered__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -197,7 +244,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Pharma Management App</label>
+    <label>Lead Co-pilot</label>
     <objectPermissions>
         <allowCreate>true</allowCreate>
         <allowDelete>true</allowDelete>
@@ -234,6 +281,36 @@
         <object>Rep_Location_Snapshot__c</object>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>false</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Field_App_Feature__c</object>
+        <viewAllFields>true</viewAllFields>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Field_App_Feature__c.Is_Enabled__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Field_App_Feature__c.Category__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Field_App_Feature__c.Description__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Field_App_Feature__c.Sort_Order__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <tabSettings>
         <tab>Management_Home</tab>
         <visibility>Visible</visibility>

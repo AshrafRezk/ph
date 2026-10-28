@@ -1,0 +1,211 @@
+<template>
+    <section role="dialog" class="slds-modal slds-fade-in-open dialer-modal" aria-modal="true" aria-label="Call patient">
+        <div class={containerClass}>
+            <div class="dialer">
+                <div class="dialer-head">
+                    <div class="who">
+                        <span class="who-icon"><lightning-icon icon-name="utility:call" size="small"></lightning-icon></span>
+                        <div>
+                            <div class="who-name">{patientName}</div>
+                            <div class="who-sub">{statusLabel}</div>
+                        </div>
+                    </div>
+                    <template lwc:if={isRecording}>
+                        <span class="rec"><span class="rec-dot"></span>Recording</span>
+                    </template>
+                    <button type="button" class="close" title="Close" onclick={handleClose} disabled={isActive}>
+                        <lightning-icon icon-name="utility:close" size="x-small"></lightning-icon>
+                    </button>
+                </div>
+
+                <audio class="remote" autoplay playsinline></audio>
+                <audio class="sample" playsinline></audio>
+
+                <template lwc:if={isLoading}>
+                    <div class="dialer-body center">
+                        <lightning-spinner alternative-text="Preparing the dialler" size="small"></lightning-spinner>
+                    </div>
+                </template>
+
+                <template lwc:if={isUnavailable}>
+                    <div class="dialer-body">
+                        <div class="notice">
+                            <lightning-icon icon-name="utility:info" size="x-small"></lightning-icon>
+                            <span>
+                                The built-in dialler isn't set up yet. Ask your admin to add the SIP settings under Custom Settings,
+                                Care Coach Telephony. You can still call from the device's phone app.
+                            </span>
+                        </div>
+                        <template lwc:if={error}><p class="err">{error}</p></template>
+                        <div class="number-static">{cleanNumber}</div>
+                        <div class="phone-actions">
+                            <a class="btn-call link" href={telHref}>
+                                <lightning-icon icon-name="utility:call" size="x-small"></lightning-icon>
+                                Call with device phone
+                            </a>
+                            <button type="button" class="btn-call btn-record" onclick={startLiveCapture}>
+                                <lightning-icon icon-name="utility:record" size="x-small"></lightning-icon>
+                                Record live on this tablet
+                            </button>
+                        </div>
+                        <p class="phone-help">{deviceRecordHelp}</p>
+                        <template lwc:if={modelStatus}><p class="phone-help">{modelStatus}</p></template>
+                        <div class="demo-panel">
+                            <p class="demo-label">Show the call without a phone line</p>
+                            <button type="button" class="btn-demo" data-sample="rash" onclick={playSample}>Play sample call</button>
+                            <button type="button" class="btn-demo" data-sample="dose" onclick={playSample}>Play missed-dose call</button>
+                        </div>
+                    </div>
+                </template>
+
+                <template lwc:if={isReady}>
+                    <div class="dialer-body">
+                        <template lwc:if={isFailed}>
+                            <div class="notice notice_warn">
+                                <lightning-icon icon-name="utility:warning" size="x-small"></lightning-icon>
+                                <span>{endCause}<template lwc:if={error}>: {error}</template></span>
+                            </div>
+                        </template>
+                        <div class="number-row">
+                            <lightning-input
+                                class="number"
+                                label="Number"
+                                variant="label-hidden"
+                                type="tel"
+                                value={number}
+                                onchange={handleNumber}
+                            ></lightning-input>
+                            <button type="button" class="back" title="Delete" onclick={handleBackspace}>
+                                <lightning-icon icon-name="utility:back" size="x-small"></lightning-icon>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <template lwc:if={showDialPad}>
+                    <div class="pad">
+                        <template for:each={keys} for:item="k">
+                            <button key={k.key} type="button" class="pad-key" data-key={k.key} onclick={handleKey}>
+                                <span class="pad-digit">{k.key}</span>
+                                <span class="pad-letters">{k.letters}</span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+
+                <template lwc:if={isReady}>
+                    <div class="dialer-foot">
+                        <div class="lang" role="group" aria-label="Call language">
+                            <button type="button" class={arabicLangClass} data-lang="ar" onclick={handleLanguage}>العربية المصرية</button>
+                            <button type="button" class={englishLangClass} data-lang="en" onclick={handleLanguage}>English</button>
+                        </div>
+                        <div class="consent">
+                            <lightning-input
+                                type="checkbox"
+                                label="Patient consented to recording"
+                                checked={consent}
+                                onchange={handleConsent}
+                            ></lightning-input>
+                            <p class="consent-help">{consentHelp}</p>
+                        </div>
+                        <button type="button" class="btn-call" onclick={startCall} disabled={callDisabled}>
+                            <lightning-icon icon-name="utility:call" size="x-small"></lightning-icon>
+                            Call
+                        </button>
+                        <div class="demo-panel">
+                            <p class="demo-label">Show the call without a phone line</p>
+                            <button type="button" class="btn-demo" data-sample="rash" onclick={playSample}>Play sample call</button>
+                            <button type="button" class="btn-demo" data-sample="dose" onclick={playSample}>Play missed-dose call</button>
+                        </div>
+                        <div class="phone-actions">
+                            <a class="btn-call link" href={telHref}>
+                                <lightning-icon icon-name="utility:call" size="x-small"></lightning-icon>
+                                Call with device phone
+                            </a>
+                            <button type="button" class="btn-call btn-record" onclick={startLiveCapture}>
+                                <lightning-icon icon-name="utility:record" size="x-small"></lightning-icon>
+                                Record live on this tablet
+                            </button>
+                        </div>
+                        <p class="phone-help">{deviceRecordHelp}</p>
+                        <template lwc:if={modelStatus}><p class="phone-help">{modelStatus}</p></template>
+                        <div class="foot-links">
+                            <template lwc:if={canLogUnreached}>
+                                <button type="button" class="linkish" onclick={logUnreached}>Log as unreached</button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <template lwc:if={isActive}>
+                    <div class="dialer-foot">
+                        <div class="number-static">{cleanNumber}</div>
+                        <template lwc:if={isInCall}>
+                            <div class="controls">
+                                <button type="button" class={muteVariant} onclick={toggleMute}>
+                                    <lightning-icon icon-name="utility:unmuted" size="small"></lightning-icon>
+                                    <span>{muteLabel}</span>
+                                </button>
+                                <button type="button" class={holdVariant} onclick={toggleHold}>
+                                    <lightning-icon icon-name="utility:pause" size="small"></lightning-icon>
+                                    <span>{holdLabel}</span>
+                                </button>
+                                <button type="button" class={keypadVariant} onclick={toggleKeypad}>
+                                    <lightning-icon icon-name="utility:apps" size="small"></lightning-icon>
+                                    <span>Keypad</span>
+                                </button>
+                            </div>
+                        </template>
+                        <button type="button" class="btn-call btn-hangup" onclick={hangUp}>
+                            <lightning-icon icon-name="utility:end_call" size="x-small"></lightning-icon>
+                            Hang up
+                        </button>
+                    </div>
+                </template>
+
+                <template lwc:if={isCoaching}>
+                    <div class="dialer-body coach-live">
+                        <p class="coach-hint">{coachingHint}</p>
+                        <div class="live-transcript">
+                            <template for:each={liveLines} for:item="line">
+                                <p key={line.key} class={line.who}><span>{line.speaker}</span> {line.text}</p>
+                            </template>
+                            <template lwc:if={waitingForSpeech}><p class="cc-muted">Waiting for speech…</p></template>
+                            <template lwc:if={hearingText}><p class="line line_patient line_live"><span>Hearing</span> {hearingText}</p></template>
+                        </div>
+                        <template lwc:if={captureError}><p class="err">{captureError}</p></template>
+                        <template lwc:if={modelStatus}><p class="phone-help">{modelStatus}</p></template>
+                        <div class="insight">
+                            <template lwc:if={hasInsight}>
+                                <div class="insight-row">
+                                    <span class={sentimentClass}>{insight.sentiment}</span>
+                                    <span class="pill">{insight.adherenceRisk} adherence risk</span>
+                                    <template lwc:if={insight.sideEffects}><span class="pill pill_neg">{insight.sideEffects}</span></template>
+                                </div>
+                                <p class="nba"><strong>Next step.</strong> {insight.nextBestAction}</p>
+                                <p class="cc-muted">{insight.summary}</p>
+                            </template>
+                            <template lwc:else>
+                                <p class="cc-muted">Sentiment and the next step appear as soon as there is speech to analyse.</p>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="dialer-foot">
+                        <button type="button" class="btn-call btn-hangup" onclick={stopCoaching}>
+                            <lightning-icon icon-name="utility:end_call" size="x-small"></lightning-icon>
+                            Stop and save
+                        </button>
+                    </div>
+                </template>
+
+                <template lwc:if={isTranscribing}>
+                    <div class="dialer-body center">
+                        <lightning-spinner alternative-text="Transcribing" size="small"></lightning-spinner>
+                        <p class="cc-muted transcribing">{transcribingLabel}</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open"></div>
+</template>

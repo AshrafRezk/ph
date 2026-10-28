@@ -1,0 +1,1547 @@
+{
+  "source": "Toatal Organogram 2026.xlsx",
+  "employeeSource": "Employee Data Base.xlsx",
+  "counts": {
+    "businessUnits": 4,
+    "lines": 18,
+    "districts": 120,
+    "positions": 774,
+    "bricks": 920,
+    "bricks70": 70,
+    "bricks148": 148,
+    "bricks702": 702,
+    "alignments": 12605,
+    "roster": 845
+  },
+  "june": {
+    "previousSource": "Zeta's Total Organogram 2026_JUNE (1).xlsx",
+    "previousCounts": {
+      "businessUnits": 4,
+      "lines": 16,
+      "districts": 110,
+      "positions": 721,
+      "bricks": 920,
+      "bricks70": 70,
+      "bricks148": 148,
+      "bricks702": 702,
+      "alignments": 11215
+    },
+    "linesAdded": [
+      "GIT-SALES",
+      "NEUROSCIENCE-I",
+      "NEUROSCIENCE-II"
+    ],
+    "linesRemoved": [
+      "NEUROSCIENCE"
+    ],
+    "positionsAdded": [
+      "CHC ISMAILIA-SUIZ",
+      "CHC QUENA",
+      "DIAB-I ALEX CENTER-A-ALEX WEST",
+      "DIAB-I ALEX CENTER-B",
+      "DIAB-I ALEX EAST-A",
+      "DIAB-I ALEX EAST-B",
+      "DIAB-I ALEX MATROUH",
+      "DIAB-I ASSUIT-A",
+      "DIAB-I ASSUIT-B",
+      "DIAB-I ASWAN",
+      "DIAB-I BEHIRA-A",
+      "DIAB-I BEHIRA-B",
+      "DIAB-I BEHIRA-C",
+      "DIAB-I CAIRO EAST-C",
+      "DIAB-I DAKAHLIA-C",
+      "DIAB-I DOKKI",
+      "DIAB-I FAISAL",
+      "DIAB-I GHARBIA-C",
+      "DIAB-I IMBABA",
+      "DIAB-I KAFR ELSHEIKH-A",
+      "DIAB-I KAFR ELSHEIKH-B",
+      "DIAB-I MAADI",
+      "DIAB-I MENIA-A",
+      "DIAB-I MENIA-B",
+      "DIAB-I MENOFYA-A",
+      "DIAB-I MENOFYA-B",
+      "DIAB-I MOHANDSEEN",
+      "DIAB-I NASR CITY",
+      "DIAB-I NEW CAIRO",
+      "DIAB-I QENA-A",
+      "DIAB-I QENA-B",
+      "DIAB-I SHARKIA-C",
+      "DIAB-I SOHAG-A",
+      "DIAB-I SOHAG-B",
+      "GIT-S ALEX EAST-ALEX CENTER",
+      "GIT-S ALEX WEST-MATROUH",
+      "GIT-S ASSUIT-SOHAG-QUENA-ASWAN",
+      "GIT-S BEHAIRA",
+      "GIT-S C.SOUTH-MAADI-HELWAN",
+      "GIT-S CAIRO EAST-A",
+      "GIT-S CAIRO EAST-B-ISMAELIA-SUES-S.SINAI",
+      "GIT-S CAIROCENTER-CAIROWEST-SHOBRAELKHIMA",
+      "GIT-S DAKHLEIAH-A",
+      "GIT-S DAKHLEIAH-B- DOMIAT-P. SAID-N. SINAI",
+      "GIT-S DOKKI-GIZA CENTERS",
+      "GIT-S FAISAL-HARAM-OCTOBER",
+      "GIT-S FAYOUM-BANI SUEF-MENYA",
+      "GIT-S GHARBEIA",
+      "GIT-S HELIOPLOLIS-NASR CITY-NEW CAIRO",
+      "GIT-S IMBABA-Mohandseen",
+      "GIT-S KAFR EL SHEIKH",
+      "GIT-S KALUBIA",
+      "GIT-S MENOFEYA",
+      "GIT-S SHARKEIA",
+      "NEUROSCIENCE-I ABBASEIA-NASR CITY-NEW CAIRO",
+      "NEUROSCIENCE-I ALEX CENTER - ALEX WEST",
+      "NEUROSCIENCE-I ALEX EAST",
+      "NEUROSCIENCE-I ASSUIT - QUENA-B",
+      "NEUROSCIENCE-I BANI SUEF - MENYA",
+      "NEUROSCIENCE-I BEHAIRA",
+      "NEUROSCIENCE-I CAIRO CENTER-CAIRO WEST-CAIRO SOUTH",
+      "NEUROSCIENCE-I CAIRO EAST",
+      "NEUROSCIENCE-I DAKAHLIA-A - DOMIAT",
+      "NEUROSCIENCE-I DAKAHLIA-B - P.SAID-N.SINAI",
+      "NEUROSCIENCE-I DOKKI-IMBABA-FAISAL",
+      "NEUROSCIENCE-I GHARBEIA-A - MENOFEYA-B",
+      "NEUROSCIENCE-I GIZA CENTERS-HARAM-OCTOBER",
+      "NEUROSCIENCE-I HELIOPOLIS",
+      "NEUROSCIENCE-I KAFR EL SHEIKH - GHARBEIA-B",
+      "NEUROSCIENCE-I KALUBIA - MENOFEYA-A",
+      "NEUROSCIENCE-I MAADI-HELWAN-FAYOUM",
+      "NEUROSCIENCE-I SHARKIA - ISMAILIA-SUIZ",
+      "NEUROSCIENCE-I SOHAG - QUENA-A",
+      "NEUROSCIENCE-II ABBASEIA-NASR CITY-NEW CAIRO",
+      "NEUROSCIENCE-II ALEX CENTER - ALEX WEST",
+      "NEUROSCIENCE-II ALEX EAST",
+      "NEUROSCIENCE-II ASSUIT",
+      "NEUROSCIENCE-II BANI SUEF - MENYA",
+      "NEUROSCIENCE-II BEHAIRA",
+      "NEUROSCIENCE-II CAIRO CENTER-CAIRO WEST-CAIRO SOUTH",
+      "NEUROSCIENCE-II CAIRO EAST",
+      "NEUROSCIENCE-II DAKAHLIA-A - DOMIAT",
+      "NEUROSCIENCE-II DAKAHLIA-B - P.SAID-N.SINAI",
+      "NEUROSCIENCE-II DOKKI-IMBABA-FAISAL",
+      "NEUROSCIENCE-II GHARBEIA-A - MENOFEYA-B",
+      "NEUROSCIENCE-II GIZA CENTERS-HARAM-OCTOBER",
+      "NEUROSCIENCE-II HELIOPOLIS",
+      "NEUROSCIENCE-II KAFR EL SHEIKH - GHARBEIA-B",
+      "NEUROSCIENCE-II KALUBIA - MENOFEYA-A",
+      "NEUROSCIENCE-II MAADI-HELWAN-FAYOUM",
+      "NEUROSCIENCE-II QUENA",
+      "NEUROSCIENCE-II SHARKIA - ISMAILIA-SUIZ",
+      "NEUROSCIENCE-II SOHAG"
+    ],
+    "positionsRetired": [
+      "CHC VACANT",
+      "DIAB-I ALEX CENTER",
+      "DIAB-I ALEX EAST",
+      "DIAB-I ALEX WEST-MATROUH",
+      "DIAB-I ASSUIT",
+      "DIAB-I BEHIRA",
+      "DIAB-I CAIRO SOUTH",
+      "DIAB-I FAISAL-DOKKI",
+      "DIAB-I IMBABA-MOHANDSEEN",
+      "DIAB-I KAFR ELSHEIKH",
+      "DIAB-I LUXOR-ASWAN",
+      "DIAB-I MENIA",
+      "DIAB-I MENOFYA",
+      "DIAB-I NASR CITY-NEW CAIRO",
+      "DIAB-I QENA",
+      "DIAB-I SOHAG",
+      "NEUROSCIENCE ABBASEIA-NASR CITY",
+      "NEUROSCIENCE ALEX EAST",
+      "NEUROSCIENCE ALEX WEST",
+      "NEUROSCIENCE ASSUIT",
+      "NEUROSCIENCE BANI SUEF-MENYA",
+      "NEUROSCIENCE BEHIRA",
+      "NEUROSCIENCE CAIRO CENTER",
+      "NEUROSCIENCE CAIRO EAST-A",
+      "NEUROSCIENCE CAIRO EAST-B - NEW CAIRO",
+      "NEUROSCIENCE DAKAHLIA-A",
+      "NEUROSCIENCE DAKAHLIA-B",
+      "NEUROSCIENCE DOKKI-IMBABA",
+      "NEUROSCIENCE DOMIAT-CANAL",
+      "NEUROSCIENCE FAISAL-OCTOBER",
+      "NEUROSCIENCE GHARBIA",
+      "NEUROSCIENCE GIZA",
+      "NEUROSCIENCE HELIOPOLIS",
+      "NEUROSCIENCE KAFR ELSHEIKH",
+      "NEUROSCIENCE MAADI-FAYOUM",
+      "NEUROSCIENCE MENOFYA",
+      "NEUROSCIENCE QALUBIA",
+      "NEUROSCIENCE QUENA",
+      "NEUROSCIENCE SHARKIA",
+      "NEUROSCIENCE SOHAG"
+    ],
+    "districtsAdded": [
+      "DIAB-I DM CAIRO",
+      "DIAB-I DM DELTA A",
+      "DIAB-I DM DELTA B",
+      "DIAB-I DM UE A",
+      "DIAB-I DM UE B",
+      "GIT-III DM ALEX-BEHIRA",
+      "GIT-III DM GHARBIA-MENOFYA",
+      "GIT-SALES DM ALEX-BEHIRA",
+      "GIT-SALES DM CAIRO",
+      "GIT-SALES DM DELTA",
+      "GIT-SALES DM GIZA-UE",
+      "NEUROSCIENCE-II DM DELTA B",
+      "NEUROSCIENCE-II UNASSIGNED"
+    ],
+    "districtsRetired": [
+      "CHC DM UE",
+      "DIAB-I DM CAIRO A",
+      "DIAB-I DM DELTA",
+      "DIAB-I DM UE",
+      "GIT-III ALEX-BEHIRA",
+      "GIT-III GHARBIA-MENOFYA"
+    ]
+  },
+  "employees": {
+    "previousCount": 772,
+    "count": 784,
+    "inserted": [
+      {
+        "code": "2421",
+        "name": "Amr Mostafa Zaky Zidan",
+        "email": "amr.zidan@zeta-pharma.com"
+      },
+      {
+        "code": "2445",
+        "name": "Nevien Reyad Nagib Hanna",
+        "email": "nevien.reyad@zeta-pharma.com"
+      },
+      {
+        "code": "2461",
+        "name": "AbdelRahman Ahmed Shawky Mohamed",
+        "email": "abdelrahman.shawky@zeta-pharma.com"
+      },
+      {
+        "code": "2492",
+        "name": "Mostafa Ahmed Hassan Mohamed Rakha",
+        "email": "mostafa.rakha@zeta-pharma.com"
+      },
+      {
+        "code": "1027",
+        "name": "Beshoy Balamon Felbs Tadros",
+        "email": "bishoy.balamon@zeta-pharma.com"
+      },
+      {
+        "code": "2351",
+        "name": "Mohamed Saied Mohamed Mohamed Mostafa",
+        "email": "mohamed.saied@zeta-pharma.com"
+      },
+      {
+        "code": "60",
+        "name": "Sherihan Elsherbiny Elsherbiny Esmail Hamouda",
+        "email": "sherihan.elsherbiny@zeta-pharma.com"
+      },
+      {
+        "code": "1813",
+        "name": "Marina Wahid Farag Reyad Fanous",
+        "email": "marina.wahid@zeta-pharma.com"
+      },
+      {
+        "code": "1814",
+        "name": "Mariam Mohamed Ahmed Mohamed ElBadawy",
+        "email": "mariam.elbadawy@zeta-pharma.com"
+      },
+      {
+        "code": "2514",
+        "name": "Marolla Magdy Abdullah Sarkes",
+        "email": "marolla.magdy@zeta-pharma.com"
+      },
+      {
+        "code": "354",
+        "name": "Nada Ragab Afifi Baioumy",
+        "email": "nada.ragab@zeta-pharma.com"
+      },
+      {
+        "code": "1784",
+        "name": "Amr ElSayed AbdelSatar Teama",
+        "email": "amr.teama@zeta-pharma.com"
+      }
+    ],
+    "updated": [
+      {
+        "code": "752",
+        "name": "Rwan Ashraf Mohamed Salem",
+        "email": "rwan.ashraf@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1380",
+        "name": "MennatAllah Saad Zaky Ahmed Mohamed",
+        "email": "menna.saad@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1400",
+        "name": "Mina Shaher Wahba AbdelShahid",
+        "email": "mina.shaher@zeta-pharma.com",
+        "changes": [
+          "line",
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1401",
+        "name": "Ahmed Mohamed Ahmed Mohamed Salama",
+        "email": "ahmed.salama@zeta-pharma.com",
+        "changes": [
+          "line",
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1465",
+        "name": "Gehad Ahmed Gharib Mohamed Ahmed",
+        "email": "gehad.ahmed@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1491",
+        "name": "Asmaa Samir Kamal AbdelHamid Awad",
+        "email": "asmaa.samir@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1819",
+        "name": "Ahmed Mohsen AbdelGalil Hashish",
+        "email": "ahmed.hashish@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1900",
+        "name": "Shady Ahmed Mahmoud Mohamed ElSayed",
+        "email": "shady.ahmed@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "1924",
+        "name": "Mohamed Mostafa Mohamed Farmawy",
+        "email": "mohamed.farmawy@zeta-pharma.com",
+        "changes": []
+      },
+      {
+        "code": "2152",
+        "name": "HossamElDin Mostafa Kamal ElHawary",
+        "email": "hossam.elhawary@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "2198",
+        "name": "Merna Michelle Anwar Ghaly",
+        "email": "merna.michelle@zeta-pharma.com",
+        "changes": [
+          "managerCode"
+        ]
+      },
+      {
+        "code": "2273",
+        "name": "Elaria Ayman Bedier Nagib AbdelMalak",
+        "email": "elaria.ayman@zeta-pharma.com",
+        "changes": [
+          "managerCode",
+          "email"
+        ]
+      },
+      {
+        "code": "269",
+        "name": "Mahmoud Hassan Abdelraouf Mohamed Elbadawy",
+        "email": "mahmoud.elbadawy@zeta-pharma.com",
+        "changes": []
+      },
+      {
+        "code": "584",
+        "name": "Yasmin Aly Moursy Esmail Moursy",
+        "email": "yasmin.aly@zeta-pharma.com",
+        "changes": []
+      },
+      {
+        "code": "1136",
+        "name": "Shady Nader Fathy Gad Ayoub",
+        "email": "shady.nader@zeta-pharma.com",
+        "changes": []
+      },
+      {
+        "code": "1594",
+        "name": "Aya Mohamed ElMetwaly ElSayed Aly Nabet",
+        "email": "aya.nabet@zeta-pharma.com",
+        "changes": []
+      },
+      {
+        "code": "848",
+        "name": "Yasmin Alaaeldin Ahmed Mohamed",
+        "email": "yasmin.alaa@zetapharma.net",
+        "changes": [
+          "title",
+          "department",
+          "line",
+          "managerCode"
+        ]
+      },
+      {
+        "code": "506",
+        "name": "Hassan Mohamed Mokhtar Gaballah",
+        "email": "hassan.mokhtar@zeta-pharma.com",
+        "changes": []
+      }
+    ],
+    "skipped": [
+      {
+        "code": "2533",
+        "name": "Fatma Esmail Shawky Gaber",
+        "reason": "missing business email"
+      }
+    ]
+  },
+  "exceptions": {
+    "blankDistrictPositions": [
+      "NEUROSCIENCE-II ALEX CENTER - ALEX WEST",
+      "NEUROSCIENCE-II ALEX EAST",
+      "NEUROSCIENCE-II BEHAIRA",
+      "NEUROSCIENCE-II CAIRO CENTER-CAIRO WEST-CAIRO SOUTH",
+      "NEUROSCIENCE-II DAKAHLIA-A - DOMIAT",
+      "NEUROSCIENCE-II DAKAHLIA-B - P.SAID-N.SINAI",
+      "NEUROSCIENCE-II DOKKI-IMBABA-FAISAL",
+      "NEUROSCIENCE-II GIZA CENTERS-HARAM-OCTOBER",
+      "NEUROSCIENCE-II MAADI-HELWAN-FAYOUM",
+      "NEUROSCIENCE-II SHARKIA - ISMAILIA-SUIZ"
+    ],
+    "positionIdConflicts": [
+      {
+        "name": "CVM-II CAIRO EAST",
+        "externalId": "TERR_POS_CVM_II_CAIRO_EAST",
+        "ids": [
+          321,
+          589
+        ]
+      },
+      {
+        "name": "DIAB-IV LUXOR",
+        "externalId": "TERR_POS_DIAB_IV_LUXOR",
+        "ids": [
+          666,
+          677
+        ]
+      },
+      {
+        "name": "GIT-S DAKHLEIAH-A",
+        "externalId": "TERR_POS_GIT_S_DAKHLEIAH_A",
+        "ids": [
+          847,
+          848
+        ]
+      },
+      {
+        "name": "GIT-S DAKHLEIAH-B- DOMIAT-P. SAID-N. SINAI",
+        "externalId": "TERR_POS_GIT_S_DAKHLEIAH_B_DOMIAT_P_SAID_N_SINAI",
+        "ids": [
+          847,
+          848
+        ]
+      },
+      {
+        "name": "GIT-S DOKKI-GIZA CENTERS",
+        "externalId": "TERR_POS_GIT_S_DOKKI_GIZA_CENTERS",
+        "ids": [
+          849,
+          854
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I GHARBEIA-A - MENOFEYA-B",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_GHARBEIA_A_MENOFEYA_B",
+        "ids": [
+          562,
+          471
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I CAIRO EAST",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_CAIRO_EAST",
+        "ids": [
+          565,
+          472
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I ABBASEIA-NASR CITY-NEW CAIRO",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_ABBASEIA_NASR_CITY_NEW_CAIRO",
+        "ids": [
+          470,
+          565
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I DOKKI-IMBABA-FAISAL",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_DOKKI_IMBABA_FAISAL",
+        "ids": [
+          480,
+          567
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I CAIRO CENTER-CAIRO WEST-CAIRO SOUTH",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_CAIRO_CENTER_CAIRO_WEST_CAIRO_SOUTH",
+        "ids": [
+          476,
+          469
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I KALUBIA - MENOFEYA-A",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_KALUBIA_MENOFEYA_A",
+        "ids": [
+          562,
+          475
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I SHARKIA - ISMAILIA-SUIZ",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_SHARKIA_ISMAILIA_SUIZ",
+        "ids": [
+          466,
+          563
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I DAKAHLIA-A - DOMIAT",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_DAKAHLIA_A_DOMIAT",
+        "ids": [
+          463,
+          563
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I DAKAHLIA-B - P.SAID-N.SINAI",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_DAKAHLIA_B_P_SAID_N_SINAI",
+        "ids": [
+          477,
+          563
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I ASSUIT - QUENA-B",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_ASSUIT_QUENA_B",
+        "ids": [
+          467,
+          568
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I GIZA CENTERS-HARAM-OCTOBER",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_GIZA_CENTERS_HARAM_OCTOBER",
+        "ids": [
+          469,
+          567
+        ]
+      },
+      {
+        "name": "NEUROSCIENCE-I SOHAG - QUENA-A",
+        "externalId": "TERR_POS_NEUROSCIENCE_I_SOHAG_QUENA_A",
+        "ids": [
+          568,
+          464
+        ]
+      }
+    ]
+  },
+  "unmatchedPeople": [
+    {
+      "code": "17",
+      "name": "Ahmed Fathy Ahmed Hamed Nada",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "162",
+      "name": "Mahmoud Fathy Mahmoud Hassanein ElGazar",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "186",
+      "name": "Ehab Saied Gaber Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "539",
+      "name": "Ahmed Mohamed Khalil Youssef",
+      "roles": [
+        "Area Manager"
+      ]
+    },
+    {
+      "code": "556",
+      "name": "Hanan Atef Magdy AbdelMessih",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "697",
+      "name": "Esraa Omar ElSayed AbdelHafez",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "736",
+      "name": "Mahmoud Aly AbdelLatif Ahmed",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "845",
+      "name": "Ibrahim Mohamed Abdel Latif Abu El-Enein",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "997",
+      "name": "Mohamed Ahmed Mohamed Shahin",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "1069",
+      "name": "AbdelRahman Mohamed AbdelFatah Mohamed Mousa",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1127",
+      "name": "Ahmed Hussien Ahmed Ibrahim Mohamed",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "1303",
+      "name": "Mostafa Mohamed Mohamed Mousa Shabana",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "1379",
+      "name": "Mohamed Rezk Aly Nour",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "1534",
+      "name": "Olivia Talaat Fawzy Habib",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1549",
+      "name": "Mohamed Gomaa Eissa Saleh",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1557",
+      "name": "Ahmed AbdelRazak Fathy AbdelRahman",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1561",
+      "name": "Eman Moursy Tohamy Mohamed Aly",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1568",
+      "name": "Fady Milad Nasif Zakhary",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1573",
+      "name": "Mohamed Khaled Sayed Moursy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1575",
+      "name": "Rana Fathy Mahmoud AbdelLatif Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1580",
+      "name": "Ahmed Osama ElMoursy Ahmed ElMoursy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1582",
+      "name": "Mina Sabry Farag Guirgis",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1591",
+      "name": "Amany Esmail AbdElRazak ElSadawy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1603",
+      "name": "Abanob Amer Seddik Abadir AbdelMassih",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1604",
+      "name": "Remonda Gayed Sobhy Ayoub Gayed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1608",
+      "name": "Marwan Mohamed Freiz Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1651",
+      "name": "Mahmoud Mohamed Mahmoud ElMaky",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1671",
+      "name": "Ashraf Mohamed Sadek Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1696",
+      "name": "Randa Kamal Roushdy Tanagho Botros",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1722",
+      "name": "Karim Magdy Mohamed Basiouny Sukkar",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "1759",
+      "name": "Karim Mamdouh Mohamed Mohamed ElSaied AbuEsh",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "1780",
+      "name": "Amira Ahmed Mahmoud ElHariry",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2386",
+      "name": "Salma Magdy Saied Ahmad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2420",
+      "name": "George Magdy AbdElmalek AbdelMassih",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2422",
+      "name": "Loaay Kamal Ibrahim Soliman",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2424",
+      "name": "Ahmed Samir ElSayed Aakl Gomaa ElBahrawy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2426",
+      "name": "Simon Emad Fouad Saad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2427",
+      "name": "Marivan Maher Botros Moawad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2428",
+      "name": "George Ayed Gorgy Mousa",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2430",
+      "name": "Rita Sameh Sedhom Youssef AbdelSayed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2431",
+      "name": "Asmaa Gaber ElSayed Hamed Ahmed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2432",
+      "name": "Mohamed Saad Ahmed Ibrahim Sallam",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2433",
+      "name": "Salma Fathy Hassan Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2434",
+      "name": "Bassam Ahmed AbdelRahim Aly Edrees",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2435",
+      "name": "Peter Adel AwadAllah Demian",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2437",
+      "name": "Amira Shehata Fadel AbdelWahed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2438",
+      "name": "Bishoy Emad Youssef SaadAllah",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2439",
+      "name": "FatmaElZahraa Walid Mahmoud Basiouny Badr",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2441",
+      "name": "Mohamed AbdelFatah Ahmed AbdelKawy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2442",
+      "name": "Marina Mina Lamei Eissa Babaw",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2443",
+      "name": "Aliaa Medhat Hamdy AbdelRahman",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2444",
+      "name": "Shaimaa Ahmed Mahmoud Mohamed ElSeney",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2454",
+      "name": "Mostafa Samir Mohamed Hassan Soliman",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2455",
+      "name": "Marina Atef Kadees Gabra",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2456",
+      "name": "Bassant Mohamed AbdelTawab AbdelKader AbdelMoatey",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2457",
+      "name": "Jowayria Ahmed Ahmed Mohamed Aly ElMasry",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2459",
+      "name": "Gaber AbdelLatif Ibrahim AbdelLatif Sakr",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2460",
+      "name": "Wessal AlaaElDin Mahsoub Hassan Hassan",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2466",
+      "name": "Abanob Fayez ElShahat Fahmy Moawad",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2467",
+      "name": "Amr Hassan Nassef Khalaf Ghanem",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2469",
+      "name": "ElSaied Sabry Fathy Ibrahim ElMasry",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2470",
+      "name": "Abanob Emad Saad Youssef",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2471",
+      "name": "Ahmed Essam AbdelSabour Ahmed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2480",
+      "name": "Madih Mohamed Mohamed ElBaioumy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2482",
+      "name": "Mohamed Aly Mohamed Sadek",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2483",
+      "name": "May Ahmed Atef Mohamed Hassaan",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2484",
+      "name": "Mohamed Youssef Ahmed Youssef ElKady",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2485",
+      "name": "Amr Mohsen Mahmoud Mohamed AlMurshedi",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2486",
+      "name": "Salma Ibrahim Hassan Othman Hassan",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2487",
+      "name": "Hagar Kamal Mohamed Mahmoud ElGammal",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2488",
+      "name": "Medrona Mohsen Fawzy Reyad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2489",
+      "name": "Youssef Wael Salah Ahmed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2490",
+      "name": "Romaisaa Mahmoud Ahmed Abdo Azzam",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2491",
+      "name": "Ahmed Adel Mohamed Shawky Mohamed Sabah",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2493",
+      "name": "Kholoud Mahmoud Ibrahim Kandil",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2494",
+      "name": "Moaz Yasn Shaker Aly",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2496",
+      "name": "Youssef Sherif Hassan Mangad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2497",
+      "name": "Ahmed KhalafAllah Ahmed Shawky KhalafAllah",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2499",
+      "name": "Ahmed ElSayed ElSayed Atta",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2501",
+      "name": "Amira Ahmed Shawky Mahmoud Hussein",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2502",
+      "name": "Eman Khaled AbdelRaouf Hamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2503",
+      "name": "Ahmed Maher ElMoursy ElMetwaly ElZawawy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2504",
+      "name": "Bassant Behera Abdullah Behera",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2506",
+      "name": "Sameh Abdo Soliman Hakim",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2507",
+      "name": "Noha Mohamed Mokhtar Mohamed AbdRabou",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2509",
+      "name": "Eslam Ahmed Sayed AbdelBaky Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2510",
+      "name": "Shahd Emad Hamdy Khalil",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2511",
+      "name": "Mahmoud Tarek AbdelMardy Ibrahim Emara",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2512",
+      "name": "AbdelAziz Mohamed ElBadry AbdelAziz Ragab",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2513",
+      "name": "AbdelRahman Mohamed Ragab Mohamed Nassar",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2515",
+      "name": "AbdelHamid Aly AbdelHamid Mohamed ElKalaf",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2517",
+      "name": "Youstina Emad Saber Fahim Hanna",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2518",
+      "name": "Rana Sayed Salem Baledy Salem",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2519",
+      "name": "Yara Mohamed AbdelNaby Hussein",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2520",
+      "name": "Abdullah Kamal Farouk Qayati",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2521",
+      "name": "Fatma Samir AbdelTawab AbdelAziz",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2522",
+      "name": "Alaa AbdelNasser ElMaghawry AbuSabaa",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2523",
+      "name": "Esraa Mahmoud ElDemerdash Saad ElKady",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2524",
+      "name": "Mariam Youssef Mohamed Abdullah Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2526",
+      "name": "Ibrahim Ragab AbdelHadi Ibrahim",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2527",
+      "name": "Abdo Baioumy Abdo Baioumy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2528",
+      "name": "Mina Rasmy Youssef Botros",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2529",
+      "name": "Mariam Mohamed Sayed AbdelMoneim",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2530",
+      "name": "Neama Khaled Aly Ashmawy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2531",
+      "name": "Mary Amir Azmy Barsoum",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2536",
+      "name": "Merna Magdy Kadees Iskandar",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2537",
+      "name": "Yasser Adel Mohamed ElShafey",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2538",
+      "name": "Merna Mounir Milad Basily Ibrahim",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2539",
+      "name": "Hagar Hamdy Khattab Youmna",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2540",
+      "name": "Evelyn Mounir Fayez Fakious Guirgis",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2541",
+      "name": "Nehal Hussein Mohamed SalahElDin Ibrahim",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2542",
+      "name": "Mohamed Taher Mohamed Seddik Ghaly",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2543",
+      "name": "Karim Nasser Ahmed Dardir",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2544",
+      "name": "Aya Samy Ibrahim Abdo Ahmed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2545",
+      "name": "Sara Essam Anwar Sobhy Awad Barsoum",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2546",
+      "name": "Mariam Magdy Sobhy Nashed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2547",
+      "name": "Ahmed Mostafa AbdelRahman Khamis",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2548",
+      "name": "Esraa Hammad AbdelHamid Hammad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2549",
+      "name": "Mariam Tarek ElHusseiny Ahmed ElQulaly",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2550",
+      "name": "Mina Emad Azmy Reyad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2551",
+      "name": "Mostafa Saied Aly Aly Hamza",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2553",
+      "name": "AbdelRahman Mohamed Gaber AbuZaid",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2563",
+      "name": "Sara AbdelHamid Mohamed ElKhamy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2566",
+      "name": "Sohaila Ahmed Mohamed Ahmed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2567",
+      "name": "Mariam Shohdy Mekhael",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2568",
+      "name": "Aya Magdy Aly ElKharashy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2569",
+      "name": "Hadir Khaled Mohamed Salem AbdelGawad",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2570",
+      "name": "Doha Mohamed AbdelHadi Mohamed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2571",
+      "name": "Mariam Mansour Sadek Mansy",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2572",
+      "name": "Sylvia Mourad Farouk AttaAllah",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2573",
+      "name": "Hisham Hassan Sayed Mohamed Sayed",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2574",
+      "name": "Mostafa Mahmoud AbuElHassan Ahmed",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2575",
+      "name": "Mariam Hany Zaki Baaky",
+      "roles": [
+        "Medical Rep"
+      ]
+    },
+    {
+      "code": "2580",
+      "name": "Heba Mamdouh Hassan Mahmoud Saied",
+      "roles": [
+        "District Manager"
+      ]
+    },
+    {
+      "code": "2581",
+      "name": "Ahmed GamalEldin AbdelHamid Hassan",
+      "roles": [
+        "Medical Rep"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "Four business units",
+      "passed": true,
+      "detail": "CHC, CVM-ORTHO-PEDIA, DERMA-GIT-NEURO, DIABETES"
+    },
+    {
+      "name": "Brick levels",
+      "passed": true,
+      "detail": "70=70, 148=148, 702=702"
+    },
+    {
+      "name": "No duplicate external ids",
+      "passed": true,
+      "detail": "14441 ids"
+    },
+    {
+      "name": "Every node has its parent",
+      "passed": true,
+      "detail": "18 lines, 120 districts, 774 positions"
+    },
+    {
+      "name": "Roster points at territories",
+      "passed": true,
+      "detail": "845 assignments"
+    },
+    {
+      "name": "Organogram people matched to users",
+      "passed": true,
+      "detail": "people=801, matched=666, unmatched=135"
+    },
+    {
+      "name": "Employee batch merged",
+      "passed": true,
+      "detail": "inserted=12, updated=18, skipped=1, users=784"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+<template>
+    <template if:true={showStrip}>
+        <section class="strip" aria-label="Requests that need you">
+            <header class="strip-header">
+                <h2 class="strip-title">Needs you</h2>
+                <p class="strip-sub">Field requests waiting on your decision. Approve, decline, or send to medical.</p>
+            </header>
+            <ul class="strip-list">
+                <template for:each={rows} for:item="row">
+                    <li key={row.id} class="strip-item">
+                        <div class="strip-top">
+                            <span>{row.accountName}</span>
+                            <template if:true={row.isLate}>
+                                <span class="strip-late">Late</span>
+                            </template>
+                        </div>
+                        <div class="strip-meta">
+                            {row.requestedByName} · {row.requestType} · {row.summaryPreview}
+                        </div>
+                        <div class="strip-actions">
+                            <lightning-button
+                                label="Approve"
+                                variant="brand"
+                                data-id={row.id}
+                                onclick={handleApprove}
+                                disabled={isBusy}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Decline"
+                                data-id={row.id}
+                                onclick={handleDecline}
+                                disabled={isBusy}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Send to medical"
+                                data-id={row.id}
+                                onclick={handleSendMedical}
+                                disabled={isBusy}
+                            ></lightning-button>
+                        </div>
+                    </li>
+                </template>
+            </ul>
+        </section>
+    </template>
+</template>

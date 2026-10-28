@@ -1,0 +1,111 @@
+<template>
+    <section class="holidays-console">
+        <header class="console-header">
+            <div>
+                <p class="console-subtitle">
+                    Company public holidays block planner scheduling and reduce Class Engine visit capacity.
+                    Personal TOT type Holiday is separate and is not listed here.
+                </p>
+            </div>
+            <div class="header-actions">
+                <lightning-button
+                    label="Load 2026 holidays"
+                    variant="neutral"
+                    onclick={handleLoad2026}
+                    disabled={isLoading}
+                    title={load2026Help}
+                ></lightning-button>
+                <lightning-button label="New Holiday" variant="brand" onclick={handleNew}></lightning-button>
+            </div>
+        </header>
+        <p class="load-help">{load2026Help}</p>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={hasRows}>
+            <table class="holiday-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Recurrence</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={rows} for:item="row">
+                        <tr key={row.id}>
+                            <td>{row.name}</td>
+                            <td>{row.dateLabel}</td>
+                            <td>{row.recursLabel}</td>
+                            <td>{row.statusLabel}</td>
+                            <td class="actions">
+                                <lightning-button
+                                    label="Edit"
+                                    data-id={row.id}
+                                    onclick={handleEdit}
+                                ></lightning-button>
+                                <lightning-button
+                                    label="Delete"
+                                    data-id={row.id}
+                                    onclick={handleDelete}
+                                ></lightning-button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </template>
+        <template if:false={hasRows}>
+            <template if:false={isLoading}>
+                <p class="empty">No public holidays yet. Add Egypt / company holidays here.</p>
+            </template>
+        </template>
+
+        <template if:true={showForm}>
+            <section class="form-panel">
+                <h3>{formTitle}</h3>
+                <template lwc:if={formError}>
+                    <p class="form-error" role="alert">{formError}</p>
+                </template>
+                <lightning-input
+                    label="Name"
+                    required
+                    value={draft.name}
+                    data-field="name"
+                    onchange={handleFieldChange}
+                ></lightning-input>
+                <lightning-input
+                    type="date"
+                    label="Holiday Date"
+                    required
+                    field-level-help="Click the calendar icon to pick the day."
+                    value={draft.holidayDate}
+                    data-field="holidayDate"
+                    onchange={handleFieldChange}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Recurs yearly"
+                    checked={draft.recursYearly}
+                    data-field="recursYearly"
+                    onchange={handleFieldChange}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Active"
+                    checked={draft.isActive}
+                    data-field="isActive"
+                    onchange={handleFieldChange}
+                ></lightning-input>
+                <div class="form-actions">
+                    <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+                    <lightning-button label="Save" variant="brand" onclick={handleSave} disabled={isSaving}></lightning-button>
+                </div>
+            </section>
+        </template>
+    </section>
+</template>

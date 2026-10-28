@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brand_Product_No_Parent</fullName>
+    <active>true</active>
+    <description>Brand-level products must not have a parent product. Fires only on create or when Parent Product / Product Type changes, so legacy rows can still be edited.</description>
+    <errorConditionFormula>AND(
+  OR(
+    ISNEW(),
+    ISCHANGED(Parent_Product__c),
+    ISCHANGED(Product_Type__c)
+  ),
+  ISPICKVAL(Product_Type__c, &quot;Brand&quot;),
+  NOT(ISBLANK(Parent_Product__c))
+)</errorConditionFormula>
+    <errorDisplayField>Parent_Product__c</errorDisplayField>
+    <errorMessage>Brand products cannot have a parent. Clear Parent Product.</errorMessage>
+</ValidationRule>

@@ -1,4 +1,5 @@
 import { plannerApiFetch } from './restHelper.js';
+import { currentUserId, esc, soqlOne } from './learningShared.js';
 
 // Read-only offline stand-in for ReportsHubController.getTileTargets, consumed by
 // reportsHub via @wire. Mirrors the controller's Report/Dashboard lookups over the
@@ -40,15 +41,50 @@ function resolveCustomTab(tabApiName) {
     return { recordId: null, objectApiName: 'Tab', apiName: tabApiName, accessible: true };
 }
 
-async function loadTileTargets() {
-    const [workingDays, medicalRep360] = await Promise.all([
+const MANAGER_PERMISSION_SETS = [
+    'Pharma_Management_Access',
+    'Pharma_Management_App',
+    'Pharma_C_Levels_App'
+];
+
+async function currentUserCanOpenKam() {
+    const userId = currentUserId();
+    if (!userId) {
+        return false;
+    }
+    try {
+        const names = MANAGER_PERMISSION_SETS.map((name) => `'${esc(name)}'`).join(',');
+        const assignment = await soqlOne(
+            `SELECT Id FROM PermissionSetAssignment WHERE AssigneeId = '${esc(userId)}' ` +
+                `AND PermissionSet.Name IN (${names}) LIMIT 1`
+        );
+        if (assignment) {
+            return true;
+        }
+        const user = await soqlOne(`SELECT Profile.Name FROM User WHERE Id = '${esc(userId)}' LIMIT 1`);
+        return user?.Profile?.Name === 'System Administrator';
+    } catch (e) {
+        console.warn('[reportsHub] manager access lookup failed:', e && e.message);
+        return false;
+    }
+}
+
+export async function loadTileTargets() {
+    const [workingDays, medicalRep360, kamAccessible] = await Promise.all([
         resolveReport('Working_Days_Analysis', 'Working Days Analysis'),
-        resolveDashboard('Medical_Rep_360_Dashboard', 'Management')
+        resolveDashboard('Medical_Rep_360_Dashboard', 'Management'),
+        currentUserCanOpenKam()
     ]);
     return {
         'working-days-analysis': workingDays,
         'medical-rep-360': medicalRep360,
-        'pharmacy-sales': resolveCustomTab('Pharmacy_Sales_Dashboard')
+        'pharmacy-sales': resolveCustomTab('Pharmacy_Sales_Dashboard'),
+        'kam-management': {
+            recordId: null,
+            objectApiName: 'Tab',
+            apiName: 'KAM_Management_Dashboard',
+            accessible: kamAccessible === true
+        }
     };
 }
 

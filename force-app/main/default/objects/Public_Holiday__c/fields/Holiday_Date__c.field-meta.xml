@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Holiday_Date__c</fullName>
+    <description>Date of the public holiday. For yearly holidays this is the month and day that repeats every year.</description>
+    <inlineHelpText>The holiday date. Yearly holidays reuse this month and day each year.</inlineHelpText>
+    <label>Holiday Date</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Date</type>
+</CustomField>

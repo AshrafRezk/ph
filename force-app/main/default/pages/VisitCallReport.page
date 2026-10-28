@@ -5,6 +5,7 @@
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Call Report</title>
             <apex:slds />
+            <c:PendingPaymentAlert />
             <style>
                 body { margin: 0; background: #f3f3f3; font-family: "Salesforce Sans", Arial, sans-serif; }
                 .app-shell { max-width: 40rem; margin: 0 auto; padding: 0.75rem 0.75rem 5rem; }

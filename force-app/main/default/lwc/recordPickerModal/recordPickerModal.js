@@ -11,24 +11,25 @@ export default class RecordPickerModal extends LightningElement {
     @track candidates = [];
     searchTerm = '';
     isLoading = false;
+    hasSearched = false;
     debounceTimer;
 
     renderedCallback() {
-        if (this.open && this.candidates.length === 0 && !this.isLoading) {
-            this.runSearch('');
+        if (this.open && !this.hasSearched && !this.isLoading) {
+            this.runSearch(this.searchTerm || '');
         }
     }
 
     get dialogClass() {
-        return this.open ? 'slds-modal slds-fade-in-open' : 'slds-hide';
+        return `slds-modal slds-fade-in-open ${this.open ? '' : 'slds-hide'}`;
     }
 
     get backdropClass() {
-        return this.open ? 'slds-backdrop slds-backdrop_open' : 'slds-hide';
+        return `slds-backdrop ${this.open ? 'slds-backdrop_open' : ''}`;
     }
 
     handleSearchChange(event) {
-        this.searchTerm = event.detail?.value ?? event.target?.value ?? '';
+        this.searchTerm = event.target.value;
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
             this.runSearch(this.searchTerm);
@@ -40,6 +41,7 @@ export default class RecordPickerModal extends LightningElement {
             return;
         }
         this.isLoading = true;
+        this.hasSearched = true;
         try {
             this.candidates = await searchAttendeeCandidates({
                 visitId: this.visitId,
@@ -48,6 +50,8 @@ export default class RecordPickerModal extends LightningElement {
             });
         } catch (error) {
             this.candidates = [];
+            // eslint-disable-next-line no-console
+            console.error('Error searching attendees:', error);
         } finally {
             this.isLoading = false;
         }
@@ -68,6 +72,9 @@ export default class RecordPickerModal extends LightningElement {
     }
 
     handleClose() {
+        this.hasSearched = false;
+        this.candidates = [];
+        this.searchTerm = '';
         this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
     }
 }

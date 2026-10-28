@@ -1,0 +1,49 @@
+<template>
+    <article class="workflow-panel">
+        <h2 class="workflow-title">In-call product survey</h2>
+        <p class="workflow-help">Capture product sentiment while you are still with the customer.</p>
+        <template if:true={errorMessage}>
+            <p class="workflow-error" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading survey" size="small"></lightning-spinner>
+        </template>
+        <template if:false={isLoading}>
+            <lightning-combobox
+                label="Product"
+                value={productName}
+                options={productOptions}
+                onchange={handleProductChange}
+                disabled={disabled}
+                required
+            ></lightning-combobox>
+            <div class="sentiment-grid">
+                <lightning-combobox label="Efficacy" value={efficacy} options={sentimentOptions} onchange={handleEfficacy} disabled={disabled}></lightning-combobox>
+                <lightning-combobox label="Safety" value={safety} options={sentimentOptions} onchange={handleSafety} disabled={disabled}></lightning-combobox>
+                <lightning-combobox label="Indication" value={indication} options={sentimentOptions} onchange={handleIndication} disabled={disabled}></lightning-combobox>
+                <lightning-combobox label="Side effects" value={sideEffects} options={sentimentOptions} onchange={handleSideEffects} disabled={disabled}></lightning-combobox>
+                <lightning-combobox label="Usage" value={usage} options={sentimentOptions} onchange={handleUsage} disabled={disabled}></lightning-combobox>
+            </div>
+            <lightning-textarea
+                class="slds-m-top_small"
+                label="Notes"
+                value={notes}
+                onchange={handleNotes}
+                disabled={disabled}
+            ></lightning-textarea>
+            <div class="slds-m-top_small">
+                <lightning-button label="Save survey" variant="brand" onclick={handleSave} disabled={saveDisabled}></lightning-button>
+            </div>
+            <template if:true={hasRows}>
+                <ul class="workflow-list">
+                    <template for:each={rows} for:item="row">
+                        <li key={row.id}>
+                            <strong>{row.productName}</strong>
+                            <span>Efficacy {row.efficacy} · Safety {row.safety}</span>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </template>
+    </article>
+</template>

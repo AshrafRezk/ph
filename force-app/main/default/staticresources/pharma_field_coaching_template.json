@@ -1,0 +1,472 @@
+{
+  "version": "1.2",
+  "totalQuestions": 22,
+  "totalPoints": 132,
+  "questions": [
+    {
+      "id": "q1",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative makes the suitable feedback steps (Product rate, Competitors, Prescribers)?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 1
+    },
+    {
+      "id": "q2",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative plans each sales call based on last call?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 2
+    },
+    {
+      "id": "q3",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative has a realistic, action-oriented, specific objective for each call?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 3
+    },
+    {
+      "id": "q4",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative uses an opener that builds rapport and attracts customer attention?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 4
+    },
+    {
+      "id": "q5",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative aligns on specific relevant patient profile?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 5
+    },
+    {
+      "id": "q6",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative can identify the customer needs by asking appropriate questions?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 6
+    },
+    {
+      "id": "q7",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative understands how customer believes & thinks about his product & competitors?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 7
+    },
+    {
+      "id": "q8",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative aligns brand benefits related to customer needs?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 8
+    },
+    {
+      "id": "q9",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative presents relevant clinical evidence, tools & samples in appropriate manner?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 9
+    },
+    {
+      "id": "q10",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative handles successfully customer feedback positive & negative?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 10
+    },
+    {
+      "id": "q11",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative sells the company total offering and aligns with company policies?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 11
+    },
+    {
+      "id": "q12",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative can identify commitment actions and signals, know where to AFB?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 12
+    },
+    {
+      "id": "q13",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative knows how to AFB in a suitable manner?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 13
+    },
+    {
+      "id": "q14",
+      "section": "Selling Skills",
+      "respondent": "both",
+      "question": "Representative can analyze sales call effectively and set an action plan?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 14
+    },
+    {
+      "id": "q15",
+      "section": "Soft Skills",
+      "respondent": "both",
+      "question": "Communication: Eye contact / Voice / Fluency",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 15
+    },
+    {
+      "id": "q16",
+      "section": "Soft Skills",
+      "respondent": "both",
+      "question": "Representative makes a two-way communication and listens actively to customers?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 16
+    },
+    {
+      "id": "q17",
+      "section": "Soft Skills",
+      "respondent": "both",
+      "question": "Representative has good relations with customers (Physicians & Pharmacists)?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 17
+    },
+    {
+      "id": "q18",
+      "section": "Technical Skills",
+      "respondent": "both",
+      "question": "Time & Territory management during the day?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 18
+    },
+    {
+      "id": "q19",
+      "section": "Product Knowledge",
+      "respondent": "both",
+      "question": "Medical & Product knowledge?",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 19
+    },
+    {
+      "id": "q20",
+      "section": "Core Values",
+      "respondent": "manager",
+      "question": "Strengths & Recommendations",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 20,
+      "explanation": "Rate overall strengths demonstrated; capture details in Manager's comments."
+    },
+    {
+      "id": "q21",
+      "section": "Core Values",
+      "respondent": "manager",
+      "question": "Area of development",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 21,
+      "explanation": "Rate development priority / gap severity; capture the specific area in Manager's comments."
+    },
+    {
+      "id": "q22",
+      "section": "Core Values",
+      "respondent": "manager",
+      "question": "Next Developmental Skill",
+      "type": "scale",
+      "scaleMin": 1,
+      "scaleMax": 6,
+      "scaleMinLabel": "Never",
+      "scaleMaxLabel": "All the times",
+      "scalePoints": [
+        { "value": 1, "weight": 1, "label": "Never" },
+        { "value": 2, "weight": 2, "label": "Rarely" },
+        { "value": 3, "weight": 3, "label": "Sometimes" },
+        { "value": 4, "weight": 4, "label": "Often" },
+        { "value": 5, "weight": 5, "label": "Most of times" },
+        { "value": 6, "weight": 6, "label": "All the times" }
+      ],
+      "points": 6,
+      "sortOrder": 22,
+      "explanation": "Rate readiness/priority for the next skill; name the skill in Manager's comments."
+    }
+  ]
+}

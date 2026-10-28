@@ -5,6 +5,7 @@
             <title>Site Ping</title>
         </head>
         <body>
+            <c:PendingPaymentAlert />
             <p>Product Survey site is live.</p>
         </body>
     </html>

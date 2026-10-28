@@ -128,12 +128,30 @@ public with sharing class ClmAdminController {
         return rows;
     }
 
+    @AuraEnabled(cacheable=true)
+    public static Map<String, Object> getAdminData() {
+        return new Map<String, Object>();
+    }
+
+    public static Object createPresentationDraft(
+        String fileName,
+        String formatType,
+        String base64Data,
+        Integer pageCount
+    ) {
+        if (String.isBlank(fileName) || String.isBlank(base64Data)) {
+            return null;
+        }
+        return createPresentationDraft(fileName, formatType, base64Data, pageCount, null);
+    }
+
     @AuraEnabled
     public static UploadResult createPresentationDraft(
         String fileName,
         String formatType,
         String base64Data,
-        Integer pageCount
+        Integer pageCount,
+        String layoutJson
     ) {
         if (String.isBlank(fileName) || String.isBlank(base64Data)) {
             throw new AuraHandledException('File name and content are required.');
@@ -167,13 +185,89 @@ public with sharing class ClmAdminController {
         ];
 
         Integer resolvedPageCount = resolvePageCount(formatType, fileBlob, pageCount);
+        return completeDraft(
+            presentation,
+            version.ContentDocumentId,
+            version.Id,
+            fileName,
+            formatType,
+            resolvedPageCount,
+            parseLayoutJson(layoutJson)
+        );
+    }
 
-        presentation.Content_Document_Id__c = version.ContentDocumentId;
+    /**
+     * Large decks: the file goes straight to Salesforce Files (lightning-file-upload), so it never
+     * passes through an Apex request (about 4 MB) or the Apex heap. Only its id comes here.
+     */
+    @AuraEnabled
+    public static UploadResult createPresentationFromUpload(
+        Id contentDocumentId,
+        String fileName,
+        String formatType,
+        Integer pageCount,
+        String layoutJson
+    ) {
+        if (contentDocumentId == null) {
+            throw new AuraHandledException('Upload the presentation file first.');
+        }
+        List<ContentVersion> versions = [
+            SELECT Id, ContentDocumentId, Title, PathOnClient
+            FROM ContentVersion
+            WHERE ContentDocumentId = :contentDocumentId AND IsLatest = TRUE
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (versions.isEmpty()) {
+            throw new AuraHandledException('The uploaded file was not found. Upload it again.');
+        }
+        String resolvedName = String.isNotBlank(fileName)
+            ? fileName
+            : (String.isNotBlank(versions[0].PathOnClient) ? versions[0].PathOnClient : versions[0].Title);
+
+        CLM_Presentation__c presentation = new CLM_Presentation__c(
+            Name = resolvedName.left(80),
+            Status__c = 'Draft',
+            Format__c = String.isBlank(formatType) ? 'PDF' : formatType,
+            Player_Gesture__c = 'Tap Bottom',
+            Pinch_Zoom__c = 'Enabled',
+            Double_Tap_Zoom__c = 'Enabled'
+        );
+        insert as user presentation;
+
+        return completeDraft(
+            presentation,
+            versions[0].ContentDocumentId,
+            versions[0].Id,
+            resolvedName,
+            formatType,
+            pageCount != null && pageCount > 0 ? pageCount : 1,
+            parseLayoutJson(layoutJson)
+        );
+    }
+
+    private static UploadResult completeDraft(
+        CLM_Presentation__c presentation,
+        Id contentDocumentId,
+        Id contentVersionId,
+        String fileName,
+        String formatType,
+        Integer resolvedPageCount,
+        Map<String, Object> layout
+    ) {
+        List<String> sceneNames = layoutSceneNames(layout);
+        String htmlEntryPoint = layoutString(layout, 'entryPoint');
+        List<String> sceneEntries = layoutStringList(layout, 'entries');
+        if (!sceneNames.isEmpty()) {
+            resolvedPageCount = sceneNames.size();
+        }
+
+        presentation.Content_Document_Id__c = contentDocumentId;
         presentation.Slide_Count__c = resolvedPageCount;
         update as user presentation;
 
         ClmContentService.linkContentDocumentToPresentation(
-            version.ContentDocumentId,
+            contentDocumentId,
             presentation.Id
         );
 
@@ -188,14 +282,17 @@ public with sharing class ClmAdminController {
             presentation.Id,
             fileName,
             formatType,
-            resolvedPageCount
+            resolvedPageCount,
+            htmlEntryPoint,
+            sceneNames,
+            sceneEntries
         );
         sequences = getSequences(presentation.Id);
 
         UploadResult result = new UploadResult();
         result.presentationId = presentation.Id;
-        result.contentDocumentId = version.ContentDocumentId;
-        result.contentVersionId = version.Id;
+        result.contentDocumentId = contentDocumentId;
+        result.contentVersionId = contentVersionId;
         result.pageCount = resolvedPageCount;
         result.sequences = sequences;
         return result;
@@ -287,6 +384,13 @@ public with sharing class ClmAdminController {
         if (presentationId == null) {
             throw new AuraHandledException('Presentation Id is required.');
         }
+        CLM_Presentation__c presentation = [
+            SELECT Id, Format__c
+            FROM CLM_Presentation__c
+            WHERE Id = :presentationId
+            WITH USER_MODE
+            LIMIT 1
+        ];
         Integer count = pageCount != null && pageCount > 0 ? pageCount : 1;
         delete as user [
             SELECT Id
@@ -294,7 +398,15 @@ public with sharing class ClmAdminController {
             WHERE CLM_Presentation__c = :presentationId
             WITH USER_MODE
         ];
-        List<SequenceInput> sequences = buildDefaultSequences(presentationId, fileName, 'PDF', count);
+        List<SequenceInput> sequences = buildDefaultSequences(
+            presentationId,
+            fileName,
+            presentation.Format__c,
+            count,
+            null,
+            null,
+            null
+        );
         upsertSequences(presentationId, sequences);
         update as user new CLM_Presentation__c(
             Id = presentationId,
@@ -432,7 +544,7 @@ public with sharing class ClmAdminController {
     public static List<TerritoryNode> getTerritories() {
         List<TerritoryNode> nodes = new List<TerritoryNode>();
         Map<Id, Integer> childCounts = new Map<Id, Integer>();
-        String pharmaPrefix = TerritoryModuleCleanup.PHARMA_EXTERNAL_ID_PREFIX + '%';
+        String pharmaPrefix = 'TERR_%';
         for (AggregateResult agg : [
             SELECT ParentTerritory2Id parentId, COUNT(Id) childCount
             FROM Territory2
@@ -512,7 +624,7 @@ public with sharing class ClmAdminController {
         }
 
         List<TerritoryProductAlignment> results = new List<TerritoryProductAlignment>();
-        String pharmaPrefix = TerritoryModuleCleanup.PHARMA_EXTERNAL_ID_PREFIX + '%';
+        String pharmaPrefix = 'TERR_%';
         for (Territory2 territory : [
             SELECT Id
             FROM Territory2
@@ -721,23 +833,58 @@ public with sharing class ClmAdminController {
         }
     }
 
+    @AuraEnabled
+    public static void deletePresentation(Id presentationId) {
+        if (presentationId == null) {
+            throw new AuraHandledException('Presentation Id is required.');
+        }
+        delete as user [
+            SELECT Id
+            FROM CLM_Sequence__c
+            WHERE CLM_Presentation__c = :presentationId
+            WITH USER_MODE
+        ];
+        delete as user [
+            SELECT Id
+            FROM CLM_Presentation__c
+            WHERE Id = :presentationId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+    }
+
     private static List<SequenceInput> buildDefaultSequences(
         Id presentationId,
         String fileName,
         String formatType,
-        Integer count
+        Integer count,
+        String htmlEntryPoint,
+        List<String> sceneNames,
+        List<String> sceneEntries
     ) {
         List<SequenceInput> sequences = new List<SequenceInput>();
         List<CLM_Sequence__c> rows = new List<CLM_Sequence__c>();
-        for (Integer i = 1; i <= count; i++) {
+        Boolean isHtml = 'HTML'.equalsIgnoreCase(formatType) || 'ZIP'.equalsIgnoreCase(formatType);
+        String entry = String.isBlank(htmlEntryPoint)
+            ? (isHtml ? 'index.html' : null)
+            : htmlEntryPoint;
+        Integer total = sceneNames != null && !sceneNames.isEmpty()
+            ? sceneNames.size()
+            : (count != null && count > 0 ? count : 1);
+        for (Integer i = 1; i <= total; i++) {
+            String sceneName = sceneNames != null && sceneNames.size() >= i
+                ? sceneNames[i - 1]
+                : 'Slide ' + i;
             CLM_Sequence__c row = new CLM_Sequence__c(
                 CLM_Presentation__c = presentationId,
                 Sequence_Order__c = i,
-                Sequence_Name__c = 'Slide ' + i,
-                Name = 'Slide ' + i,
+                Sequence_Name__c = sceneName,
+                Name = sceneName,
                 File_Name__c = fileName,
                 Page_Number__c = i,
-                HTML_Entry_Point__c = formatType == 'HTML' || formatType == 'ZIP' ? 'index.html' : null
+                HTML_Entry_Point__c = sceneEntries != null && sceneEntries.size() >= i && String.isNotBlank(sceneEntries[i - 1])
+                    ? sceneEntries[i - 1]
+                    : entry
             );
             rows.add(row);
         }
@@ -755,6 +902,63 @@ public with sharing class ClmAdminController {
             sequences.add(input);
         }
         return sequences;
+    }
+
+    private static Map<String, Object> parseLayoutJson(String layoutJson) {
+        if (String.isBlank(layoutJson)) {
+            return new Map<String, Object>();
+        }
+        try {
+            Object parsed = JSON.deserializeUntyped(layoutJson);
+            if (parsed instanceof Map<String, Object>) {
+                return (Map<String, Object>) parsed;
+            }
+        } catch (Exception ex) {
+            return new Map<String, Object>();
+        }
+        return new Map<String, Object>();
+    }
+
+    private static String layoutString(Map<String, Object> layout, String key) {
+        if (layout == null || !layout.containsKey(key) || layout.get(key) == null) {
+            return null;
+        }
+        return String.valueOf(layout.get(key));
+    }
+
+    private static Integer layoutInteger(Map<String, Object> layout, String key) {
+        if (layout == null || !layout.containsKey(key) || layout.get(key) == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(String.valueOf(layout.get(key)));
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static List<String> layoutStringList(Map<String, Object> layout, String key) {
+        List<String> values = new List<String>();
+        if (layout == null || !(layout.get(key) instanceof List<Object>)) {
+            return values;
+        }
+        for (Object item : (List<Object>) layout.get(key)) {
+            values.add(item == null ? null : String.valueOf(item));
+        }
+        return values;
+    }
+
+    private static List<String> layoutSceneNames(Map<String, Object> layout) {
+        List<String> names = new List<String>();
+        if (layout == null || !(layout.get('scenes') instanceof List<Object>)) {
+            return names;
+        }
+        for (Object item : (List<Object>) layout.get('scenes')) {
+            if (item != null && String.isNotBlank(String.valueOf(item))) {
+                names.add(String.valueOf(item));
+            }
+        }
+        return names;
     }
 
     private static PresentationRow getPresentationRow(Id presentationId) {

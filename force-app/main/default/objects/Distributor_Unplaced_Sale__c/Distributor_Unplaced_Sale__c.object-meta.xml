@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Distributor sales rows the import could not place: the client has no brick and no CRM pharmacy. Kept so the Bricks Manager can show what was skipped. Written by DistributorWithdrawalQueueable.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>Unplaced Distributor Sale</label>
+    <nameField>
+        <displayFormat>UNP-{0000000}</displayFormat>
+        <label>Unplaced Sale</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Unplaced Distributor Sales</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>

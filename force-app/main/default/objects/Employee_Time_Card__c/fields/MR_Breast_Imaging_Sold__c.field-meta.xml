@@ -3,6 +3,7 @@
     <fullName>MR_Breast_Imaging_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Breast Imaging (Mammography) Sold</description>
+    <externalId>false</externalId>
     <label>Breast Imaging (Mammography) Sold</label>
     <precision>16</precision>
     <required>false</required>

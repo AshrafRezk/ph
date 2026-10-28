@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ConnectedApp xmlns="http://soap.sforce.com/2006/04/metadata">
+    <contactEmail>admin@pharma.eg</contactEmail>
+    <description>Pharma Field PWA — multi-org OAuth PKCE client. Must stay a Connected App (External Client Apps block other orgs). Lives in pharma-prod; Zeta cannot create Connected Apps after Spring ’26.</description>
+    <iconUrl>https://www.salesforceoffline.com/osr-app-icon.png</iconUrl>
+    <label>Pharma Field Offline</label>
+    <logoUrl>https://www.salesforceoffline.com/osr-app-icon.png</logoUrl>
+    <oauthConfig>
+        <callbackUrl>com.osr.offline://oauth/callback
+com.zetapharma.fieldpwa://oauth/callback
+https://www.salesforceoffline.com/oauth/callback
+https://salesforceoffline.com/oauth/callback
+https://osr-salesforce-offline.netlify.app/oauth/callback
+https://localhost:5173/oauth/callback
+http://localhost:5173/oauth/callback
+http://localhost:5174/oauth/callback</callbackUrl>
+        <consumerKey>3MVG9VTfpJmxg1yhMAed64vofJbw2qqT4QHXyh5zPQ7MbCy0np030Z9zzvTCzaS4oG6QXoDKD7O3OWCh17n96</consumerKey>
+        <isAdminApproved>false</isAdminApproved>
+        <isConsumerSecretOptional>true</isConsumerSecretOptional>
+        <isIntrospectAllTokens>false</isIntrospectAllTokens>
+        <isPkceRequired>true</isPkceRequired>
+        <isRefreshTokenRotationEnabled>false</isRefreshTokenRotationEnabled>
+        <isSecretRequiredForRefreshToken>false</isSecretRequiredForRefreshToken>
+        <scopes>Basic</scopes>
+        <scopes>Api</scopes>
+        <scopes>Web</scopes>
+        <scopes>Full</scopes>
+        <scopes>RefreshToken</scopes>
+    </oauthConfig>
+    <oauthPolicy>
+        <ipRelaxation>BYPASS</ipRelaxation>
+        <refreshTokenPolicy>infinite</refreshTokenPolicy>
+    </oauthPolicy>
+</ConnectedApp>

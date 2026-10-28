@@ -5,5 +5,7 @@
     <label>Promo Budget Line</label>
     <referenceTo>Promo_Budget_Line__c</referenceTo>
     <relationshipName>Pharma_Project_Budget_Lines</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

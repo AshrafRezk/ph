@@ -208,7 +208,7 @@ public with sharing class AccountVisitInsightsController {
         AND Assigned_To__c = :repUserId
         AND Start_Date__c >= :DateTime.newInstance(Date.today(), Time.newInstance(0, 0, 0, 0))
         AND Start_Date__c <= :DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0))
-        AND Status__c IN ('Draft', 'Scheduled', 'Rescheduled')
+        AND Status__c IN ('Draft', 'Submitted', 'Scheduled', 'Rescheduled')
       WITH USER_MODE
       ORDER BY Start_Date__c ASC
     ]) {

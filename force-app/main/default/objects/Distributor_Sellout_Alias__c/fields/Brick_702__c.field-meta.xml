@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_702__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>702 IMS brick whose region contains this distributor client's location. Set automatically from the brick regions in the Bricks Manager.</description>
+    <label>702 Brick</label>
+    <lookupFilter>
+        <active>true</active>
+        <errorMessage>Choose a 702 brick.</errorMessage>
+        <filterItems>
+            <field>Brick__c.Brick_Level__c</field>
+            <operation>equals</operation>
+            <value>702</value>
+        </filterItems>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Brick__c</referenceTo>
+    <relationshipLabel>Distributor Clients (702)</relationshipLabel>
+    <relationshipName>Sellout_Aliases_702</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

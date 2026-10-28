@@ -2,10 +2,10 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Coaching_Template__c</fullName>
     <deleteConstraint>Restrict</deleteConstraint>
+    <deprecated>false</deprecated>
     <label>Coaching Template</label>
     <referenceTo>Coaching_Template__c</referenceTo>
-    <relationshipLabel>Coaching Events</relationshipLabel>
-    <relationshipName>Coaching_Events</relationshipName>
+    <relationshipName>ZetaMRCoachEvents</relationshipName>
     <required>true</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>

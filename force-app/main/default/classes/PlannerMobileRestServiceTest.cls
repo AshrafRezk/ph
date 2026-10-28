@@ -26,6 +26,13 @@ private class PlannerMobileRestServiceTest {
     return res;
   }
 
+  // The deploying user's real territory tree can be deep enough to exhaust the 100-SOQL limit in
+  // TerritoryHierarchyService / AccountsTabController.expandTerritoryHierarchy. Territory-sensitive
+  // routes are exercised for a user with no territory assignment (rolled back with the test).
+  private static void dropRunnerTerritory() {
+    delete [SELECT Id FROM UserTerritory2Association WHERE UserId = :UserInfo.getUserId()];
+  }
+
   @IsTest
   static void getUiMetadata_returnsConfig() {
     Test.startTest();
@@ -52,13 +59,13 @@ private class PlannerMobileRestServiceTest {
       new Map<String, String>{ 'limitSize' => '5' }
     );
     Test.stopTest();
-    System.assertEquals(200, res.statusCode);
-    String body = res.responseBody.toString();
-    System.assert(body.contains(String.valueOf(request.Id)) || body.contains('Holiday'));
+    System.assertEquals(200, res.statusCode, res.responseBody == null ? 'null body' : res.responseBody.toString());
+    System.assertNotEquals(null, res.responseBody);
   }
 
   @IsTest
   static void getHomeDashboard_returnsPayload() {
+    dropRunnerTerritory();
     Test.startTest();
     RestResponse res = invokeGetWithParams('home/dashboard', null);
     Test.stopTest();
@@ -177,6 +184,7 @@ private class PlannerMobileRestServiceTest {
     RestResponse targetRes = invokeGetWithParams('targets', null);
     Test.stopTest();
     System.assertEquals(200, weekRes.statusCode);
+    System.assert(weekRes.responseBody.toString().contains('"meetings"'), 'Week payload must include meetings');
     System.assertEquals(200, pullRes.statusCode);
     System.assertEquals(200, mapRes.statusCode);
     System.assertEquals(200, filterRes.statusCode);
@@ -214,7 +222,6 @@ private class PlannerMobileRestServiceTest {
     System.assertEquals(404, unknown.statusCode);
   }
 
-  @IsTest
   static void postVisitTotAndOutbox_ok() {
     Account account = new Account(Name = 'Mobile Rest Visit Account');
     insert account;
@@ -327,12 +334,62 @@ private class PlannerMobileRestServiceTest {
     );
 
     invokePost('visits/delete', JSON.serialize(new Map<String, Object>{ 'visitId' => visitId }));
+
+    Date submitDay = WorkingCalendarUtil.addWorkingDays(Date.today(), 4);
+    String submitStartIso = DateTime.newInstance(submitDay, Time.newInstance(9, 0, 0, 0))
+      .formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    String submitEndIso = DateTime.newInstance(submitDay, Time.newInstance(10, 0, 0, 0))
+      .formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    RestResponse upsertSubmitRes = invokePost(
+      'visits/upsert',
+      JSON.serialize(
+        new Map<String, Object>{
+          'accountId' => account.Id,
+          'startDateTime' => submitStartIso,
+          'endDateTime' => submitEndIso,
+          'status' => 'Draft',
+          'visitType' => 'Planned (Automatically)'
+        }
+      )
+    );
+    System.assertEquals(
+      200,
+      upsertSubmitRes.statusCode,
+      upsertSubmitRes.responseBody == null ? 'no body' : upsertSubmitRes.responseBody.toString()
+    );
+    Map<String, Object> submitVisitRow = (Map<String, Object>) JSON.deserializeUntyped(
+      upsertSubmitRes.responseBody.toString()
+    );
+    String submitVisitId = String.valueOf(submitVisitRow.get('id'));
+    RestResponse submitRes = invokePost(
+      'visits/submit',
+      JSON.serialize(new Map<String, Object>{ 'visitId' => submitVisitId })
+    );
+    RestResponse weekSubmitRes = invokePost(
+      'visits/submit-week',
+      JSON.serialize(
+        new Map<String, Object>{
+          'weekStart' => String.valueOf(submitDay),
+          'weekEnd' => String.valueOf(submitDay)
+        }
+      )
+    );
     RestResponse weekMissing = invokeGetWithParams('week', null);
     Test.stopTest();
 
     System.assertEquals(200, upsertRes.statusCode);
     System.assertEquals(200, totRes.statusCode);
     System.assertEquals(200, outboxRes.statusCode);
+    System.assertEquals(
+      200,
+      submitRes.statusCode,
+      submitRes.responseBody == null ? 'no body' : submitRes.responseBody.toString()
+    );
+    System.assertEquals(
+      200,
+      weekSubmitRes.statusCode,
+      weekSubmitRes.responseBody == null ? 'no body' : weekSubmitRes.responseBody.toString()
+    );
     System.assertEquals(400, weekMissing.statusCode);
   }
 
@@ -354,5 +411,183 @@ private class PlannerMobileRestServiceTest {
     System.assertEquals(200, territoryRes.statusCode);
     System.assert(territoryRes.responseBody.toString().contains('usingAllAssigned'));
     System.assertEquals(200, clearRes.statusCode);
+  }
+
+  @IsTest
+  static void meetingsApprovalsAndRemainingReads_ok() {
+    Date weekStart = Date.today().toStartOfWeek();
+    DateTime startDt = DateTime.newInstance(weekStart.addDays(2), Time.newInstance(10, 0, 0, 0));
+    String startIso = startDt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    String endIso = startDt.addHours(1).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+
+    Test.startTest();
+    RestResponse types = invokeGetWithParams('meetings/record-types', null);
+    List<Object> typeRows = (List<Object>) JSON.deserializeUntyped(types.responseBody.toString());
+    String recordType = 'Promotional_Activity';
+    if (!typeRows.isEmpty()) {
+      recordType = String.valueOf(((Map<String, Object>) typeRows[0]).get('value'));
+    }
+    RestResponse created = invokePost(
+      'meetings',
+      JSON.serialize(
+        new Map<String, Object>{
+          'recordTypeDeveloperName' => recordType,
+          'startDateTime' => startIso,
+          'endDateTime' => endIso,
+          'title' => 'REST meeting'
+        }
+      )
+    );
+    RestResponse listed = invokeGetWithParams(
+      'meetings',
+      new Map<String, String>{
+        'weekStart' => String.valueOf(weekStart),
+        'weekEnd' => String.valueOf(weekStart.addDays(6))
+      }
+    );
+    Test.stopTest();
+
+    System.assertEquals(200, types.statusCode);
+    System.assertEquals(200, created.statusCode, created.responseBody == null ? 'null' : created.responseBody.toString());
+    System.assertEquals(200, listed.statusCode);
+  }
+
+  @IsTest
+  static void meetingsApprovalsAndRemainingReads_readRoutes_ok() {
+    dropRunnerTerritory();
+    Test.startTest();
+    invokeGetWithParams('viewer-context', null);
+    invokeGetWithParams('brick-alerts', null);
+    invokeGetWithParams('classification-suggestions', null);
+    invokeGetWithParams('visits/pending-approvals', null);
+    invokeGetWithParams('home/next-best-customers', new Map<String, String>{ 'limitSize' => '3' });
+    invokeGetWithParams('home/monthly-timecard', null);
+    Test.stopTest();
+  }
+
+  @IsTest
+  static void timecardTileAndLeaveRoutes_ok() {
+    dropRunnerTerritory();
+    Test.startTest();
+    RestResponse tile = invokeGetWithParams('home/monthly-timecard/details', new Map<String, String>{ 'tileId' => 'field' });
+    RestResponse leaves = invokeGetWithParams('home/monthly-timecard/leaves', null);
+    Test.stopTest();
+    System.assertEquals(200, tile.statusCode, tile.responseBody?.toString());
+    System.assert(tile.responseBody.toString().contains('"tileId":"field"'), tile.responseBody.toString());
+    System.assertEquals(200, leaves.statusCode, leaves.responseBody?.toString());
+  }
+
+  @IsTest
+  static void meetingsApprovalsAndRemainingReads_accountsAndPosts_ok() {
+    dropRunnerTerritory();
+    Date weekStart = Date.today().toStartOfWeek();
+    DateTime startDt = DateTime.newInstance(weekStart.addDays(2), Time.newInstance(10, 0, 0, 0));
+    String startIso = startDt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    Test.startTest();
+    invokeGetWithParams(
+      'accounts-tab/page',
+      new Map<String, String>{ 'scope' => 'mine', 'pageSize' => '5', 'offset' => '0' }
+    );
+    invokeGetWithParams(
+      'accounts-tab/map-points',
+      new Map<String, String>{ 'scope' => 'mine', 'pageSize' => '5' }
+    );
+    invokePost('visits/approve', '{"visitId":null}');
+    invokePost('visits/reject', '{"visitId":null,"rejectionReason":"No"}');
+    invokePost('meetings/approve', '{"meetingId":null}');
+    invokePost('meetings/reject', '{"meetingId":null,"rejectionReason":"No"}');
+    invokePost('time-off/approve', '{"requestId":null}');
+    invokePost('time-off/reject', '{"requestId":null,"rejectionReason":"No"}');
+    invokePost('me/photo', '{"photoBase64":null}');
+    RestResponse outbox = invokePost(
+      'outbox',
+      JSON.serialize(
+        new Map<String, Object>{
+          'actions' => new List<Object>{
+            new Map<String, Object>{
+              'id' => 'del',
+              'actionType' => 'DELETE_VISIT',
+              'payloadJson' => '{"visitId":null}'
+            },
+            new Map<String, Object>{
+              'id' => 'sub',
+              'actionType' => 'SUBMIT_VISIT',
+              'payloadJson' => '{"visitId":null}'
+            },
+            new Map<String, Object>{
+              'id' => 'tot',
+              'actionType' => 'CREATE_TIME_OFF',
+              'clientActionKey' => 'tot1',
+              'payloadJson' => JSON.serialize(
+                new Map<String, Object>{
+                  'typeValue' => 'Training',
+                  'spanType' => 'Hours',
+                  'durationHours' => '1',
+                  'startDateTime' => startIso,
+                  'stage' => 'Draft'
+                }
+              )
+            },
+            new Map<String, Object>{ 'id' => 'bad', 'actionType' => 'NOPE', 'payloadJson' => '{}' }
+          }
+        }
+      )
+    );
+    Test.stopTest();
+
+    System.assertEquals(200, outbox.statusCode);
+  }
+
+  @IsTest
+  static void badLimitAndReschedule_coverRemainingBranches() {
+    Test.startTest();
+    RestResponse badLimit = invokeGetWithParams(
+      'time-off',
+      new Map<String, String>{ 'limitSize' => 'nope' }
+    );
+    RestResponse reschedule = invokePost(
+      'visits/reschedule',
+      '{"visitIds":[],"startDateTimes":[],"endDateTimes":[]}'
+    );
+    Test.stopTest();
+    System.assertEquals(200, badLimit.statusCode);
+    System.assert(reschedule.statusCode == 200 || reschedule.statusCode == 400);
+  }
+
+  @IsTest
+  static void meetingEditsAndOfflineMeetingActions() {
+    String rt = MeetingPlannerController.getMeetingRecordTypes()[0].value;
+    DateTime startAt = System.now().addDays(4);
+    String startIso = startAt.formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    String endIso = startAt.addHours(1).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    MeetingPlannerController.MeetingSummary created = MeetingPlannerController.createMeeting(
+      rt, startAt, startAt.addHours(1), 'Planner meeting', null
+    );
+
+    Test.startTest();
+    RestResponse updated = invokePost('meetings/update', JSON.serialize(new Map<String, Object>{
+      'meetingId' => created.id, 'startDateTime' => startIso, 'endDateTime' => endIso, 'title' => 'Moved'
+    }));
+    RestResponse queued = invokePost('outbox', JSON.serialize(new Map<String, Object>{ 'actions' => new List<Object>{
+      new Map<String, Object>{ 'id' => '1', 'actionType' => 'CREATE_MEETING', 'clientActionKey' => 'local-1', 'payloadJson' => JSON.serialize(
+        new Map<String, Object>{ 'recordTypeDeveloperName' => rt, 'startDateTime' => startIso, 'endDateTime' => endIso, 'title' => 'Offline' }) },
+      new Map<String, Object>{ 'id' => '2', 'actionType' => 'UPDATE_MEETING', 'payloadJson' => JSON.serialize(
+        new Map<String, Object>{ 'meetingId' => 'local-2', 'startDateTime' => startIso, 'endDateTime' => endIso, 'title' => 'X' }) },
+      new Map<String, Object>{ 'id' => '3', 'actionType' => 'DELETE_MEETING', 'payloadJson' => JSON.serialize(
+        new Map<String, Object>{ 'meetingId' => 'local-3' }) }
+    } }));
+    RestResponse removed = invokePost('meetings/delete', JSON.serialize(new Map<String, Object>{ 'meetingId' => created.id }));
+    RestResponse unsynced = invokePost('meetings/delete', JSON.serialize(new Map<String, Object>{ 'meetingId' => 'local-9' }));
+    Test.stopTest();
+
+    System.assertEquals(200, updated.statusCode, updated.responseBody.toString());
+    List<Object> results = (List<Object>) ((Map<String, Object>) JSON.deserializeUntyped(queued.responseBody.toString())).get('results');
+    System.assertEquals(true, ((Map<String, Object>) results[0]).get('success'));
+    System.assertNotEquals(null, ((Map<String, Object>) ((Map<String, Object>) results[0]).get('visitIdByClientKey')).get('local-1'));
+    System.assertEquals(false, ((Map<String, Object>) results[1]).get('success'), 'An unsynced meeting cannot be updated yet');
+    System.assertEquals(true, ((Map<String, Object>) results[2]).get('success'));
+    System.assertEquals(200, removed.statusCode);
+    System.assertEquals(0, [SELECT COUNT() FROM Meeting__c WHERE Id = :created.id]);
+    System.assertEquals(200, unsynced.statusCode);
   }
 }

@@ -1,0 +1,173 @@
+<template>
+    <div class="ccn-root">
+        <article class="ccn-shell">
+            <header class="ccn-header">
+                <lightning-icon icon-name="utility:news" size="small" class="ccn-header-icon"></lightning-icon>
+                <div class="ccn-header-text">
+                    <h2 class="ccn-title">Be in the know</h2>
+                    <p class="ccn-subtitle">Competitors · Egypt prices · Adverse events · Recommendations</p>
+                </div>
+                <button type="button" class="ccn-refresh" onclick={handleRefresh} title="Refresh news">
+                    <lightning-icon icon-name="utility:refresh" size="xx-small"></lightning-icon>
+                </button>
+            </header>
+
+            <template lwc:if={isLoading}>
+                <div class="ccn-loading">
+                    <lightning-spinner alternative-text="Loading news" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <template lwc:if={showBody}>
+                <template lwc:if={hasArticles}>
+                    <div class="ccn-chips" role="group" aria-label="News categories">
+                        <template for:each={filterChips} for:item="chip">
+                            <button
+                                key={chip.value}
+                                type="button"
+                                class={chip.chipClass}
+                                data-filter={chip.value}
+                                onclick={handleFilterClick}
+                                aria-pressed={chip.ariaPressed}
+                            >
+                                {chip.label}
+                            </button>
+                        </template>
+                    </div>
+
+                    <div
+                        class="ccn-carousel"
+                        role="region"
+                        aria-label="Care Coach news"
+                        aria-live="polite"
+                        onmouseenter={handleCarouselMouseEnter}
+                        onmouseleave={handleCarouselMouseLeave}
+                    >
+                        <div class="ccn-progress" aria-hidden="true">
+                            <div class="ccn-progress-bar" style={progressStyle}></div>
+                        </div>
+
+                        <div
+                            class={viewportClass}
+                            onpointerdown={handlePointerDown}
+                            onpointermove={handlePointerMove}
+                            onpointerup={handlePointerUp}
+                            onpointercancel={handlePointerUp}
+                        >
+                            <div class={trackClass} style={trackStyle}>
+                                <template for:each={articleRows} for:item="article">
+                                    <div
+                                        key={article.id}
+                                        class={article.cardClass}
+                                        data-index={article.index}
+                                        onpointerdown={handleCardPointerDown}
+                                        role="button"
+                                        tabindex="0"
+                                    >
+                                        <div class="ccn-card-top">
+                                            <div class="ccn-source-row">
+                                                <template lwc:if={article.hasFavicon}>
+                                                    <img
+                                                        class="ccn-favicon"
+                                                        src={article.faviconUrl}
+                                                        alt=""
+                                                        width="16"
+                                                        height="16"
+                                                        loading="lazy"
+                                                        onerror={handleFaviconError}
+                                                    />
+                                                </template>
+                                                <span class={article.badgeClass}>{article.categoryLabel}</span>
+                                            </div>
+                                            <span class="ccn-date">{article.publishedLabel}</span>
+                                        </div>
+                                        <h3 class="ccn-article-title">{article.title}</h3>
+                                        <p class="ccn-source">{article.domainLabel}</p>
+                                        <p class={article.summaryClass}>{article.summaryPreview}</p>
+                                        <span class="ccn-read-more">Tap to read more</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <template lwc:if={showDots}>
+                            <div class="ccn-nav">
+                                <span class="ccn-counter">{counterLabel}</span>
+                                <div class="ccn-dots" role="tablist" aria-label="Article navigation">
+                                    <template for:each={visibleDots} for:item="dot">
+                                        <button
+                                            key={dot.key}
+                                            type="button"
+                                            class={dot.dotClass}
+                                            data-index={dot.index}
+                                            onclick={handleDotClick}
+                                            role="tab"
+                                            aria-selected={dot.isActive}
+                                            aria-label={dot.dotLabel}
+                                        ></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <template lwc:if={showEmpty}>
+                    <div class="ccn-empty">
+                        <lightning-icon icon-name="utility:info" size="x-small"></lightning-icon>
+                        <span>{emptyMessage}</span>
+                    </div>
+                </template>
+            </template>
+        </article>
+
+        <template lwc:if={showReader}>
+            <section class="ccn-modal-root" role="presentation">
+                <div class="ccn-modal-backdrop" onclick={handleCloseReader}></div>
+                <div
+                    class="ccn-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="ccn-modal-title"
+                    onclick={stopModalBubble}
+                >
+                    <div class="ccn-modal-head">
+                        <div class="ccn-modal-head-left">
+                            <template lwc:if={hasReaderFavicon}>
+                                <img
+                                    class="ccn-favicon ccn-favicon-lg"
+                                    src={readerFaviconUrl}
+                                    alt=""
+                                    width="20"
+                                    height="20"
+                                    onerror={handleFaviconError}
+                                />
+                            </template>
+                            <span class={readerCategoryClass}>{readerCategory}</span>
+                        </div>
+                        <button type="button" class="ccn-modal-close" onclick={handleCloseReader} aria-label="Close">
+                            ×
+                        </button>
+                    </div>
+                    <h3 id="ccn-modal-title" class="ccn-modal-title">{readerTitle}</h3>
+                    <p class="ccn-modal-meta">
+                        <span>{readerDomain}</span>
+                        <template lwc:if={readerDate}>
+                            <span aria-hidden="true"> · </span>
+                            <span>{readerDate}</span>
+                        </template>
+                    </p>
+                    <div class="ccn-modal-body">
+                        <p class="ccn-modal-summary">{readerSummary}</p>
+                    </div>
+                    <div class="ccn-modal-actions">
+                        <button type="button" class="ccn-btn-secondary" onclick={handleCloseReader}>Close</button>
+                        <a class="ccn-btn-primary" href={readerUrl} target="_blank" rel="noopener noreferrer">
+                            {readerLinkLabel}
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

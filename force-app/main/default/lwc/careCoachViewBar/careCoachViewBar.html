@@ -1,0 +1,60 @@
+<template>
+    <header class={barClass}>
+        <div class="bar-left">
+            <div class="bar-icon">
+                <lightning-icon icon-name={iconName} size="small" variant="inverse"></lightning-icon>
+            </div>
+            <div class="bar-titles">
+                <h1 class="bar-title">{title}</h1>
+                <template lwc:if={subtitle}>
+                    <p class="bar-subtitle">{subtitle}</p>
+                </template>
+            </div>
+        </div>
+        <div class="bar-right">
+            <slot name="actions"></slot>
+            <template lwc:if={showCoachPicker}>
+                <lightning-combobox
+                    class="bar-coach"
+                    variant="label-hidden"
+                    label="Care coach"
+                    placeholder="All care coaches"
+                    value={coachId}
+                    options={coachOptions}
+                    onchange={handleCoach}
+                ></lightning-combobox>
+            </template>
+            <template lwc:if={showScopeToggle}>
+                <div class="cc-segmented" role="group" aria-label="Patient scope">
+                    <button type="button" class={mineClass} data-scope="mine" onclick={handleScope}>My patients</button>
+                    <button type="button" class={allClass} data-scope="all" onclick={handleScope}>All coaches</button>
+                </div>
+            </template>
+            <template lwc:if={canPreview}>
+                <div class="cc-segmented view-toggle" role="group" aria-label="Data view">
+                    <button type="button" class={pspClass} data-mode="psp" onclick={handleMode} title="Full patient details (PSP team)">
+                        PSP view
+                    </button>
+                    <button type="button" class={companyClass} data-mode="company" onclick={handleMode} title="Preview what the pharma company sees">
+                        Company view
+                    </button>
+                </div>
+            </template>
+            <template lwc:if={isCompanyViewer}>
+                <span class="cc-pill cc-pill_accent">
+                    <lightning-icon icon-name="utility:lock" size="xx-small" class="slds-m-right_xx-small"></lightning-icon>
+                    De-identified company view
+                </span>
+            </template>
+        </div>
+    </header>
+    <template lwc:if={isMasked}>
+        <div class="cc-banner-masked slds-m-top_small">
+            <lightning-icon icon-name="utility:hide" size="x-small"></lightning-icon>
+            <span>
+                Pharma company view: patients are shown by initials, gender and age only. Names, phone numbers,
+                emails and addresses are hidden; phone numbers inside notes and transcripts are redacted.
+            </span>
+        </div>
+    </template>
+</template>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_148__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>148 commercial organogram brick. Parent of the 702 IMS brick. Required on New Account create.</description>
+    <inlineHelpText>148 commercial brick from the Zeta organogram. Controls which 702 neighborhoods can be selected.</inlineHelpText>
+    <label>148 Brick</label>
+    <lookupFilter>
+        <active>true</active>
+        <booleanFilter>1 AND 2</booleanFilter>
+        <errorMessage>Select an active 148 commercial brick.</errorMessage>
+        <filterItems>
+            <field>Brick__c.Is_Active__c</field>
+            <operation>equals</operation>
+            <value>True</value>
+        </filterItems>
+        <filterItems>
+            <field>Brick__c.Brick_Level__c</field>
+            <operation>equals</operation>
+            <value>148</value>
+        </filterItems>
+        <infoMessage>148 commercial bricks from the Zeta organogram.</infoMessage>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Brick__c</referenceTo>
+    <relationshipLabel>Accounts (148 Brick)</relationshipLabel>
+    <relationshipName>Accounts_Brick_148</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Lookup</type>
+</CustomField>

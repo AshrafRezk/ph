@@ -158,6 +158,41 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
+        <field>Employee_Time_Card__c.Field_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Leave_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Potential_Visits_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Completed_Meetings_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Potential_Meetings_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Coached_Days_Total__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Employee_Time_Card__c.Coaching_Days_Delivered__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
         <field>Employee_Time_Card__c.Target_Customers__c</field>
         <readable>true</readable>
     </fieldPermissions>

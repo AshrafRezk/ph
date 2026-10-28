@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Fixes dry-run permission errors for territory switching and Class Engine.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Field Territory and Class Access</label>
+    <classAccesses>
+        <apexClass>TerritorySwitcherController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritoryContextService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TerritoryHierarchyService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ClassEngineController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ClassEngineService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TargetGovernanceService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>OutOfTargetQueueService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <tabSettings>
+        <tab>Class_Engine</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+</PermissionSet>

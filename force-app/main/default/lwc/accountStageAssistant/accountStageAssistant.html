@@ -9,76 +9,153 @@
         </template>
 
         <template if:true={view}>
-            <div class="slds-path">
-                <div class="slds-grid slds-path__track">
-                    <div class="slds-grid slds-path__scroller-container">
-                        <div class="slds-path__scroller">
-                            <div class="slds-path__scroller_inner">
-                                <ul class="slds-path__nav" role="listbox" aria-label="Account validation stages">
-                                    <template for:each={steps} for:item="step">
-                                        <li key={step.apiName} class={step.itemClass} role="presentation">
-                                            <a
-                                                aria-selected={step.current}
-                                                class="slds-path__link"
-                                                href="javascript:void(0);"
-                                                role="option"
-                                                tabindex="-1"
-                                            >
-                                                <span class="slds-path__stage">
-                                                    <lightning-icon
-                                                        icon-name="utility:check"
-                                                        size="xx-small"
-                                                        alternative-text=""
-                                                    ></lightning-icon>
-                                                </span>
-                                                <span class="slds-path__title">{step.label}</span>
-                                            </a>
-                                        </li>
-                                    </template>
-                                </ul>
+            <div class="stage-row">
+                <div class="stage-path">
+                    <div class="slds-path">
+                        <div class="slds-grid slds-path__track">
+                            <div class="slds-grid slds-path__scroller-container">
+                                <div class="slds-path__scroller">
+                                    <div class="slds-path__scroller_inner">
+                                        <ul class="slds-path__nav" role="listbox" aria-label="Account validation stages">
+                                            <template for:each={steps} for:item="step">
+                                                <li key={step.apiName} class={step.itemClass} role="presentation">
+                                                    <a
+                                                        aria-selected={step.current}
+                                                        class="slds-path__link"
+                                                        href="javascript:void(0);"
+                                                        role="option"
+                                                        tabindex="-1"
+                                                    >
+                                                        <span class="slds-path__stage">
+                                                            <lightning-icon
+                                                                icon-name="utility:check"
+                                                                size="xx-small"
+                                                                alternative-text=""
+                                                            ></lightning-icon>
+                                                        </span>
+                                                        <span class="slds-path__title">{step.label}</span>
+                                                    </a>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <template if:true={waitingOnLabel}>
+                        <p class="stage-waiting">{waitingOnLabel}</p>
+                    </template>
+                </div>
+
+                <div class="stage-actions">
+                    <lightning-button
+                        variant="brand"
+                        label={advanceLabel}
+                        disabled={advanceDisabled}
+                        onclick={handleAdvance}
+                    ></lightning-button>
+                    <template if:true={hasSkipTargets}>
+                        <template for:each={skipTargets} for:item="skip">
+                            <lightning-button
+                                key={skip.apiName}
+                                variant="neutral"
+                                label={skip.buttonLabel}
+                                disabled={isSaving}
+                                data-stage={skip.apiName}
+                                onclick={handleSkipTo}
+                            ></lightning-button>
+                        </template>
+                    </template>
+                    <div class="stage-more">
+                        <button
+                            type="button"
+                            class="stage-more-btn"
+                            aria-haspopup="menu"
+                            aria-expanded={showMoreMenu}
+                            onclick={handleToggleMore}
+                        >
+                            More
+                        </button>
+                        <template if:true={showMoreMenu}>
+                            <div class="stage-more-menu" role="menu">
+                                <button
+                                    type="button"
+                                    class="stage-more-item"
+                                    role="menuitem"
+                                    disabled={sendBackActionDisabled}
+                                    onclick={openSendBack}
+                                >
+                                    {sendBackLabel}
+                                </button>
+                                <template if:true={canMarkInactive}>
+                                    <button
+                                        type="button"
+                                        class="stage-more-item"
+                                        role="menuitem"
+                                        disabled={markInactiveDisabled}
+                                        onclick={openInactive}
+                                    >
+                                        Mark inactive
+                                    </button>
+                                </template>
+                                <template if:true={canMarkDuplicate}>
+                                    <button
+                                        type="button"
+                                        class="stage-more-item"
+                                        role="menuitem"
+                                        disabled={markDuplicateDisabled}
+                                        onclick={openDuplicate}
+                                    >
+                                        Mark duplicate
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <template if:true={showHistoryButton}>
+                        <div class="stage-history-wrap">
+                            <button
+                                type="button"
+                                class="stage-more-btn"
+                                aria-expanded={showHistory}
+                                onclick={handleToggleHistory}
+                            >
+                                History
+                            </button>
+                            <template if:true={showHistory}>
+                                <div class="stage-history-panel" role="dialog" aria-label="Stage history">
+                                    <p class="stage-history-title">Stage history</p>
+                                    <template if:true={lastMessage}>
+                                        <p class="stage-note">Send-back note · {lastMessage}</p>
+                                    </template>
+                                    <ul class="stage-history">
+                                        <template for:each={historyEntries} for:item="entry">
+                                            <li key={entry.key}>
+                                                <div class="stage-history-top">
+                                                    <span class="stage-history-action">{entry.action}</span>
+                                                    <template if:true={entry.hasWhen}>
+                                                        <span class="stage-history-when">{entry.when}</span>
+                                                    </template>
+                                                </div>
+                                                <template if:true={entry.hasMove}>
+                                                    <div class="stage-history-move">{entry.move}</div>
+                                                </template>
+                                                <template if:true={entry.hasWho}>
+                                                    <div class="stage-history-who">{entry.who}</div>
+                                                </template>
+                                                <template if:true={entry.hasNote}>
+                                                    <div class="stage-history-note">{entry.note}</div>
+                                                </template>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
                 </div>
             </div>
-
-            <div class="stage-actions">
-                <lightning-button
-                    variant="brand"
-                    label={advanceLabel}
-                    disabled={advanceDisabled}
-                    onclick={handleAdvance}
-                    class="slds-m-right_x-small"
-                ></lightning-button>
-                <lightning-button
-                    label={sendBackLabel}
-                    disabled={sendBackActionDisabled}
-                    onclick={openSendBack}
-                    class="slds-m-right_x-small"
-                ></lightning-button>
-                <lightning-button
-                    label="Mark inactive"
-                    disabled={markInactiveDisabled}
-                    onclick={openInactive}
-                    class="slds-m-right_x-small"
-                ></lightning-button>
-                <lightning-button
-                    label="Mark duplicate"
-                    disabled={markDuplicateDisabled}
-                    onclick={openDuplicate}
-                ></lightning-button>
-            </div>
-
-            <template if:true={lastMessage}>
-                <p class="stage-note">Last send-back: {lastMessage}</p>
-            </template>
-            <template if:true={hasHistory}>
-                <ul class="stage-history">
-                    <template for:each={historyLines} for:item="entry">
-                        <li key={entry.key}>{entry.line}</li>
-                    </template>
-                </ul>
-            </template>
         </template>
     </div>
 

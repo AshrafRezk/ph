@@ -1,13 +1,17 @@
 import { LightningElement, track } from 'lwc';
-import getTeamKpis from '@salesforce/apex/ManagementKpiController.getTeamKpis';
-import getTeamClmDrillDown from '@salesforce/apex/ManagementKpiController.getTeamClmDrillDown';
-import getProductPerformanceDrillDown from '@salesforce/apex/ManagementKpiController.getProductPerformanceDrillDown';
+import { NavigationMixin } from 'lightning/navigation';
+import getBusinessUnitOptions from '@salesforce/apex/TerritoryHierarchyService.getBusinessUnitOptions';
 import getCoachingTrendDrillDown from '@salesforce/apex/ManagementKpiController.getCoachingTrendDrillDown';
-import getWorkforceRoster from '@salesforce/apex/ManagementKpiController.getWorkforceRoster';
+import getDistrictOptions from '@salesforce/apex/TerritoryHierarchyService.getDistrictOptions';
 import getExecutiveBuProductPerformance from '@salesforce/apex/ManagementKpiController.getExecutiveBuProductPerformance';
-import getBusinessUnitOptions from '@salesforce/apex/ManagementKpiController.getBusinessUnitOptions';
-import getLineOptions from '@salesforce/apex/ManagementKpiController.getLineOptions';
-import getDistrictOptions from '@salesforce/apex/ManagementKpiController.getDistrictOptions';
+import getLineOptions from '@salesforce/apex/TerritoryHierarchyService.getLineOptions';
+import getProductPerformanceDrillDown from '@salesforce/apex/ManagementKpiController.getProductPerformanceDrillDown';
+import getTeamClmDrillDown from '@salesforce/apex/ManagementKpiController.getTeamClmDrillDown';
+import getTeamKpis from '@salesforce/apex/ManagementKpiController.getTeamKpis';
+import getKpiRoleOptions from '@salesforce/apex/ManagementKpiController.getKpiRoleOptions';
+import getTargetsForRole from '@salesforce/apex/ManagementKpiController.getTargetsForRole';
+import getRepAccountKpiDrillDown from '@salesforce/apex/ManagementKpiController.getRepAccountKpiDrillDown';
+import getWorkforceRoster from '@salesforce/apex/ManagementKpiController.getWorkforceRoster';
 import publishHomeOfficeMessage from '@salesforce/apex/HomeOfficeMessageController.publishMessage';
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 22;
@@ -214,7 +218,31 @@ function mapMessageRow(message, index) {
 
 const KPI_MODAL_CONFIG = {
     coverage: { label: 'Coverage %', summaryField: 'coveragePercent', repField: 'coveragePercent', format: 'pct' },
-    visitRate: { label: 'Call Rate', summaryField: 'actualVisitRate', repField: 'actualVisitRate', format: 'pct' },
+    rightFrequency: {
+        label: 'Right Frequency',
+        summaryField: 'rightFrequencyPercent',
+        repField: 'rcfPercent',
+        format: 'pct'
+    },
+    visitRate: { label: 'Right Frequency', summaryField: 'rightFrequencyPercent', repField: 'rcfPercent', format: 'pct' },
+    salesProxy: {
+        label: 'Visit Plan Achievement',
+        summaryField: 'salesAchievementPercent',
+        repField: 'salesAchievementPercent',
+        format: 'pct'
+    },
+    fieldDays: {
+        label: 'Field Working Days',
+        summaryField: 'fieldWorkingDaysPercent',
+        repField: 'fieldWorkingDaysPercent',
+        format: 'pct'
+    },
+    quiz: {
+        label: 'Knowledge (Quiz)',
+        summaryField: 'quizAchievementPercent',
+        repField: 'quizAchievementPercent',
+        format: 'pct'
+    },
     amRate: { label: 'AM Visit Rate', summaryField: 'amVisitRate', repField: null, format: 'pct' },
     pmRate: { label: 'PM Visit Rate', summaryField: 'pmVisitRate', repField: null, format: 'pct' },
     single: { label: 'Single Visits', summaryField: 'singleVisitRate', repField: 'singleVisits', format: 'count' },
@@ -224,14 +252,103 @@ const KPI_MODAL_CONFIG = {
     coached: { label: 'Reps Coached', summaryField: null, repField: 'coachingDays', format: 'num' }
 };
 
-export default class ManagementTeamKpiDashboard extends LightningElement {
+function frameworkStatusClass(actual, target) {
+    if (actual == null || target == null) {
+        return 'status-warn';
+    }
+    const a = pctNumber(actual);
+    const t = pctNumber(target);
+    if (a >= t) {
+        return 'status-good';
+    }
+    return 'status-low';
+}
+
+function frameworkStatusLabel(actual, target) {
+    if (actual == null || target == null) {
+        return 'Pending';
+    }
+    return pctNumber(actual) >= pctNumber(target) ? 'On Target' : 'Below Target';
+}
+
+const EXEC_KPI_VISUALS = {
+    salesProxy: { icon: 'utility:chart', accent: 'purple' },
+    reps90: { icon: 'utility:groups', accent: 'navy' },
+    coverage: { icon: 'utility:target', accent: 'teal' },
+    rightFrequency: { icon: 'utility:event', accent: 'violet' },
+    kol: { icon: 'utility:user', accent: 'amber' },
+    quiz: { icon: 'utility:education', accent: 'slate' }
+};
+
+function achievementMonthOverMonthDelta(summary) {
+    const points = summary?.monthlyVisits || [];
+    if (points.length < 2) {
+        return null;
+    }
+    const latest = points[points.length - 1];
+    const previous = points[points.length - 2];
+    return pctNumber(latest.achievementPercent) - pctNumber(previous.achievementPercent);
+}
+
+function formatKpiTrend(delta) {
+    if (delta == null) {
+        return {
+            hasTrend: false,
+            trendLabel: '—',
+            trendClass: 'kpi-trend-neutral',
+            trendIcon: 'utility:dash'
+        };
+    }
+    const rounded = Math.round(Number(delta));
+    const sign = rounded > 0 ? '+' : '';
+    let trendClass = 'kpi-trend-neutral';
+    let trendIcon = 'utility:dash';
+    if (rounded > 0) {
+        trendClass = 'kpi-trend-up';
+        trendIcon = 'utility:arrowup';
+    } else if (rounded < 0) {
+        trendClass = 'kpi-trend-down';
+        trendIcon = 'utility:arrowdown';
+    }
+    return {
+        hasTrend: true,
+        trendLabel: `${sign}${rounded}%`,
+        trendClass,
+        trendIcon
+    };
+}
+
+function buildExecutiveKpiCard(card, summary, trendDelta) {
+    const visual = EXEC_KPI_VISUALS[card.id] || { icon: 'utility:metrics', accent: 'purple' };
+    const trend = formatKpiTrend(trendDelta);
+    const isPending = card.statusLabel === 'Pending';
+    return {
+        ...card,
+        iconName: visual.icon,
+        accentClass: `exec-kpi-card exec-kpi-card-clickable accent-${visual.accent}`,
+        targetLabel: `Target: ${card.target}`,
+        periodHint: 'vs last month',
+        footnote: card.id === 'quiz' && card.actual === '—' ? 'No quiz data available' : card.sublabel || '',
+        showFootnote: Boolean(card.id === 'quiz' && card.actual === '—') || Boolean(card.sublabel),
+        ...trend
+    };
+}
+
+export default class ManagementTeamKpiDashboard extends NavigationMixin(LightningElement) {
     @track buOptions = [];
     @track lineOptions = [];
     @track districtOptions = [];
     @track selectedBu = 'ALL';
     @track selectedLine = 'ALL';
     @track selectedDistrict = 'ALL';
+    @track selectedRole = 'AUTO';
+    @track roleOptions = [{ label: 'My role (auto)', value: 'AUTO' }];
+    @track selectedPeriodMonthKey;
     @track summary;
+    @track accountDrillRepId;
+    @track accountDrillRepName;
+    @track accountDrillRows = [];
+    @track accountDrillLoading = false;
     @track productPerformance = [];
     @track expandedKeys = new Set();
     @track isLoading = true;
@@ -252,8 +369,25 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
     chartMax = { coverage: 100, callRate: 100, kol: 100 };
 
     async connectedCallback() {
-        await Promise.all([this.loadBuOptions(), this.loadLineOptions(), this.loadDistrictOptions()]);
+        const today = new Date();
+        today.setDate(1);
+        this.selectedPeriodMonthKey = today.toISOString().slice(0, 10);
+        await Promise.all([
+            this.loadBuOptions(),
+            this.loadLineOptions(),
+            this.loadDistrictOptions(),
+            this.loadRoleOptions()
+        ]);
         await this.refreshKpis();
+    }
+
+    async loadRoleOptions() {
+        try {
+            const rows = await getKpiRoleOptions();
+            this.roleOptions = (rows || []).map((r) => ({ label: r.label, value: r.value }));
+        } catch (_e) {
+            this.roleOptions = [{ label: 'My role (auto)', value: 'AUTO' }];
+        }
     }
 
     get scopeLabel() {
@@ -361,40 +495,184 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
         return (this.summary?.coachingRepTrends || []).length > 0;
     }
 
-    get primaryRings() {
+    get periodOptions() {
+        const options = [];
+        const start = new Date();
+        start.setDate(1);
+        for (let i = 0; i < 6; i += 1) {
+            const d = new Date(start.getFullYear(), start.getMonth() - i, 1);
+            const key = d.toISOString().slice(0, 10);
+            const label = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+            options.push({ label, value: key });
+        }
+        return options;
+    }
+
+    get executiveKpiCards() {
         const s = this.summary || {};
-        return [
+        const period = s.periodLabel || 'Current month';
+        const momDelta = achievementMonthOverMonthDelta(s);
+        const cards = [
             {
-                id: 'coverage',
-                label: 'Coverage',
-                hint: 'Actual vs target visits',
-                value: pctDisplay(s.coveragePercent),
-                ringStroke: ringStroke(s.coveragePercent),
-                ringClass: 'kpi-ring-fill kpi-ring-fill-blue',
-                statusClass: statusClass(s.coveragePercent),
-                cardClass: 'kpi-card kpi-card-ring kpi-card-clickable'
+                id: 'salesProxy',
+                label: 'Sales Achievement',
+                sublabel: 'Visit plan proxy until ERP sales',
+                actual: pctDisplay(s.salesAchievementPercent),
+                target: pctDisplay(s.targetSalesAchievement),
+                vsTarget: pctDisplay(s.salesAchievementPercent),
+                frequency: 'Monthly',
+                period,
+                statusClass: frameworkStatusClass(s.salesAchievementPercent, s.targetSalesAchievement),
+                statusLabel: frameworkStatusLabel(s.salesAchievementPercent, s.targetSalesAchievement),
+                trendDelta: momDelta
             },
             {
-                id: 'visitRate',
-                label: 'Call Rate',
-                hint: 'Visits per working day',
-                value: pctDisplay(s.actualVisitRate),
-                ringStroke: ringStroke(s.actualVisitRate),
-                ringClass: 'kpi-ring-fill kpi-ring-fill-green',
-                statusClass: statusClass(s.actualVisitRate),
-                cardClass: 'kpi-card kpi-card-ring kpi-card-clickable'
+                id: 'reps90',
+                label: '% Reps ≥ 90% Target',
+                sublabel: `${s.repsAtOrAbove90Count || 0} of ${s.repsAtOrAbove90Total || 0} reps`,
+                actual: pctDisplay(s.repsAtOrAbove90Percent),
+                target: pctDisplay(s.targetRepsAt90),
+                vsTarget: `${s.repsAtOrAbove90Count || 0} / ${s.repsAtOrAbove90Total || 0} reps`,
+                frequency: 'Monthly',
+                period,
+                statusClass: frameworkStatusClass(s.repsAtOrAbove90Percent, s.targetRepsAt90),
+                statusLabel: frameworkStatusLabel(s.repsAtOrAbove90Percent, s.targetRepsAt90),
+                noModal: true,
+                trendDelta: momDelta
+            },
+            {
+                id: 'coverage',
+                label: 'Team Coverage',
+                actual: pctDisplay(s.coveragePercent),
+                target: pctDisplay(s.targetCoverage),
+                vsTarget: pctDisplay(s.coveragePercent),
+                frequency: 'Monthly',
+                period,
+                statusClass: frameworkStatusClass(s.coveragePercent, s.targetCoverage),
+                statusLabel: frameworkStatusLabel(s.coveragePercent, s.targetCoverage),
+                trendDelta: null
+            },
+            {
+                id: 'rightFrequency',
+                label: 'Right Frequency',
+                actual: pctDisplay(s.rightFrequencyPercent),
+                target: pctDisplay(s.targetRightFrequency),
+                vsTarget: pctDisplay(s.rightFrequencyPercent),
+                frequency: 'Monthly',
+                period,
+                statusClass: frameworkStatusClass(s.rightFrequencyPercent, s.targetRightFrequency),
+                statusLabel: frameworkStatusLabel(s.rightFrequencyPercent, s.targetRightFrequency),
+                trendDelta: null
             },
             {
                 id: 'kol',
                 label: 'KOL Coverage',
-                hint: 'Key opinion leader reach',
-                value: pctDisplay(s.kolCoveragePercent),
-                ringStroke: ringStroke(s.kolCoveragePercent),
-                ringClass: 'kpi-ring-fill kpi-ring-fill-orange',
-                statusClass: statusClass(s.kolCoveragePercent),
-                cardClass: 'kpi-card kpi-card-ring kpi-card-clickable'
+                actual: pctDisplay(s.kolCoveragePercent),
+                target: pctDisplay(s.targetKolCoverage),
+                vsTarget: pctDisplay(s.kolCoveragePercent),
+                frequency: 'Quarterly',
+                period,
+                statusClass: frameworkStatusClass(s.kolCoveragePercent, s.targetKolCoverage),
+                statusLabel: frameworkStatusLabel(s.kolCoveragePercent, s.targetKolCoverage),
+                trendDelta: null
+            },
+            {
+                id: 'quiz',
+                label: 'Knowledge (Quiz)',
+                actual: s.quizAchievementPercent != null ? pctDisplay(s.quizAchievementPercent) : '—',
+                target: pctDisplay(s.targetQuiz),
+                vsTarget: s.quizAchievementPercent != null ? pctDisplay(s.quizAchievementPercent) : '—',
+                frequency: 'Monthly',
+                period,
+                statusClass: frameworkStatusClass(s.quizAchievementPercent, s.targetQuiz),
+                statusLabel: frameworkStatusLabel(s.quizAchievementPercent, s.targetQuiz),
+                trendDelta: null
             }
         ];
+        return cards.map((card) => buildExecutiveKpiCard(card, s, card.trendDelta));
+    }
+
+    get performanceDistribution() {
+        return (this.summary?.performanceDistribution || []).map((bucket) => {
+            const count = bucket.count || 0;
+            const total = (this.summary?.performanceDistribution || []).reduce(
+                (sum, b) => sum + (b.count || 0),
+                0
+            );
+            const width = total > 0 ? Math.round((count / total) * 100) : 0;
+            return {
+                ...bucket,
+                key: bucket.bucketKey,
+                barStyle: `width: ${Math.max(width, count > 0 ? 6 : 0)}%;`,
+                countLabel: String(count)
+            };
+        });
+    }
+
+    get hasPerformanceDistribution() {
+        return (this.summary?.performanceDistribution || []).length > 0;
+    }
+
+    get managementAlerts() {
+        return (this.summary?.managementAlerts || []).map((alert, index) => ({
+            ...alert,
+            key: alert.kpiKey || `alert-${index}`,
+            actualDisplay: pctDisplay(alert.actual),
+            targetDisplay: pctDisplay(alert.target),
+            gapDisplay: `${Math.round(Number(alert.gap) || 0)} pts`
+        }));
+    }
+
+    get hasManagementAlerts() {
+        return this.managementAlerts.length > 0;
+    }
+
+    get fieldKpiComparison() {
+        const s = this.summary || {};
+        const items = [
+            { key: 'coverage', label: 'Coverage', actual: s.coveragePercent, target: s.targetCoverage },
+            { key: 'rf', label: 'RF', actual: s.rightFrequencyPercent, target: s.targetRightFrequency },
+            {
+                key: 'field',
+                label: 'Field Days',
+                actual: s.fieldWorkingDaysPercent,
+                target: s.targetFieldWorkingDays
+            },
+            { key: 'kol', label: 'KOL', actual: s.kolCoveragePercent, target: s.targetKolCoverage }
+        ];
+        return items.map((item) => {
+            const actualPct = Math.min(100, pctNumber(item.actual));
+            const targetPct = Math.min(100, pctNumber(item.target));
+            return {
+                ...item,
+                actualBarStyle: `height: ${Math.max(actualPct, 4)}%;`,
+                targetBarStyle: `height: ${Math.max(targetPct, 4)}%;`,
+                actualLabel: `${Math.round(pctNumber(item.actual))}/${Math.round(pctNumber(item.target))}`
+            };
+        });
+    }
+
+    get monthlyAchievementChart() {
+        const points = this.summary?.monthlyVisits || [];
+        const max = Math.max(...points.map((p) => pctNumber(p.achievementPercent)), 1);
+        return points.map((point) => {
+            const ach = pctNumber(point.achievementPercent);
+            const heightPct = Math.max(Math.round((ach / max) * 100), ach > 0 ? 4 : 0);
+            return {
+                ...point,
+                barStyle: `height: ${heightPct}%;`,
+                countLabel: `${ach}%`,
+                tooltip: `${ach}% avg · ${point.monthYearLabel || point.monthLabel}`
+            };
+        });
+    }
+
+    get hasAccountDrill() {
+        return Boolean(this.accountDrillRepId);
+    }
+
+    get primaryRings() {
+        return [];
     }
 
     get teamLatestCoachingScoreDisplay() {
@@ -479,7 +757,7 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
     get chartLegend() {
         return [
             { id: 'coverage', label: 'Coverage', swatchClass: 'legend-swatch coverage' },
-            { id: 'callRate', label: 'Call Rate', swatchClass: 'legend-swatch call-rate' },
+            { id: 'callRate', label: 'Right Frequency', swatchClass: 'legend-swatch call-rate' },
             { id: 'kol', label: 'KOL', swatchClass: 'legend-swatch kol' }
         ];
     }
@@ -525,6 +803,11 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
 
     get showProductSection() {
         return this.selectedBu !== 'ALL';
+    }
+
+    /** Re-enable when egyptCoverageHeatMap monthLabel null handling is fixed. */
+    get showEgyptCoverageMap() {
+        return false;
     }
 
     get hasProductPerformance() {
@@ -694,16 +977,22 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
     async loadBuOptions() {
         try {
             const data = await getBusinessUnitOptions();
-            this.buOptions = data.map((o) => ({ label: o.label, value: o.value }));
+            const options = (data || []).map((o) => ({ label: o.label, value: o.value }));
+            this.buOptions =
+                options.length > 0 ? options : [{ label: 'All Business Units', value: 'ALL' }];
         } catch (e) {
+            this.buOptions = [{ label: 'All Business Units', value: 'ALL' }];
             this.errorMessage = e.body?.message || 'Failed to load filters';
         }
     }
 
     async loadLineOptions() {
         try {
-            const data = await getLineOptions({ buTerritoryId: this.selectedBu });
-            this.lineOptions = data.map((o) => ({ label: o.label, value: o.value }));
+            const data = await getLineOptions({
+                businessUnitTerritoryId: this.selectedBu === 'ALL' ? null : this.selectedBu
+            });
+            const options = (data || []).map((o) => ({ label: o.label, value: o.value }));
+            this.lineOptions = options.length > 0 ? options : [{ label: 'All Lines', value: 'ALL' }];
         } catch (e) {
             this.lineOptions = [{ label: 'All Lines', value: 'ALL' }];
         }
@@ -711,8 +1000,12 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
 
     async loadDistrictOptions() {
         try {
-            const data = await getDistrictOptions({ lineTerritoryId: this.selectedLine });
-            this.districtOptions = data.map((o) => ({ label: o.label, value: o.value }));
+            const data = await getDistrictOptions({
+                lineTerritoryId: this.selectedLine === 'ALL' ? null : this.selectedLine
+            });
+            const options = (data || []).map((o) => ({ label: o.label, value: o.value }));
+            this.districtOptions =
+                options.length > 0 ? options : [{ label: 'All Districts', value: 'ALL' }];
         } catch (e) {
             this.districtOptions = [{ label: 'All Districts', value: 'ALL' }];
         }
@@ -726,8 +1019,23 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
             this.summary = await getTeamKpis({
                 buTerritoryId: this.selectedBu,
                 lineTerritoryId: this.selectedLine,
-                districtTerritoryId: this.selectedDistrict
+                districtTerritoryId: this.selectedDistrict,
+                periodMonthKey: this.selectedPeriodMonthKey
             });
+            if (this.selectedRole && this.selectedRole !== 'AUTO') {
+                const targets = await getTargetsForRole({ roleKey: this.selectedRole });
+                this.summary = {
+                    ...this.summary,
+                    viewerRoleKey: this.selectedRole,
+                    targetSalesAchievement: targets?.Sales_Achievement,
+                    targetRepsAt90: targets?.Reps_At_90,
+                    targetCoverage: targets?.Coverage,
+                    targetRightFrequency: targets?.Right_Frequency,
+                    targetKolCoverage: targets?.KOL_Coverage,
+                    targetQuiz: targets?.Quiz,
+                    targetFieldWorkingDays: targets?.Field_Working_Days
+                };
+            }
             const rootKeys = (this.summary?.drillDown || []).map((row) => row.key);
             this.expandedKeys = new Set(rootKeys);
             this.animateKey += 1;
@@ -777,6 +1085,91 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
     handleDistrictChange(event) {
         this.selectedDistrict = event.detail.value;
         this.refreshKpis();
+    }
+
+    handlePeriodChange(event) {
+        this.selectedPeriodMonthKey = event.detail.value;
+        this.refreshKpis();
+    }
+
+    handleRoleChange(event) {
+        this.selectedRole = event.detail.value;
+        this.refreshKpis();
+    }
+
+    handleExecutiveKpiClick(event) {
+        const kpiId = event.currentTarget.dataset.kpi;
+        if (!kpiId || kpiId === 'reps90') {
+            return;
+        }
+        this.openKpiModal(kpiId === 'rightFrequency' ? 'rightFrequency' : kpiId);
+    }
+
+    handleAlertDrill(event) {
+        const kpiKey = event.currentTarget.dataset.kpi;
+        const modalKey =
+            kpiKey === 'sales'
+                ? 'salesProxy'
+                : kpiKey === 'reps90'
+                  ? 'salesProxy'
+                  : kpiKey === 'rf'
+                    ? 'rightFrequency'
+                    : kpiKey === 'fieldDays'
+                      ? 'fieldDays'
+                      : kpiKey === 'quiz'
+                        ? 'quiz'
+                        : kpiKey === 'coverage'
+                          ? 'coverage'
+                          : kpiKey === 'kol'
+                            ? 'kol'
+                            : kpiKey;
+        if (modalKey === 'reps90') {
+            return;
+        }
+        this.openKpiModal(modalKey);
+    }
+
+    async handleDrillRepSelect(event) {
+        const repId = event.currentTarget.dataset.repId;
+        const repName = event.currentTarget.dataset.repName;
+        if (!repId || repId === 'undefined') {
+            return;
+        }
+        this.accountDrillRepId = repId;
+        this.accountDrillRepName = repName;
+        this.accountDrillLoading = true;
+        this.accountDrillRows = [];
+        try {
+            const rows = await getRepAccountKpiDrillDown({
+                repUserId: repId,
+                periodMonthKey: this.selectedPeriodMonthKey
+            });
+            this.accountDrillRows = (rows || []).map((row, index) => ({
+                ...row,
+                key: row.accountId || `acct-${index}`,
+                visitsLabel: `${row.actualVisits || 0}/${row.targetFrequency || 0}`,
+                statusLabel: row.frequencyStatus || (row.isVisited ? 'Visited' : 'Not visited')
+            }));
+        } catch (e) {
+            this.errorMessage = e.body?.message || 'Failed to load account drill-down';
+        } finally {
+            this.accountDrillLoading = false;
+        }
+    }
+
+    handleOpenAccount(event) {
+        const accountId = event.currentTarget.dataset.accountId;
+        if (!accountId) {
+            return;
+        }
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: accountId,
+                objectApiName: 'Account',
+                actionName: 'view'
+            }
+        });
     }
 
     handleKpiClick(event) {
@@ -1243,15 +1636,26 @@ export default class ManagementTeamKpiDashboard extends LightningElement {
             const visibleProducts = products.slice(0, 4);
             const overflowCount = Math.max(products.length - visibleProducts.length, 0);
 
+            const isRep = row.level === 'Rep';
+            const overall = row.overallStatus || '—';
             output.push({
                 key: row.key,
                 label: row.label,
                 level: row.level,
+                employeeId: row.employeeId,
+                isRep,
                 depth,
                 indentStyle: `padding-left: ${0.75 + depth * 1.25}rem;`,
+                salesDisplay: row.salesAchievementPercent != null ? pctDisplay(row.salesAchievementPercent) : '—',
                 coverageDisplay: pctDisplay(row.coveragePercent),
-                callRateDisplay: pctDisplay(row.actualVisitRate),
+                callRateDisplay: pctDisplay(row.rcfPercent != null ? row.rcfPercent : row.actualVisitRate),
+                fieldDaysDisplay:
+                    row.fieldWorkingDaysPercent != null ? pctDisplay(row.fieldWorkingDaysPercent) : '—',
+                quizDisplay: row.quizAchievementPercent != null ? pctDisplay(row.quizAchievementPercent) : '—',
                 kolDisplay: pctDisplay(row.kolCoveragePercent),
+                overallStatus: overall,
+                overallStatusClass:
+                    overall === 'On Target' ? 'pill pill-ok' : 'pill pill-warn',
                 coachingDisplay: numDisplay(row.coachingDays, 0),
                 hasCoachingScore: row.latestCoachingScore != null,
                 coachingScoreDisplay: coachingScoreDisplay(row.latestCoachingScore),

@@ -1,0 +1,706 @@
+<template>
+    <section class="expense-desk" aria-label="Expenses">
+        <header class="desk-header">
+            <div class="desk-brand">
+                <div class="brand-icon" aria-hidden="true">
+                    <lightning-icon icon-name="utility:money" size="small" class="brand-icon-glyph"></lightning-icon>
+                </div>
+                <div>
+                    <h3 class="desk-title">Expenses</h3>
+                    <p class="desk-subtitle">{headerSubtitle}</p>
+                </div>
+            </div>
+            <dl class="desk-stats">
+                <div class="stat">
+                    <dt>Requests</dt>
+                    <dd>{expenseCount}</dd>
+                </div>
+                <div class={pendingStatClass}>
+                    <dt>Awaiting</dt>
+                    <dd>{pendingCount}</dd>
+                </div>
+                <div class="stat">
+                    <dt>EGP</dt>
+                    <dd>{totalAmountLabel}</dd>
+                </div>
+            </dl>
+        </header>
+
+        <div class="tab-bar" role="tablist" aria-label="Expense lists">
+            <button
+                type="button"
+                role="tab"
+                class={myTabClass}
+                aria-selected={isMyTab}
+                onclick={handleShowMine}
+            >
+                My expenses
+            </button>
+            <button
+                type="button"
+                role="tab"
+                class={teamTabClass}
+                aria-selected={isTeamTab}
+                onclick={handleShowTeam}
+            >
+                My team's expenses
+                <template if:true={teamAwaitingCount}>
+                    <span class="tab-count">{teamAwaitingCount}</span>
+                </template>
+            </button>
+        </div>
+
+        <template if:true={isMyTab}>
+            <div class="desk-body">
+                <section class="ledger" aria-label="My expenses">
+                    <div class="pane-heading ledger-heading">
+                        <div>
+                            <h4 class="pane-title">{ledgerTitle}</h4>
+                            <p class="pane-hint">{ledgerHint}</p>
+                        </div>
+                        <div class="ledger-tools">
+                            <template if:true={showViewAll}>
+                                <button type="button" class="text-btn" onclick={handleViewAllExpenses}>
+                                    {viewAllLabel}
+                                </button>
+                            </template>
+                            <button type="button" class="create-btn create-btn-compact" onclick={handleOpenCreate}>
+                                New expense
+                            </button>
+                        </div>
+                    </div>
+
+                    <template if:true={hasSelectedDetail}>
+                        <section class="expense-detail-panel" aria-label="Expense details">
+                            <header class="detail-header">
+                                <div>
+                                    <p class="detail-kicker">Request details</p>
+                                    <h4 class="detail-title">{selectedDetail.name}</h4>
+                                </div>
+                                <button type="button" class="detail-close" onclick={handleCloseDetail}>Close</button>
+                            </header>
+                            <dl class="detail-grid">
+                                <div>
+                                    <dt>Type</dt>
+                                    <dd>{selectedDetail.typeLabel}</dd>
+                                </div>
+                                <div>
+                                    <dt>Date</dt>
+                                    <dd>{selectedDetail.expenseDateLabel}</dd>
+                                </div>
+                                <div>
+                                    <dt>Amount</dt>
+                                    <dd>{selectedDetail.amountLabel} EGP</dd>
+                                </div>
+                                <template if:true={selectedDetail.hasDetailLines}>
+                                    <template for:each={selectedDetail.detailLines} for:item="line">
+                                        <div key={line.key}>
+                                            <dt>{line.label}</dt>
+                                            <dd>{line.value}</dd>
+                                        </div>
+                                    </template>
+                                </template>
+                                <div>
+                                    <dt>Status</dt>
+                                    <dd>
+                                        <span class={selectedDetail.statusBadgeClass}>{selectedDetail.status}</span>
+                                    </dd>
+                                </div>
+                                <div class="detail-span">
+                                    <dt>Description</dt>
+                                    <dd>{selectedDetail.descriptionLabel}</dd>
+                                </div>
+                                <div>
+                                    <dt>Manager</dt>
+                                    <dd>{selectedDetail.managerName}</dd>
+                                </div>
+                                <template if:true={selectedDetail.showRejectionReason}>
+                                    <div class="detail-span">
+                                        <dt>Rejection reason</dt>
+                                        <dd>{selectedDetail.rejectionReason}</dd>
+                                    </div>
+                                </template>
+                            </dl>
+                            <p class="detail-status-help">{selectedDetail.statusHelp}</p>
+                            <div class="detail-actions">
+                                <template if:true={selectedDetail.canModify}>
+                                    <button type="button" class="card-action" data-id={selectedDetail.id} onclick={handleEdit}>
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="card-action card-action-danger"
+                                        data-id={selectedDetail.id}
+                                        onclick={handleDelete}
+                                    >
+                                        Delete
+                                    </button>
+                                </template>
+                                <button type="button" class="create-btn create-btn-compact" onclick={handleOpenDetailRecord}>
+                                    Open full record
+                                </button>
+                            </div>
+                        </section>
+                    </template>
+
+                    <template if:true={showListLoading}>
+                        <div class="list-loading">
+                            <lightning-spinner alternative-text="Loading expenses" size="small"></lightning-spinner>
+                        </div>
+                    </template>
+
+                    <template if:true={expensesError}>
+                        <div class="list-error" role="alert">{expensesError}</div>
+                    </template>
+
+                    <template if:true={hasExpenses}>
+                        <div class="ledger-scroll">
+                            <template for:each={displayExpenses} for:item="row">
+                                <article key={row.id} class={row.cardClass}>
+                                    <div class="card-top">
+                                        <span class="type-cell">
+                                            <lightning-icon
+                                                icon-name={row.typeIcon}
+                                                size="x-small"
+                                                class="type-row-icon"
+                                            ></lightning-icon>
+                                            {row.typeLabel}
+                                        </span>
+                                        <span class="card-amount">{row.amountLabel}<span class="card-currency"> EGP</span></span>
+                                    </div>
+                                    <template if:true={row.hasDescription}>
+                                        <p class="card-desc">{row.descriptionLabel}</p>
+                                    </template>
+                                    <div class="card-bottom">
+                                        <span class="card-date">{row.expenseDateLabel}</span>
+                                        <span class={row.statusBadgeClass}>{row.status}</span>
+                                        <div class="card-actions">
+                                            <button type="button" class="card-action" data-id={row.id} onclick={handleViewDetails}>
+                                                Details
+                                            </button>
+                                            <template if:true={row.canModify}>
+                                                <button type="button" class="card-action" data-id={row.id} onclick={handleEdit}>
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="card-action card-action-danger"
+                                                    data-id={row.id}
+                                                    onclick={handleDelete}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template if:true={showEmpty}>
+                        <div class="empty">
+                            <div class="empty-icon" aria-hidden="true">
+                                <lightning-icon icon-name="utility:moneybag" size="small" class="empty-icon-glyph"></lightning-icon>
+                            </div>
+                            <p class="empty-title">No requests yet</p>
+                            <p class="empty-copy">Create an expense and it will show up here while it waits for approval.</p>
+                        </div>
+                    </template>
+                </section>
+            </div>
+        </template>
+
+        <template if:true={isTeamTab}>
+            <section class="ledger ledger-team" aria-label="My team's expenses">
+                <div class="pane-heading">
+                    <h4 class="pane-title">My team's expenses</h4>
+                    <p class="pane-hint">Approve or reject requests from people on your team. You cannot change their amounts.</p>
+                </div>
+
+                <template if:true={showTeamLoading}>
+                    <div class="list-loading">
+                        <lightning-spinner alternative-text="Loading team expenses" size="small"></lightning-spinner>
+                    </div>
+                </template>
+
+                <template if:true={teamError}>
+                    <div class="list-error" role="alert">{teamError}</div>
+                </template>
+
+                <template if:true={hasTeamExpenses}>
+                    <div class="ledger-scroll">
+                        <template for:each={displayTeamExpenses} for:item="row">
+                            <article key={row.expenseId} class={row.cardClass}>
+                                <div class="card-top">
+                                    <span class="type-cell">
+                                        <lightning-icon
+                                            icon-name={row.typeIcon}
+                                            size="x-small"
+                                            class="type-row-icon"
+                                        ></lightning-icon>
+                                        {row.typeLabel}
+                                    </span>
+                                    <span class="card-amount">{row.amountLabel}<span class="card-currency"> EGP</span></span>
+                                </div>
+                                <p class="card-rep">{row.repName}</p>
+                                <template if:true={row.hasDescription}>
+                                    <p class="card-desc">{row.descriptionLabel}</p>
+                                </template>
+                                <div class="card-bottom">
+                                    <span class="card-date">{row.expenseDateLabel}</span>
+                                    <span class={row.statusBadgeClass}>{row.status}</span>
+                                </div>
+                                <template if:true={row.showRejectionReason}>
+                                    <p class="card-reason">Rejected: {row.rejectionReason}</p>
+                                </template>
+                                <template if:true={row.canAct}>
+                                    <div class="decision">
+                                        <lightning-input
+                                            class="bare-field decision-reason"
+                                            type="text"
+                                            label="Rejection reason"
+                                            variant="label-hidden"
+                                            placeholder="Reason required to reject"
+                                            data-expense-id={row.expenseId}
+                                            value={row.rejectionDraft}
+                                            onchange={handleRejectionChange}
+                                        ></lightning-input>
+                                        <div class="decision-buttons">
+                                            <button
+                                                type="button"
+                                                class="card-action card-action-danger"
+                                                data-expense-id={row.expenseId}
+                                                onclick={handleReject}
+                                            >
+                                                Reject
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="card-action card-action-approve"
+                                                data-expense-id={row.expenseId}
+                                                onclick={handleApprove}
+                                            >
+                                                Approve
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </article>
+                        </template>
+                    </div>
+                </template>
+
+                <template if:true={showTeamEmpty}>
+                    <div class="empty">
+                        <div class="empty-icon" aria-hidden="true">
+                            <lightning-icon icon-name="utility:groups" size="small" class="empty-icon-glyph"></lightning-icon>
+                        </div>
+                        <p class="empty-title">Nothing from your team</p>
+                        <p class="empty-copy">Requests from people you manage will show up here to approve or reject.</p>
+                    </div>
+                </template>
+            </section>
+        </template>
+
+        <template if:true={modalOpen}>
+            <div class="modal-root">
+                <div class="modal-backdrop" onclick={handleCloseModal}></div>
+                <section
+                    class="modal-panel"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="expense-modal-title"
+                    onclick={stopModalClick}
+                >
+                    <header class="modal-header">
+                        <div>
+                            <p class="modal-kicker">Expense report</p>
+                            <h2 id="expense-modal-title" class="modal-title">{modalTitle}</h2>
+                            <p class="modal-hint">Choose the expense type, then complete the fields for that claim.</p>
+                        </div>
+                        <button type="button" class="modal-close" onclick={handleCloseModal} aria-label="Close">×</button>
+                    </header>
+                    <template if:true={floatingMenuOpen}>
+                        <div class="menu-catcher" onclick={handleDismissMenus}></div>
+                    </template>
+                    <template if:true={selectMenuOpen}>
+                        <ul class="menu-list" style={selectMenuStyle} role="listbox">
+                            <template for:each={selectMenuOptions} for:item="option">
+                                <li key={option.key}>
+                                    <button
+                                        type="button"
+                                        class={option.className}
+                                        data-key={openSelectKey}
+                                        data-value={option.value}
+                                        onclick={handlePickOption}
+                                    >
+                                        {option.label}
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template if:true={placeMenuOpen}>
+                        <ul class="place-results place-results-fixed" style={placeMenuStyle}>
+                            <template for:each={placeMenuResults} for:item="hit">
+                                <li key={hit.key}>
+                                    <button type="button" data-key={activePlaceKey} data-index={hit.index} onclick={handlePickPlace}>
+                                        <span>{hit.label}</span>
+                                        <span class="place-detail">{hit.detail}</span>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+
+                    <div class="modal-workspace">
+                        <aside class="type-rail" aria-label="Expense types">
+                            <template for:each={categoryGroups} for:item="category">
+                                <section key={category.id} class="rail-group">
+                                    <h3 class="rail-label">{category.label}</h3>
+                                    <template for:each={category.cards} for:item="card">
+                                        <button
+                                            key={card.id}
+                                            type="button"
+                                            class={card.railClass}
+                                            data-kind={card.id}
+                                            onclick={handlePickKind}
+                                        >
+                                            <span class="rail-name">{card.label}</span>
+                                            <span class="rail-blurb">{card.blurb}</span>
+                                        </button>
+                                    </template>
+                                </section>
+                            </template>
+                        </aside>
+
+                        <div class="modal-main">
+                    <template if:false={hasDraftKind}>
+                        <div class="modal-body type-prompt">
+                            <p class="prompt-title">Select an expense type</p>
+                            <p class="prompt-copy">Mileage claims include that day’s visits and time off. Meal claims use a restaurant search. Locations are picked on the map.</p>
+                        </div>
+                    </template>
+
+                    <template if:true={hasDraftKind}>
+                        <div class="modal-body">
+                            <template if:true={hasPolicy}>
+                                <p class="policy-note">{policyText}</p>
+                            </template>
+                            <template if:true={formError}>
+                                <p class="form-error" role="alert">{formError}</p>
+                            </template>
+
+                            <div class="modal-grid">
+                                <template for:each={formFields} for:item="field">
+                                    <div key={field.key} class={field.wrapClass}>
+                                        <label class="field-label">
+                                            {field.label}
+                                            <template if:true={field.required}>
+                                                <span class="req" aria-hidden="true">*</span>
+                                            </template>
+                                        </label>
+                                        <template if:true={field.isSelect}>
+                                            <button
+                                                type="button"
+                                                class={field.controlClass}
+                                                data-key={field.key}
+                                                onclick={handleToggleSelect}
+                                            >
+                                                <span class={field.valueClass}>{field.displayValue}</span>
+                                                <span class="menu-caret" aria-hidden="true"></span>
+                                            </button>
+                                        </template>
+                                        <template if:true={field.isPlace}>
+                                            <div class="place-field">
+                                                <input
+                                                    class={field.controlClass}
+                                                    type="text"
+                                                    data-key={field.key}
+                                                    data-restaurants={field.restaurants}
+                                                    value={field.value}
+                                                    placeholder={field.placeholder}
+                                                    oninput={handlePlaceInput}
+                                                    onfocus={handlePlaceFocus}
+                                                />
+                                                <button type="button" class="text-btn" data-key={field.key} onclick={handlePinPlace}>
+                                                    Pin on map
+                                                </button>
+                                                <template if:true={field.showMap}>
+                                                    <div class="place-map" data-map={field.key}></div>
+                                                    <p class="field-hint">Click the map to drop a pin. The place name is filled from OpenStreetMap.</p>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template if:true={field.isText}>
+                                            <input
+                                                class={field.controlClass}
+                                                type="text"
+                                                data-key={field.key}
+                                                value={field.value}
+                                                placeholder={field.placeholder}
+                                                oninput={handleFieldInput}
+                                            />
+                                        </template>
+                                        <template if:true={field.isMoney}>
+                                            <div class={field.controlClass}>
+                                                <span class="currency-chip">EGP</span>
+                                                <input
+                                                    class="modal-bare"
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    data-key={field.key}
+                                                    value={field.value}
+                                                    placeholder="0.00"
+                                                    oninput={handleFieldInput}
+                                                />
+                                            </div>
+                                        </template>
+                                        <template if:true={field.isNumber}>
+                                            <input
+                                                class={field.controlClass}
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                data-key={field.key}
+                                                value={field.value}
+                                                oninput={handleFieldInput}
+                                            />
+                                        </template>
+                                        <template if:true={field.isDate}>
+                                            <input
+                                                class={field.controlClass}
+                                                type="date"
+                                                data-key={field.key}
+                                                value={field.value}
+                                                onchange={handleFieldInput}
+                                            />
+                                        </template>
+                                        <template if:true={field.isTextarea}>
+                                            <textarea
+                                                class={field.controlClass}
+                                                data-key={field.key}
+                                                placeholder={field.placeholder}
+                                                maxlength="180"
+                                                rows="3"
+                                                oninput={handleFieldInput}
+                                            >{field.value}</textarea>
+                                        </template>
+                                        <template if:true={field.hasHint}>
+                                            <p class="field-hint">{field.hint}</p>
+                                        </template>
+                                        <template if:true={field.hasError}>
+                                            <p class="field-error">{field.error}</p>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <template if:true={showTripQuote}>
+                                <div class="trip-quote">
+                                    <div>
+                                        <p class="trip-kicker">Route</p>
+                                        <p class="trip-distance">{tripDistanceLabel}</p>
+                                        <p class="field-hint">{tripStatus}</p>
+                                    </div>
+                                    <div>
+                                        <p class="trip-kicker">Fuel</p>
+                                        <p class="trip-distance">{tripFuelLiters} L · {tripFuelCost} EGP</p>
+                                        <p class="field-hint">
+                                            {tripFuelRateLabel} EGP/L average of 80 and 92 octane, at {fuelUseLabel} L/100 km.
+                                        </p>
+                                        <button type="button" class="text-btn" onclick={handleUseFuelAmount}>Use fuel amount</button>
+                                    </div>
+                                    <template if:true={hasTripMap}>
+                                        <div class="trip-map"></div>
+                                    </template>
+                                    <template if:true={hasTolls}>
+                                        <div class="toll-callout">
+                                            <p class="trip-kicker">Tolls on this route</p>
+                                            <ul class="toll-list">
+                                                <template for:each={tripTolls} for:item="toll">
+                                                    <li key={toll.id}>{toll.name}</li>
+                                                </template>
+                                            </ul>
+                                            <button type="button" class="create-btn create-btn-compact" onclick={handleStartTollExpense}>
+                                                Create toll expense
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template if:true={showRoute}>
+                                <div class="extra-block route-block">
+                                    <label class="field-label">Day route</label>
+                                    <p class="field-hint">Visits and time off on the expense date are part of this claim.</p>
+                                    <template if:true={routeStatus}>
+                                        <p class="field-hint">{routeStatus}</p>
+                                    </template>
+                                    <template if:true={hasRouteStops}>
+                                        <ol class="route-list">
+                                            <template for:each={routeStops} for:item="stop">
+                                                <li key={stop.id}>
+                                                    <span class="route-kind">{stop.kind}</span>
+                                                    <span>
+                                                        <strong>{stop.title}</strong>
+                                                        <span class="place-detail">{stop.detail}</span>
+                                                    </span>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                        <template if:true={hasRouteCoords}>
+                                            <div class="route-map"></div>
+                                        </template>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template if:true={showEmployees}>
+                                <div class="extra-block">
+                                    <label class="field-label">
+                                        Employee(s) Name(s)
+                                        <span class="req" aria-hidden="true">*</span>
+                                    </label>
+                                    <p class="field-hint">People in your territory. Search, then add them.</p>
+                                    <div class="inline-add">
+                                        <input
+                                            class="modal-control"
+                                            type="text"
+                                            placeholder="Search territory users"
+                                            value={employeeDraft}
+                                            oninput={handleEmployeeDraft}
+                                        />
+                                        <button type="button" class="card-action" onclick={handleAddEmployee}>Add</button>
+                                    </div>
+                                    <template if:true={hasAttendeeMatches}>
+                                        <ul class="place-results attendee-results">
+                                            <template for:each={attendeeMatches} for:item="person">
+                                                <li key={person.id}>
+                                                    <button type="button" data-name={person.name} onclick={handlePickAttendee}>
+                                                        <span>{person.name}</span>
+                                                        <span class="place-detail">{person.detail}</span>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                    <template if:true={employeeChips.length}>
+                                        <div class="chip-row">
+                                            <template for:each={employeeChips} for:item="person">
+                                                <span key={person.name} class="chip">
+                                                    {person.name}
+                                                    <button type="button" data-name={person.name} onclick={handleRemoveEmployee} aria-label="Remove">×</button>
+                                                </span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template if:true={hasEmployeeError}>
+                                        <p class="field-error">{employeeError}</p>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template if:true={showDestinations}>
+                                <div class="extra-block">
+                                    <label class="field-label">
+                                        Destinations
+                                        <span class="req" aria-hidden="true">*</span>
+                                    </label>
+                                    <p class="field-hint">Add each leg of the car utilization trip.</p>
+                                    <div class="destination-grid">
+                                        <input
+                                            class="modal-control"
+                                            type="text"
+                                            placeholder="From"
+                                            data-key="from"
+                                            value={destinationDraft.from}
+                                            oninput={handleDestinationInput}
+                                        />
+                                        <input
+                                            class="modal-control"
+                                            type="text"
+                                            placeholder="To"
+                                            data-key="to"
+                                            value={destinationDraft.to}
+                                            oninput={handleDestinationInput}
+                                        />
+                                        <input
+                                            class="modal-control"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="Total km"
+                                            data-key="km"
+                                            value={destinationDraft.km}
+                                            oninput={handleDestinationInput}
+                                        />
+                                        <button type="button" class="card-action" onclick={handleAddDestination}>Add destination</button>
+                                    </div>
+                                    <template if:true={destinationRows.length}>
+                                        <ul class="destination-list">
+                                            <template for:each={destinationRows} for:item="stop">
+                                                <li key={stop.id}>
+                                                    <span>{stop.routeLabel}</span>
+                                                    <span>{stop.kmLabel}</span>
+                                                    <button type="button" data-id={stop.id} onclick={handleRemoveDestination}>Remove</button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                    <template if:true={hasDestinationError}>
+                                        <p class="field-error">{destinationErrorText}</p>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template if:true={showInvoice}>
+                                <div class="extra-block">
+                                    <label class="field-label">
+                                        Electronic invoice
+                                        <template if:true={invoiceRequired}>
+                                            <span class="req" aria-hidden="true">*</span>
+                                        </template>
+                                    </label>
+                                    <p class="field-hint">{invoiceHint}</p>
+                                    <template if:true={hasSavedInvoiceNote}>
+                                        <p class="field-hint">{savedInvoiceNote}</p>
+                                    </template>
+                                    <label class="file-btn">
+                                        Upload invoice
+                                        <input type="file" accept="application/pdf,image/png,image/jpeg" multiple onchange={handleInvoicePick} />
+                                    </label>
+                                    <template if:true={hasInvoices}>
+                                        <ul class="destination-list">
+                                            <template for:each={invoiceFiles} for:item="file">
+                                                <li key={file.id}>
+                                                    <span>{file.name}</span>
+                                                    <span>{file.sizeLabel}</span>
+                                                    <button type="button" data-id={file.id} onclick={handleRemoveInvoice}>Remove</button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                    <template if:true={hasInvoiceError}>
+                                        <p class="field-error">{invoiceError}</p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                        <footer class="modal-footer">
+                            <button type="button" class="text-btn" onclick={handleBackToTypes}>Back</button>
+                            <button type="button" class="card-action card-action-danger" onclick={handleCloseModal}>Cancel</button>
+                            <button type="button" class="create-btn create-btn-compact" onclick={handleSubmit} disabled={isSaving}>
+                                {submitLabel}
+                            </button>
+                        </footer>
+                    </template>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </template>
+    </section>
+</template>

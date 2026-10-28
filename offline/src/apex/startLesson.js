@@ -1,25 +1,20 @@
 import { makeDualApex } from './_wireAdapter.js';
-import { API_VERSION, currentUserId, esc, mapCurriculumItem, soqlOne } from './learningShared.js';
-import { plannerApiFetch } from './restHelper.js';
+import { mapCurriculumItem, nowIso, patchLearningInstance, requireOwnInstance } from './learningShared.js';
 
 async function startLesson(params) {
     const instanceId = params && (params.instanceId || params.Id);
     if (!instanceId) {
         return null;
     }
-    const userId = currentUserId();
-    const inst = await soqlOne(
-        'SELECT Id, Status__c, Progress__c, Score__c, Material__c, Material__r.Title__c, ' +
-            'Material__r.Material_Type__c, Material__r.Material_URL__c, Material__r.Duration__c, Started_On__c ' +
-            'FROM Learning_Material_Instance__c ' +
-            `WHERE Id = '${esc(instanceId)}' AND Learner__c = '${esc(userId)}' LIMIT 1`
-    );
-    if (!inst) {
+    let inst;
+    try {
+        inst = await requireOwnInstance(instanceId);
+    } catch (_err) {
         return null;
     }
     const fields = {};
     if (!inst.Started_On__c) {
-        fields.Started_On__c = new Date().toISOString();
+        fields.Started_On__c = nowIso();
     }
     if (!inst.Status__c || inst.Status__c === 'Not Started') {
         fields.Status__c = 'In Progress';
@@ -27,13 +22,7 @@ async function startLesson(params) {
     }
     if (Object.keys(fields).length) {
         try {
-            await plannerApiFetch(
-                `/services/data/${API_VERSION}/sobjects/Learning_Material_Instance__c/${inst.Id}`,
-                {
-                    method: 'PATCH',
-                    body: JSON.stringify(fields)
-                }
-            );
+            await patchLearningInstance(inst.Id, fields);
         } catch (_err) {
             /* keep local status so the player can continue offline */
         }

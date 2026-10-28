@@ -18,9 +18,9 @@ const SECTION_OPTIONS = [
 ];
 
 const RESPONDENT_OPTIONS = [
-    { label: 'Both (Rep + Manager)', value: 'both' },
+    { label: 'Both (Representative + Manager)', value: 'both' },
     { label: 'Manager only', value: 'manager' },
-    { label: 'Employee only', value: 'employee' }
+    { label: 'Representative only', value: 'employee' }
 ];
 
 const DEFAULT_SCALE_LABELS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Most of times', 'All the times'];

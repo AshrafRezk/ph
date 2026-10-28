@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Coached_Days_Total__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Distinct days this month with a non-cancelled coaching event where this employee was coached.</description>
+    <externalId>false</externalId>
+    <label>Coached Days Total</label>
+    <precision>8</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

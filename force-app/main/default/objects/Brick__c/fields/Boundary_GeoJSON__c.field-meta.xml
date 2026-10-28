@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Boundary_GeoJSON__c</fullName>
+    <description>Map region of this brick as a GeoJSON Polygon or MultiPolygon, coordinates in [longitude, latitude] order. Drawn and edited in the Bricks Manager on the Admin Console. Distributor sales are placed in the brick whose region contains the pharmacy location.</description>
+    <inlineHelpText>Edit the region on the map in Admin Console, Bricks Manager.</inlineHelpText>
+    <label>Region (GeoJSON)</label>
+    <length>131072</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

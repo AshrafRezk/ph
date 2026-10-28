@@ -1,5 +1,5 @@
 <template>
-    <div class="oce-list">
+    <div class={listRootClass}>
         <div class="oce-list-toolbar">
             <span class="oce-list-title">Accounts</span>
         </div>
@@ -20,6 +20,16 @@
                 <table class="oce-table">
                     <thead>
                         <tr>
+                            <template if:true={showApprovalSelect}>
+                                <th scope="col" class="col-check">
+                                    <input
+                                        type="checkbox"
+                                        checked={approvalHeaderChecked}
+                                        onchange={handleApprovalToggleAll}
+                                        aria-label="Select all accounts that need your approval"
+                                    />
+                                </th>
+                            </template>
                             <template for:each={tableHeaders} for:item="header">
                                 <th key={header.id} scope="col" class={header.headerClass} aria-sort={header.ariaSort}>
                                     <template if:true={header.sortable}>
@@ -50,15 +60,33 @@
                     <tbody>
                         <template for:each={displayRows} for:item="row">
                             <tr key={row.accountId} class="oce-row">
+                                <template if:true={showApprovalSelect}>
+                                    <td class="col-check">
+                                        <template if:true={row.showApprovalActions}>
+                                            <input
+                                                type="checkbox"
+                                                checked={row.approvalSelected}
+                                                data-id={row.accountId}
+                                                onchange={handleApprovalToggle}
+                                                aria-label={row.selectLabel}
+                                            />
+                                        </template>
+                                    </td>
+                                </template>
                                 <td class="col-account">
                                     <div class="account-cell">
                                         <span class={row.riskDotClass} title={row.agentforceRisk}></span>
-                                        <lightning-icon
-                                            class={row.typeIconClass}
-                                            icon-name={row.typeIconName}
-                                            size="x-small"
-                                            alternative-text={row.pinLabel}
-                                        ></lightning-icon>
+                                        <template if:true={row.typeIconUrl}>
+                                            <img class={row.typeIconClass} src={row.typeIconUrl} alt="" />
+                                        </template>
+                                        <template if:false={row.typeIconUrl}>
+                                            <lightning-icon
+                                                class={row.typeIconClass}
+                                                icon-name={row.typeIconName}
+                                                size="x-small"
+                                                alternative-text={row.pinLabel}
+                                            ></lightning-icon>
+                                        </template>
                                         <div class="account-text">
                                             <a
                                                 href="#"
@@ -68,6 +96,9 @@
                                                 title={row.accountName}
                                             >{row.accountName}</a>
                                             <p class="oce-meta-line" title={row.metaLine}>{row.metaLine}</p>
+                                            <template if:true={row.showStageBadge}>
+                                                <p class={row.stageBadgeClass}>{row.accountStageLabel}</p>
+                                            </template>
                                             <template if:true={row.matchReason}>
                                                 <p class="oce-match-reason">{row.matchReason}</p>
                                             </template>
@@ -129,39 +160,285 @@
                                         >
                                             View
                                         </button>
-                                        <button
-                                            type="button"
-                                            class="row-action-btn row-action-btn-brand"
-                                            title="Plan visit"
-                                            data-id={row.accountId}
-                                            data-action="plan"
-                                            onclick={handleQuickAction}
-                                        >
-                                            Plan
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class={row.kolSwitchClass}
-                                            role="switch"
-                                            aria-checked={row.kolAriaChecked}
-                                            aria-label={row.kolButtonTitle}
-                                            data-id={row.accountId}
-                                            data-action="kol"
-                                            title={row.kolButtonTitle}
-                                            disabled={row.kolBusy}
-                                            onclick={handleQuickAction}
-                                        >
-                                            <span class="kol-switch-text">KOL</span>
-                                            <span class="kol-switch-track" aria-hidden="true">
-                                                <span class="kol-switch-thumb"></span>
-                                            </span>
-                                        </button>
+                                        <template if:true={row.showDuplicateCheck}>
+                                            <button
+                                                type="button"
+                                                class="row-action-btn"
+                                                title="Duplicate check"
+                                                data-id={row.accountId}
+                                                onclick={handleOpenDuplicate}
+                                            >
+                                                Duplicate check
+                                            </button>
+                                        </template>
+                                        <template if:true={row.showApprovalActions}>
+                                            <button
+                                                type="button"
+                                                class="row-action-btn row-action-btn-brand"
+                                                title="Approve account"
+                                                data-id={row.accountId}
+                                                data-action="approve"
+                                                onclick={handleQuickAction}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="row-action-btn row-action-btn-danger"
+                                                title="Reject account"
+                                                data-id={row.accountId}
+                                                data-action="reject"
+                                                onclick={handleQuickAction}
+                                            >
+                                                Reject
+                                            </button>
+                                        </template>
+                                        <template if:true={row.showNurtureWait}>
+                                            <p class="nurture-wait">{row.nurtureWaitLabel}</p>
+                                        </template>
+                                        <template if:true={row.showPlanActions}>
+                                            <button
+                                                type="button"
+                                                class="row-action-btn row-action-btn-brand"
+                                                title="Plan visit"
+                                                data-id={row.accountId}
+                                                data-action="plan"
+                                                onclick={handleQuickAction}
+                                            >
+                                                Plan
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class={row.kolSwitchClass}
+                                                role="switch"
+                                                aria-checked={row.kolAriaChecked}
+                                                aria-label={row.kolButtonTitle}
+                                                data-id={row.accountId}
+                                                data-action="kol"
+                                                title={row.kolButtonTitle}
+                                                disabled={row.kolBusy}
+                                                onclick={handleQuickAction}
+                                            >
+                                                <span class="kol-switch-text">KOL</span>
+                                                <span class="kol-switch-track" aria-hidden="true">
+                                                    <span class="kol-switch-thumb"></span>
+                                                </span>
+                                            </button>
+                                        </template>
                                     </div>
+                                    <template if:true={row.showApprovalActions}>
+                                        <lightning-textarea
+                                            class="approval-reject-field"
+                                            label="Rejection reason"
+                                            variant="label-hidden"
+                                            placeholder="Required to reject"
+                                            data-account-id={row.accountId}
+                                            onchange={handleApprovalRejectionChange}
+                                        ></lightning-textarea>
+                                    </template>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="oce-card-list" role="list" aria-label="Accounts">
+                <template if:true={isRefreshing}>
+                    <div class="oce-list-loading-overlay">
+                        <lightning-spinner alternative-text="Updating accounts" size="small"></lightning-spinner>
+                    </div>
+                </template>
+                <template for:each={displayRows} for:item="row">
+                    <article key={row.accountId} class="oce-account-card" role="listitem">
+                        <header class="oce-card-head">
+                            <div class="account-cell">
+                                <template if:true={row.showApprovalActions}>
+                                    <input
+                                        type="checkbox"
+                                        class="approval-check"
+                                        checked={row.approvalSelected}
+                                        data-id={row.accountId}
+                                        onchange={handleApprovalToggle}
+                                        aria-label={row.selectLabel}
+                                    />
+                                </template>
+                                <span class={row.riskDotClass} title={row.agentforceRisk}></span>
+                                <template if:true={row.typeIconUrl}>
+                                    <img class={row.typeIconClass} src={row.typeIconUrl} alt="" />
+                                </template>
+                                <template if:false={row.typeIconUrl}>
+                                    <lightning-icon
+                                        class={row.typeIconClass}
+                                        icon-name={row.typeIconName}
+                                        size="x-small"
+                                        alternative-text={row.pinLabel}
+                                    ></lightning-icon>
+                                </template>
+                                <div class="account-text">
+                                    <a
+                                        href="#"
+                                        class="oce-account-link"
+                                        data-id={row.accountId}
+                                        onclick={handleAccountClick}
+                                        title={row.accountName}
+                                    >{row.accountName}</a>
+                                    <p class="oce-meta-line" title={row.metaLine}>{row.metaLine}</p>
+                                    <template if:true={row.showStageBadge}>
+                                        <p class={row.stageBadgeClass}>{row.accountStageLabel}</p>
+                                    </template>
+                                    <template if:true={row.matchReason}>
+                                        <p class="oce-match-reason">{row.matchReason}</p>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="oce-card-badges">
+                                <span class={row.classBadgeClass}>{row.classificationDisplay}</span>
+                                <span class={row.planBadgeClass}>{row.planCycleDisplay}</span>
+                            </div>
+                        </header>
+
+                        <dl class="oce-card-stats">
+                            <div class="oce-card-stat">
+                                <dt>Visits</dt>
+                                <dd>
+                                    <span class="oce-field-strong">{row.callPlanLabel}</span>
+                                    <span class="oce-field-subvalue">{row.plannedPlanLabel}</span>
+                                </dd>
+                            </div>
+                            <div class="oce-card-stat">
+                                <dt>Gap</dt>
+                                <dd class="oce-field-strong">{row.gapDisplay}</dd>
+                            </div>
+                            <div class="oce-card-stat">
+                                <dt>Score</dt>
+                                <dd class="oce-field-strong">{row.scoreDisplay}</dd>
+                            </div>
+                        </dl>
+
+                        <div class="oce-card-foot">
+                            <template if:true={row.showHealth}>
+                                <button
+                                    type="button"
+                                    class="health-cell-button"
+                                    data-id={row.accountId}
+                                    onclick={handleHealthClick}
+                                    title="View health details"
+                                >
+                                    <span class="health-status-line">
+                                        <span class={row.healthClass} aria-hidden="true"></span>
+                                        <span class="health-label">{row.healthLabel}</span>
+                                    </span>
+                                </button>
+                            </template>
+                            <span class="oce-field-value specialty-text" title={row.specialtyDisplay}>{row.specialtyDisplay}</span>
+                            <div class="row-actions oce-card-actions">
+                            <button
+                                type="button"
+                                class="row-action-btn"
+                                title="View account"
+                                data-id={row.accountId}
+                                data-action="view"
+                                onclick={handleQuickAction}
+                            >
+                                View
+                            </button>
+                            <template if:true={row.showDuplicateCheck}>
+                                <button
+                                    type="button"
+                                    class="row-action-btn"
+                                    title="Duplicate check"
+                                    data-id={row.accountId}
+                                    onclick={handleOpenDuplicate}
+                                >
+                                    Duplicate check
+                                </button>
+                            </template>
+                            <template if:true={row.showApprovalActions}>
+                                <button
+                                    type="button"
+                                    class="row-action-btn row-action-btn-brand"
+                                    title="Approve account"
+                                    data-id={row.accountId}
+                                    data-action="approve"
+                                    onclick={handleQuickAction}
+                                >
+                                    Approve
+                                </button>
+                                <button
+                                    type="button"
+                                    class="row-action-btn row-action-btn-danger"
+                                    title="Reject account"
+                                    data-id={row.accountId}
+                                    data-action="reject"
+                                    onclick={handleQuickAction}
+                                >
+                                    Reject
+                                </button>
+                            </template>
+                            <template if:true={row.showNurtureWait}>
+                                <p class="nurture-wait">{row.nurtureWaitLabel}</p>
+                            </template>
+                            <template if:true={row.showPlanActions}>
+                                <button
+                                    type="button"
+                                    class="row-action-btn row-action-btn-brand"
+                                    title="Plan visit"
+                                    data-id={row.accountId}
+                                    data-action="plan"
+                                    onclick={handleQuickAction}
+                                >
+                                    Plan
+                                </button>
+                                <button
+                                    type="button"
+                                    class={row.kolSwitchClass}
+                                    role="switch"
+                                    aria-checked={row.kolAriaChecked}
+                                    aria-label={row.kolButtonTitle}
+                                    data-id={row.accountId}
+                                    data-action="kol"
+                                    title={row.kolButtonTitle}
+                                    disabled={row.kolBusy}
+                                    onclick={handleQuickAction}
+                                >
+                                    <span class="kol-switch-text">KOL</span>
+                                    <span class="kol-switch-track" aria-hidden="true">
+                                        <span class="kol-switch-thumb"></span>
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
+                        </div>
+                    </article>
+                </template>
+            </div>
+        </template>
+
+        <template if:true={showDuplicateModal}>
+            <div class="health-overlay" role="presentation" onclick={handleDuplicateOverlayClick}>
+                <section
+                    role="dialog"
+                    tabindex="-1"
+                    aria-modal="true"
+                    aria-labelledby="duplicate-check-title"
+                    class="health-sheet"
+                    onclick={stopHealthSheetClick}
+                >
+                    <header class="duplicate-sheet-header">
+                        <h2 id="duplicate-check-title" class="duplicate-sheet-title">Duplicate check</h2>
+                        <button type="button" class="duplicate-sheet-close" title="Close" aria-label="Close" onclick={handleCloseDuplicate}>×</button>
+                    </header>
+                    <div class="duplicate-sheet-body">
+                        <c-account-duplicate-check
+                            record-id={duplicateAccountId}
+                            onduplicatechange={handleDuplicateChange}
+                        ></c-account-duplicate-check>
+                    </div>
+                    <footer class="health-sheet-footer">
+                        <button type="button" class="row-action-btn" onclick={handleCloseDuplicate}>Close</button>
+                    </footer>
+                </section>
             </div>
         </template>
 

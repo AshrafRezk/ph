@@ -435,6 +435,9 @@ global with sharing class OsrLwcService {
         if (raw.equalsIgnoreCase('homeOfficeMessages')) {
             return 'Office Messages';
         }
+        if (raw.equalsIgnoreCase('stayInTheKnow')) {
+            return 'Be in the Know';
+        }
         if (raw.equalsIgnoreCase('repLocationPublisher')) {
             return 'My Location';
         }

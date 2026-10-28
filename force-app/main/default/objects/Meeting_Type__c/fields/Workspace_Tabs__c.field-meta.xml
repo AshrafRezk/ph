@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Workspace_Tabs__c</fullName>
+    <description>Semicolon-separated workspace tab keys for this meeting type: overview;plan;people;cost;invites;history;approval;apm</description>
+    <label>Workspace Tabs</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

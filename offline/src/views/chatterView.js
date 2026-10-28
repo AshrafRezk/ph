@@ -63,7 +63,7 @@ function bannerHtml(savedAt, staleMessage) {
     if (savedAt) bits.push(escapeHtml(formatSynced(savedAt)));
     if (staleMessage) bits.push(escapeHtml(staleMessage));
     if (!bits.length) return '';
-    return `<div class="osr-tab-banner" role="status">${bits.join(' ù ')}</div>`;
+    return `<div class="osr-tab-banner" role="status">${bits.join(' \u00b7 ')}</div>`;
 }
 
 function commentHtml(comment) {
@@ -102,17 +102,17 @@ function itemHtml(element) {
             <p>${escapeHtml(feedText(element))}</p>
             <div class="osr-chatter-actions">
                 <button type="button" class="osr-tab-btn osr-tab-btn--ghost osr-chatter-like${likes.liked ? ' is-on' : ''}" data-action="like" aria-pressed="${likes.liked}">
-                    ${likeLabel}${likes.count ? ` ù ${likes.count}` : ''}
+                    ${likeLabel}${likes.count ? ` \u00b7 ${likes.count}` : ''}
                 </button>
                 <button type="button" class="osr-tab-btn osr-tab-btn--ghost" data-action="toggle-comments">
-                    Comment${comments.total ? ` ù ${comments.total}` : ''}
+                    Comment${comments.total ? ` \u00b7 ${comments.total}` : ''}
                 </button>
             </div>
             <div class="osr-chatter-thread" hidden>
                 <ul class="osr-chatter-comments">${comments.items.map(commentHtml).join('')}</ul>
                 <form class="osr-chatter-reply" data-action="comment">
                     <label class="visually-hidden" for="reply-${escapeHtml(element.id)}">Write a comment</label>
-                    <input id="reply-${escapeHtml(element.id)}" type="text" maxlength="10000" placeholder="Write a commentù" />
+                    <input id="reply-${escapeHtml(element.id)}" type="text" maxlength="10000" placeholder="Write a comment" />
                     <button type="submit" class="osr-tab-btn">Post</button>
                 </form>
             </div>
@@ -154,13 +154,13 @@ function ensureShell(root) {
             <div data-chatter-banner></div>
             <form class="osr-chatter-composer" data-chatter-composer>
                 <label class="visually-hidden" for="osr-chatter-input">Share an update</label>
-                <textarea id="osr-chatter-input" rows="3" maxlength="10000" placeholder="Share an updateù"></textarea>
+                <textarea id="osr-chatter-input" rows="3" maxlength="10000" placeholder="Share an update"></textarea>
                 <div class="osr-tab-row">
                     <button type="submit" class="osr-tab-btn osr-tab-btn--primary">Share</button>
                     <button type="button" class="osr-tab-btn" data-chatter-refresh>Refresh</button>
                 </div>
             </form>
-            <p class="osr-tab-empty" data-chatter-empty>Loading feedù</p>
+            <p class="osr-tab-empty" data-chatter-empty>Loading feed\u2026</p>
             <div class="osr-chatter-feed" data-chatter-feed></div>
         </section>
     `;
@@ -205,7 +205,7 @@ async function shareUpdate(text) {
         render((cached && cached.payload && cached.payload.elements) || [], {
             savedAt: cached && cached.savedAt,
             staleMessage: isNetworkError(error)
-                ? 'Saved offline ù will post when you are back online.'
+                ? 'Saved offline \u00b7 will post when you are back online.'
                 : errorMessage(error),
             pending: readOutbox()
         });

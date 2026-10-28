@@ -342,6 +342,7 @@ global with sharing class OsrProfileService {
             'c/fieldRepHomeNextBestCustomer',
             'c/fieldRepHomeClmPrefetch',
             'c/homeOfficeMessages',
+            'c/stayInTheKnow',
             'c/repLocationPublisher',
             'c/reportsHub',
             'c/visitCallShellLite',

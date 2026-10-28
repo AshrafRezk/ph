@@ -1,4 +1,5 @@
 <template>
+    <template if:true={featureEnabled}>
     <lightning-card class="ho-messages-card">
         <div slot="title" class="ho-header">
             <lightning-icon icon-name="utility:announcement" size="small" class="ho-header-icon"></lightning-icon>
@@ -71,4 +72,5 @@
             </template>
         </template>
     </lightning-card>
+    </template>
 </template>

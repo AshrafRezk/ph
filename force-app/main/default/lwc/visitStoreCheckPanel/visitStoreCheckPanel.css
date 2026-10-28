@@ -1,0 +1,95 @@
+:host {
+    display: block;
+}
+
+.workflow-panel {
+    padding: 0.25rem 0 1rem;
+}
+
+.workflow-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #032d60;
+}
+
+.workflow-help,
+.workflow-error {
+    margin: 0.35rem 0 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.workflow-error {
+    color: #ba0517;
+}
+
+.photo-block {
+    margin-bottom: 1rem;
+}
+
+.photo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.photo-input {
+    display: none;
+}
+
+.photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+}
+
+.photo-grid li {
+    position: relative;
+    width: 7.5rem;
+}
+
+.photo-grid img {
+    display: block;
+    width: 7.5rem;
+    height: 7.5rem;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    background: #f3f3f3;
+}
+
+.photo-grid lightning-button-icon {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+}
+
+.add-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) 6rem auto auto;
+    gap: 0.5rem;
+    align-items: end;
+}
+
+.workflow-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+.workflow-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e5e5e5;
+    font-size: 0.8125rem;
+}
+
+.workflow-list span {
+    display: block;
+    color: #706e6b;
+}

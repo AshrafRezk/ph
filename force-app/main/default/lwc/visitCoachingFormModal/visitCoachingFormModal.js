@@ -7,10 +7,25 @@ import submitForManagerReview from '@salesforce/apex/VisitCoachingController.sub
 import { getCoachingContext, newClientKey, putCoachingContext } from 'c/clmOfflineStore';
 import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
 
+function createdCoachingEventId(result) {
+    if (result == null || typeof result !== 'object') {
+        return null;
+    }
+    return result.coachingEventId || result.id || null;
+}
+
+function formatVisitTime(value) {
+    if (!value) {
+        return 'Time not set';
+    }
+    return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 export default class VisitCoachingFormModal extends NavigationMixin(LightningElement) {
     @api visitId;
 
     context;
+    visits = [];
     isLoading = true;
     isSubmitting = false;
     errorMessage;
@@ -48,8 +63,21 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
         return !!this.coachingEventId;
     }
 
+    get selectedVisitCount() {
+        return this.visits.filter((row) => row.selected).length;
+    }
+
+    get selectableVisitCount() {
+        return this.visits.filter((row) => row.selectable !== false).length;
+    }
+
+    get allSelectableSelected() {
+        const selectable = this.visits.filter((row) => row.selectable !== false);
+        return selectable.length > 0 && selectable.every((row) => row.selected);
+    }
+
     get createDisabled() {
-        return this.isLoading || !this.selectedTemplateId;
+        return this.isLoading || this.isSubmitting || !this.selectedTemplateId || this.selectedVisitCount === 0;
     }
 
     get showSubmitForReview() {
@@ -69,12 +97,39 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
         return this.usingCachedContext ? 'Showing cached coaching context from device' : '';
     }
 
+    get hasSameDayVisits() {
+        return this.visits.length > 0;
+    }
+
+    get associatedVisits() {
+        return (this.context?.associatedVisits || []).map((row) => ({
+            ...row,
+            startLabel: formatVisitTime(row.startDate)
+        }));
+    }
+
+    get hasAssociatedVisits() {
+        return this.associatedVisits.length > 0;
+    }
+
+    get visitCountLabel() {
+        const count = this.selectedVisitCount;
+        return count === 1 ? '1 visit selected' : `${count} visits selected`;
+    }
+
     applyContext(context, fromCache = false) {
         this.context = context;
         this.usingCachedContext = fromCache;
         this.coachingEventId = context.coachingEventId;
         this.coachingEventStatus = context.coachingEventStatus;
         this.clientCoachingKey = context.clientCoachingKey || this.clientCoachingKey;
+        this.visits = (context.sameDayVisits || []).map((row) => ({
+            ...row,
+            selected: row.selected === true || row.isCurrent === true,
+            startLabel: formatVisitTime(row.startDate),
+            checkboxDisabled: row.isCurrent === true || row.selectable === false,
+            alreadyOnOtherEvent: row.alreadyOnOtherEvent === true
+        }));
         if (!this.selectedTemplateId && context.templates?.length) {
             this.selectedTemplateId = context.templates[0].id;
         }
@@ -123,9 +178,61 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
         this.prefillFromVisit = event.target.checked;
     }
 
+    handleSelectAll(event) {
+        const checked = event.target.checked;
+        this.visits = this.visits.map((row) => ({
+            ...row,
+            selected: row.isCurrent || row.selectable === false ? row.selected || row.isCurrent : checked
+        }));
+    }
+
+    handleVisitToggle(event) {
+        const visitId = event.target.dataset.visitId;
+        const checked = event.target.checked;
+        this.visits = this.visits.map((row) => {
+            if (row.visitId !== visitId || row.isCurrent) {
+                return row;
+            }
+            return { ...row, selected: checked };
+        });
+    }
+
+    handleNotesChange(event) {
+        const visitId = event.target.dataset.visitId;
+        const value = event.target.value;
+        this.visits = this.visits.map((row) =>
+            row.visitId === visitId ? { ...row, managerNotes: value } : row
+        );
+    }
+
+    handleOpenVisit(event) {
+        const visitId = event.currentTarget.dataset.visitId;
+        if (!visitId) {
+            return;
+        }
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId: visitId,
+                objectApiName: 'Visit__c',
+                actionName: 'view'
+            }
+        });
+    }
+
+    selectedVisitPayload() {
+        return this.visits
+            .filter((row) => row.selected)
+            .map((row) => ({
+                visitId: row.visitId,
+                managerNotes: row.managerNotes || ''
+            }));
+    }
+
     async handleCreate() {
         this.isSubmitting = true;
         try {
+            const visitSelections = this.selectedVisitPayload();
             if (isOfflineMode()) {
                 this.clientCoachingKey = newClientKey('coaching');
                 const localId = `local_${this.clientCoachingKey}`;
@@ -137,7 +244,8 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
                     payloadJson: JSON.stringify({
                         visitId: this.visitId,
                         templateId: this.selectedTemplateId,
-                        prefillFromVisit: this.prefillFromVisit
+                        prefillFromVisit: this.prefillFromVisit,
+                        visitSelections
                     })
                 });
                 this.coachingEventId = localId;
@@ -146,7 +254,8 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
                     ...(this.context || {}),
                     coachingEventId: localId,
                     coachingEventStatus: 'Draft',
-                    clientCoachingKey: this.clientCoachingKey
+                    clientCoachingKey: this.clientCoachingKey,
+                    associatedVisits: this.visits.filter((row) => row.selected)
                 };
                 this.context = cached;
                 await putCoachingContext(this.visitId, cached);
@@ -166,23 +275,34 @@ export default class VisitCoachingFormModal extends NavigationMixin(LightningEle
             const result = await createVisitCoachingEvent({
                 visitId: this.visitId,
                 templateId: this.selectedTemplateId,
-                prefillFromVisit: this.prefillFromVisit
+                prefillFromVisit: this.prefillFromVisit === true,
+                visitSelections
             });
-            this.coachingEventId = result.coachingEventId;
-            this.coachingEventStatus = result.status;
+            const coachingEventId = createdCoachingEventId(result);
+            if (!coachingEventId) {
+                throw new Error('Coaching event was not created.');
+            }
+            this.coachingEventId = coachingEventId;
+            this.coachingEventStatus = result.status || 'Draft';
             const refreshed = {
                 ...(this.context || {}),
-                coachingEventId: result.coachingEventId,
-                coachingEventStatus: result.status
+                coachingEventId,
+                coachingEventStatus: this.coachingEventStatus,
+                associatedVisits: this.visits.filter((row) => row.selected)
             };
             this.context = refreshed;
             await putCoachingContext(this.visitId, refreshed);
             this.dispatchEvent(
                 new CustomEvent('coachingcreated', {
-                    detail: { coachingEventId: result.coachingEventId }
+                    detail: { coachingEventId }
                 })
             );
-            this.showToast('Coaching form created', 'This visit is now flagged as a double visit.', 'success');
+            const visitLabel = result.visitCount === 1 ? 'visit' : 'visits';
+            this.showToast(
+                'Coaching form created',
+                `${result.visitCount || visitSelections.length} ${visitLabel} flagged as double visits.`,
+                'success'
+            );
         } catch (error) {
             this.showToast('Create failed', this.reduceError(error), 'error');
         } finally {

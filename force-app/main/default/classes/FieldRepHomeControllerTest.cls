@@ -289,6 +289,47 @@ private class FieldRepHomeControllerTest {
     }
 
     @IsTest
+    static void getHomeMetrics_splitsAmAndPmAttainment() {
+        Map<String, Id> recordTypes = new Map<String, Id>();
+        for (RecordType rt : [
+            SELECT Id, DeveloperName
+            FROM RecordType
+            WHERE SObjectType = 'Account'
+            AND DeveloperName IN ('Institution_HCO', 'Pharmacy', 'Medical_Professional_HCP')
+        ]) {
+            recordTypes.put(rt.DeveloperName, rt.Id);
+        }
+        if (!recordTypes.containsKey('Institution_HCO')) {
+            return;
+        }
+
+        Account hospital = [SELECT Id FROM Account WHERE Name = 'Account A' LIMIT 1];
+        Account clinic = [SELECT Id FROM Account WHERE Name = 'Account B' LIMIT 1];
+        Account other = [SELECT Id FROM Account WHERE Name = 'Account C' LIMIT 1];
+        hospital.RecordTypeId = recordTypes.get('Institution_HCO');
+        hospital.Institution_Type__c = 'Hospital';
+        clinic.RecordTypeId = recordTypes.get('Institution_HCO');
+        clinic.Institution_Type__c = 'Clinic';
+        if (recordTypes.containsKey('Pharmacy')) {
+            other.RecordTypeId = recordTypes.get('Pharmacy');
+        } else if (recordTypes.containsKey('Medical_Professional_HCP')) {
+            other.RecordTypeId = recordTypes.get('Medical_Professional_HCP');
+        }
+        update new List<Account>{ hospital, clinic, other };
+
+        Test.startTest();
+        FieldRepHomeController.HomeMetrics metrics = FieldRepHomeController.getHomeMetrics(null);
+        Test.stopTest();
+
+        System.assertEquals(5, Integer.valueOf(metrics.amActualVisits), 'Hospital visits are AM.');
+        System.assertEquals(10, Integer.valueOf(metrics.amTargetVisits));
+        System.assertEquals(50, Integer.valueOf(metrics.amAttainmentPercent));
+        System.assertEquals(5, Integer.valueOf(metrics.pmActualVisits), 'Clinic and pharmacy or HCP visits are PM.');
+        System.assertEquals(25, Integer.valueOf(metrics.pmTargetVisits));
+        System.assertEquals(20, Integer.valueOf(metrics.pmAttainmentPercent));
+    }
+
+    @IsTest
     static void getHomeMetrics_includesRemainingCallsAndRfMetOrExceeded() {
         Test.startTest();
         FieldRepHomeController.HomeMetrics metrics = FieldRepHomeController.getHomeMetrics(null);
@@ -315,6 +356,17 @@ private class FieldRepHomeControllerTest {
 
     @IsTest
     static void getMonthlyTimecardSummary_returnsCurrentMonthTiles() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Account A' LIMIT 1];
+        DateTime visitDt = DateTime.newInstance(Date.today(), Time.newInstance(9, 30, 0, 0));
+        insert new Visit__c(
+            Account__c = account.Id,
+            Assigned_To__c = UserInfo.getUserId(),
+            Visit_Date__c = visitDt,
+            Start_Date__c = visitDt,
+            Status__c = 'Draft',
+            Visit_Type__c = 'Planned (Automatically)'
+        );
+
         Test.startTest();
         FieldRepHomeController.MonthlyTimecardSummary summary =
             FieldRepHomeController.getMonthlyTimecardSummary(null);
@@ -322,7 +374,147 @@ private class FieldRepHomeControllerTest {
 
         System.assertNotEquals(null, summary, 'Expected monthly timecard summary.');
         System.assertNotEquals(null, summary.fieldDays, 'Expected field days tile.');
+        System.assert(summary.fieldDays > 0, 'Expected a positive field-day count for the current month.');
         System.assertNotEquals(null, summary.activityDays, 'Expected activities tile.');
+        System.assertNotEquals(null, summary.potentialVisits, 'Expected potential visits tile.');
+        System.assert(summary.potentialVisits >= 1, 'Draft visit should appear in potential activities.');
+        System.assertNotEquals(null, summary.completedActivities, 'Expected completed activities.');
+        System.assertNotEquals(null, summary.potentialActivities, 'Expected potential activities.');
+        System.assertNotEquals(null, summary.leaveDays, 'Expected leaves tile.');
+        System.assertNotEquals(null, summary.coachedDays, 'Expected coached tile.');
+    }
+
+    @IsTest
+    static void getMonthlyTimecardSummary_reflectsCompletedVisitAndLeave() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Account B' LIMIT 1];
+        Employee_Time_Card__c timeCard = [
+            SELECT Id
+            FROM Employee_Time_Card__c
+            WHERE Employee__c = :UserInfo.getUserId()
+            LIMIT 1
+        ];
+        Date monthStart = Date.today().toStartOfMonth();
+        Date weekday = null;
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(UserInfo.getUserId());
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        for (Date cursor = monthStart; cursor <= monthEnd; cursor = cursor.addDays(1)) {
+            if (!EmployeeTimeCardFlowHelper.isWeekendDay(cursor, department) && cursor <= Date.today()) {
+                weekday = cursor;
+                break;
+            }
+        }
+        if (weekday == null) {
+            weekday = Date.today();
+        }
+        insert as system new Employee_Time_Card_Day_Entry__c(
+            Employee_Time_Card__c = timeCard.Id,
+            Date__c = weekday,
+            Day_Definition__c = 'Weekday',
+            Calendar_Working_Days__c = 1
+        );
+        DateTime visitDt = DateTime.newInstance(weekday, Time.newInstance(10, 0, 0, 0));
+        insert new Visit__c(
+            Account__c = account.Id,
+            Assigned_To__c = UserInfo.getUserId(),
+            Visit_Date__c = visitDt,
+            Start_Date__c = visitDt,
+            Status__c = 'Completed',
+            Visit_Type__c = 'Planned (Automatically)'
+        );
+
+        insert new Time_Off_Request__c(
+            Type__c = 'Annual Vacation',
+            Stage__c = 'Approved',
+            Span_Type__c = 'Full_Day',
+            Span_Duration__c = 1,
+            Start_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(0, 0, 0, 0)),
+            End_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(23, 59, 0, 0)),
+            OwnerId = UserInfo.getUserId()
+        );
+        EmployeeTimeCardFlowHelper.recalcTOTForEmployeeAndRange(UserInfo.getUserId(), monthStart, monthEnd);
+        EmployeeTimeCardMetricsService.recalcMonthlyKpis(new Set<Id>{ UserInfo.getUserId() }, monthStart);
+
+        Test.startTest();
+        FieldRepHomeController.MonthlyTimecardSummary summary =
+            FieldRepHomeController.getMonthlyTimecardSummary(null);
+        Test.stopTest();
+
+        System.assert(summary.submittedCalls >= 1 || summary.completedActivities >= 1);
+        System.assert(summary.leaveDays >= 1, 'Approved leave TOT should count toward Leaves.');
+        System.assert(summary.activityDays >= 0);
+    }
+
+    @IsTest
+    static void getMonthlyTimecardDetails_opensVisitAndLeaveCards() {
+        Account account = [SELECT Id FROM Account WHERE Name = 'Account A' LIMIT 1];
+        Date monthStart = Date.today().toStartOfMonth();
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(UserInfo.getUserId());
+        Date weekday = Date.today();
+        for (Date cursor = monthStart; cursor <= monthEnd; cursor = cursor.addDays(1)) {
+            if (!EmployeeTimeCardFlowHelper.isWeekendDay(cursor, department)) {
+                weekday = cursor;
+                break;
+            }
+        }
+        DateTime visitDt = DateTime.newInstance(weekday, Time.newInstance(9, 30, 0, 0));
+        insert new List<Visit__c>{
+            new Visit__c(
+                Account__c = account.Id,
+                Assigned_To__c = UserInfo.getUserId(),
+                Visit_Date__c = visitDt,
+                Start_Date__c = visitDt,
+                Status__c = 'Draft',
+                Visit_Type__c = 'Planned (Automatically)'
+            ),
+            new Visit__c(
+                Account__c = account.Id,
+                Assigned_To__c = UserInfo.getUserId(),
+                Visit_Date__c = visitDt.addHours(2),
+                Start_Date__c = visitDt.addHours(2),
+                Status__c = 'Completed',
+                Visit_Type__c = 'Planned (Automatically)'
+            )
+        };
+        insert new Time_Off_Request__c(
+            Type__c = 'Annual Vacation',
+            Stage__c = 'Approved',
+            Span_Type__c = 'Full_Day',
+            Span_Duration__c = 1,
+            Start_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(0, 0, 0, 0)),
+            End_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(23, 59, 0, 0)),
+            OwnerId = UserInfo.getUserId()
+        );
+
+        Test.startTest();
+        FieldRepHomeController.MonthlyTimecardDetails potential =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'potential');
+        FieldRepHomeController.MonthlyTimecardDetails completed =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'completed');
+        FieldRepHomeController.MonthlyTimecardDetails fieldDays =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'field');
+        FieldRepHomeController.MonthlyTimecardDetails activities =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'activities');
+        FieldRepHomeController.MonthlyTimecardDetails coached =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'coached');
+        FieldRepHomeController.MonthlyTimecardDetails unknown =
+            FieldRepHomeController.getMonthlyTimecardDetails(null, 'not-a-card');
+        FieldRepHomeController.MonthlyLeaveDetails leaves = FieldRepHomeController.getMonthlyLeaveDetails(null);
+        Test.stopTest();
+
+        System.assertEquals('Potential activities', potential.title);
+        System.assert(potential.groups.size() > 0, 'Draft visit should appear in potential activities.');
+        System.assertEquals('Completed activities', completed.title);
+        System.assert(completed.groups.size() > 0, 'Completed visit should appear in completed activities.');
+        System.assertEquals('Field days', fieldDays.title);
+        System.assertNotEquals(null, fieldDays.monthLabel);
+        System.assertEquals('Activities recorded', activities.title);
+        System.assert(activities.groups.size() > 0, 'Completed visit should appear as a recorded activity day.');
+        System.assertEquals('Coached', coached.title);
+        System.assertEquals('Details', unknown.title);
+        System.assertEquals(0, unknown.groups.size());
+        System.assert(leaves.approvedRows.size() >= 1, 'Approved leave should open from the Leaves card.');
+        System.assertNotEquals(null, leaves.approvedRows[0].requestId);
     }
 
     private static String getOrCreateTestTerritory(String externalId) {
@@ -364,4 +556,3 @@ private class FieldRepHomeControllerTest {
         return String.valueOf(territory.Id);
     }
 }
-

@@ -1,0 +1,135 @@
+<template>
+    <section class="ttl">
+        <header class="ttl-header">
+            <div>
+                <h2 class="ttl-title">Team target list</h2>
+                <p class="ttl-subtitle">Set a doctor's visits for each month of the quarter, take doctors off the list, or propose doctors your rep visited outside it. Past months are closed. Classes come from the promo grid and can't be changed here.</p>
+            </div>
+            <template if:true={hasReps}>
+                <lightning-combobox
+                    class="ttl-rep"
+                    label="Rep"
+                    value={data.repId}
+                    options={repOptions}
+                    onchange={handleRepChange}
+                ></lightning-combobox>
+            </template>
+        </header>
+
+        <template if:true={isLoading}>
+            <div class="ttl-loading"><lightning-spinner alternative-text="Loading target list" size="small"></lightning-spinner></div>
+        </template>
+
+        <template if:true={error}>
+            <p class="ttl-note ttl-note--error" role="alert">{error}</p>
+        </template>
+
+        <template if:true={hasData}>
+            <template if:true={data.message}>
+                <p class="ttl-note">{data.message}</p>
+            </template>
+            <template if:true={hasReps}>
+                <div class="ttl-chips">
+                    <template for:each={monthChips} for:item="m">
+                        <span key={m.key} class={m.cls}>{m.label}</span>
+                    </template>
+                    <span class="ttl-chip">{limitLabel}</span>
+                    <span class={removalChipClass}>{removalSummary}</span>
+                    <span class="ttl-chip ttl-chip--muted">{lineLabel}</span>
+                </div>
+
+                <div class="ttl-toolbar">
+                    <lightning-input
+                        type="search"
+                        label="Search this list"
+                        variant="label-hidden"
+                        placeholder="Search by name or specialty"
+                        value={searchTerm}
+                        onchange={handleSearch}
+                    ></lightning-input>
+                    <span class="ttl-count">{listCountLabel}</span>
+                </div>
+
+                <template if:true={hasRows}>
+                    <div class="ttl-scroll">
+                        <table class="ttl-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Specialty</th>
+                                    <th class="ttl-center">Class</th>
+                                    <template for:each={months} for:item="m">
+                                        <th key={m.monthStart} class="ttl-center">{m.label}</th>
+                                    </template>
+                                    <th class="ttl-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={rows} for:item="r">
+                                    <tr key={r.atfId}>
+                                        <td class="ttl-name">{r.accountName}<span class="ttl-sub">{r.territoryName}</span></td>
+                                        <td>{r.specialty}</td>
+                                        <td class="ttl-center"><span class="ttl-class">{r.hcpClass}</span></td>
+                                        <template for:each={r.cells} for:item="c">
+                                            <td key={c.key} class="ttl-center">
+                                                <template if:true={c.editable}>
+                                                    <div class="ttl-stepper">
+                                                        <button type="button" class="ttl-step" aria-label="One visit less" data-id={r.atfId} data-month={c.monthStart} data-step="-1" disabled={c.minusDisabled} onclick={handleStep}>−</button>
+                                                        <span class="ttl-freq">{c.frequencyLabel}</span>
+                                                        <button type="button" class="ttl-step" aria-label="One visit more" data-id={r.atfId} data-month={c.monthStart} data-step="1" disabled={r.busy} onclick={handleStep}>+</button>
+                                                    </div>
+                                                </template>
+                                                <template if:false={c.editable}>
+                                                    <span class="ttl-freq ttl-freq--closed">{c.frequencyLabel}</span>
+                                                </template>
+                                                <span class="ttl-sub">{c.baselineLabel}</span>
+                                            </td>
+                                        </template>
+                                        <td class="ttl-right">
+                                            <button type="button" class="ttl-btn ttl-btn--danger" data-id={r.atfId} data-name={r.accountName} disabled={r.busy} onclick={handleRemove}>Remove</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+
+                <h3 class="ttl-section">Visited outside the target list (last three months)</h3>
+                <template if:true={hasOutOfTarget}>
+                    <p class="ttl-hint">Propose a doctor for next month's list. Field Intelligence checks it next, then the business unit.</p>
+                    <div class="ttl-scroll">
+                        <table class="ttl-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th class="ttl-center">Visits</th>
+                                    <th class="ttl-right">Next month</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={outOfTarget} for:item="o">
+                                    <tr key={o.accountId}>
+                                        <td class="ttl-name">{o.accountName}</td>
+                                        <td class="ttl-center">{o.visits}</td>
+                                        <td class="ttl-right">
+                                            <template if:true={o.canPropose}>
+                                                <button type="button" class="ttl-btn" data-id={o.accountId} disabled={o.busy} onclick={handlePropose}>Propose</button>
+                                            </template>
+                                            <template if:false={o.canPropose}>
+                                                <span class="ttl-status">{o.statusLabel}</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template if:false={hasOutOfTarget}>
+                    <p class="ttl-hint">No completed visits outside the target list in the last three months.</p>
+                </template>
+            </template>
+        </template>
+    </section>
+</template>

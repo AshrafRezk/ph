@@ -2,8 +2,23 @@
 <StandardValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
     <sorted>false</sorted>
     <standardValue>
-        <fullName>Field Visit</fullName>
+        <fullName>Email</fullName>
         <default>false</default>
-        <label>Field Visit</label>
+        <label>Email</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Phone</fullName>
+        <default>false</default>
+        <label>Phone</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Web</fullName>
+        <default>false</default>
+        <label>Web</label>
+    </standardValue>
+    <standardValue>
+        <fullName>HCP App</fullName>
+        <default>false</default>
+        <label>HCP App</label>
     </standardValue>
 </StandardValueSet>

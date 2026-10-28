@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>My Team — subordinate territories and pending TOT, account, meeting, and expense approvals.</description>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>myTeamHierarchy</componentName>
+                <identifier>myTeamHierarchy</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>timeOffApprovalQueue</componentName>
+                <identifier>timeOffApprovalQueue</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>accountApprovalQueue</componentName>
+                <identifier>accountApprovalQueue</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>meetingApprovalQueue</componentName>
+                <identifier>meetingApprovalQueue</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>expenseApprovalQueue</componentName>
+                <identifier>expenseApprovalQueue</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>main</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>My Team</masterLabel>
+    <template>
+        <name>flexipage:defaultAppHomeTemplate</name>
+    </template>
+    <type>AppPage</type>
+</FlexiPage>

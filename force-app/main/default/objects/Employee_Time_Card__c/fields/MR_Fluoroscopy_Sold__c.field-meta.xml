@@ -3,6 +3,7 @@
     <fullName>MR_Fluoroscopy_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Fluoroscopy Sold</description>
+    <externalId>false</externalId>
     <label>Fluoroscopy Sold</label>
     <precision>16</precision>
     <required>false</required>

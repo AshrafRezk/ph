@@ -4,6 +4,7 @@ import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getTemplateSummaries from '@salesforce/apex/CoachingAdminController.getTemplateSummaries';
 import createTemplate from '@salesforce/apex/CoachingAdminController.createTemplate';
+import cloneTemplate from '@salesforce/apex/CoachingAdminController.cloneTemplate';
 
 export default class CoachingTemplateManager extends NavigationMixin(LightningElement) {
     searchTerm = '';
@@ -100,6 +101,24 @@ export default class CoachingTemplateManager extends NavigationMixin(LightningEl
     handleOpen(event) {
         const templateId = event.currentTarget.dataset.id;
         this.navigateToTemplate(templateId);
+    }
+
+    async handleClone(event) {
+        const templateId = event.currentTarget.dataset.id;
+        if (!templateId || this.isSaving) {
+            return;
+        }
+        this.isSaving = true;
+        try {
+            const cloneId = await cloneTemplate({ templateId });
+            await refreshApex(this.wiredResult);
+            this.toast('Template cloned', 'Opening the copied template.', 'success');
+            this.navigateToTemplate(cloneId);
+        } catch (error) {
+            this.toast('Clone failed', error?.body?.message || error?.message, 'error');
+        } finally {
+            this.isSaving = false;
+        }
     }
 
     navigateToTemplate(recordId) {

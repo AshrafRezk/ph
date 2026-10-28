@@ -3,6 +3,7 @@
     <fullName>MR_MRI_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — MRI Sold</description>
+    <externalId>false</externalId>
     <label>MRI Sold</label>
     <precision>16</precision>
     <required>false</required>

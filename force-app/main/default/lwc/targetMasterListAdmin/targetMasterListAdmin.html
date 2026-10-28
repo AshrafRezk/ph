@@ -1,0 +1,104 @@
+<template>
+    <div class="wrap">
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">Accounts</span>
+                <span class="stat-value">{accountCount}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Territory links</span>
+                <span class="stat-value">{atfCount}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Call-plan ATF</span>
+                <span class="stat-value">{callPlanAtfCount}</span>
+            </div>
+            <lightning-button label="Refresh" onclick={refreshStats} disabled={isBusy}></lightning-button>
+        </div>
+
+        <section class="panel">
+            <h3 class="h">Master list — Organizations_FinalMaster_List</h3>
+            <p class="help">
+                Import Sheet1 from <em>Organizations_FinalMaster_List_flagged.xlsx</em> (Pharmacy, Hospital,
+                Contract, Distributor, Doctor clinics). Doctor-type rows also upsert HCP person accounts and
+                clinic affiliations. Does <strong>not</strong> wipe. Use Account Management Wipe &amp; Load only
+                when you intend a full reset.
+            </p>
+            <div class="file-row">
+                <lightning-input
+                    type="file"
+                    label="Master list workbook"
+                    accept=".xlsx,.xls"
+                    onchange={handleMasterFile}
+                    disabled={isBusy}
+                ></lightning-input>
+                <span class="file-meta" lwc:if={masterRowCount}>{masterRowCount} org rows · {masterDoctorCount} doctors</span>
+            </div>
+            <div class="actions">
+                <lightning-button
+                    variant="brand"
+                    label="Import master list"
+                    onclick={handleImportMaster}
+                    disabled={masterImportDisabled}
+                ></lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Export master list (.xlsx)"
+                    onclick={handleExportMaster}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3 class="h">Target list — Target List (All Team)</h3>
+            <p class="help">
+                Import Sheet1 from <em>Target List (All Team).xlsx</em>. Matches Account by Code / External ID,
+                User by Employee Number, and the rep’s primary territory. Writes
+                Account Territory Fields (class, active, visits/month). Skips vacant employee codes
+                (<code>vac-*</code>). Flagged Only sheet is not imported — export flags separately if needed.
+            </p>
+            <div class="file-row">
+                <lightning-input
+                    type="file"
+                    label="Target list workbook"
+                    accept=".xlsx,.xls"
+                    onchange={handleTargetFile}
+                    disabled={isBusy}
+                ></lightning-input>
+                <span class="file-meta" lwc:if={targetRowCount}>{targetRowCount} target rows</span>
+            </div>
+            <div class="actions">
+                <lightning-button
+                    variant="brand"
+                    label="Import target list"
+                    onclick={handleImportTarget}
+                    disabled={targetImportDisabled}
+                ></lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Export target list (.xlsx)"
+                    onclick={handleExportTarget}
+                    disabled={isBusy}
+                ></lightning-button>
+            </div>
+        </section>
+
+        <template lwc:if={isBusy}>
+            <div class="progress">
+                <div class="progress-bar" style={progressStyle}></div>
+            </div>
+            <p class="progress-msg">{progressMessage}</p>
+        </template>
+        <template lwc:if={summary}>
+            <p class="summary">{summary}</p>
+        </template>
+        <template lwc:if={hasErrors}>
+            <ul class="errors">
+                <template for:each={errorLines} for:item="line">
+                    <li key={line}>{line}</li>
+                </template>
+            </ul>
+        </template>
+    </div>
+</template>

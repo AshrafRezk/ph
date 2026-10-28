@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Selectable__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>When true, this brick appears in the Account Brick lookup (148 and 702 organogram bricks).</description>
+    <inlineHelpText>Account lookup shows 148 and 702 bricks only. 70-area bricks stay hidden here.</inlineHelpText>
+    <label>Account Selectable</label>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

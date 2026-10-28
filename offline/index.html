@@ -6,12 +6,11 @@
         <meta name="theme-color" content="#0176d3" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Salesforce OSR" />
-        <title>Salesforce OSR</title>
+        <meta name="apple-mobile-web-app-title" content="Salesforce" />
+        <title>Salesforce</title>
         <link rel="manifest" href="/manifest.webmanifest" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="icon" href="/salesforce-logo.png" type="image/png" sizes="192x192" />
-        <link rel="apple-touch-icon" href="/salesforce-logo.png" />
+        <link rel="apple-touch-icon" href="/salesforce-logo-512.png" />
         <style>
             html.osr-has-session:not(.osr-session-confirmed) #login-fresh {
                 display: none !important;
@@ -52,6 +51,29 @@
             }
             html.osr-native #login-downloads {
                 display: none !important;
+            }
+            /* First paint. Keep in sync with the brand rules in src/shell.css. */
+            .brand-zeta {
+                display: none !important;
+            }
+            html[data-shell-brand='zeta'] .brand-salesforce {
+                display: none !important;
+            }
+            html[data-shell-brand='zeta'] img.brand-zeta {
+                display: block !important;
+            }
+            html[data-shell-brand='zeta'] .brand-copy.brand-zeta {
+                display: inline !important;
+            }
+            .login-brand img {
+                height: 84px;
+                width: auto;
+                max-width: 240px;
+                object-fit: contain;
+            }
+            .login-brand img.brand-salesforce {
+                height: 92px;
+                max-width: 280px;
             }
         </style>
         <script>
@@ -112,18 +134,29 @@
                 }
             })();
         </script>
+        <script src="/shell-brand.js"></script>
     </head>
     <body class="screen-login" data-screen="login">
         <header id="app-nav" class="app-nav" hidden style="display: none">
             <div class="nav-brand">
                 <img
                     id="nav-title"
-                    class="nav-logo"
-                    src="/salesforce-logo.svg"
+                    class="nav-logo brand-salesforce"
+                    data-brand-title
+                    src="/salesforce-logo.png"
                     alt="Salesforce"
-                    title="Salesforce OSR"
-                    width="28"
-                    height="19"
+                    title="Salesforce"
+                    width="32"
+                    height="32"
+                />
+                <img
+                    class="nav-logo brand-zeta"
+                    data-brand-title
+                    src="/zeta-mark.png"
+                    alt="Zeta Co-Pilot"
+                    title="Zeta Co-Pilot"
+                    width="32"
+                    height="32"
                 />
             </div>
             <nav id="app-tabs" class="nav-tabs" role="tablist"></nav>
@@ -133,8 +166,8 @@
                     class="nav-bell-btn"
                     type="button"
                     data-approval-bell
-                    title="Visit approvals"
-                    aria-label="Visit approvals"
+                    title="Notifications"
+                    aria-label="Notifications"
                     aria-haspopup="dialog"
                 >
                     <svg class="nav-bell-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -159,7 +192,8 @@
         <div id="session-bar" class="session-bar">
             <div class="login-card">
                 <div class="login-brand">
-                    <img src="/salesforce-logo.svg" alt="Salesforce" width="200" height="139" />
+                    <img class="brand-salesforce" src="/salesforce-logo.svg" alt="Salesforce" />
+                    <img class="brand-zeta" src="/zeta-logo.png" alt="Zeta Pharma" width="220" height="102" />
                 </div>
                 <h1 id="login-title-welcome" class="login-title-welcome">Welcome</h1>
                 <h1 id="login-title-back" class="login-title-back" hidden>Welcome back</h1>
@@ -195,7 +229,21 @@
                             <option value="production" selected>Live account</option>
                             <option value="sandbox">Practice / training account</option>
                             <option value="custom">Company login page</option>
+                            <option value="demo">Demo account (app review)</option>
                         </select>
+                    </div>
+                    <div id="demo-login-field" class="field" hidden style="display: none">
+                        <label for="demo-username-input">Demo username</label>
+                        <input
+                            id="demo-username-input"
+                            type="email"
+                            autocomplete="username"
+                            autocapitalize="off"
+                            spellcheck="false"
+                        />
+                        <label for="demo-password-input">Demo password</label>
+                        <input id="demo-password-input" type="password" autocomplete="current-password" />
+                        <p class="login-help">Sample data only. No company account needed.</p>
                     </div>
                     <div id="custom-domain-field" class="field" hidden style="display: none">
                         <label for="custom-domain-input">Company login name</label>
@@ -257,7 +305,11 @@
 
                 <p id="login-status" class="login-status" hidden></p>
 
-                <p class="login-footer">Secure company sign-in</p>
+                <p class="login-footer">
+                    Powered by Cloudastick Systems, a Salesforce Partner<br />
+                    <a class="brand-copy brand-salesforce" href="/site-privacy.html">Privacy policy</a>
+                    <a class="brand-copy brand-zeta" href="https://www.cloudastick.com/zeta-co-pilot-privacy">Privacy policy</a>
+                </p>
             </div>
             <script>
                 (function () {
@@ -282,7 +334,10 @@
             <header class="chooser-head">
                 <div>
                     <h1 class="chooser-title">App Launcher</h1>
-                    <p class="chooser-sub">Open an app, or jump straight to an item. Salesforce OSR works fully offline.</p>
+                    <p class="chooser-sub">
+                        <span class="brand-copy brand-salesforce">Open an app, or jump straight to an item. Works fully offline.</span>
+                        <span class="brand-copy brand-zeta">Open an app, or jump straight to an item. Zeta Co-Pilot works fully offline.</span>
+                    </p>
                 </div>
                 <div class="chooser-head-actions">
                     <button
@@ -290,8 +345,8 @@
                         class="nav-bell-btn"
                         type="button"
                         data-approval-bell
-                        title="Visit approvals"
-                        aria-label="Visit approvals"
+                        title="Notifications"
+                        aria-label="Notifications"
                         aria-haspopup="dialog"
                     >
                         <svg class="nav-bell-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -323,8 +378,13 @@
         </div>
         <main id="app" class="app-shell" hidden style="display: none">
             <div id="view-home" class="view-panel active"></div>
+            <div id="view-workforce" class="view-panel"></div>
+            <div id="view-my-team" class="view-panel"></div>
             <div id="view-accounts" class="view-panel"></div>
+            <div id="view-field-requests" class="view-panel"></div>
+            <div id="view-field-orders" class="view-panel"></div>
             <div id="view-class-engine" class="view-panel"></div>
+            <div id="view-kpis" class="view-panel"></div>
             <div id="view-planner" class="view-panel"></div>
             <div id="view-timeoff" class="view-panel"></div>
             <div id="view-clm" class="view-panel"></div>
@@ -332,7 +392,17 @@
             <div id="view-learning" class="view-panel"></div>
             <div id="view-chatter" class="view-panel"></div>
             <div id="view-reports" class="view-panel"></div>
+            <div id="view-reports-hub" class="view-panel"></div>
+            <div id="view-kam" class="view-panel"></div>
             <div id="view-dashboards" class="view-panel"></div>
+            <div id="view-care-coach-home" class="view-panel"></div>
+            <div id="view-care-coach-patients" class="view-panel"></div>
+            <div id="view-care-coach-planner" class="view-panel"></div>
+            <div id="view-care-coach-products" class="view-panel"></div>
+            <div id="view-care-coach-orders" class="view-panel"></div>
+            <div id="view-care-coach-knowledge" class="view-panel"></div>
+            <div id="view-meetings" class="view-panel"></div>
+            <div id="view-meeting-accounting" class="view-panel"></div>
             <div id="view-entity" class="view-panel"></div>
             <div id="view-unsupported" class="view-panel"></div>
         </main>
@@ -411,14 +481,26 @@
             <button class="user-overlay-backdrop" type="button" data-approval-close aria-label="Close approvals"></button>
             <div class="approval-panel-card" role="dialog" aria-labelledby="approval-inbox-title">
                 <header class="approval-panel-head">
-                    <h2 id="approval-inbox-title">Visit approvals</h2>
+                    <h2 id="approval-inbox-title">Notifications</h2>
                     <button class="panel-back-btn" type="button" data-approval-close>Close</button>
                 </header>
                 <p id="approval-inbox-subtitle" class="approval-panel-sub">
-                    Submitted visit plans from your team appear here.
+                    Alerts from Salesforce appear here.
                 </p>
                 <ul id="approval-inbox-list" class="approval-list"></ul>
-                <p id="approval-inbox-empty" class="approval-empty">No visits waiting for your approval.</p>
+                <p id="approval-inbox-empty" class="approval-empty">No notifications.</p>
+            </div>
+        </div>
+
+        <div id="nav-more-panel" class="user-overlay nav-more-panel" hidden>
+            <button class="user-overlay-backdrop" type="button" data-nav-more-close aria-label="Close more tabs"></button>
+            <div class="nav-more-card" role="dialog" aria-labelledby="nav-more-title">
+                <header class="nav-more-head">
+                    <h2 id="nav-more-title">More</h2>
+                    <button class="panel-back-btn" type="button" data-nav-more-close>Close</button>
+                </header>
+                <p class="nav-more-sub">Other tabs in this app</p>
+                <div id="nav-more-list" class="nav-more-list" role="menu"></div>
             </div>
         </div>
 

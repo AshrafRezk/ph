@@ -4,6 +4,7 @@
     <active>true</active>
     <description>Prevents marking visits as Completed before their scheduled calendar date.</description>
     <errorConditionFormula>AND(
+  NOT(BEGINS(Client_Visit_Key__c, &quot;PACKV-&quot;)),
   ISPICKVAL(Status__c, &quot;Completed&quot;),
   DATEVALUE(Start_Date__c) &gt; TODAY()
 )</errorConditionFormula>

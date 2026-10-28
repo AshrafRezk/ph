@@ -1,0 +1,30 @@
+<template>
+    <lightning-modal-header label={expenseName}></lightning-modal-header>
+    <lightning-modal-body>
+        <dl class="detail-grid">
+            <dt>Type</dt>
+            <dd>{typeLabel}</dd>
+            <dt>Date</dt>
+            <dd>{expenseDateLabel}</dd>
+            <dt>Amount (EGP)</dt>
+            <dd>{amountLabel}</dd>
+            <dt>Description</dt>
+            <dd>{descriptionLabel}</dd>
+            <dt>Status</dt>
+            <dd>
+                <span class={statusBadgeClass}>{status}</span>
+                <p class="status-help">{statusHelpText}</p>
+            </dd>
+            <dt>Manager</dt>
+            <dd>{managerName}</dd>
+            <template if:true={showRejectionReason}>
+                <dt>Rejection reason</dt>
+                <dd>{rejectionReason}</dd>
+            </template>
+        </dl>
+    </lightning-modal-body>
+    <lightning-modal-footer>
+        <lightning-button label="Close" onclick={handleClose}></lightning-button>
+        <lightning-button variant="brand" label="Open record" onclick={handleOpenRecord}></lightning-button>
+    </lightning-modal-footer>
+</template>

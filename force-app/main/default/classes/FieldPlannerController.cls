@@ -28,11 +28,25 @@ public with sharing class FieldPlannerController {
     @AuraEnabled
     public String brickName;
     @AuraEnabled
+    public Id brick148Id;
+    @AuraEnabled
+    public String brick148Name;
+    @AuraEnabled
+    public Id brick702Id;
+    @AuraEnabled
+    public String brick702Name;
+    @AuraEnabled
     public String frequencyStatus;
     @AuraEnabled
     public Decimal actualVisits;
     @AuraEnabled
     public Decimal targetVisits;
+    @AuraEnabled
+    public Integer plannedVisits;
+    @AuraEnabled
+    public String paceStatus;
+    @AuraEnabled
+    public String paceStatusLabel;
   }
 
   public class FilterOption {
@@ -90,6 +104,13 @@ public with sharing class FieldPlannerController {
     public String label;
     @AuraEnabled
     public String parentTerritoryName;
+    @AuraEnabled
+    public Boolean canApprove;
+    @AuraEnabled
+    public Integer pendingApprovalCount;
+    /** True for the viewer's own territory. Subordinate planners are false. */
+    @AuraEnabled
+    public Boolean assigned;
   }
 
   public class PlannerViewerContext {
@@ -98,11 +119,15 @@ public with sharing class FieldPlannerController {
     @AuraEnabled
     public Boolean canSwitchView;
     @AuraEnabled
+    public Boolean canApproveTeamPlans;
+    @AuraEnabled
     public Id topTerritoryId;
     @AuraEnabled
     public String topTerritoryName;
     @AuraEnabled
     public Id defaultUserId;
+    @AuraEnabled
+    public List<Id> assignedTerritoryIds;
     @AuraEnabled
     public List<PlannerViewerOption> options;
   }
@@ -190,6 +215,8 @@ public with sharing class FieldPlannerController {
     @AuraEnabled
     public String cancellationReason;
     @AuraEnabled
+    public String planRejectionReason;
+    @AuraEnabled
     public Boolean isLocked;
   }
 
@@ -201,6 +228,8 @@ public with sharing class FieldPlannerController {
     @AuraEnabled
     public String typeLabel;
     @AuraEnabled
+    public String typeValue;
+    @AuraEnabled
     public String spanType;
     @AuraEnabled
     public String stage;
@@ -210,15 +239,8 @@ public with sharing class FieldPlannerController {
     public DateTime endDateTime;
     @AuraEnabled
     public Boolean isFullDay;
-  }
-
-  public class PlannerPayload {
     @AuraEnabled
-    public List<VisitSummary> visits;
-    @AuraEnabled
-    public List<TotSummary> timeOffBlocks;
-    @AuraEnabled
-    public List<MeetingSummary> meetings;
+    public String comments;
   }
 
   public class MeetingSummary {
@@ -242,6 +264,29 @@ public with sharing class FieldPlannerController {
     public Id pharmaProjectId;
     @AuraEnabled
     public String pharmaProjectName;
+    @AuraEnabled
+    public String department;
+  }
+
+  public class PlannerPayload {
+    @AuraEnabled
+    public List<VisitSummary> visits;
+    @AuraEnabled
+    public List<TotSummary> timeOffBlocks;
+    @AuraEnabled
+    public List<MeetingSummary> meetings;
+    @AuraEnabled
+    public List<String> publicHolidayDates;
+    /** Planner Rules working days for the planner owner (0 = Sunday .. 6 = Saturday). */
+    @AuraEnabled
+    public List<Integer> workingDayNumbers;
+    /** Allow / Warn / Block for planning on a weekend, a visit on a holiday, a meeting on a holiday. */
+    @AuraEnabled
+    public String weekendPolicy;
+    @AuraEnabled
+    public String visitHolidayPolicy;
+    @AuraEnabled
+    public String meetingHolidayPolicy;
   }
 
   public class WeekSubmitResult {
@@ -319,6 +364,11 @@ public with sharing class FieldPlannerController {
     public Id zetaProjectId;
     @AuraEnabled
     public String visitObjective;
+    @AuraEnabled
+    public Boolean acknowledgeWarnings;
+    /** Offline outbox key (Client_Visit_Key__c). A replayed upsert with the same key updates, never duplicates. */
+    @AuraEnabled
+    public String clientVisitKey;
   }
 
   public class TotInput {
@@ -338,6 +388,10 @@ public with sharing class FieldPlannerController {
 
   private static final Integer DEFAULT_ACCOUNT_PAGE_SIZE = 25;
   private static final Integer MAX_ACCOUNT_PAGE_SIZE = 50;
+  private static final Integer MAX_TERRITORY_ACCOUNT_SCOPE = 20000;
+
+  @TestVisible
+  private static Boolean forceRepAccountScope = false;
   private static final String RECORD_TYPE_ALL = 'All';
   private static final String FILTER_ALL = 'All';
   private static final Set<String> PLANNER_ACCOUNT_RECORD_TYPES = new Set<String>{
@@ -349,39 +403,161 @@ public with sharing class FieldPlannerController {
     'Pharmacy'
   };
   private static final String HEAD_OFFICE_EXTERNAL_ID = 'TERR_HEAD_OFFICE';
+  private static final Set<String> PLANNER_MANAGER_ROLES = new Set<String>{
+    'District Manager',
+    'Region Manager',
+    'Line Manager',
+    'NSM',
+    'National Sales Manager',
+    'Area Manager',
+    'Business Unit Manager',
+    'Brand Manager',
+    'Trainer'
+  };
+  private static final String TOT_STAGE_SUBMITTED = 'Submitted for Approval';
+  private static final Set<String> PENDING_MEETING_STATUSES = new Set<String>{
+    'PendingApproval',
+    'Pending GPM Approval',
+    'Pending NLM Approval'
+  };
+  private static final Decimal PACE_ON_TRACK_THRESHOLD = 90;
+  private static final Decimal PACE_CRITICAL_THRESHOLD = 50;
+  private static final Set<String> PLANNED_VISIT_STATUSES = new Set<String>{
+    VisitStatusHelper.STATUS_DRAFT,
+    VisitStatusHelper.STATUS_SUBMITTED,
+    VisitStatusHelper.STATUS_SCHEDULED,
+    'Rescheduled'
+  };
 
   private static Boolean plannerHasObject(String objectApiName) {
     return String.isNotBlank(objectApiName) &&
       Schema.getGlobalDescribe().containsKey(objectApiName.toLowerCase());
   }
 
-  private static Boolean plannerHasVisitZetaProjectField() {
-    return PharmacySalesFieldSupport.hasField(Visit__c.SObjectType, 'Pharma_Project__c');
+  private static Boolean plannerHasField(Schema.SObjectType sobjectType, String fieldApiName) {
+    if (sobjectType == null || String.isBlank(fieldApiName)) {
+      return false;
+    }
+    Schema.SObjectField fieldToken = sobjectType.getDescribe().fields.getMap()
+      .get(fieldApiName.toLowerCase());
+    return fieldToken != null && fieldToken.getDescribe().isAccessible();
   }
 
-  private static String visitPlannerSelectFields() {
-    String fields =
-      'Id, Name, Status__c, Visit_Type__c, Start_Date__c, End_Date__c, Cancellation_Reason__c, ' +
-      'Account__c, Account__r.Name, Account__r.BillingLatitude, Account__r.BillingLongitude, ' +
-      'Account__r.Specialty_1__c, Account__r.RecordType.Name, Account__r.RecordType.DeveloperName, ' +
-      'Visit_Objective__c';
-    if (plannerHasVisitZetaProjectField()) {
-      fields += ', Pharma_Project__c, Pharma_Project__r.Name';
-    }
-    return fields;
+  private static Boolean plannerHasVisitZetaProjectField() {
+    return plannerHasField(Visit__c.SObjectType, 'Pharma_Project__c');
   }
 
   private static Visit__c queryPlannerVisitById(Id visitId) {
     Id userId = UserInfo.getUserId();
-    List<Visit__c> visits = Database.query(
-      'SELECT ' +
-      visitPlannerSelectFields() +
-      ' FROM Visit__c WHERE Id = :visitId AND Assigned_To__c = :userId WITH SYSTEM_MODE LIMIT 1'
-    );
+    List<Visit__c> visits = queryPlannerVisitsById(new Set<Id>{ visitId }, userId);
     if (visits.isEmpty()) {
       throw new AuraHandledException('Visit not found.');
     }
     return visits[0];
+  }
+
+  private static List<Visit__c> queryPlannerVisitsById(Set<Id> visitIds, Id assignedToUserId) {
+    if (visitIds == null || visitIds.isEmpty()) {
+      return new List<Visit__c>();
+    }
+    if (plannerHasVisitZetaProjectField()) {
+      if (assignedToUserId != null) {
+        return [
+          SELECT
+            Id,
+            Name,
+            Status__c,
+            Visit_Type__c,
+            Start_Date__c,
+            End_Date__c,
+            Cancellation_Reason__c,
+            Account__c,
+            Account__r.Name,
+            Account__r.BillingLatitude,
+            Account__r.BillingLongitude,
+            Account__r.Specialty_1__c,
+            Account__r.RecordType.Name,
+            Account__r.RecordType.DeveloperName,
+            Visit_Objective__c,
+            Pharma_Project__c,
+            Pharma_Project__r.Name
+          FROM Visit__c
+          WHERE Id IN :visitIds AND Assigned_To__c = :assignedToUserId
+          WITH SYSTEM_MODE
+          ORDER BY Start_Date__c ASC
+        ];
+      }
+      return [
+        SELECT
+          Id,
+          Name,
+          Status__c,
+          Visit_Type__c,
+          Start_Date__c,
+          End_Date__c,
+          Cancellation_Reason__c,
+          Account__c,
+          Account__r.Name,
+          Account__r.BillingLatitude,
+          Account__r.BillingLongitude,
+          Account__r.Specialty_1__c,
+          Account__r.RecordType.Name,
+          Account__r.RecordType.DeveloperName,
+          Visit_Objective__c,
+          Pharma_Project__c,
+          Pharma_Project__r.Name
+        FROM Visit__c
+        WHERE Id IN :visitIds
+        WITH SYSTEM_MODE
+        ORDER BY Start_Date__c ASC
+      ];
+    }
+    if (assignedToUserId != null) {
+      return [
+        SELECT
+          Id,
+          Name,
+          Status__c,
+          Visit_Type__c,
+          Start_Date__c,
+          End_Date__c,
+          Cancellation_Reason__c,
+          Account__c,
+          Account__r.Name,
+          Account__r.BillingLatitude,
+          Account__r.BillingLongitude,
+          Account__r.Specialty_1__c,
+          Account__r.RecordType.Name,
+          Account__r.RecordType.DeveloperName,
+          Visit_Objective__c
+        FROM Visit__c
+        WHERE Id IN :visitIds AND Assigned_To__c = :assignedToUserId
+        WITH SYSTEM_MODE
+        ORDER BY Start_Date__c ASC
+      ];
+    }
+    return [
+      SELECT
+        Id,
+        Name,
+        Status__c,
+        Visit_Type__c,
+        Start_Date__c,
+        End_Date__c,
+        Cancellation_Reason__c,
+        Account__c,
+        Account__r.Name,
+        Account__r.BillingLatitude,
+        Account__r.BillingLongitude,
+        Account__r.Specialty_1__c,
+        Account__r.RecordType.Name,
+        Account__r.RecordType.DeveloperName,
+        Visit_Objective__c
+      FROM Visit__c
+      WHERE Id IN :visitIds
+      WITH SYSTEM_MODE
+      ORDER BY Start_Date__c ASC
+    ];
   }
 
   @AuraEnabled(cacheable=true)
@@ -410,13 +586,30 @@ public with sharing class FieldPlannerController {
     } catch (Exception timeOffError) {
       payload.timeOffBlocks = new List<TotSummary>();
     }
-    // Meetings are optional — never block visits/TOT if Meeting__c access is missing.
+    // Meetings are optional for planner week load — never block visits/TOT if
+    // Meeting__c FLS/object access is missing during the visits→meetings migration.
     try {
       payload.meetings = queryMeetings(rangeStart, rangeEnd, resolvedUserId);
     } catch (Exception meetingError) {
       payload.meetings = new List<MeetingSummary>();
     }
+    payload.publicHolidayDates = PublicHolidayService.dateKeysInRange(weekStart, weekEnd);
+    applyPlannerRules(payload, resolvedUserId);
     return payload;
+  }
+
+  /** Same rule the server enforces on save, so the calendar greys out the right days. */
+  @TestVisible
+  private static void applyPlannerRules(PlannerPayload payload, Id userId) {
+    try {
+      PlannerRulesService.Rule rule = PlannerRulesService.resolveRuleForUser(userId);
+      payload.workingDayNumbers = rule.workingDayNumbers;
+      payload.weekendPolicy = rule.weekendPlanning;
+      payload.visitHolidayPolicy = rule.visitHolidayOverlap;
+      payload.meetingHolidayPolicy = rule.meetingHolidayOverlap;
+    } catch (Exception ex) {
+      // Planner still loads; the screen keeps its default week and the server still enforces on save.
+    }
   }
 
   @AuraEnabled(cacheable=true)
@@ -486,7 +679,7 @@ public with sharing class FieldPlannerController {
     return options;
   }
 
-  @AuraEnabled(cacheable=true)
+  @AuraEnabled
   public static AccountPageResult searchAccountsPage(
     String searchTerm,
     String recordTypeDeveloperName,
@@ -572,9 +765,10 @@ public with sharing class FieldPlannerController {
     Set<String> territoryIdStrings = toTerritoryIdStrings(territoryIds);
     if (!territoryIdStrings.isEmpty()) {
       Set<String> classifications = new Set<String>();
+      // Prefer matrix / HCP letter+number codes (A1–C3). Skip bare A/B/C.
       if (accountIds == null) {
         for (AggregateResult agg : [
-          SELECT Matrix_Rating__c rating
+          SELECT Matrix_Rating__c classVal
           FROM Account_Territory_Fields__c
           WHERE
             Territory2_Id__c IN :territoryIdStrings
@@ -584,11 +778,31 @@ public with sharing class FieldPlannerController {
           GROUP BY Matrix_Rating__c
           ORDER BY Matrix_Rating__c ASC
         ]) {
-          classifications.add((String) agg.get('rating'));
+          String normalized = normalizeLetterNumberClass((String) agg.get('classVal'));
+          if (normalized != null) {
+            classifications.add(normalized);
+          }
+        }
+        for (AggregateResult agg : [
+          SELECT HCP_Classification__c classVal
+          FROM Account_Territory_Fields__c
+          WHERE
+            Territory2_Id__c IN :territoryIdStrings
+            AND Is_Active__c = TRUE
+            AND Matrix_Rating__c = NULL
+            AND HCP_Classification__c != NULL
+          WITH SYSTEM_MODE
+          GROUP BY HCP_Classification__c
+          ORDER BY HCP_Classification__c ASC
+        ]) {
+          String normalized = normalizeLetterNumberClass((String) agg.get('classVal'));
+          if (normalized != null) {
+            classifications.add(normalized);
+          }
         }
       } else {
         for (AggregateResult agg : [
-          SELECT Matrix_Rating__c rating
+          SELECT Matrix_Rating__c classVal
           FROM Account_Territory_Fields__c
           WHERE
             Territory2_Id__c IN :territoryIdStrings
@@ -599,11 +813,34 @@ public with sharing class FieldPlannerController {
           GROUP BY Matrix_Rating__c
           ORDER BY Matrix_Rating__c ASC
         ]) {
-          classifications.add((String) agg.get('rating'));
+          String normalized = normalizeLetterNumberClass((String) agg.get('classVal'));
+          if (normalized != null) {
+            classifications.add(normalized);
+          }
+        }
+        for (AggregateResult agg : [
+          SELECT HCP_Classification__c classVal
+          FROM Account_Territory_Fields__c
+          WHERE
+            Territory2_Id__c IN :territoryIdStrings
+            AND Is_Active__c = TRUE
+            AND Matrix_Rating__c = NULL
+            AND HCP_Classification__c != NULL
+            AND Account__c IN :accountIds
+          WITH SYSTEM_MODE
+          GROUP BY HCP_Classification__c
+          ORDER BY HCP_Classification__c ASC
+        ]) {
+          String normalized = normalizeLetterNumberClass((String) agg.get('classVal'));
+          if (normalized != null) {
+            classifications.add(normalized);
+          }
         }
       }
-      for (String rating : classifications) {
-        result.classificationOptions.add(new FilterOption(rating, rating));
+      List<String> ordered = new List<String>(classifications);
+      ordered.sort();
+      for (String classVal : ordered) {
+        result.classificationOptions.add(new FilterOption(classVal, classVal));
       }
     }
 
@@ -657,46 +894,57 @@ public with sharing class FieldPlannerController {
       return options;
     }
 
-    Id resolvedUserId = resolveContextUserId(contextUserId);
-    Set<Id> memberProjectIds = new Set<Id>();
-    if (plannerHasObject('Pharma_Project_Member__c')) {
-      for (SObject member : Database.query(
-        'SELECT Pharma_Project__c FROM Pharma_Project_Member__c ' +
-        'WHERE User__c = :resolvedUserId AND Pharma_Project__c != NULL WITH USER_MODE'
-      )) {
-        memberProjectIds.add((Id) member.get('Pharma_Project__c'));
+    try {
+      Id resolvedUserId = resolveContextUserId(contextUserId);
+      Set<Id> memberProjectIds = new Set<Id>();
+      if (
+        plannerHasObject('Pharma_Project_Member__c') &&
+        plannerHasField(Pharma_Project_Member__c.SObjectType, 'User__c') &&
+        plannerHasField(Pharma_Project_Member__c.SObjectType, 'Pharma_Project__c')
+      ) {
+        for (Pharma_Project_Member__c member : [
+          SELECT Pharma_Project__c
+          FROM Pharma_Project_Member__c
+          WHERE User__c = :resolvedUserId AND Pharma_Project__c != NULL
+          WITH USER_MODE
+        ]) {
+          memberProjectIds.add(member.Pharma_Project__c);
+        }
       }
-    }
 
-    String promoCampaignType = 'Promotional Events';
-    Boolean hasProjectLead = PharmacySalesFieldSupport.hasField(
-      Pharma_Project__c.SObjectType,
-      'Project_Lead__c'
-    );
-    Boolean hasCampaignType = PharmacySalesFieldSupport.hasField(
-      Pharma_Project__c.SObjectType,
-      'Campaign_Type__c'
-    );
-
-    String soql = 'SELECT Id, Name FROM Pharma_Project__c WHERE Status__c IN (\'Planning\', \'In Progress\')';
-    if (hasCampaignType) {
-      soql =
-        'SELECT Id, Name FROM Pharma_Project__c WHERE Campaign_Type__c = :promoCampaignType ' +
-        'AND Status__c IN (\'Planning\', \'In Progress\')';
-    }
-    if (hasProjectLead) {
+      String promoCampaignType = 'Promotional Events';
+      List<Pharma_Project__c> projects;
       if (!memberProjectIds.isEmpty()) {
-        soql += ' AND (Id IN :memberProjectIds OR Project_Lead__c = :resolvedUserId)';
+        projects = [
+          SELECT Id, Name
+          FROM Pharma_Project__c
+          WHERE
+            Campaign_Type__c = :promoCampaignType
+            AND Status__c IN ('Planning', 'In Progress')
+            AND (Id IN :memberProjectIds OR Project_Lead__c = :resolvedUserId)
+          WITH USER_MODE
+          ORDER BY Name ASC
+          LIMIT 50
+        ];
       } else {
-        soql += ' AND Project_Lead__c = :resolvedUserId';
+        projects = [
+          SELECT Id, Name
+          FROM Pharma_Project__c
+          WHERE
+            Campaign_Type__c = :promoCampaignType
+            AND Status__c IN ('Planning', 'In Progress')
+            AND Project_Lead__c = :resolvedUserId
+          WITH USER_MODE
+          ORDER BY Name ASC
+          LIMIT 50
+        ];
       }
-    } else if (!memberProjectIds.isEmpty()) {
-      soql += ' AND Id IN :memberProjectIds';
-    }
-    soql += ' WITH USER_MODE ORDER BY Name ASC LIMIT 50';
-
-    for (SObject project : Database.query(soql)) {
-      options.add(new ProjectOption((String) project.get('Name'), (String) project.get('Id')));
+      for (Pharma_Project__c project : projects) {
+        options.add(new ProjectOption(project.Name, project.Id));
+      }
+    } catch (Exception projectError) {
+      // Org schema variance (member/project fields) should not break planner.
+      return new List<ProjectOption>();
     }
     return options;
   }
@@ -761,6 +1009,7 @@ public with sharing class FieldPlannerController {
     ctx.defaultUserId = UserInfo.getUserId();
     ctx.viewerMode = 'self';
     ctx.canSwitchView = false;
+    ctx.canApproveTeamPlans = false;
     ctx.options = new List<PlannerViewerOption>();
 
     Id headOfficeId = getHeadOfficeTerritoryId();
@@ -778,22 +1027,221 @@ public with sharing class FieldPlannerController {
       }
     }
 
-    if (hasFullPlannerAccountAccess()) {
-      ctx.viewerMode = 'admin';
-      ctx.canSwitchView = true;
-      Set<Id> scopedTerritoryIds = expandTerritoryHierarchy(
-        TerritoryContextService.getEffectiveTerritoryIds(UserInfo.getUserId())
-      );
-      if (scopedTerritoryIds.isEmpty() && headOfficeId != null) {
-        scopedTerritoryIds = expandTerritoryHierarchy(new Set<Id>{ headOfficeId });
-      }
-      ctx.options = buildViewerOptionsForTerritories(scopedTerritoryIds);
+    ctx.assignedTerritoryIds = new List<Id>(
+      TerritoryContextService.getAssignedTerritoryIds(UserInfo.getUserId())
+    );
+    ctx.options = buildViewerOptionsForTerritories(getPlannerViewerTerritoryIds());
+    if (ctx.options.isEmpty()) {
+      return ctx;
     }
+
+    Set<Id> approvableUserIds = getApprovablePlannerUserIds();
+    Set<Id> countedUserIds = new Set<Id>();
+    for (PlannerViewerOption option : ctx.options) {
+      option.canApprove = approvableUserIds.contains(option.userId);
+      if (option.canApprove) {
+        countedUserIds.add(option.userId);
+      }
+    }
+    Map<Id, Integer> pendingByUserId = new PlannerPendingApprovalCounter().countByUser(countedUserIds);
+    for (PlannerViewerOption option : ctx.options) {
+      Integer pending = pendingByUserId.get(option.userId);
+      option.pendingApprovalCount = pending == null ? 0 : pending;
+    }
+
+    ctx.canSwitchView = true;
+    ctx.canApproveTeamPlans = !countedUserIds.isEmpty();
+    ctx.viewerMode = hasFullPlannerAccountAccess() ? 'admin' : 'manager';
     return ctx;
+  }
+
+  /**
+   * Territories in the planner switcher. Matches the Class Engine: the viewer's
+   * assignments, every territory under them, direct reports' territories, manager-role
+   * trees, and active delegations. A system administrator with no alignment falls back
+   * to Head Office.
+   */
+  private static Set<Id> getPlannerViewerTerritoryIds() {
+    Id userId = UserInfo.getUserId();
+    Set<Id> territoryIds = expandTerritoryHierarchy(getUserTerritoryIdsForUser(userId));
+    territoryIds.addAll(getManagedTerritoryIds(userId));
+    territoryIds.addAll(getDirectReportTerritoryIds(userId));
+    territoryIds.addAll(DelegationService.getActiveDelegatedTerritoryIds(userId));
+    territoryIds.remove(null);
+    if (territoryIds.isEmpty() && isSystemAdministrator()) {
+      Id headOfficeId = getHeadOfficeTerritoryId();
+      if (headOfficeId != null) {
+        territoryIds = expandTerritoryHierarchy(new Set<Id>{ headOfficeId });
+      }
+    }
+    return territoryIds;
+  }
+
+  private static Set<Id> getManagedTerritoryIds(Id userId) {
+    Set<Id> roots = new Set<Id>();
+    for (UserTerritory2Association assignment : [
+      SELECT Territory2Id
+      FROM UserTerritory2Association
+      WHERE
+        UserId = :userId
+        AND Territory2Id != NULL
+        AND RoleInTerritory2 IN :PLANNER_MANAGER_ROLES
+      WITH SYSTEM_MODE
+    ]) {
+      roots.add(assignment.Territory2Id);
+    }
+    return roots.isEmpty() ? roots : expandTerritoryHierarchy(roots);
+  }
+
+  private static Set<Id> getDirectReportTerritoryIds(Id userId) {
+    Set<Id> reportIds = new Set<Id>();
+    for (User rep : [
+      SELECT Id
+      FROM User
+      WHERE ManagerId = :userId AND IsActive = TRUE
+      WITH SYSTEM_MODE
+    ]) {
+      reportIds.add(rep.Id);
+    }
+    Set<Id> territoryIds = new Set<Id>();
+    if (reportIds.isEmpty()) {
+      return territoryIds;
+    }
+    for (UserTerritory2Association assignment : [
+      SELECT Territory2Id
+      FROM UserTerritory2Association
+      WHERE UserId IN :reportIds AND Territory2Id != NULL
+      WITH SYSTEM_MODE
+    ]) {
+      territoryIds.add(assignment.Territory2Id);
+    }
+    return territoryIds;
+  }
+
+  private static Set<Id> getActiveUserIdsOnTerritories(Set<Id> territoryIds) {
+    Set<Id> userIds = new Set<Id>();
+    if (territoryIds == null || territoryIds.isEmpty()) {
+      return userIds;
+    }
+    for (UserTerritory2Association assignment : [
+      SELECT UserId
+      FROM UserTerritory2Association
+      WHERE Territory2Id IN :territoryIds AND User.IsActive = TRUE
+      WITH SYSTEM_MODE
+    ]) {
+      userIds.add(assignment.UserId);
+    }
+    userIds.remove(UserInfo.getUserId());
+    return userIds;
+  }
+
+  private static Set<Id> getApprovablePlannerUserIds() {
+    Id userId = UserInfo.getUserId();
+    Set<Id> userIds = getActiveUserIdsOnTerritories(getPlannerViewerTerritoryIds());
+    for (User rep : [
+      SELECT Id
+      FROM User
+      WHERE ManagerId = :userId AND IsActive = TRUE
+      WITH SYSTEM_MODE
+    ]) {
+      userIds.add(rep.Id);
+    }
+    userIds.remove(userId);
+    return userIds;
+  }
+
+  /**
+   * True when the running user may approve plan items for the rep: a direct report,
+   * a user under a territory the running user manages, or a user on a delegated line.
+   */
+  public static Boolean canApprovePlannerFor(Id repUserId) {
+    if (repUserId == null || repUserId == UserInfo.getUserId()) {
+      return false;
+    }
+    return getApprovablePlannerUserIds().contains(repUserId);
+  }
+
+  private without sharing class PlannerPendingApprovalCounter {
+    Map<Id, Integer> countByUser(Set<Id> userIds) {
+      Map<Id, Integer> counts = new Map<Id, Integer>();
+      if (userIds == null || userIds.isEmpty()) {
+        return counts;
+      }
+      for (AggregateResult row : [
+        SELECT Assigned_To__c userId, COUNT(Id) total
+        FROM Visit__c
+        WHERE
+          Assigned_To__c IN :userIds
+          AND Status__c = :VisitStatusHelper.STATUS_SUBMITTED
+          AND Visit_Type__c IN (:VisitStatusHelper.TYPE_PLANNED_AUTO, :VisitStatusHelper.TYPE_PLANNED_MANAGER)
+        WITH SYSTEM_MODE
+        GROUP BY Assigned_To__c
+      ]) {
+        increment(counts, (Id) row.get('userId'), (Integer) row.get('total'));
+      }
+      for (Time_Off_Request__c request : [
+        SELECT CreatedById, OwnerId
+        FROM Time_Off_Request__c
+        WHERE Stage__c = :TOT_STAGE_SUBMITTED AND (CreatedById IN :userIds OR OwnerId IN :userIds)
+        WITH SYSTEM_MODE
+        LIMIT 2000
+      ]) {
+        increment(counts, userIds.contains(request.CreatedById) ? request.CreatedById : request.OwnerId, 1);
+      }
+      // Meetings are optional; never fail the switcher when Meeting__c is unavailable.
+      try {
+        for (AggregateResult row : [
+          SELECT OwnerId userId, COUNT(Id) total
+          FROM Meeting__c
+          WHERE OwnerId IN :userIds AND Status__c IN :PENDING_MEETING_STATUSES
+          WITH SYSTEM_MODE
+          GROUP BY OwnerId
+        ]) {
+          increment(counts, (Id) row.get('userId'), (Integer) row.get('total'));
+        }
+      } catch (Exception ex) {
+        System.debug(LoggingLevel.WARN, 'Planner meeting approval count skipped: ' + ex.getMessage());
+      }
+      return counts;
+    }
+
+    void increment(Map<Id, Integer> counts, Id userId, Integer amount) {
+      if (userId == null || amount == null) {
+        return;
+      }
+      Integer current = counts.get(userId);
+      counts.put(userId, (current == null ? 0 : current) + amount);
+    }
   }
 
   public static Id resolveViewerContextUserId(Id requestedUserId) {
     return resolveContextUserId(requestedUserId);
+  }
+
+  /** Apex callers (tests, mobile REST). LWC uses the overload with acknowledgeWarnings. */
+  public static VisitSummary upsertVisit(
+    Id visitId,
+    Id accountId,
+    DateTime startDateTime,
+    DateTime endDateTime,
+    String status,
+    String visitType,
+    String cancellationReason,
+    Id zetaProjectId,
+    String visitObjective
+  ) {
+    return upsertVisit(
+      visitId,
+      accountId,
+      startDateTime,
+      endDateTime,
+      status,
+      visitType,
+      cancellationReason,
+      zetaProjectId,
+      visitObjective,
+      false
+    );
   }
 
   @AuraEnabled
@@ -806,7 +1254,8 @@ public with sharing class FieldPlannerController {
     String visitType,
     String cancellationReason,
     Id zetaProjectId,
-    String visitObjective
+    String visitObjective,
+    Boolean acknowledgeWarnings
   ) {
     assertCanMutatePlanner();
     VisitInput input = new VisitInput();
@@ -819,7 +1268,88 @@ public with sharing class FieldPlannerController {
     input.cancellationReason = cancellationReason;
     input.zetaProjectId = zetaProjectId;
     input.visitObjective = visitObjective;
+    input.acknowledgeWarnings = acknowledgeWarnings == true;
     return upsertVisitInternal(input);
+  }
+
+  /**
+   * Offline outbox (D6-01): same as upsertVisit, plus the client visit key. A new visit
+   * stores the key in Client_Visit_Key__c; a replay with the same key resolves to that visit.
+   */
+  public static VisitSummary upsertVisitWithClientKey(
+    Id visitId,
+    Id accountId,
+    DateTime startDateTime,
+    DateTime endDateTime,
+    String status,
+    String visitType,
+    String cancellationReason,
+    Id zetaProjectId,
+    String visitObjective,
+    String clientVisitKey
+  ) {
+    assertCanMutatePlanner();
+    VisitInput input = new VisitInput();
+    input.id = visitId;
+    input.accountId = accountId;
+    input.startDateTime = startDateTime;
+    input.endDateTime = endDateTime;
+    input.status = status;
+    input.visitType = visitType;
+    input.cancellationReason = cancellationReason;
+    input.zetaProjectId = zetaProjectId;
+    input.visitObjective = visitObjective;
+    input.acknowledgeWarnings = false;
+    input.clientVisitKey = clientVisitKey;
+    return upsertVisitInternal(input);
+  }
+
+  /**
+   * D2-03: only SFE and managers may change the start/end of a visit once it has left Draft.
+   * Reps still set times while building a Draft plan and when creating a visit.
+   */
+  @TestVisible
+  private static void assertScheduleEditAllowed(
+    String priorStatus,
+    DateTime priorStart,
+    DateTime priorEnd,
+    DateTime newStart,
+    DateTime newEnd
+  ) {
+    if (String.isBlank(priorStatus) || priorStatus == VisitStatusHelper.STATUS_DRAFT) {
+      return;
+    }
+    if (priorStart == newStart && priorEnd == newEnd) {
+      return;
+    }
+    if (!VisitActorAccess.canEditVisitSchedule()) {
+      throw RestSafeError.make(
+        'Only SFE and managers can change the start and end time of a ' + priorStatus.toLowerCase() + ' visit.'
+      );
+    }
+  }
+
+  private static final String CLIENT_KEY_PREFIX_RESERVED = 'PACKV-';
+
+  /** Resolves a replayed offline upsert to the visit it already created. Null when none. */
+  private static Visit__c findVisitByClientKey(String clientVisitKey) {
+    if (String.isBlank(clientVisitKey) || clientVisitKey.startsWith(CLIENT_KEY_PREFIX_RESERVED)) {
+      return null;
+    }
+    List<Visit__c> rows = [
+      SELECT Id, Assigned_To__c, Account__c, Status__c, Start_Date__c, End_Date__c
+      FROM Visit__c
+      WHERE Client_Visit_Key__c = :clientVisitKey
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (rows.isEmpty()) {
+      return null;
+    }
+    if (rows[0].Assigned_To__c != UserInfo.getUserId()) {
+      throw new AuraHandledException('This offline visit key belongs to another user.');
+    }
+    return rows[0];
   }
 
   @AuraEnabled
@@ -842,7 +1372,7 @@ public with sharing class FieldPlannerController {
 
     Map<Id, Visit__c> visitsById = new Map<Id, Visit__c>(
       [
-        SELECT Id, Status__c, Visit_Type__c, Account__c
+        SELECT Id, Status__c, Visit_Type__c, Account__c, Assigned_To__c, Start_Date__c, End_Date__c
         FROM Visit__c
         WHERE Id IN :visitIds AND Assigned_To__c = :UserInfo.getUserId()
         WITH USER_MODE
@@ -859,10 +1389,28 @@ public with sharing class FieldPlannerController {
       if (visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled') {
         throw new AuraHandledException('Completed or cancelled visits cannot be rescheduled.');
       }
+      if (VisitStatusHelper.isPendingApproval(visit.Status__c)) {
+        throw new AuraHandledException('Visits pending approval cannot be rescheduled.');
+      }
       DateTime startDt = startDateTimes[i];
       DateTime endDt = endDateTimes[i];
       if (startDt == null || endDt == null || endDt <= startDt) {
         throw new AuraHandledException('Each visit needs a valid start and end time.');
+      }
+      assertScheduleEditAllowed(visit.Status__c, visit.Start_Date__c, visit.End_Date__c, startDt, endDt);
+      assertVisitMoveAllowed(visit.Start_Date__c, startDt);
+      VisitConflictService.assertNoConflicts(
+        visit.Assigned_To__c,
+        startDt,
+        endDt,
+        visit.Id
+      );
+      Boolean replan =
+        VisitStatusHelper.isPlannedVisitType(visit.Visit_Type__c) &&
+        visit.Status__c == VisitStatusHelper.STATUS_SCHEDULED &&
+        (visit.Start_Date__c != startDt || visit.End_Date__c != endDt);
+      if (replan) {
+        visit.Status__c = VisitStatusHelper.STATUS_SUBMITTED;
       }
       visit.Start_Date__c = startDt;
       visit.End_Date__c = endDt;
@@ -872,15 +1420,398 @@ public with sharing class FieldPlannerController {
 
     update as user updates;
 
+    for (Visit__c visit : updates) {
+      if (visit.Status__c == VisitStatusHelper.STATUS_SUBMITTED) {
+        stampSubmittedAt(visit.Id, System.now());
+        try {
+          submitForApprovalInternal(visit.Id);
+        } catch (Exception ex) {
+          throw new AuraHandledException(
+            'Visit was replanned but could not be submitted for approval: ' + ex.getMessage()
+          );
+        }
+      }
+    }
+
     List<VisitSummary> results = new List<VisitSummary>();
-    for (Visit__c visit : Database.query(
-      'SELECT ' +
-      visitPlannerSelectFields() +
-      ' FROM Visit__c WHERE Id IN :visitIds WITH USER_MODE ORDER BY Start_Date__c ASC'
-    )) {
+    for (Visit__c visit : queryPlannerVisitsById(new Set<Id>(visitIds), null)) {
       results.add(mapVisit(visit));
     }
     return results;
+  }
+
+  /**
+   * Reps cannot move a visit onto a past calendar day (running user's time zone).
+   * Keeping the same day (time-only change) is always fine. SFE may override with the
+   * Edit_Visit_Date custom permission.
+   */
+  @TestVisible
+  private static void assertVisitMoveAllowed(DateTime priorStart, DateTime newStart) {
+    if (newStart == null) {
+      return;
+    }
+    Date newDay = newStart.date();
+    if (newDay >= Date.today()) {
+      return;
+    }
+    if (priorStart != null && priorStart.date() == newDay) {
+      return;
+    }
+    if (VisitActorAccess.canEditVisitDate()) {
+      return;
+    }
+    throw RestSafeError.make(
+      'Visits cannot be moved to a past day. Ask SFE to change the date if this is a correction.'
+    );
+  }
+
+  private static void stampSubmittedAt(Id visitId, DateTime submittedAt) {
+    if (visitId == null) {
+      return;
+    }
+    update as system new Visit__c(Id = visitId, Submitted_At__c = submittedAt);
+  }
+
+  private static void submitForApprovalInternal(Id visitId) {
+    try {
+      Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
+      approvalRequest.setComments('Visit plan submitted.');
+      approvalRequest.setObjectId(visitId);
+      Approval.ProcessResult result = Approval.process(approvalRequest);
+      if (result != null && result.isSuccess() != true) {
+        String message = joinApprovalErrors(result);
+        if (isMissingApprovalProcess(message)) {
+          return;
+        }
+        throw new AuraHandledException(message);
+      }
+    } catch (AuraHandledException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      if (isMissingApprovalProcess(ex.getMessage())) {
+        return;
+      }
+      throw ex;
+    }
+  }
+
+  private static Boolean approvalSucceededOrSkipped(Approval.ProcessResult approvalResult) {
+    if (approvalResult != null && approvalResult.isSuccess() == true) {
+      return true;
+    }
+    if (approvalResult == null) {
+      return false;
+    }
+    if (approvalResult.getErrors() == null || approvalResult.getErrors().isEmpty()) {
+      // Bulk Approval.process reports "no applicable process" as a failed result with no errors.
+      // Single-record submit treats that same case as success and leaves the visit Submitted.
+      return true;
+    }
+    if (isMissingApprovalProcess(joinApprovalErrors(approvalResult))) {
+      return true;
+    }
+    if (approvalResult.getErrors() == null) {
+      return false;
+    }
+    for (Database.Error err : approvalResult.getErrors()) {
+      if (err == null || err.getStatusCode() == null) {
+        continue;
+      }
+      if (String.valueOf(err.getStatusCode()).toLowerCase().contains('no_applicable')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Boolean isMissingApprovalProcess(String message) {
+    if (String.isBlank(message)) {
+      return false;
+    }
+    String lower = message.toLowerCase();
+    return lower.contains('no_applicable_process') ||
+      lower.contains('no applicable approval process');
+  }
+
+  private static String joinApprovalErrors(Approval.ProcessResult result) {
+    if (result == null || result.getErrors() == null || result.getErrors().isEmpty()) {
+      return 'Visit could not be submitted for approval.';
+    }
+    List<String> parts = new List<String>();
+    for (Database.Error err : result.getErrors()) {
+      if (err != null && String.isNotBlank(err.getMessage())) {
+        parts.add(err.getMessage());
+      }
+    }
+    return parts.isEmpty() ? 'Visit could not be submitted for approval.' : String.join(parts, ' ');
+  }
+
+  @AuraEnabled
+  public static VisitSummary submitVisit(Id visitId) {
+    assertCanMutatePlanner();
+    if (visitId == null) {
+      throw new AuraHandledException('Visit Id is required.');
+    }
+    Visit__c visit = [
+      SELECT
+        Id,
+        Status__c,
+        Visit_Type__c,
+        Assigned_To__c,
+        Start_Date__c,
+        End_Date__c
+      FROM Visit__c
+      WHERE Id = :visitId AND Assigned_To__c = :UserInfo.getUserId()
+      WITH USER_MODE
+      LIMIT 1
+    ];
+    if (!VisitStatusHelper.isPlannedVisitType(visit.Visit_Type__c)) {
+      throw new AuraHandledException('Only planned visits can be submitted for approval.');
+    }
+    VisitStatusHelper.assertTransitionAllowed(
+      visit.Status__c,
+      VisitStatusHelper.STATUS_SUBMITTED,
+      visit.Visit_Type__c,
+      false
+    );
+    VisitConflictService.assertNoConflicts(
+      visit.Assigned_To__c,
+      visit.Start_Date__c,
+      visit.End_Date__c,
+      visit.Id
+    );
+    visit.Status__c = VisitStatusHelper.STATUS_SUBMITTED;
+    update as user visit;
+    stampSubmittedAt(visit.Id, System.now());
+
+    try {
+      submitForApprovalInternal(visit.Id);
+    } catch (Exception ex) {
+      visit.Status__c = VisitStatusHelper.STATUS_DRAFT;
+      update as user visit;
+      stampSubmittedAt(visit.Id, null);
+      throw new AuraHandledException('Unable to submit visit for approval: ' + ex.getMessage());
+    }
+
+    return mapVisit(queryPlannerVisitById(visit.Id));
+  }
+
+  @AuraEnabled
+  public static Integer countDraftWeekPlans(Date weekStart, Date weekEnd) {
+    return queryDraftWeekPlanIds(weekStart, weekEnd).size();
+  }
+
+  @AuraEnabled
+  public static WeekSubmitResult submitWeekPlans(Date weekStart, Date weekEnd) {
+    assertCanMutatePlanner();
+    if (weekStart == null || weekEnd == null) {
+      throw new AuraHandledException('Week start and end dates are required.');
+    }
+
+    List<Visit__c> drafts = queryDraftWeekPlans(weekStart, weekEnd);
+
+    WeekSubmitResult result = new WeekSubmitResult();
+    result.submittedCount = 0;
+    result.failedCount = 0;
+    result.visits = new List<VisitSummary>();
+    result.errors = new List<String>();
+
+    submitWeekTimeOff(weekStart, weekEnd, result);
+
+    Map<Id, String> conflicts = VisitConflictService.findConflictMessages(drafts);
+    List<Visit__c> ready = new List<Visit__c>();
+    for (Visit__c draft : drafts) {
+      try {
+        if (!VisitStatusHelper.isPlannedVisitType(draft.Visit_Type__c)) {
+          throw new AuraHandledException('Only planned visits can be submitted for approval.');
+        }
+        VisitStatusHelper.assertTransitionAllowed(
+          draft.Status__c,
+          VisitStatusHelper.STATUS_SUBMITTED,
+          draft.Visit_Type__c,
+          false
+        );
+        WorkingCalendarUtil.assertWorkingDay(draft.Start_Date__c);
+        if (conflicts.containsKey(draft.Id)) {
+          throw new AuraHandledException(conflicts.get(draft.Id));
+        }
+        ready.add(new Visit__c(Id = draft.Id, Status__c = VisitStatusHelper.STATUS_SUBMITTED));
+      } catch (Exception ex) {
+        result.failedCount++;
+        result.errors.add(ex.getMessage());
+      }
+    }
+    if (ready.isEmpty()) {
+      return result;
+    }
+
+    List<Visit__c> updated = new List<Visit__c>();
+    Database.SaveResult[] saveResults = Database.update(ready, false, AccessLevel.USER_MODE);
+    for (Integer i = 0; i < saveResults.size(); i++) {
+      if (saveResults[i].isSuccess()) {
+        updated.add(ready[i]);
+      } else {
+        result.failedCount++;
+        result.errors.add(joinSaveErrors(saveResults[i]));
+      }
+    }
+    if (updated.isEmpty()) {
+      return result;
+    }
+
+    DateTime submittedAt = System.now();
+    List<Visit__c> stamps = new List<Visit__c>();
+    for (Visit__c visit : updated) {
+      stamps.add(new Visit__c(Id = visit.Id, Submitted_At__c = submittedAt));
+    }
+    try {
+      update as system stamps;
+    } catch (Exception ex) {
+      for (Visit__c visit : updated) {
+        visit.Status__c = VisitStatusHelper.STATUS_DRAFT;
+      }
+      update as user updated;
+      result.failedCount += updated.size();
+      result.errors.add(ex.getMessage());
+      return result;
+    }
+
+    List<Visit__c> submitted = applyWeekApproval(updated, result);
+    Set<Id> submittedIds = new Map<Id, Visit__c>(submitted).keySet();
+    for (Visit__c visit : queryPlannerVisitsById(submittedIds, UserInfo.getUserId())) {
+      result.visits.add(mapVisit(visit));
+    }
+    result.submittedCount = result.visits.size();
+    return result;
+  }
+
+  private static List<Visit__c> applyWeekApproval(List<Visit__c> updated, WeekSubmitResult result) {
+    List<Approval.ProcessSubmitRequest> requests = new List<Approval.ProcessSubmitRequest>();
+    for (Visit__c visit : updated) {
+      Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
+      approvalRequest.setComments('Visit plan submitted.');
+      approvalRequest.setObjectId(visit.Id);
+      requests.add(approvalRequest);
+    }
+
+    List<Approval.ProcessResult> approvalResults;
+    try {
+      approvalResults = Approval.process(requests, false);
+    } catch (Exception ex) {
+      if (isMissingApprovalProcess(ex.getMessage())) {
+        return updated;
+      }
+      revertWeekSubmission(updated);
+      result.failedCount += updated.size();
+      result.errors.add(ex.getMessage());
+      return new List<Visit__c>();
+    }
+
+    List<Visit__c> submitted = new List<Visit__c>();
+    List<Visit__c> reverts = new List<Visit__c>();
+    for (Integer i = 0; i < updated.size(); i++) {
+      Approval.ProcessResult approvalResult = i < approvalResults.size() ? approvalResults[i] : null;
+      if (approvalSucceededOrSkipped(approvalResult)) {
+        submitted.add(updated[i]);
+      } else {
+        reverts.add(updated[i]);
+        result.failedCount++;
+        result.errors.add(joinApprovalErrors(approvalResult));
+      }
+    }
+    if (!reverts.isEmpty()) {
+      revertWeekSubmission(reverts);
+    }
+    return submitted;
+  }
+
+  private static void revertWeekSubmission(List<Visit__c> visits) {
+    List<Visit__c> reverts = new List<Visit__c>();
+    for (Visit__c visit : visits) {
+      reverts.add(new Visit__c(
+        Id = visit.Id,
+        Status__c = VisitStatusHelper.STATUS_DRAFT,
+        Submitted_At__c = null
+      ));
+    }
+    update as system reverts;
+  }
+
+  private static String joinSaveErrors(Database.SaveResult saveResult) {
+    if (saveResult == null || saveResult.getErrors() == null || saveResult.getErrors().isEmpty()) {
+      return 'Visit could not be submitted for approval.';
+    }
+    List<String> parts = new List<String>();
+    for (Database.Error err : saveResult.getErrors()) {
+      if (err != null && String.isNotBlank(err.getMessage())) {
+        parts.add(err.getMessage());
+      }
+    }
+    return parts.isEmpty() ? 'Visit could not be submitted for approval.' : String.join(parts, ' ');
+  }
+
+  private static List<Id> queryDraftWeekPlanIds(Date weekStart, Date weekEnd) {
+    List<Id> draftIds = new List<Id>();
+    for (Visit__c draft : queryDraftWeekPlans(weekStart, weekEnd)) {
+      draftIds.add(draft.Id);
+    }
+    return draftIds;
+  }
+
+  private static List<Visit__c> queryDraftWeekPlans(Date weekStart, Date weekEnd) {
+    if (weekStart == null || weekEnd == null) {
+      throw new AuraHandledException('Week start and end dates are required.');
+    }
+    DateTime rangeStart = DateTime.newInstance(weekStart, Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(weekEnd.addDays(1), Time.newInstance(0, 0, 0, 0));
+    Id userId = UserInfo.getUserId();
+    return [
+      SELECT Id, Name, Status__c, Visit_Type__c, Assigned_To__c, Start_Date__c, End_Date__c
+      FROM Visit__c
+      WHERE
+        Assigned_To__c = :userId
+        AND Status__c = :VisitStatusHelper.STATUS_DRAFT
+        AND Visit_Type__c IN (
+          :VisitStatusHelper.TYPE_PLANNED_AUTO,
+          :VisitStatusHelper.TYPE_PLANNED_MANAGER
+        )
+        AND Start_Date__c < :rangeEnd
+        AND End_Date__c > :rangeStart
+      WITH USER_MODE
+      ORDER BY Start_Date__c ASC
+    ];
+  }
+
+  @AuraEnabled
+  public static VisitSummary approvePlanVisit(Id visitId) {
+    if (visitId == null) {
+      throw new AuraHandledException('Visit Id is required.');
+    }
+    Visit__c visit = [
+      SELECT Id, Status__c, Visit_Type__c, Assigned_To__c
+      FROM Visit__c
+      WHERE Id = :visitId
+      WITH USER_MODE
+      LIMIT 1
+    ];
+    if (visit.Status__c != VisitStatusHelper.STATUS_SUBMITTED) {
+      throw new AuraHandledException('Only submitted visits can be approved.');
+    }
+    assertCanApprovePlanForRep(visit.Assigned_To__c);
+    VisitStatusHelper.assertTransitionAllowed(
+      visit.Status__c,
+      VisitStatusHelper.STATUS_SCHEDULED,
+      visit.Visit_Type__c,
+      true
+    );
+    Id assignedToId = visit.Assigned_To__c;
+    visit.Status__c = VisitStatusHelper.STATUS_SCHEDULED;
+    update as user visit;
+    List<Visit__c> refreshed = queryPlannerVisitsById(new Set<Id>{ visit.Id }, assignedToId);
+    if (refreshed.isEmpty()) {
+      throw new AuraHandledException('Visit not found.');
+    }
+    return mapVisit(refreshed[0]);
   }
 
   private static VisitSummary upsertVisitInternal(VisitInput input) {
@@ -897,31 +1828,95 @@ public with sharing class FieldPlannerController {
       throw new AuraHandledException('End time must be after start time.');
     }
 
+    Boolean isNewClientKey = false;
+    if (input.id == null && String.isNotBlank(input.clientVisitKey)) {
+      Visit__c replayed = findVisitByClientKey(input.clientVisitKey);
+      if (replayed != null) {
+        Boolean unchanged =
+          replayed.Start_Date__c == input.startDateTime &&
+          replayed.End_Date__c == input.endDateTime &&
+          (input.accountId == null || replayed.Account__c == input.accountId) &&
+          (String.isBlank(input.status) || replayed.Status__c == input.status);
+        if (unchanged) {
+          return mapVisit(queryPlannerVisitById(replayed.Id));
+        }
+        input.id = replayed.Id;
+      } else {
+        isNewClientKey = !input.clientVisitKey.startsWith(CLIENT_KEY_PREFIX_RESERVED);
+      }
+    }
+
     Visit__c visit;
+    String priorStatus;
+    String visitType;
+    Id assignedTo;
+    DateTime priorStart;
+    DateTime priorEnd;
     if (input.id != null) {
       visit = [
-        SELECT Id, Status__c
+        SELECT Id, Status__c, Visit_Type__c, Assigned_To__c, Start_Date__c, End_Date__c
         FROM Visit__c
         WHERE Id = :input.id
         WITH USER_MODE
         LIMIT 1
       ];
-      if (visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled') {
+      priorStatus = visit.Status__c;
+      visitType = visit.Visit_Type__c;
+      assignedTo = visit.Assigned_To__c;
+      priorStart = visit.Start_Date__c;
+      priorEnd = visit.End_Date__c;
+      if (VisitStatusHelper.isLockedStatus(visit.Status__c)) {
         throw new AuraHandledException('Completed or cancelled visits cannot be changed from the planner.');
       }
+      if (VisitStatusHelper.isPendingApproval(visit.Status__c)) {
+        throw new AuraHandledException('Visits pending approval cannot be edited. Recall or wait for manager action.');
+      }
+      assertScheduleEditAllowed(priorStatus, priorStart, priorEnd, input.startDateTime, input.endDateTime);
+      assertVisitMoveAllowed(priorStart, input.startDateTime);
     } else {
       visit = new Visit__c();
       visit.Assigned_To__c = UserInfo.getUserId();
-      visit.Status__c = String.isBlank(input.status) ? 'Draft' : input.status;
-      visit.Visit_Type__c = String.isBlank(input.visitType)
-        ? 'Planned (Automatically)'
+      if (isNewClientKey) {
+        visit.Client_Visit_Key__c = input.clientVisitKey.left(80);
+      }
+      assignedTo = visit.Assigned_To__c;
+      visitType = String.isBlank(input.visitType)
+        ? VisitStatusHelper.TYPE_PLANNED_AUTO
         : input.visitType;
+      visit.Visit_Type__c = visitType;
+      if (VisitStatusHelper.isUnplannedVisitType(visitType)) {
+        visit.Status__c = VisitStatusHelper.STATUS_SCHEDULED;
+      } else {
+        visit.Status__c = String.isBlank(input.status) ? VisitStatusHelper.STATUS_DRAFT : input.status;
+      }
+      priorStatus = null;
     }
 
-    if (String.isNotBlank(input.status)) {
-      visit.Status__c = input.status;
+    String targetStatus = String.isBlank(input.status) ? visit.Status__c : input.status;
+    if (input.id != null && String.isNotBlank(input.status)) {
+      targetStatus = input.status;
     }
-    VisitStatusHelper.validateStatusChange(input.status, input.startDateTime, input.cancellationReason);
+
+    Boolean replan =
+      input.id != null &&
+      VisitStatusHelper.isPlannedVisitType(visitType) &&
+      priorStatus == VisitStatusHelper.STATUS_SCHEDULED &&
+      (priorStart != input.startDateTime || priorEnd != input.endDateTime);
+    if (replan) {
+      targetStatus = VisitStatusHelper.STATUS_SUBMITTED;
+    }
+
+    VisitStatusHelper.assertTransitionAllowed(priorStatus, targetStatus, visitType, false);
+    VisitStatusHelper.validateStatusChange(targetStatus, input.startDateTime, input.cancellationReason);
+    VisitConflictService.assertNoConflicts(
+      assignedTo,
+      input.startDateTime,
+      input.endDateTime,
+      input.id,
+      input.acknowledgeWarnings == true
+    );
+
+    visit.Status__c = targetStatus;
     if (input.accountId != null) {
       visit.Account__c = input.accountId;
     }
@@ -940,6 +1935,9 @@ public with sharing class FieldPlannerController {
       update as user visit;
     } else {
       insert as user visit;
+    }
+    if (targetStatus == VisitStatusHelper.STATUS_SUBMITTED && priorStatus != VisitStatusHelper.STATUS_SUBMITTED) {
+      stampSubmittedAt(visit.Id, System.now());
     }
 
     return mapVisit(queryPlannerVisitById(visit.Id));
@@ -984,6 +1982,7 @@ public with sharing class FieldPlannerController {
         CLM_Presentation__c,
         Next_Visit_Date__c,
         Cancellation_Reason__c,
+        Plan_Rejection_Reason__c,
         Account__c,
         Account__r.Name,
         Account__r.BillingCity,
@@ -1019,15 +2018,24 @@ public with sharing class FieldPlannerController {
       throw new AuraHandledException('Visit Id is required.');
     }
     Visit__c visit = [
-      SELECT Id, Status__c, Start_Date__c
+      SELECT Id, Status__c, Start_Date__c, Visit_Type__c
       FROM Visit__c
       WHERE Id = :visitId
       WITH USER_MODE
       LIMIT 1
     ];
-    if (visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled') {
+    if (VisitStatusHelper.isLockedStatus(visit.Status__c)) {
       throw new AuraHandledException('Completed or cancelled visits cannot be edited.');
     }
+    if (VisitStatusHelper.isPendingApproval(visit.Status__c)) {
+      throw new AuraHandledException('Visits pending approval cannot be edited.');
+    }
+    VisitStatusHelper.assertTransitionAllowed(
+      visit.Status__c,
+      status,
+      visit.Visit_Type__c,
+      false
+    );
     VisitStatusHelper.validateStatusChange(status, visit.Start_Date__c, cancellationReason);
 
     visit.Status__c = status;
@@ -1041,6 +2049,79 @@ public with sharing class FieldPlannerController {
     update as user visit;
 
     return getVisitDetail(visitId);
+  }
+
+  @AuraEnabled
+  public static TotSummary submitTimeOff(Id timeOffId) {
+    assertCanMutatePlanner();
+    if (timeOffId == null) {
+      throw new AuraHandledException('Time off id is required.');
+    }
+    Time_Off_Request__c request = [
+      SELECT Id, Stage__c
+      FROM Time_Off_Request__c
+      WHERE Id = :timeOffId
+      WITH USER_MODE
+      LIMIT 1
+    ];
+    if (request.Stage__c == TimeOffRequestService.STAGE_DRAFT) {
+      request.Stage__c = TimeOffRequestService.STAGE_SUBMITTED;
+      try {
+        update as user request;
+      } catch (DmlException e) {
+        throw new AuraHandledException(e.getDmlMessage(0));
+      }
+    }
+    return mapTimeOff([
+      SELECT
+        Id,
+        Name,
+        Type__c,
+        Span_Type__c,
+        Stage__c,
+        Comments__c,
+        Start_Date_Time__c,
+        End_Date_Time__c
+      FROM Time_Off_Request__c
+      WHERE Id = :timeOffId
+      WITH USER_MODE
+      LIMIT 1
+    ]);
+  }
+
+  private static void submitWeekTimeOff(Date weekStart, Date weekEnd, WeekSubmitResult result) {
+    DateTime rangeStart = DateTime.newInstance(weekStart, Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(weekEnd.addDays(1), Time.newInstance(0, 0, 0, 0));
+    Id userId = UserInfo.getUserId();
+    List<Time_Off_Request__c> drafts = [
+      SELECT Id, Stage__c
+      FROM Time_Off_Request__c
+      WHERE
+        (CreatedById = :userId OR OwnerId = :userId)
+        AND Stage__c = :TimeOffRequestService.STAGE_DRAFT
+        AND Start_Date_Time__c < :rangeEnd
+        AND End_Date_Time__c > :rangeStart
+      WITH USER_MODE
+    ];
+    if (drafts.isEmpty()) {
+      return;
+    }
+    List<Time_Off_Request__c> ready = new List<Time_Off_Request__c>();
+    for (Time_Off_Request__c tot : drafts) {
+      ready.add(new Time_Off_Request__c(
+        Id = tot.Id,
+        Stage__c = TimeOffRequestService.STAGE_SUBMITTED
+      ));
+    }
+    Database.SaveResult[] saveResults = Database.update(ready, false, AccessLevel.USER_MODE);
+    for (Integer i = 0; i < saveResults.size(); i++) {
+      if (saveResults[i].isSuccess()) {
+        result.submittedCount++;
+      } else {
+        result.failedCount++;
+        result.errors.add(joinSaveErrors(saveResults[i]));
+      }
+    }
   }
 
   @AuraEnabled
@@ -1070,8 +2151,11 @@ public with sharing class FieldPlannerController {
     if (String.isBlank(input.typeValue)) {
       throw new AuraHandledException('Select a time off type.');
     }
+    if (!TimeOffTypeCatalog.isKnownType(input.typeValue)) {
+      throw new AuraHandledException('Select a valid time off type.');
+    }
     if (String.isBlank(input.spanType)) {
-      throw new AuraHandledException('Select full day or partial hours.');
+      throw new AuraHandledException('Select full day, half day, partial hours, or days.');
     }
     if (input.startDateTime == null) {
       throw new AuraHandledException('Start date/time is required.');
@@ -1084,22 +2168,19 @@ public with sharing class FieldPlannerController {
     request.Comments__c = input.comments;
     String targetStage = String.isBlank(input.stage) ? 'Draft' : input.stage;
 
-    if (input.spanType == 'Hours') {
+    if (input.spanType == 'Hours' || input.spanType == 'Days') {
       if (String.isBlank(input.durationHours)) {
-        throw new AuraHandledException('Select duration for partial time off.');
+        throw new AuraHandledException(
+          input.spanType == 'Days'
+            ? 'Select duration in days for multi-day time off.'
+            : 'Select duration for partial time off.'
+        );
       }
       request.Span_Duration_Select__c = input.durationHours;
-      Decimal hours = Decimal.valueOf(input.durationHours);
-      request.Span_Duration__c = hours;
-      request.End_Date_Time__c = input.startDateTime.addSeconds(Integer.valueOf(hours * 3600));
-    } else if (input.spanType == 'Full_Day') {
-      Date day = input.startDateTime.date();
-      request.Start_Date_Time__c = DateTime.newInstance(day, Time.newInstance(9, 0, 0, 0));
-      request.End_Date_Time__c = DateTime.newInstance(day, Time.newInstance(17, 0, 0, 0));
-      request.Span_Duration__c = 1;
     }
 
     request.Stage__c = targetStage;
+    TimeOffRequestService.applyComputedFields(request);
     try {
       insert as user request;
     } catch (DmlException e) {
@@ -1113,10 +2194,9 @@ public with sharing class FieldPlannerController {
         Type__c,
         Span_Type__c,
         Stage__c,
+        Comments__c,
         Start_Date_Time__c,
-        End_Date_Time__c,
-        Start_Date__c,
-        End_Date__c
+        End_Date_Time__c
       FROM Time_Off_Request__c
       WHERE Id = :request.Id
       WITH USER_MODE
@@ -1126,13 +2206,79 @@ public with sharing class FieldPlannerController {
 
   private static List<VisitSummary> queryVisits(DateTime rangeStart, DateTime rangeEnd, Id userId) {
     List<VisitSummary> results = new List<VisitSummary>();
-    for (Visit__c visit : Database.query(
-      'SELECT ' +
-      visitPlannerSelectFields() +
-      ' FROM Visit__c WHERE Assigned_To__c = :userId AND Start_Date__c < :rangeEnd ' +
-      'AND End_Date__c > :rangeStart AND Status__c IN (\'Draft\', \'Scheduled\', \'Rescheduled\', \'Completed\', \'Cancelled\') ' +
-      'WITH SYSTEM_MODE ORDER BY Start_Date__c ASC'
-    )) {
+    List<Visit__c> visits;
+    if (plannerHasVisitZetaProjectField()) {
+      visits = [
+        SELECT
+          Id,
+          Name,
+          Status__c,
+          Visit_Type__c,
+          Start_Date__c,
+          End_Date__c,
+          Cancellation_Reason__c,
+          Account__c,
+          Account__r.Name,
+          Account__r.BillingLatitude,
+          Account__r.BillingLongitude,
+          Account__r.Specialty_1__c,
+          Account__r.RecordType.Name,
+          Account__r.RecordType.DeveloperName,
+          Visit_Objective__c,
+          Pharma_Project__c,
+          Pharma_Project__r.Name
+        FROM Visit__c
+        WHERE
+          Assigned_To__c = :userId
+          AND Start_Date__c < :rangeEnd
+          AND End_Date__c > :rangeStart
+          AND Status__c IN (
+            'Draft',
+            'Submitted',
+            'Scheduled',
+            'Rescheduled',
+            'Completed',
+            'Cancelled'
+          )
+        WITH SYSTEM_MODE
+        ORDER BY Start_Date__c ASC
+      ];
+    } else {
+      visits = [
+        SELECT
+          Id,
+          Name,
+          Status__c,
+          Visit_Type__c,
+          Start_Date__c,
+          End_Date__c,
+          Cancellation_Reason__c,
+          Account__c,
+          Account__r.Name,
+          Account__r.BillingLatitude,
+          Account__r.BillingLongitude,
+          Account__r.Specialty_1__c,
+          Account__r.RecordType.Name,
+          Account__r.RecordType.DeveloperName,
+          Visit_Objective__c
+        FROM Visit__c
+        WHERE
+          Assigned_To__c = :userId
+          AND Start_Date__c < :rangeEnd
+          AND End_Date__c > :rangeStart
+          AND Status__c IN (
+            'Draft',
+            'Submitted',
+            'Scheduled',
+            'Rescheduled',
+            'Completed',
+            'Cancelled'
+          )
+        WITH SYSTEM_MODE
+        ORDER BY Start_Date__c ASC
+      ];
+    }
+    for (Visit__c visit : visits) {
       results.add(mapVisit(visit));
     }
     return results;
@@ -1147,10 +2293,9 @@ public with sharing class FieldPlannerController {
         Type__c,
         Span_Type__c,
         Stage__c,
+        Comments__c,
         Start_Date_Time__c,
-        End_Date_Time__c,
-        Start_Date__c,
-        End_Date__c
+        End_Date_Time__c
       FROM Time_Off_Request__c
       WHERE
         (CreatedById = :userId OR OwnerId = :userId)
@@ -1161,6 +2306,36 @@ public with sharing class FieldPlannerController {
       ORDER BY Start_Date_Time__c ASC
     ]) {
       results.add(mapTimeOff(request));
+    }
+    return results;
+  }
+
+  private static List<MeetingSummary> queryMeetings(DateTime rangeStart, DateTime rangeEnd, Id userId) {
+    List<MeetingSummary> results = new List<MeetingSummary>();
+    for (Meeting__c meeting : [
+      SELECT
+        Id,
+        Name,
+        Status__c,
+        Objectives__c,
+        Start_Date_Time__c,
+        End_Date_Time__c,
+        Pharma_Project__c,
+        Pharma_Project__r.Name,
+        Originating_Department__c,
+        Activity_Type__c,
+        RecordType.DeveloperName,
+        RecordType.Name
+      FROM Meeting__c
+      WHERE
+        OwnerId = :userId
+        AND Start_Date_Time__c < :rangeEnd
+        AND End_Date_Time__c > :rangeStart
+        AND Status__c NOT IN ('Cancelled')
+      WITH USER_MODE
+      ORDER BY Start_Date_Time__c ASC
+    ]) {
+      results.add(mapMeeting(meeting));
     }
     return results;
   }
@@ -1317,7 +2492,8 @@ public with sharing class FieldPlannerController {
           FROM Account
           WHERE
             RecordType.DeveloperName IN :recordTypes
-            AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+            AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
           WITH USER_MODE
         ];
       }
@@ -1327,7 +2503,8 @@ public with sharing class FieldPlannerController {
         WHERE
           RecordType.DeveloperName IN :recordTypes
           AND Specialty_1__c = :specialtyFilter
-          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
         WITH USER_MODE
       ];
     }
@@ -1361,7 +2538,8 @@ public with sharing class FieldPlannerController {
         WHERE
           Id IN :accountIds
           AND RecordType.DeveloperName IN :recordTypes
-          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
         WITH USER_MODE
       ];
     }
@@ -1372,7 +2550,8 @@ public with sharing class FieldPlannerController {
         Id IN :accountIds
         AND RecordType.DeveloperName IN :recordTypes
         AND Specialty_1__c = :specialtyFilter
-        AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+        AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
       WITH USER_MODE
     ];
   }
@@ -1442,7 +2621,8 @@ public with sharing class FieldPlannerController {
           FROM Account
           WHERE
             RecordType.DeveloperName IN :recordTypes
-            AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+            AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
           WITH USER_MODE
           ORDER BY Name ASC
           LIMIT :lim
@@ -1464,7 +2644,8 @@ public with sharing class FieldPlannerController {
         WHERE
           RecordType.DeveloperName IN :recordTypes
           AND Specialty_1__c = :specialtyFilter
-          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
         WITH USER_MODE
         ORDER BY Name ASC
         LIMIT :lim
@@ -1534,7 +2715,8 @@ public with sharing class FieldPlannerController {
         WHERE
           Id IN :accountIds
           AND RecordType.DeveloperName IN :recordTypes
-          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+          AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
         WITH USER_MODE
         ORDER BY Name ASC
         LIMIT :lim
@@ -1557,7 +2739,8 @@ public with sharing class FieldPlannerController {
         Id IN :accountIds
         AND RecordType.DeveloperName IN :recordTypes
         AND Specialty_1__c = :specialtyFilter
-        AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern)
+        AND (Name LIKE :likePattern OR Specialty_1__c LIKE :likePattern OR BillingCity LIKE :likePattern
+              OR External_ID__c LIKE :likePattern OR Pharmacy_Code__c LIKE :likePattern)
       WITH USER_MODE
       ORDER BY Name ASC
       LIMIT :lim
@@ -1567,6 +2750,9 @@ public with sharing class FieldPlannerController {
 
   @TestVisible
   private static Boolean hasFullPlannerAccountAccess() {
+    if (forceRepAccountScope || FieldBookAccess.restrictsToOwnBook()) {
+      return false;
+    }
     if (isSystemAdministrator()) {
       return true;
     }
@@ -1631,15 +2817,38 @@ public with sharing class FieldPlannerController {
         AND Is_Active__c = TRUE
         AND Account__c != NULL
       WITH SYSTEM_MODE
+      LIMIT :MAX_TERRITORY_ACCOUNT_SCOPE
     ]) {
       accountIds.add(atf.Account__c);
+    }
+
+    if (accountIds.size() < MAX_TERRITORY_ACCOUNT_SCOPE) {
+      Integer remaining = MAX_TERRITORY_ACCOUNT_SCOPE - accountIds.size();
+      for (ObjectTerritory2Association association : [
+        SELECT ObjectId
+        FROM ObjectTerritory2Association
+        WHERE Territory2Id IN :territoryIds AND ObjectId != NULL
+        WITH SYSTEM_MODE
+        LIMIT :remaining
+      ]) {
+        accountIds.add(association.ObjectId);
+      }
     }
     return accountIds;
   }
 
   @TestVisible
   private static Set<Id> getUserTerritoryIds() {
-    return TerritoryContextService.getEffectiveTerritoryIds(UserInfo.getUserId());
+    Set<Id> territoryIds = new Set<Id>();
+    for (UserTerritory2Association assignment : [
+      SELECT Territory2Id
+      FROM UserTerritory2Association
+      WHERE UserId = :UserInfo.getUserId()
+      WITH SYSTEM_MODE
+    ]) {
+      territoryIds.add(assignment.Territory2Id);
+    }
+    return territoryIds;
   }
 
   @TestVisible
@@ -1716,6 +2925,29 @@ public with sharing class FieldPlannerController {
     return summary;
   }
 
+  private static MeetingSummary mapMeeting(Meeting__c meeting) {
+    MeetingSummary summary = new MeetingSummary();
+    summary.id = meeting.Id;
+    summary.name = meeting.Name;
+    summary.title = String.isNotBlank(meeting.Objectives__c) ? meeting.Objectives__c : meeting.Name;
+    summary.status = meeting.Status__c;
+    summary.startDateTime = meeting.Start_Date_Time__c;
+    summary.endDateTime = meeting.End_Date_Time__c;
+    summary.pharmaProjectId = meeting.Pharma_Project__c;
+    summary.pharmaProjectName = meeting.Pharma_Project__r != null
+      ? meeting.Pharma_Project__r.Name
+      : null;
+    summary.recordTypeDeveloperName = meeting.RecordType != null
+      ? meeting.RecordType.DeveloperName
+      : null;
+    summary.recordTypeLabel = meeting.RecordType != null ? meeting.RecordType.Name : null;
+    summary.department = meeting.Originating_Department__c;
+    if (String.isNotBlank(meeting.Activity_Type__c)) {
+      summary.recordTypeLabel = meeting.Activity_Type__c;
+    }
+    return summary;
+  }
+
   private static VisitDetail mapVisitDetail(Visit__c visit) {
     VisitDetail detail = new VisitDetail();
     detail.id = visit.Id;
@@ -1732,7 +2964,10 @@ public with sharing class FieldPlannerController {
     detail.clmPresentation = visit.CLM_Presentation__c;
     detail.nextVisitDate = visit.Next_Visit_Date__c;
     detail.cancellationReason = visit.Cancellation_Reason__c;
-    detail.isLocked = visit.Status__c == 'Completed' || visit.Status__c == 'Cancelled';
+    detail.planRejectionReason = visit.Plan_Rejection_Reason__c;
+    detail.isLocked =
+      VisitStatusHelper.isLockedStatus(visit.Status__c) ||
+      VisitStatusHelper.isPendingApproval(visit.Status__c);
     detail.accountId = visit.Account__c;
     if (visit.Account__r != null) {
       detail.accountName = visit.Account__r.Name;
@@ -1770,16 +3005,20 @@ public with sharing class FieldPlannerController {
     summary.id = request.Id;
     summary.name = request.Name;
     summary.typeLabel = request.Type__c;
+    summary.typeValue = request.Type__c;
+    summary.comments = request.Comments__c;
     summary.spanType = request.Span_Type__c;
     summary.stage = request.Stage__c;
-    summary.isFullDay = request.Span_Type__c == 'Full_Day';
+    summary.isFullDay =
+      request.Span_Type__c == 'Full_Day' || request.Span_Type__c == 'Days';
     summary.startDateTime = request.Start_Date_Time__c;
     summary.endDateTime = request.End_Date_Time__c;
 
-    if (summary.isFullDay && summary.startDateTime != null) {
+    if (summary.isFullDay && summary.startDateTime != null && summary.endDateTime != null) {
       Date startDay = summary.startDateTime.date();
+      Date endDay = summary.endDateTime.date();
       summary.startDateTime = DateTime.newInstance(startDay, Time.newInstance(0, 0, 0, 0));
-      summary.endDateTime = DateTime.newInstance(startDay.addDays(1), Time.newInstance(0, 0, 0, 0));
+      summary.endDateTime = DateTime.newInstance(endDay.addDays(1), Time.newInstance(0, 0, 0, 0));
     }
     return summary;
   }
@@ -1793,17 +3032,42 @@ public with sharing class FieldPlannerController {
   }
 
   private static void assertCanViewPlannerFor(Id targetUserId) {
-    if (targetUserId == null || targetUserId == UserInfo.getUserId()) {
-      return;
-    }
-    if (hasFullPlannerAccountAccess()) {
-      Set<Id> allowed = getViewableUserIdsForAdmin();
-      if (!allowed.contains(targetUserId)) {
-        throw new AuraHandledException('You do not have permission to view this planner.');
-      }
+    if (canViewBookOf(targetUserId)) {
       return;
     }
     throw new AuraHandledException('You do not have permission to view this planner.');
+  }
+
+  /** True when the territory sits inside the running user's planner switcher scope. */
+  public static Boolean canViewTerritory(Id territoryId) {
+    return territoryId != null && getPlannerViewerTerritoryIds().contains(territoryId);
+  }
+
+  /**
+   * True when the running user may read the target user's book: themselves, anyone on
+   * the territories in their planner switcher, or a direct report.
+   */
+  public static Boolean canViewBookOf(Id targetUserId) {
+    if (targetUserId == null || targetUserId == UserInfo.getUserId()) {
+      return true;
+    }
+    return getApprovablePlannerUserIds().contains(targetUserId);
+  }
+
+  private static void assertCanApprovePlanForRep(Id repUserId) {
+    if (repUserId == null) {
+      throw new AuraHandledException('Plan item has no assigned rep.');
+    }
+    if (repUserId == UserInfo.getUserId()) {
+      throw new AuraHandledException('You cannot approve your own plan items.');
+    }
+    if (canApprovePlannerFor(repUserId)) {
+      return;
+    }
+    if (DelegationService.canActAsManagerFor(UserInfo.getUserId(), repUserId)) {
+      return;
+    }
+    throw new AuraHandledException('You can only approve items for your team.');
   }
 
   private static void assertCanMutatePlanner() {
@@ -1811,38 +3075,37 @@ public with sharing class FieldPlannerController {
   }
 
   private static Set<Id> resolveScopedAccountIds(Id contextUserId) {
-    if (
-      contextUserId == UserInfo.getUserId() &&
-      hasFullPlannerAccountAccess() &&
-      !TerritoryContextService.hasSelectedTerritory()
-    ) {
+    if (contextUserId == UserInfo.getUserId() && hasFullPlannerAccountAccess()) {
       return null;
     }
-    Set<Id> accountIds = resolveTerritoryAccountIds(getTerritoryScopeTerritoryIds(contextUserId));
-    if (!accountIds.isEmpty()) {
-      return accountIds;
-    }
-    if (
-      TerritoryContextService.hasSelectedTerritory() &&
-      (contextUserId == UserInfo.getUserId() || hasFullPlannerAccountAccess())
-    ) {
-      return new Set<Id>();
-    }
-    // Match Field Rep Home: fall back to the rep's monthly time-card account targets.
-    return getTimeCardAccountIdsForUser(contextUserId);
+    Set<Id> accountIds = new Set<Id>();
+    accountIds.addAll(getTerritoryAccountIdsForUser(contextUserId));
+    accountIds.addAll(getTimeCardAccountIdsForUser(contextUserId));
+    accountIds.addAll(getVisitAccountIdsForUser(contextUserId));
+    return accountIds;
   }
 
-  private static Set<Id> getTerritoryScopeTerritoryIds(Id contextUserId) {
-    Id runningUserId = UserInfo.getUserId();
-    if (contextUserId == null || contextUserId == runningUserId) {
-      return expandTerritoryHierarchy(getUserTerritoryIdsForUser(runningUserId));
+  @TestVisible
+  private static Set<Id> getVisitAccountIdsForUser(Id userId) {
+    Set<Id> accountIds = new Set<Id>();
+    if (userId == null) {
+      return accountIds;
     }
-    if (hasFullPlannerAccountAccess() && TerritoryContextService.hasSelectedTerritory()) {
-      return expandTerritoryHierarchy(
-        TerritoryContextService.getEffectiveTerritoryIds(runningUserId)
-      );
+    Date monthStart = Date.today().toStartOfMonth();
+    Date monthEnd = monthStart.addMonths(1).addDays(-1);
+    for (Visit__c visit : [
+      SELECT Account__c
+      FROM Visit__c
+      WHERE
+        Assigned_To__c = :userId
+        AND Account__c != NULL
+        AND Visit_Date__c >= :monthStart
+        AND Visit_Date__c <= :monthEnd
+      WITH USER_MODE
+    ]) {
+      accountIds.add(visit.Account__c);
     }
-    return expandTerritoryHierarchy(getUserTerritoryIdsForUser(contextUserId));
+    return accountIds;
   }
 
   private static Set<Id> getTimeCardAccountIdsForUser(Id userId) {
@@ -1901,16 +3164,25 @@ public with sharing class FieldPlannerController {
     }
     Set<Id> classifiedIds = new Set<Id>();
     for (Account_Territory_Fields__c atf : [
-      SELECT Account__c
+      SELECT Account__c, Classification__c, HCP_Classification__c, Matrix_Rating__c
       FROM Account_Territory_Fields__c
       WHERE
         Territory2_Id__c IN :territoryIdStrings
-        AND Matrix_Rating__c = :classification
         AND Is_Active__c = TRUE
         AND Account__c != NULL
       WITH SYSTEM_MODE
     ]) {
-      classifiedIds.add(atf.Account__c);
+      String resolved = resolveClassification(atf);
+      if (String.isBlank(resolved)) {
+        continue;
+      }
+      if (classification.length() == 1) {
+        if (resolved.substring(0, 1).equalsIgnoreCase(classification)) {
+          classifiedIds.add(atf.Account__c);
+        }
+      } else if (resolved.equalsIgnoreCase(classification)) {
+        classifiedIds.add(atf.Account__c);
+      }
     }
     if (accountIds == null) {
       return classifiedIds;
@@ -1923,29 +3195,44 @@ public with sharing class FieldPlannerController {
     if (brickId == null) {
       return accountIds;
     }
+    if (accountIds != null && accountIds.isEmpty()) {
+      return accountIds;
+    }
+
     Set<Id> brickAccountIds = new Set<Id>();
+    List<Account> matches;
     if (accountIds == null) {
-      for (Account account : [
+      matches = [
         SELECT Id
         FROM Account
         WHERE
           RecordType.DeveloperName IN :PLANNER_ACCOUNT_RECORD_TYPES
-          AND Brick__c = :brickId
+          AND (
+            Brick__c = :brickId
+            OR Brick_148__c = :brickId
+            OR Brick_702__c = :brickId
+            OR Brick__r.Parent_Brick__c = :brickId
+            OR Brick_702__r.Parent_Brick__c = :brickId
+          )
         WITH USER_MODE
-      ]) {
-        brickAccountIds.add(account.Id);
-      }
-      return brickAccountIds;
+      ];
+    } else {
+      matches = [
+        SELECT Id
+        FROM Account
+        WHERE
+          Id IN :accountIds
+          AND (
+            Brick__c = :brickId
+            OR Brick_148__c = :brickId
+            OR Brick_702__c = :brickId
+            OR Brick__r.Parent_Brick__c = :brickId
+            OR Brick_702__r.Parent_Brick__c = :brickId
+          )
+        WITH USER_MODE
+      ];
     }
-    if (accountIds.isEmpty()) {
-      return accountIds;
-    }
-    for (Account account : [
-      SELECT Id
-      FROM Account
-      WHERE Id IN :accountIds AND Brick__c = :brickId
-      WITH USER_MODE
-    ]) {
+    for (Account account : matches) {
       brickAccountIds.add(account.Id);
     }
     return brickAccountIds;
@@ -1959,11 +3246,51 @@ public with sharing class FieldPlannerController {
   }
 
   private static Set<Id> getUserTerritoryIdsForUser(Id userId) {
-    return TerritoryContextService.getEffectiveTerritoryIds(userId);
+    Set<Id> territoryIds = new Set<Id>();
+    for (UserTerritory2Association assignment : [
+      SELECT Territory2Id
+      FROM UserTerritory2Association
+      WHERE UserId = :userId
+      WITH SYSTEM_MODE
+    ]) {
+      territoryIds.add(assignment.Territory2Id);
+    }
+    return territoryIds;
   }
 
   private static Set<Id> getTerritoryAccountIdsForUser(Id userId) {
     return resolveTerritoryAccountIds(expandTerritoryHierarchy(getUserTerritoryIdsForUser(userId)));
+  }
+
+  private static List<PlannerViewerOption> mergeViewerOptions(
+    List<PlannerViewerOption> primary,
+    List<PlannerViewerOption> additional
+  ) {
+    List<PlannerViewerOption> merged = new List<PlannerViewerOption>();
+    Set<String> seenUserIds = new Set<String>();
+    if (primary != null) {
+      for (PlannerViewerOption option : primary) {
+        if (option.userId == null) {
+          continue;
+        }
+        String key = String.valueOf(option.userId);
+        if (seenUserIds.add(key)) {
+          merged.add(option);
+        }
+      }
+    }
+    if (additional != null) {
+      for (PlannerViewerOption option : additional) {
+        if (option.userId == null) {
+          continue;
+        }
+        String key = String.valueOf(option.userId);
+        if (seenUserIds.add(key)) {
+          merged.add(option);
+        }
+      }
+    }
+    return merged;
   }
 
   private static List<PlannerViewerOption> buildViewerOptionsForTerritories(Set<Id> territoryIds) {
@@ -1976,21 +3303,27 @@ public with sharing class FieldPlannerController {
       SELECT Id, ParentTerritory2Id, ParentTerritory2.Name
       FROM Territory2
       WHERE Id IN :territoryIds
-      WITH USER_MODE
+      WITH SYSTEM_MODE
     ]) {
       parentNamesByTerritoryId.put(
         territory.Id,
         territory.ParentTerritory2 != null ? territory.ParentTerritory2.Name : null
       );
     }
+    Set<Id> ownTerritoryIds = TerritoryContextService.getAssignedTerritoryIds(UserInfo.getUserId());
     for (UserTerritory2Association assignment : [
       SELECT UserId, User.Name, Territory2Id, Territory2.Name
       FROM UserTerritory2Association
       WHERE Territory2Id IN :territoryIds AND User.IsActive = TRUE
-      WITH USER_MODE
+      WITH SYSTEM_MODE
       ORDER BY Territory2.Name, User.Name
     ]) {
-      if (assignment.UserId == UserInfo.getUserId()) {
+      // "My territory" already opens the viewer's own plan. Listing that
+      // territory again (even via another person on it) shows it twice.
+      if (
+        assignment.UserId == UserInfo.getUserId() ||
+        ownTerritoryIds.contains(assignment.Territory2Id)
+      ) {
         continue;
       }
       PlannerViewerOption option = new PlannerViewerOption();
@@ -1999,28 +3332,11 @@ public with sharing class FieldPlannerController {
       option.userId = assignment.UserId;
       option.userName = assignment.User.Name;
       option.parentTerritoryName = parentNamesByTerritoryId.get(assignment.Territory2Id);
+      option.assigned = false;
       option.label = assignment.Territory2.Name + ' — ' + assignment.User.Name;
       options.add(option);
     }
     return options;
-  }
-
-  private static Set<Id> getViewableUserIdsForAdmin() {
-    Set<Id> userIds = new Set<Id>();
-    Id headOfficeId = getHeadOfficeTerritoryId();
-    if (headOfficeId == null) {
-      return userIds;
-    }
-    Set<Id> territoryIds = expandTerritoryHierarchy(new Set<Id>{ headOfficeId });
-    for (UserTerritory2Association assignment : [
-      SELECT UserId
-      FROM UserTerritory2Association
-      WHERE Territory2Id IN :territoryIds AND User.IsActive = TRUE
-      WITH USER_MODE
-    ]) {
-      userIds.add(assignment.UserId);
-    }
-    return userIds;
   }
 
   private static List<AccountSummary> attachClassificationToSummaries(
@@ -2040,17 +3356,19 @@ public with sharing class FieldPlannerController {
     Map<Id, String> classificationByAccountId = new Map<Id, String>();
     if (!territoryIdStrings.isEmpty()) {
       for (Account_Territory_Fields__c atf : [
-        SELECT Account__c, Matrix_Rating__c
+        SELECT Account__c, Classification__c, HCP_Classification__c, Matrix_Rating__c
         FROM Account_Territory_Fields__c
         WHERE
           Account__c IN :accountIds
           AND Territory2_Id__c IN :territoryIdStrings
           AND Is_Active__c = TRUE
-          AND Matrix_Rating__c != NULL
         WITH SYSTEM_MODE
       ]) {
         if (!classificationByAccountId.containsKey(atf.Account__c)) {
-          classificationByAccountId.put(atf.Account__c, atf.Matrix_Rating__c);
+          String classVal = resolveClassification(atf);
+          if (String.isNotBlank(classVal)) {
+            classificationByAccountId.put(atf.Account__c, classVal);
+          }
         }
       }
     }
@@ -2073,6 +3391,7 @@ public with sharing class FieldPlannerController {
     }
     Id resolvedUserId = resolveContextUserId(contextUserId);
     Date monthStart = Date.today().toStartOfMonth();
+    Date monthEnd = monthStart.addMonths(1).addDays(-1);
     List<Employee_Time_Card__c> cards = [
       SELECT Id
       FROM Employee_Time_Card__c
@@ -2083,7 +3402,11 @@ public with sharing class FieldPlannerController {
       LIMIT 1
     ];
     Map<Id, Employee_Time_Card_Account_Target__c> targetByAccountId = new Map<Id, Employee_Time_Card_Account_Target__c>();
-    if (!cards.isEmpty()) {
+    WorkingDaysSummary workingDays = new WorkingDaysSummary();
+    Boolean hasTimeCard = !cards.isEmpty();
+    if (hasTimeCard) {
+      Id timeCardId = cards[0].Id;
+      workingDays = computeWorkingDays(timeCardId, Date.today());
       for (Employee_Time_Card_Account_Target__c target : [
         SELECT
           Account__c,
@@ -2091,22 +3414,231 @@ public with sharing class FieldPlannerController {
           Target_Visit_Frequency__c,
           Frequency_Status__c
         FROM Employee_Time_Card_Account_Target__c
-        WHERE Employee_Time_Card__c = :cards[0].Id AND Account__c IN :accountIds
+        WHERE Employee_Time_Card__c = :timeCardId AND Account__c IN :accountIds
         WITH USER_MODE
       ]) {
         targetByAccountId.put(target.Account__c, target);
       }
     }
+
+    Map<Id, Integer> plannedByAccountId = loadPlannedVisitCounts(
+      accountIds,
+      resolvedUserId,
+      monthEnd
+    );
+    Map<Id, Integer> completedByAccountId = loadCompletedVisitCounts(
+      accountIds,
+      resolvedUserId,
+      monthStart,
+      monthEnd
+    );
+
     for (AccountSummary summary : summaries) {
+      summary.plannedVisits = plannedByAccountId.containsKey(summary.id)
+        ? plannedByAccountId.get(summary.id)
+        : 0;
+      Integer liveCompleted = completedByAccountId.containsKey(summary.id)
+        ? completedByAccountId.get(summary.id)
+        : 0;
       Employee_Time_Card_Account_Target__c target = targetByAccountId.get(summary.id);
-      if (target == null) {
-        continue;
+      if (target != null) {
+        summary.actualVisits = nvl(target.Actual_Visits__c);
+        summary.targetVisits = target.Target_Visit_Frequency__c;
+        summary.frequencyStatus = target.Frequency_Status__c;
+      } else {
+        summary.actualVisits = liveCompleted;
       }
-      summary.actualVisits = target.Actual_Visits__c;
-      summary.targetVisits = target.Target_Visit_Frequency__c;
-      summary.frequencyStatus = target.Frequency_Status__c;
+      applyPaceStatus(summary, hasTimeCard, workingDays);
     }
     return summaries;
+  }
+
+  private static Map<Id, Integer> loadPlannedVisitCounts(
+    Set<Id> accountIds,
+    Id userId,
+    Date monthEnd
+  ) {
+    Map<Id, Integer> counts = new Map<Id, Integer>();
+    DateTime rangeStart = DateTime.newInstance(Date.today(), Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+    Set<String> plannedStatuses = new Set<String>(PLANNED_VISIT_STATUSES);
+    for (AggregateResult agg : [
+      SELECT Account__c accountId, COUNT(Id) visitCount
+      FROM Visit__c
+      WHERE
+        Account__c IN :accountIds
+        AND Assigned_To__c = :userId
+        AND Start_Date__c >= :rangeStart
+        AND Start_Date__c <= :rangeEnd
+        AND Status__c IN :plannedStatuses
+      WITH USER_MODE
+      GROUP BY Account__c
+    ]) {
+      counts.put((Id) agg.get('accountId'), (Integer) agg.get('visitCount'));
+    }
+    return counts;
+  }
+
+  private static Map<Id, Integer> loadCompletedVisitCounts(
+    Set<Id> accountIds,
+    Id userId,
+    Date monthStart,
+    Date monthEnd
+  ) {
+    Map<Id, Integer> counts = new Map<Id, Integer>();
+    if (accountIds == null || accountIds.isEmpty() || userId == null) {
+      return counts;
+    }
+    DateTime rangeStart = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+    DateTime rangeEnd = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+    for (Visit__c visit : [
+      SELECT Account__c, Visit_Date__c, Start_Date__c
+      FROM Visit__c
+      WHERE
+        Account__c IN :accountIds
+        AND Assigned_To__c = :userId
+        AND Status__c = :VisitStatusHelper.STATUS_COMPLETED
+        AND (
+          (Visit_Date__c != NULL AND Visit_Date__c >= :rangeStart AND Visit_Date__c <= :rangeEnd)
+          OR (
+            Visit_Date__c = NULL
+            AND Start_Date__c >= :rangeStart
+            AND Start_Date__c <= :rangeEnd
+          )
+        )
+      WITH USER_MODE
+    ]) {
+      if (visit.Account__c == null) {
+        continue;
+      }
+      Integer current = counts.containsKey(visit.Account__c) ? counts.get(visit.Account__c) : 0;
+      counts.put(visit.Account__c, current + 1);
+    }
+    return counts;
+  }
+
+  private static void applyPaceStatus(
+    AccountSummary summary,
+    Boolean hasTimeCard,
+    WorkingDaysSummary workingDays
+  ) {
+    Decimal targetVisits = nvl(summary.targetVisits);
+    Decimal actualVisits = nvl(summary.actualVisits);
+    if (!hasTimeCard) {
+      summary.paceStatus = 'na';
+      summary.paceStatusLabel = paceStatusLabel(summary.paceStatus);
+      return;
+    }
+    if (workingDays.paceRatio > 0 && targetVisits > 0) {
+      Decimal projectedVisits = actualVisits / workingDays.paceRatio;
+      Decimal projectedPercent = (projectedVisits / targetVisits) * 100;
+      summary.paceStatus = paceStatusFromProjected(projectedPercent);
+    } else if (targetVisits > 0 && actualVisits > 0) {
+      summary.paceStatus = 'ahead';
+    } else if (targetVisits > 0) {
+      summary.paceStatus = 'critical';
+    } else {
+      summary.paceStatus = 'na';
+    }
+    summary.paceStatusLabel = paceStatusLabel(summary.paceStatus);
+  }
+
+  private static String paceStatusFromProjected(Decimal projectedPercent) {
+    if (projectedPercent >= 100) {
+      return 'ahead';
+    }
+    if (projectedPercent >= PACE_ON_TRACK_THRESHOLD) {
+      return 'on_track';
+    }
+    if (projectedPercent >= PACE_CRITICAL_THRESHOLD) {
+      return 'behind';
+    }
+    return 'critical';
+  }
+
+  private static String paceStatusLabel(String paceStatus) {
+    if (paceStatus == 'ahead') {
+      return 'Ahead';
+    }
+    if (paceStatus == 'on_track') {
+      return 'On Track';
+    }
+    if (paceStatus == 'behind') {
+      return 'Behind';
+    }
+    if (paceStatus == 'critical') {
+      return 'Critical';
+    }
+    return 'N/A';
+  }
+
+  private static Decimal nvl(Decimal value) {
+    return value == null ? 0 : value;
+  }
+
+  private class WorkingDaysSummary {
+    public Integer elapsedWorkingDays = 0;
+    public Integer totalWorkingDays = 0;
+    public Decimal paceRatio = 0;
+  }
+
+  private static WorkingDaysSummary computeWorkingDays(Id timeCardId, Date asOfDate) {
+    WorkingDaysSummary summary = new WorkingDaysSummary();
+    if (timeCardId == null) {
+      return summary;
+    }
+    for (Employee_Time_Card_Day_Entry__c entry : [
+      SELECT Date__c, Calendar_Working_Days__c
+      FROM Employee_Time_Card_Day_Entry__c
+      WHERE Employee_Time_Card__c = :timeCardId
+      WITH USER_MODE
+      ORDER BY Date__c ASC
+    ]) {
+      Integer calDays = nvl(entry.Calendar_Working_Days__c).intValue();
+      summary.totalWorkingDays += calDays;
+      if (entry.Date__c != null && entry.Date__c <= asOfDate) {
+        summary.elapsedWorkingDays += calDays;
+      }
+    }
+    if (summary.totalWorkingDays > 0) {
+      summary.paceRatio =
+        Decimal.valueOf(summary.elapsedWorkingDays) /
+        Decimal.valueOf(summary.totalWorkingDays);
+    }
+    return summary;
+  }
+
+  /**
+   * Always return letter+number (A1–C3). Never bare A/B/C.
+   */
+  private static String resolveClassification(Account_Territory_Fields__c atf) {
+    if (atf == null) {
+      return null;
+    }
+    String fromMatrix = normalizeLetterNumberClass(atf.Matrix_Rating__c);
+    if (fromMatrix != null) {
+      return fromMatrix;
+    }
+    String fromHcp = normalizeLetterNumberClass(atf.HCP_Classification__c);
+    if (fromHcp != null) {
+      return fromHcp;
+    }
+    return normalizeLetterNumberClass(atf.Classification__c);
+  }
+
+  private static String normalizeLetterNumberClass(String raw) {
+    if (String.isBlank(raw)) {
+      return null;
+    }
+    String key = raw.trim().toUpperCase();
+    if (key.length() == 2) {
+      String letter = key.substring(0, 1);
+      String digit = key.substring(1, 2);
+      if ('ABC'.contains(letter) && '123'.contains(digit)) {
+        return letter + digit;
+      }
+    }
+    return null;
   }
 
   private static List<AccountSummary> attachBrickToSummaries(List<AccountSummary> summaries) {
@@ -2118,7 +3650,14 @@ public with sharing class FieldPlannerController {
       accountIds.add(summary.id);
     }
     Map<Id, Account> accountsById = new Map<Id, Account>([
-      SELECT Id, Brick__c, Brick__r.Name
+      SELECT
+        Id,
+        Brick__c,
+        Brick__r.Name,
+        Brick_148__c,
+        Brick_148__r.Name,
+        Brick_702__c,
+        Brick_702__r.Name
       FROM Account
       WHERE Id IN :accountIds
       WITH USER_MODE
@@ -2128,201 +3667,12 @@ public with sharing class FieldPlannerController {
       if (account != null) {
         summary.brickId = account.Brick__c;
         summary.brickName = account.Brick__r != null ? account.Brick__r.Name : null;
+        summary.brick148Id = account.Brick_148__c;
+        summary.brick148Name = account.Brick_148__r != null ? account.Brick_148__r.Name : null;
+        summary.brick702Id = account.Brick_702__c;
+        summary.brick702Name = account.Brick_702__r != null ? account.Brick_702__r.Name : null;
       }
     }
     return summaries;
-  }
-
-  private static List<MeetingSummary> queryMeetings(DateTime rangeStart, DateTime rangeEnd, Id userId) {
-    List<MeetingSummary> results = new List<MeetingSummary>();
-    for (Meeting__c meeting : [
-      SELECT
-        Id,
-        Name,
-        Status__c,
-        Objectives__c,
-        Start_Date_Time__c,
-        End_Date_Time__c,
-        Pharma_Project__c,
-        Pharma_Project__r.Name,
-        RecordType.DeveloperName,
-        RecordType.Name
-      FROM Meeting__c
-      WHERE
-        OwnerId = :userId
-        AND Start_Date_Time__c < :rangeEnd
-        AND End_Date_Time__c > :rangeStart
-        AND Status__c NOT IN ('Cancelled')
-      WITH USER_MODE
-      ORDER BY Start_Date_Time__c ASC
-    ]) {
-      results.add(mapMeeting(meeting));
-    }
-    return results;
-  }
-
-  private static MeetingSummary mapMeeting(Meeting__c meeting) {
-    MeetingSummary summary = new MeetingSummary();
-    summary.id = meeting.Id;
-    summary.name = meeting.Name;
-    summary.title = String.isNotBlank(meeting.Objectives__c) ? meeting.Objectives__c : meeting.Name;
-    summary.status = meeting.Status__c;
-    summary.startDateTime = meeting.Start_Date_Time__c;
-    summary.endDateTime = meeting.End_Date_Time__c;
-    summary.pharmaProjectId = meeting.Pharma_Project__c;
-    summary.pharmaProjectName = meeting.Pharma_Project__r != null
-      ? meeting.Pharma_Project__r.Name
-      : null;
-    summary.recordTypeDeveloperName = meeting.RecordType != null
-      ? meeting.RecordType.DeveloperName
-      : null;
-    summary.recordTypeLabel = meeting.RecordType != null ? meeting.RecordType.Name : null;
-    return summary;
-  }
-
-  @AuraEnabled
-  public static VisitSummary submitVisit(Id visitId) {
-    assertCanMutatePlanner();
-    if (visitId == null) {
-      throw new AuraHandledException('Visit Id is required.');
-    }
-    Visit__c visit = [
-      SELECT
-        Id,
-        Status__c,
-        Visit_Type__c,
-        Assigned_To__c,
-        Start_Date__c,
-        End_Date__c
-      FROM Visit__c
-      WHERE Id = :visitId AND Assigned_To__c = :UserInfo.getUserId()
-      WITH USER_MODE
-      LIMIT 1
-    ];
-    if (!VisitStatusHelper.isPlannedVisitType(visit.Visit_Type__c)) {
-      throw new AuraHandledException('Only planned visits can be submitted for approval.');
-    }
-    VisitStatusHelper.assertTransitionAllowed(
-      visit.Status__c,
-      VisitStatusHelper.STATUS_SUBMITTED,
-      visit.Visit_Type__c,
-      false
-    );
-    VisitConflictService.assertNoConflicts(
-      visit.Assigned_To__c,
-      visit.Start_Date__c,
-      visit.End_Date__c,
-      visit.Id
-    );
-    Visit__c userUpdate = new Visit__c(
-      Id = visit.Id,
-      Status__c = VisitStatusHelper.STATUS_SUBMITTED
-    );
-    update as user userUpdate;
-    stampSubmittedAt(visit.Id);
-    submitForApprovalInternal(visit.Id);
-
-    return mapVisit(queryPlannerVisitById(visit.Id));
-  }
-
-  @AuraEnabled
-  public static WeekSubmitResult submitWeekPlans(Date weekStart, Date weekEnd) {
-    assertCanMutatePlanner();
-    if (weekStart == null || weekEnd == null) {
-      throw new AuraHandledException('Week start and end dates are required.');
-    }
-
-    DateTime rangeStart = DateTime.newInstance(weekStart, Time.newInstance(0, 0, 0, 0));
-    DateTime rangeEnd = DateTime.newInstance(weekEnd.addDays(1), Time.newInstance(0, 0, 0, 0));
-    Id userId = UserInfo.getUserId();
-    List<Visit__c> drafts = [
-      SELECT Id
-      FROM Visit__c
-      WHERE
-        Assigned_To__c = :userId
-        AND Status__c = :VisitStatusHelper.STATUS_DRAFT
-        AND Visit_Type__c IN (
-          :VisitStatusHelper.TYPE_PLANNED_AUTO,
-          :VisitStatusHelper.TYPE_PLANNED_MANAGER
-        )
-        AND Start_Date__c >= :rangeStart
-        AND Start_Date__c < :rangeEnd
-      WITH USER_MODE
-      ORDER BY Start_Date__c ASC
-    ];
-
-    WeekSubmitResult result = new WeekSubmitResult();
-    result.submittedCount = 0;
-    result.failedCount = 0;
-    result.visits = new List<VisitSummary>();
-    result.errors = new List<String>();
-    for (Visit__c draft : drafts) {
-      try {
-        result.visits.add(submitVisit(draft.Id));
-        result.submittedCount++;
-      } catch (Exception ex) {
-        result.failedCount++;
-        result.errors.add(formatPlannerException(ex));
-      }
-    }
-    return result;
-  }
-
-  private static void submitForApprovalInternal(Id visitId) {
-    if (visitId == null) {
-      return;
-    }
-    try {
-      Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
-      approvalRequest.setComments('Visit plan submitted.');
-      approvalRequest.setObjectId(visitId);
-      Approval.ProcessResult result = Approval.process(approvalRequest, false);
-      if (result != null && !result.isSuccess()) {
-        List<String> messages = new List<String>();
-        for (Database.Error err : result.getErrors()) {
-          messages.add(err.getMessage());
-        }
-        System.debug(
-          LoggingLevel.WARN,
-          'Native visit approval was not started for ' +
-          visitId +
-          ': ' +
-          String.join(messages, '; ')
-        );
-      }
-    } catch (Exception ex) {
-      System.debug(
-        LoggingLevel.WARN,
-        'Native visit approval skipped for ' + visitId + ': ' + ex.getMessage()
-      );
-    }
-  }
-
-  private static void stampSubmittedAt(Id visitId) {
-    if (visitId == null) {
-      return;
-    }
-    stampSubmittedAt(new Set<Id>{ visitId });
-  }
-
-  private static void stampSubmittedAt(Set<Id> visitIds) {
-    if (visitIds == null || visitIds.isEmpty()) {
-      return;
-    }
-    List<Visit__c> stamps = new List<Visit__c>();
-    for (Id visitId : visitIds) {
-      stamps.add(new Visit__c(Id = visitId, Submitted_At__c = System.now()));
-    }
-    update as system stamps;
-  }
-
-  private static String formatPlannerException(Exception ex) {
-    if (ex == null) {
-      return 'Unexpected error';
-    }
-    if (ex instanceof AuraHandledException && String.isNotBlank(ex.getMessage())) {
-      return ex.getMessage();
-    }
-    return String.isBlank(ex.getMessage()) ? 'Unexpected error' : ex.getMessage();
   }
 }

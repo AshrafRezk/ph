@@ -1,0 +1,298 @@
+.wrap {
+    max-width: 56rem;
+}
+
+.lead {
+    margin: 0 0 0.75rem;
+    color: #3e3e3c;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.scope-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
+.scope-tab {
+    border: 1px solid #d8dde6;
+    background: #fff;
+    color: #3e3e3c;
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.scope-tab.is-active {
+    background: #0b5cab;
+    border-color: #0b5cab;
+    color: #fff;
+}
+
+.cascade {
+    margin: 0 0 0.85rem;
+    font-size: 0.75rem;
+    color: #706e6b;
+    line-height: 1.4;
+}
+
+.banner {
+    margin-bottom: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.35rem;
+    background: #fff8e6;
+    border: 1px solid #f5d77a;
+    color: #8c4b02;
+    font-size: 0.8125rem;
+}
+
+.card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.scope-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    background: #e8f1fb;
+    color: #0b5cab;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.card--picker .picker-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.exception-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.exception-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.35rem;
+    padding: 0.35rem 0.45rem 0.35rem 0.15rem;
+    background: #fafaf9;
+}
+
+.exception-open {
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    flex: 1;
+}
+
+.exception-open strong {
+    display: block;
+    font-size: 0.8125rem;
+    color: #16325c;
+}
+
+.exception-open span {
+    display: block;
+    font-size: 0.75rem;
+    color: #706e6b;
+    margin-top: 0.1rem;
+}
+
+.card {
+    border: 1px solid #e5e5e5;
+    border-radius: 0.35rem;
+    padding: 0.85rem 1rem 1rem;
+    margin-bottom: 0.85rem;
+    background: #fff;
+}
+
+.h {
+    margin: 0 0 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #706e6b;
+}
+
+.hint {
+    margin: 0 0 0.75rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+    line-height: 1.45;
+}
+
+.legend {
+    display: inline;
+}
+
+.legend-pill {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.legend-pill--block {
+    background: #fddde3;
+    color: #8e0315;
+}
+
+.legend-pill--warn {
+    background: #f9e3b6;
+    color: #8c4b02;
+}
+
+.legend-pill--allow {
+    background: #def1e3;
+    color: #2e844a;
+}
+
+.days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.85rem;
+}
+
+.day {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.875rem;
+    color: #181818;
+    cursor: pointer;
+}
+
+.matrix-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.matrix {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    min-width: 28rem;
+}
+
+.matrix-corner,
+.matrix-colhead,
+.matrix-rowhead {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #706e6b;
+    padding: 0.4rem 0.5rem;
+    text-align: center;
+    background: #fafaf9;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.matrix-corner {
+    text-align: left;
+    width: 5.5rem;
+    border-right: 1px solid #e5e5e5;
+}
+
+.matrix-corner-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: #969492;
+}
+
+.matrix-rowhead {
+    text-align: left;
+    border-right: 1px solid #e5e5e5;
+    border-bottom: 1px solid #e5e5e5;
+    vertical-align: middle;
+}
+
+.matrix-cell {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid #e5e5e5;
+    border-right: 1px solid #f3f2f2;
+    vertical-align: middle;
+    background: #fff;
+}
+
+.matrix-cell--empty {
+    background: #fafaf9;
+    text-align: center;
+}
+
+.matrix-cell--block {
+    background: #fff8f9;
+}
+
+.matrix-cell--warn {
+    background: #fffbf2;
+}
+
+.matrix-cell--allow {
+    background: #f6fbf7;
+}
+
+.matrix-na {
+    color: #c9c7c5;
+    font-size: 0.875rem;
+}
+
+.matrix-cell lightning-combobox {
+    display: block;
+    min-width: 0;
+}
+
+.weekend-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.weekend-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #181818;
+    min-width: 11rem;
+}
+
+.weekend-select {
+    flex: 1 1 12rem;
+    max-width: 16rem;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}

@@ -1,0 +1,57 @@
+<template>
+    <section class="queue-card">
+        <header class="queue-header">
+            <div class="queue-header-row">
+                <h2 class="queue-title">Unplanned visits to validate</h2>
+                <lightning-button-icon
+                    icon-name="utility:refresh"
+                    alternative-text="Refresh"
+                    title="Refresh"
+                    variant="border-filled"
+                    size="small"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                ></lightning-button-icon>
+            </div>
+            <p class="queue-subtitle">Validate completed unplanned visits within 24 hours.</p>
+            <template if:true={hasOverdue}>
+                <p class="queue-overdue-summary">{overdueCount} overdue</p>
+            </template>
+        </header>
+        <template if:true={hasRows}>
+            <template for:each={rows} for:item="row">
+                <article key={row.visitId} class="queue-row">
+                    <div class="queue-row-main">
+                        <p class="queue-row-title">{row.visitName}</p>
+                        <p class="queue-row-meta">
+                            {row.repName} · {row.accountName} · Completed {row.completedLabel}
+                        </p>
+                        <p class={row.dueClass}>
+                            Due {row.dueLabel}
+                            <template if:true={row.isOverdue}> · Overdue</template>
+                        </p>
+                    </div>
+                    <div class="queue-buttons">
+                        <lightning-button
+                            label="Valid"
+                            variant="brand"
+                            data-visit-id={row.visitId}
+                            data-status="Valid"
+                            onclick={handleValidate}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Invalid"
+                            variant="destructive"
+                            data-visit-id={row.visitId}
+                            data-status="Invalid"
+                            onclick={handleValidate}
+                        ></lightning-button>
+                    </div>
+                </article>
+            </template>
+        </template>
+        <template if:false={hasRows}>
+            <p class="queue-empty">No unplanned visits pending validation.</p>
+        </template>
+    </section>
+</template>

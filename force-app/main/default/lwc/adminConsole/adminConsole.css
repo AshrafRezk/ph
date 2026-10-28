@@ -59,7 +59,21 @@
 
 .admin-search {
     max-width: 360px;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.admin-module-total {
+    margin: 0 0 1.25rem;
+    font-size: 0.8125rem;
+    color: var(--admin-muted);
+}
+
+.admin-group {
+    margin-bottom: 1.5rem;
+}
+
+.admin-group:last-of-type {
+    margin-bottom: 0;
 }
 
 .admin-section-header {
@@ -67,11 +81,40 @@
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--admin-border-color);
+}
+
+.admin-section-heading {
+    margin: 0;
+    flex: 1;
+}
+
+.admin-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.125rem 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+}
+
+.admin-section-toggle:focus-visible,
+.admin-card:focus-visible {
+    outline: 2px solid var(--admin-brand);
+    outline-offset: 2px;
 }
 
 .admin-section-label {
+    margin: 0;
     font-size: 0.9375rem;
     font-weight: 700;
+    color: var(--admin-title);
 }
 
 .admin-section-count {
@@ -168,6 +211,20 @@
     color: var(--admin-muted);
 }
 
+.admin-empty p {
+    margin: 0 0 0.25rem;
+}
+
+.admin-empty-hint {
+    font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-card:hover {
+        transform: none;
+    }
+}
+
 .admin-console-modal-wrapper {
     position: fixed;
     inset: 0;
@@ -193,4 +250,15 @@
 .admin-console-modal .slds-modal__content {
     max-height: 80vh;
     overflow-y: auto;
+}
+
+.admin-console-modal_map .slds-modal__container {
+    max-width: 96vw;
+    width: 96vw;
+}
+
+.admin-console-modal_map .slds-modal__content {
+    max-height: 86vh;
+    overflow: hidden;
+    padding: 0.75rem 1rem;
 }

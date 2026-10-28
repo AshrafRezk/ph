@@ -31,6 +31,24 @@ public with sharing class FieldRepHomeController {
         @AuraEnabled public Decimal plannedVisitsTotal;
         @AuraEnabled public Decimal remainingCalls;
 
+        // AM = hospital HCO. PM = HCP, clinic, pharmacy, and every other non-hospital account.
+        @AuraEnabled public Decimal amAttainmentPercent;
+        @AuraEnabled public Decimal amActualVisits;
+        @AuraEnabled public Decimal amTargetVisits;
+        @AuraEnabled public Decimal amPlannedVisits;
+        @AuraEnabled public Decimal pmAttainmentPercent;
+        @AuraEnabled public Decimal pmActualVisits;
+        @AuraEnabled public Decimal pmTargetVisits;
+        @AuraEnabled public Decimal pmPlannedVisits;
+
+        // Territory capacity targets (visits / working day) + live rates from the time card.
+        @AuraEnabled public Decimal targetCallRate;
+        @AuraEnabled public Decimal targetAmCallRate;
+        @AuraEnabled public Decimal targetPmCallRate;
+        @AuraEnabled public Decimal actualCallRate;
+        @AuraEnabled public Decimal actualAmCallRate;
+        @AuraEnabled public Decimal actualPmCallRate;
+
         @AuraEnabled public List<ClassificationMetrics> byClassification;
     }
 
@@ -178,6 +196,8 @@ public with sharing class FieldRepHomeController {
                 Is_Visited__c,
                 Frequency_Status__c,
                 Potentiality__c,
+                Account__r.RecordType.DeveloperName,
+                Account__r.Institution_Type__c,
                 Account_Territory_Fields__r.HCP_Classification__c,
                 Account_Territory_Fields__r.Matrix_Rating__c,
                 Account_Territory_Fields__r.Classification__c,
@@ -191,6 +211,10 @@ public with sharing class FieldRepHomeController {
 
         Decimal actualTotal = 0;
         Decimal targetTotal = 0;
+        Decimal amActualTotal = 0;
+        Decimal amTargetTotal = 0;
+        Decimal pmActualTotal = 0;
+        Decimal pmTargetTotal = 0;
         Integer visitedCount = 0;
         Integer totalCount = 0;
 
@@ -213,11 +237,20 @@ public with sharing class FieldRepHomeController {
                 visitedCount++;
             }
 
-            actualTotal += valueOrZero(t.Actual_Visits__c);
-            targetTotal += valueOrZero(t.Target_Visit_Frequency__c);
+            Decimal actualVisits = valueOrZero(t.Actual_Visits__c);
+            Decimal targetVisits = valueOrZero(t.Target_Visit_Frequency__c);
+            actualTotal += actualVisits;
+            targetTotal += targetVisits;
+            if (isAmHospitalTarget(t)) {
+                amActualTotal += actualVisits;
+                amTargetTotal += targetVisits;
+            } else {
+                pmActualTotal += actualVisits;
+                pmTargetTotal += targetVisits;
+            }
 
-            actualByClass.put(clazz, valueOrZero(actualByClass.get(clazz)) + valueOrZero(t.Actual_Visits__c));
-            targetByClass.put(clazz, valueOrZero(targetByClass.get(clazz)) + valueOrZero(t.Target_Visit_Frequency__c));
+            actualByClass.put(clazz, valueOrZero(actualByClass.get(clazz)) + actualVisits);
+            targetByClass.put(clazz, valueOrZero(targetByClass.get(clazz)) + targetVisits);
 
             if (!totalCountByClass.containsKey(clazz)) {
                 totalCountByClass.put(clazz, 0);
@@ -247,9 +280,13 @@ public with sharing class FieldRepHomeController {
         Integer lcfTotal = 0;
         Integer rcfTotal = 0;
         Integer mcfTotal = 0;
-        for (String clazz : new List<String>{ 'A', 'B', 'C', 'Other' }) {
+        for (String clazz : lcfCountByClass.keySet()) {
             lcfTotal += valueOrZeroInt(lcfCountByClass.get(clazz));
+        }
+        for (String clazz : rcfCountByClass.keySet()) {
             rcfTotal += valueOrZeroInt(rcfCountByClass.get(clazz));
+        }
+        for (String clazz : mcfCountByClass.keySet()) {
             mcfTotal += valueOrZeroInt(mcfCountByClass.get(clazz));
         }
         result.lfPercentTotal = calculatePercent(lcfTotal, totalCount);
@@ -257,13 +294,23 @@ public with sharing class FieldRepHomeController {
         result.mfPercentTotal = calculatePercent(mcfTotal, totalCount);
         result.actualVisitsTotal = actualTotal;
         result.targetVisitsTotal = targetTotal;
-        result.plannedVisitsTotal = countPlannedVisitsForMonth(
+        result.amActualVisits = amActualTotal;
+        result.amTargetVisits = amTargetTotal;
+        result.amAttainmentPercent = calculatePercent(amActualTotal, amTargetTotal);
+        result.pmActualVisits = pmActualTotal;
+        result.pmTargetVisits = pmTargetTotal;
+        result.pmAttainmentPercent = calculatePercent(pmActualTotal, pmTargetTotal);
+        PlannedVisitSplit plannedSplit = countPlannedVisitSplitForMonth(
             resolvedUserId,
             targets,
             scopedAccountIds,
             timeCard
         );
+        result.plannedVisitsTotal = plannedSplit.total;
+        result.amPlannedVisits = plannedSplit.am;
+        result.pmPlannedVisits = plannedSplit.pm;
         result.remainingCalls = computeRemainingCalls(targets, scopedAccountIds);
+        applyCallRates(result, resolvedUserId, timeCard);
 
         List<ClassificationMetrics> byClass = new List<ClassificationMetrics>();
         List<String> classKeys = new List<String>(MATRIX_CLASSES);
@@ -294,56 +341,65 @@ public with sharing class FieldRepHomeController {
     @AuraEnabled
     public static MonthlyTimecardSummary getMonthlyTimecardSummary(Id contextUserId) {
         Id resolvedUserId = resolveUserId(contextUserId);
-        Employee_Time_Card__c timeCard = resolveOrEnsureTimeCard(resolvedUserId);
-        MonthlyTimecardSummary result = new MonthlyTimecardSummary();
-        if (timeCard == null) {
-            return result;
-        }
-
-        List<Employee_Time_Card__c> cards = [
-            SELECT Id
-            FROM Employee_Time_Card__c
-            WHERE Id = :timeCard.Id
-            WITH USER_MODE
-            LIMIT 1
-        ];
-        Employee_Time_Card__c cardWithRollups = cards.isEmpty() ? timeCard : cards[0];
-
         Date monthStart = Date.today().toStartOfMonth();
         Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(resolvedUserId);
+        Boolean isManager = isManagerUser(resolvedUserId);
 
-        Integer fieldDays = 0;
-        Integer coachedDays = 0;
-        Integer activityDays = 0;
-        Integer submittedCalls = 0;
-
-        for (Employee_Time_Card_Day_Entry__c entry : [
-            SELECT
-                Calendar_Working_Days__c,
-                Days_with_Activities__c,
-                Submitted_Calls__c
-            FROM Employee_Time_Card_Day_Entry__c
-            WHERE Employee_Time_Card__c = :timeCard.Id
-            WITH USER_MODE
-        ]) {
-            if (valueOrZero(entry.Calendar_Working_Days__c) > 0) {
-                fieldDays++;
+        Employee_Time_Card__c timeCard = resolveOrEnsureTimeCard(resolvedUserId);
+        if (timeCard != null) {
+            Boolean needsBootstrap = timeCard.Field_Days_Total__c == null
+                && timeCard.Leave_Days_Total__c == null
+                && timeCard.Potential_Visits_Total__c == null
+                && timeCard.Coached_Days_Total__c == null;
+            if (needsBootstrap) {
+                EmployeeTimeCardMetricsService.recalcMonthlyKpis(new Set<Id>{ resolvedUserId }, monthStart);
             }
-            if (valueOrZero(entry.Days_with_Activities__c) > 0) {
-                activityDays++;
-            }
-            submittedCalls += valueOrZeroInt(Integer.valueOf(entry.Submitted_Calls__c == null ? 0 : entry.Submitted_Calls__c.intValue()));
+            timeCard = loadTimeCardKpiSnapshot(timeCard.Id);
         }
 
-        LeaveBreakdown leaves = loadLeaveBreakdown(resolvedUserId, monthStart, monthEnd);
-        Boolean isManager = isManagerUser(resolvedUserId);
+        MonthlyTimecardSummary result = new MonthlyTimecardSummary();
+        LeaveBreakdown leaves = loadLeaveBreakdown(resolvedUserId, monthStart, monthEnd, department);
+
+        Integer fieldDays = timeCard != null && timeCard.Field_Days_Total__c != null
+            ? timeCard.Field_Days_Total__c.intValue()
+            : EmployeeTimeCardFlowHelper.countFieldDays(monthStart, monthEnd, department, leaves.leaveByDate);
+        Integer leaveDays = timeCard != null && timeCard.Leave_Days_Total__c != null
+            ? timeCard.Leave_Days_Total__c.setScale(0, System.RoundingMode.HALF_UP).intValue()
+            : leaves.totalLeaveDays;
+        Integer activityDays = timeCard != null && timeCard.Days_With_Activities__c != null
+            ? timeCard.Days_With_Activities__c.intValue()
+            : 0;
+        Integer submittedCalls = timeCard != null && timeCard.Submitted_Calls__c != null
+            ? timeCard.Submitted_Calls__c.intValue()
+            : 0;
+        Integer potentialVisits = timeCard != null && timeCard.Potential_Visits_Total__c != null
+            ? timeCard.Potential_Visits_Total__c.intValue()
+            : 0;
+        Integer completedMeetings = timeCard != null && timeCard.Completed_Meetings_Total__c != null
+            ? timeCard.Completed_Meetings_Total__c.intValue()
+            : 0;
+        Integer potentialMeetings = timeCard != null && timeCard.Potential_Meetings_Total__c != null
+            ? timeCard.Potential_Meetings_Total__c.intValue()
+            : 0;
+        Integer coachedDays = timeCard != null && timeCard.Coached_Days_Total__c != null
+            ? timeCard.Coached_Days_Total__c.intValue()
+            : 0;
+        Integer coachingDays = timeCard != null && timeCard.Coaching_Days_Delivered__c != null
+            ? timeCard.Coaching_Days_Delivered__c.intValue()
+            : 0;
 
         result.fieldDays = fieldDays;
         result.coachedDays = coachedDays;
-        result.coachingDays = isManager ? coachedDays : 0;
+        result.coachingDays = isManager ? coachingDays : 0;
         result.activityDays = activityDays;
         result.submittedCalls = submittedCalls;
-        result.leaveDays = leaves.totalLeaveDays;
+        result.potentialVisits = potentialVisits;
+        result.completedMeetings = completedMeetings;
+        result.potentialMeetings = potentialMeetings;
+        result.completedActivities = submittedCalls + completedMeetings;
+        result.potentialActivities = potentialVisits + potentialMeetings;
+        result.leaveDays = leaveDays;
         result.sickLeaveDays = leaves.sickLeaveDays;
         result.annualVacationDays = leaves.annualVacationDays;
         result.conferenceDays = leaves.conferenceDays;
@@ -359,6 +415,11 @@ public with sharing class FieldRepHomeController {
         @AuraEnabled public Integer coachingDays;
         @AuraEnabled public Integer activityDays;
         @AuraEnabled public Integer submittedCalls;
+        @AuraEnabled public Integer potentialVisits;
+        @AuraEnabled public Integer completedMeetings;
+        @AuraEnabled public Integer potentialMeetings;
+        @AuraEnabled public Integer completedActivities;
+        @AuraEnabled public Integer potentialActivities;
         @AuraEnabled public Integer leaveDays;
         @AuraEnabled public Integer sickLeaveDays;
         @AuraEnabled public Integer annualVacationDays;
@@ -368,45 +429,155 @@ public with sharing class FieldRepHomeController {
         @AuraEnabled public String monthLabel;
     }
 
+    public class TimecardDetailRow {
+        @AuraEnabled public String key;
+        @AuraEnabled public String title;
+        @AuraEnabled public String subtitle;
+        @AuraEnabled public String meta;
+        @AuraEnabled public Id recordId;
+        @AuraEnabled public String objectApiName;
+    }
+
+    public class TimecardDetailGroup {
+        @AuraEnabled public String key;
+        @AuraEnabled public String label;
+        @AuraEnabled public String totalLabel;
+        @AuraEnabled public List<TimecardDetailRow> rows;
+    }
+
+    public class MonthlyTimecardDetails {
+        @AuraEnabled public String tileId;
+        @AuraEnabled public String title;
+        @AuraEnabled public String monthLabel;
+        @AuraEnabled public String emptyMessage;
+        @AuraEnabled public List<TimecardDetailGroup> groups;
+    }
+
+    public class LeaveDetailRow {
+        @AuraEnabled public Id requestId;
+        @AuraEnabled public String type;
+        @AuraEnabled public String stage;
+        @AuraEnabled public String stageLabel;
+        @AuraEnabled public Datetime startDateTime;
+        @AuraEnabled public Datetime endDateTime;
+        @AuraEnabled public Decimal days;
+        @AuraEnabled public Boolean isPending;
+    }
+
+    public class MonthlyLeaveDetails {
+        @AuraEnabled public Integer approvedDays;
+        @AuraEnabled public Integer pendingDays;
+        @AuraEnabled public List<LeaveDetailRow> approvedRows;
+        @AuraEnabled public List<LeaveDetailRow> pendingRows;
+        @AuraEnabled public String monthLabel;
+    }
+
+    private static final Set<String> POTENTIAL_VISIT_STATUSES = new Set<String>{
+        'Draft',
+        'Submitted',
+        'Scheduled',
+        'Rescheduled'
+    };
+    private static final Set<String> POTENTIAL_MEETING_STATUSES = new Set<String>{
+        'Draft',
+        'PendingApproval',
+        'Pending GPM Approval',
+        'Pending NLM Approval',
+        'Approved'
+    };
+    private static final Set<String> COMPLETED_MEETING_STATUSES = new Set<String>{
+        'Closed',
+        'Concluded'
+    };
+
     private class LeaveBreakdown {
         public Integer totalLeaveDays = 0;
         public Integer sickLeaveDays = 0;
         public Integer annualVacationDays = 0;
         public Integer conferenceDays = 0;
         public Integer publicHolidayDays = 0;
+        public Map<Date, Decimal> leaveByDate = new Map<Date, Decimal>();
     }
 
-    private static LeaveBreakdown loadLeaveBreakdown(Id userId, Date monthStart, Date monthEnd) {
+    private static LeaveBreakdown loadLeaveBreakdown(
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        String department
+    ) {
         LeaveBreakdown result = new LeaveBreakdown();
+        Set<Date> weekdays = EmployeeTimeCardFlowHelper.weekdaysInRange(monthStart, monthEnd, department);
+        Set<Date> companyHolidays = EmployeeTimeCardFlowHelper.publicHolidayDatesInRange(monthStart, monthEnd);
+        for (Date day : weekdays) {
+            if (companyHolidays.contains(day)) {
+                result.publicHolidayDays++;
+            }
+            result.leaveByDate.put(day, 0);
+        }
+
         DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
         DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
-        for (Time_Off_Request__c tot : [
-            SELECT Type__c, Span_Duration__c, Stage__c
+        List<Time_Off_Request__c> approved = [
+            SELECT Type__c, Span_Duration__c, Span_Type__c, Start_Date_Time__c, End_Date_Time__c
             FROM Time_Off_Request__c
             WHERE
-                OwnerId = :userId
-                AND Stage__c = 'Approved'
+                Stage__c = 'Approved'
                 AND Start_Date_Time__c <= :endDt
                 AND End_Date_Time__c >= :startDt
+                AND (CreatedById = :userId OR OwnerId = :userId)
             WITH USER_MODE
-        ]) {
-            Decimal days = valueOrZero(tot.Span_Duration__c);
-            if (days <= 0) {
-                days = 1;
+        ];
+
+        Map<String, Decimal> byType = new Map<String, Decimal>{
+            'Sick Leave' => 0,
+            'Annual Vacation' => 0,
+            'Conference' => 0,
+            'Holiday' => 0
+        };
+        for (Time_Off_Request__c tot : approved) {
+            if (!EmployeeTimeCardFlowHelper.isLeaveTotType(tot.Type__c)) {
+                continue;
             }
-            Integer dayCount = Integer.valueOf(days.intValue());
-            result.totalLeaveDays += dayCount;
-            if (tot.Type__c == 'Sick Leave') {
-                result.sickLeaveDays += dayCount;
-            } else if (tot.Type__c == 'Annual Vacation') {
-                result.annualVacationDays += dayCount;
-            } else if (tot.Type__c == 'Conference') {
-                result.conferenceDays += dayCount;
-            } else if (tot.Type__c == 'Holiday') {
-                result.publicHolidayDays += dayCount;
+            Map<Date, Decimal> totByDate = new Map<Date, Decimal>();
+            Map<Date, Decimal> totWeekdayByDate = new Map<Date, Decimal>();
+            for (Date day = monthStart; day <= monthEnd; day = day.addDays(1)) {
+                totByDate.put(day, 0);
+                totWeekdayByDate.put(day, 0);
             }
+            EmployeeTimeCardFlowHelper.accumulateFromApprovedRequests(
+                new List<Time_Off_Request__c>{ tot },
+                monthStart,
+                monthEnd,
+                totByDate,
+                totWeekdayByDate,
+                department
+            );
+            Decimal typeDays = 0;
+            for (Date day : weekdays) {
+                Decimal amount = totWeekdayByDate.get(day);
+                if (amount == null || amount <= 0) {
+                    continue;
+                }
+                result.leaveByDate.put(day, result.leaveByDate.get(day) + amount);
+                typeDays += amount;
+            }
+            byType.put(tot.Type__c, byType.get(tot.Type__c) + typeDays);
         }
+
+        result.sickLeaveDays = roundDays(byType.get('Sick Leave'));
+        result.annualVacationDays = roundDays(byType.get('Annual Vacation'));
+        result.conferenceDays = roundDays(byType.get('Conference'));
+        result.totalLeaveDays = roundDays(
+            byType.get('Sick Leave') + byType.get('Annual Vacation') + byType.get('Conference') + byType.get('Holiday')
+        );
         return result;
+    }
+
+    private static Integer roundDays(Decimal value) {
+        if (value == null) {
+            return 0;
+        }
+        return value.setScale(0, System.RoundingMode.HALF_UP).intValue();
     }
 
     private static Boolean isManagerUser(Id userId) {
@@ -684,8 +855,6 @@ public with sharing class FieldRepHomeController {
                 Employee_Time_Card__c = :timeCard.Id
                 AND Frequency_Status__c = 'LCF'
                 AND Account__c != NULL
-                AND Account__r.BillingLatitude != NULL
-                AND Account__r.BillingLongitude != NULL
             WITH USER_MODE
             ORDER BY Potentiality__c ASC, Target_Visit_Frequency__c DESC
             LIMIT 200
@@ -1406,6 +1575,16 @@ public with sharing class FieldRepHomeController {
         return cards.isEmpty() ? null : cards[0];
     }
 
+    private static Boolean isAmHospitalTarget(Employee_Time_Card_Account_Target__c target) {
+        if (target == null || target.Account__r == null) {
+            return false;
+        }
+        return EmployeeTimeCardMetricsService.isAmHospitalAccount(
+            target.Account__r.RecordType == null ? null : target.Account__r.RecordType.DeveloperName,
+            target.Account__r.Institution_Type__c
+        );
+    }
+
     private static Decimal calculatePercent(Decimal numerator, Decimal denominator) {
         if (denominator == null || denominator == 0) {
             return 0;
@@ -1498,10 +1677,54 @@ public with sharing class FieldRepHomeController {
     private static Employee_Time_Card__c getCurrentTimeCard(Id employeeId) {
         Date monthStart = Date.today().toStartOfMonth();
         List<Employee_Time_Card__c> cards = [
-            SELECT Id, Time_Card_Month_Start_Date__c, Time_Card_Month_End_Date__c
+            SELECT
+                Id,
+                Time_Card_Month_Start_Date__c,
+                Time_Card_Month_End_Date__c,
+                Field_Days_Total__c,
+                Leave_Days_Total__c,
+                Days_With_Activities__c,
+                Submitted_Calls__c,
+                Actual_Visit_Rate__c,
+                AM_Visit_Rate__c,
+                PM_Visit_Rate__c,
+                Potential_Visits_Total__c,
+                Completed_Meetings_Total__c,
+                Potential_Meetings_Total__c,
+                Coached_Days_Total__c,
+                Coaching_Days_Delivered__c
             FROM Employee_Time_Card__c
             WHERE Employee__c = :employeeId
                 AND Time_Card_Month_Start_Date__c = :monthStart
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        return cards.isEmpty() ? null : cards[0];
+    }
+
+    private static Employee_Time_Card__c loadTimeCardKpiSnapshot(Id timeCardId) {
+        if (timeCardId == null) {
+            return null;
+        }
+        List<Employee_Time_Card__c> cards = [
+            SELECT
+                Id,
+                Time_Card_Month_Start_Date__c,
+                Time_Card_Month_End_Date__c,
+                Field_Days_Total__c,
+                Leave_Days_Total__c,
+                Days_With_Activities__c,
+                Submitted_Calls__c,
+                Actual_Visit_Rate__c,
+                AM_Visit_Rate__c,
+                PM_Visit_Rate__c,
+                Potential_Visits_Total__c,
+                Completed_Meetings_Total__c,
+                Potential_Meetings_Total__c,
+                Coached_Days_Total__c,
+                Coaching_Days_Delivered__c
+            FROM Employee_Time_Card__c
+            WHERE Id = :timeCardId
             WITH USER_MODE
             LIMIT 1
         ];
@@ -1518,11 +1741,19 @@ public with sharing class FieldRepHomeController {
             timeCard = EmployeeTimeCardService.ensureMonthlyTimeCard(employeeId, monthStart);
             if (timeCard != null) {
                 EmployeeTimeCardService.syncAccountTargets(timeCard.Id);
+                EmployeeTimeCardMetricsService.recalcMonthlyKpis(new Set<Id>{ employeeId }, monthStart);
+                timeCard = loadTimeCardKpiSnapshot(timeCard.Id);
             }
             return timeCard;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private class PlannedVisitSplit {
+        public Decimal total = 0;
+        public Decimal am = 0;
+        public Decimal pm = 0;
     }
 
     private static Decimal countPlannedVisitsForMonth(
@@ -1531,36 +1762,125 @@ public with sharing class FieldRepHomeController {
         Set<Id> scopedAccountIds,
         Employee_Time_Card__c timeCard
     ) {
+        return countPlannedVisitSplitForMonth(userId, targets, scopedAccountIds, timeCard).total;
+    }
+
+    private static PlannedVisitSplit countPlannedVisitSplitForMonth(
+        Id userId,
+        List<Employee_Time_Card_Account_Target__c> targets,
+        Set<Id> scopedAccountIds,
+        Employee_Time_Card__c timeCard
+    ) {
+        PlannedVisitSplit split = new PlannedVisitSplit();
         if (targets == null || targets.isEmpty() || timeCard == null) {
-            return 0;
+            return split;
         }
         Date monthStart = timeCard.Time_Card_Month_Start_Date__c;
         Date monthEnd = timeCard.Time_Card_Month_End_Date__c;
         if (monthStart == null || monthEnd == null) {
-            return 0;
+            return split;
         }
 
-        Set<Id> inPlanAccountIds = new Set<Id>();
+        Map<Id, Boolean> amByAccount = new Map<Id, Boolean>();
         for (Employee_Time_Card_Account_Target__c target : targets) {
-            if (isInSelectedTerritory(target.Account__c, scopedAccountIds)) {
-                inPlanAccountIds.add(target.Account__c);
+            if (!isInSelectedTerritory(target.Account__c, scopedAccountIds) || target.Account__c == null) {
+                continue;
             }
+            amByAccount.put(target.Account__c, isAmHospitalTarget(target));
         }
-        if (inPlanAccountIds.isEmpty()) {
-            return 0;
+        if (amByAccount.isEmpty()) {
+            return split;
         }
 
-        return [
-            SELECT COUNT()
+        for (Visit__c visit : [
+            SELECT Account__c
             FROM Visit__c
             WHERE
-                Account__c IN :inPlanAccountIds
+                Account__c IN :amByAccount.keySet()
                 AND Assigned_To__c = :userId
                 AND Visit_Date__c >= :monthStart
                 AND Visit_Date__c <= :monthEnd
                 AND Status__c IN ('Draft', 'Scheduled')
             WITH USER_MODE
-        ];
+        ]) {
+            split.total += 1;
+            if (amByAccount.get(visit.Account__c) == true) {
+                split.am += 1;
+            } else {
+                split.pm += 1;
+            }
+        }
+        return split;
+    }
+
+    private static void applyCallRates(HomeMetrics result, Id userId, Employee_Time_Card__c timeCard) {
+        if (result == null) {
+            return;
+        }
+        Map<String, Decimal> territoryRates = resolveTerritoryCallRates(userId);
+        result.targetCallRate = territoryRates.get('call');
+        result.targetAmCallRate = territoryRates.get('am');
+        result.targetPmCallRate = territoryRates.get('pm');
+        if (timeCard != null) {
+            result.actualCallRate = timeCard.Actual_Visit_Rate__c;
+            result.actualAmCallRate = timeCard.AM_Visit_Rate__c;
+            result.actualPmCallRate = timeCard.PM_Visit_Rate__c;
+        }
+    }
+
+    private static Map<String, Decimal> resolveTerritoryCallRates(Id userId) {
+        Map<String, Decimal> rates = new Map<String, Decimal>{
+            'call' => null,
+            'am' => null,
+            'pm' => null
+        };
+        if (userId == null) {
+            return rates;
+        }
+
+        Id territoryId = null;
+        if (userId == UserInfo.getUserId() && TerritoryContextService.hasSelectedTerritory()) {
+            Set<Id> selected = TerritoryContextService.getEffectiveTerritoryIds(userId);
+            if (selected != null && !selected.isEmpty()) {
+                territoryId = new List<Id>(selected)[0];
+            }
+        }
+        if (territoryId == null) {
+            String preferredRole;
+            for (UserTerritory2Association uta : [
+                SELECT Territory2Id, RoleInTerritory2
+                FROM UserTerritory2Association
+                WHERE UserId = :userId AND IsActive = TRUE
+                WITH SYSTEM_MODE
+                ORDER BY LastModifiedDate DESC
+                LIMIT 20
+            ]) {
+                if (territoryId == null) {
+                    territoryId = uta.Territory2Id;
+                    preferredRole = uta.RoleInTerritory2;
+                } else if (preferRepRole(uta.RoleInTerritory2, preferredRole)) {
+                    territoryId = uta.Territory2Id;
+                    preferredRole = uta.RoleInTerritory2;
+                }
+            }
+        }
+        if (territoryId == null) {
+            return rates;
+        }
+
+        CallRateRuleService.Resolution resolved = CallRateRuleService.resolveForTerritory(territoryId);
+        rates.put('call', resolved.call);
+        rates.put('am', resolved.am);
+        rates.put('pm', resolved.pm);
+        return rates;
+    }
+
+    private static Boolean preferRepRole(String candidate, String existing) {
+        String left = candidate == null ? '' : candidate.toLowerCase();
+        String right = existing == null ? '' : existing.toLowerCase();
+        Boolean leftRep = left.contains('rep') || left == 'mr';
+        Boolean rightRep = right.contains('rep') || right == 'mr';
+        return leftRep && !rightRep;
     }
 
     private static Decimal computeRemainingCalls(
@@ -1667,6 +1987,20 @@ public with sharing class FieldRepHomeController {
         result.targetVisitsTotal = 0;
         result.plannedVisitsTotal = 0;
         result.remainingCalls = 0;
+        result.amAttainmentPercent = 0;
+        result.amActualVisits = 0;
+        result.amTargetVisits = 0;
+        result.amPlannedVisits = 0;
+        result.pmAttainmentPercent = 0;
+        result.pmActualVisits = 0;
+        result.pmTargetVisits = 0;
+        result.pmPlannedVisits = 0;
+        result.targetCallRate = null;
+        result.targetAmCallRate = null;
+        result.targetPmCallRate = null;
+        result.actualCallRate = null;
+        result.actualAmCallRate = null;
+        result.actualPmCallRate = null;
 
         List<ClassificationMetrics> byClass = new List<ClassificationMetrics>();
         for (String clazz : MATRIX_CLASSES) {
@@ -1691,6 +2025,463 @@ public with sharing class FieldRepHomeController {
             return UserInfo.getUserId();
         }
         throw new AuraHandledException('You cannot view home metrics for other users.');
+    }
+
+    @AuraEnabled
+    public static MonthlyLeaveDetails getMonthlyLeaveDetails(Id contextUserId) {
+        Id resolvedUserId = resolveUserId(contextUserId);
+        Date monthStart = Date.today().toStartOfMonth();
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(resolvedUserId);
+        return buildMonthlyLeaveDetails(resolvedUserId, monthStart, monthEnd, department);
+    }
+
+    @AuraEnabled
+    public static MonthlyTimecardDetails getMonthlyTimecardDetails(Id contextUserId, String tileId) {
+        Id resolvedUserId = resolveUserId(contextUserId);
+        Date monthStart = Date.today().toStartOfMonth();
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(resolvedUserId);
+        String normalizedTile = tileId == null ? '' : tileId.trim().toLowerCase();
+
+        MonthlyTimecardDetails result = new MonthlyTimecardDetails();
+        result.tileId = normalizedTile;
+        result.monthLabel = monthStart.format();
+        result.groups = new List<TimecardDetailGroup>();
+
+        if (normalizedTile == 'field') {
+            result.title = 'Field days';
+            result.emptyMessage = 'No field days this month.';
+            addFieldDayGroups(result, resolvedUserId, monthStart, monthEnd, department);
+        } else if (normalizedTile == 'coached') {
+            result.title = 'Coached';
+            result.emptyMessage = 'No coaching received this month.';
+            addCoachingGroup(result, resolvedUserId, monthStart, monthEnd, false);
+        } else if (normalizedTile == 'coaching') {
+            result.title = 'Coaching';
+            result.emptyMessage = 'No coaching delivered this month.';
+            addCoachingGroup(result, resolvedUserId, monthStart, monthEnd, true);
+        } else if (normalizedTile == 'activities') {
+            result.title = 'Activities recorded';
+            result.emptyMessage = 'No days with recorded activities this month.';
+            addActivityDayGroup(result, resolvedUserId, monthStart, monthEnd);
+        } else if (normalizedTile == 'completed') {
+            result.title = 'Completed activities';
+            result.emptyMessage = 'No completed visits or meetings this month.';
+            addVisitGroup(result, resolvedUserId, monthStart, monthEnd, true);
+            addMeetingGroup(result, resolvedUserId, monthStart, monthEnd, true);
+        } else if (normalizedTile == 'potential') {
+            result.title = 'Potential activities';
+            result.emptyMessage = 'No planned visits or open meetings this month.';
+            addVisitGroup(result, resolvedUserId, monthStart, monthEnd, false);
+            addMeetingGroup(result, resolvedUserId, monthStart, monthEnd, false);
+        } else {
+            result.title = 'Details';
+            result.emptyMessage = 'Nothing to show for this card.';
+        }
+        return result;
+    }
+
+    private static MonthlyLeaveDetails buildMonthlyLeaveDetails(
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        String department
+    ) {
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        List<Time_Off_Request__c> requests = [
+            SELECT Id, Type__c, Stage__c, Span_Duration__c, Span_Type__c, Start_Date_Time__c, End_Date_Time__c
+            FROM Time_Off_Request__c
+            WHERE
+                Stage__c IN ('Approved', 'Submitted for Approval')
+                AND Start_Date_Time__c <= :endDt
+                AND End_Date_Time__c >= :startDt
+                AND (CreatedById = :userId OR OwnerId = :userId)
+            WITH USER_MODE
+            ORDER BY Start_Date_Time__c ASC
+        ];
+
+        MonthlyLeaveDetails result = new MonthlyLeaveDetails();
+        result.approvedRows = new List<LeaveDetailRow>();
+        result.pendingRows = new List<LeaveDetailRow>();
+        result.approvedDays = 0;
+        result.pendingDays = 0;
+        result.monthLabel = monthStart.format();
+
+        Set<Date> weekdays = EmployeeTimeCardFlowHelper.weekdaysInRange(monthStart, monthEnd, department);
+        for (Time_Off_Request__c tot : requests) {
+            if (!EmployeeTimeCardFlowHelper.isLeaveTotType(tot.Type__c)) {
+                continue;
+            }
+            Decimal typeDays = computeLeaveDaysForRequest(tot, monthStart, monthEnd, weekdays, department);
+            if (typeDays == null || typeDays <= 0) {
+                continue;
+            }
+            LeaveDetailRow row = new LeaveDetailRow();
+            row.requestId = tot.Id;
+            row.type = tot.Type__c;
+            row.stage = tot.Stage__c;
+            row.startDateTime = tot.Start_Date_Time__c;
+            row.endDateTime = tot.End_Date_Time__c;
+            row.days = typeDays.setScale(1, System.RoundingMode.HALF_UP);
+            Boolean isPending = tot.Stage__c == 'Submitted for Approval';
+            row.isPending = isPending;
+            row.stageLabel = isPending ? 'Pending' : 'Approved';
+            if (isPending) {
+                result.pendingRows.add(row);
+                result.pendingDays += roundDays(typeDays);
+            } else {
+                result.approvedRows.add(row);
+                result.approvedDays += roundDays(typeDays);
+            }
+        }
+        return result;
+    }
+
+    private static Decimal computeLeaveDaysForRequest(
+        Time_Off_Request__c tot,
+        Date monthStart,
+        Date monthEnd,
+        Set<Date> weekdays,
+        String department
+    ) {
+        Map<Date, Decimal> totByDate = new Map<Date, Decimal>();
+        Map<Date, Decimal> totWeekdayByDate = new Map<Date, Decimal>();
+        for (Date day = monthStart; day <= monthEnd; day = day.addDays(1)) {
+            totByDate.put(day, 0);
+            totWeekdayByDate.put(day, 0);
+        }
+        EmployeeTimeCardFlowHelper.accumulateFromApprovedRequests(
+            new List<Time_Off_Request__c>{ tot },
+            monthStart,
+            monthEnd,
+            totByDate,
+            totWeekdayByDate,
+            department
+        );
+        Decimal typeDays = 0;
+        for (Date day : weekdays) {
+            Decimal amount = totWeekdayByDate.get(day);
+            if (amount != null && amount > 0) {
+                typeDays += amount;
+            }
+        }
+        return typeDays;
+    }
+
+    private static void addFieldDayGroups(
+        MonthlyTimecardDetails result,
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        String department
+    ) {
+        LeaveBreakdown leaves = loadLeaveBreakdown(userId, monthStart, monthEnd, department);
+        Set<Date> weekdays = EmployeeTimeCardFlowHelper.weekdaysInRange(monthStart, monthEnd, department);
+        Set<Date> holidays = EmployeeTimeCardFlowHelper.publicHolidayDatesInRange(monthStart, monthEnd);
+        List<Date> days = new List<Date>(weekdays);
+        days.sort();
+
+        List<TimecardDetailRow> fieldRows = new List<TimecardDetailRow>();
+        List<TimecardDetailRow> excludedRows = new List<TimecardDetailRow>();
+        Decimal fieldDayTotal = 0;
+        for (Date day : days) {
+            if (holidays.contains(day)) {
+                excludedRows.add(
+                    detailRow('field-holiday-' + String.valueOf(day), formatDetailDate(day), 'Public holiday', null, null, null)
+                );
+                continue;
+            }
+            Decimal leave = 0;
+            if (leaves.leaveByDate != null && leaves.leaveByDate.containsKey(day) && leaves.leaveByDate.get(day) != null) {
+                leave = leaves.leaveByDate.get(day);
+            }
+            Decimal remaining = Math.max(0, 1 - leave);
+            if (remaining <= 0) {
+                excludedRows.add(
+                    detailRow('field-leave-' + String.valueOf(day), formatDetailDate(day), 'Leave', null, null, null)
+                );
+                continue;
+            }
+            fieldDayTotal += remaining;
+            String subtitle = remaining < 1 ? 'Partial field day' : 'Field day';
+            String meta = remaining < 1 ? remaining.setScale(1, System.RoundingMode.HALF_UP).toPlainString() + ' day' : null;
+            fieldRows.add(detailRow('field-' + String.valueOf(day), formatDetailDate(day), subtitle, meta, null, null));
+        }
+
+        Integer countedDays = fieldDayTotal.setScale(0, System.RoundingMode.HALF_UP).intValue();
+        addDetailGroup(result, 'field', 'Field days', countedDays + ' days', fieldRows);
+        addDetailGroup(result, 'excluded', 'Not counted', excludedRows.size() + ' days', excludedRows);
+    }
+
+    private static void addActivityDayGroup(MonthlyTimecardDetails result, Id userId, Date monthStart, Date monthEnd) {
+        List<TimecardDetailRow> rows = new List<TimecardDetailRow>();
+        for (Employee_Time_Card_Day_Entry__c entry : [
+            SELECT Date__c, Submitted_Calls__c, Days_with_Activities__c
+            FROM Employee_Time_Card_Day_Entry__c
+            WHERE
+                Employee_Time_Card__r.Employee__c = :userId
+                AND Date__c >= :monthStart
+                AND Date__c <= :monthEnd
+                AND (Days_with_Activities__c > 0 OR Submitted_Calls__c > 0)
+            WITH USER_MODE
+            ORDER BY Date__c ASC
+        ]) {
+            Integer visits = entry.Submitted_Calls__c == null ? 0 : entry.Submitted_Calls__c.intValue();
+            String subtitle = visits == 1 ? '1 completed visit' : visits + ' completed visits';
+            rows.add(
+                detailRow('activity-' + String.valueOf(entry.Date__c), formatDetailDate(entry.Date__c), subtitle, null, null, null)
+            );
+        }
+        if (rows.isEmpty()) {
+            rows.addAll(activityRowsFromCompletedVisits(userId, monthStart, monthEnd));
+        }
+        addDetailGroup(result, 'activities', 'Days with activities', rows.size() + ' days', rows);
+    }
+
+    private static List<TimecardDetailRow> activityRowsFromCompletedVisits(Id userId, Date monthStart, Date monthEnd) {
+        Map<Date, Integer> visitsByDay = new Map<Date, Integer>();
+        for (Visit__c visit : queryMonthVisits(userId, monthStart, monthEnd)) {
+            if (visit.Status__c != 'Completed') {
+                continue;
+            }
+            Date activityDate = resolveDetailVisitDate(visit);
+            if (activityDate == null || activityDate < monthStart || activityDate > monthEnd) {
+                continue;
+            }
+            Integer count = visitsByDay.containsKey(activityDate) ? visitsByDay.get(activityDate) : 0;
+            visitsByDay.put(activityDate, count + 1);
+        }
+        List<Date> days = new List<Date>(visitsByDay.keySet());
+        days.sort();
+        List<TimecardDetailRow> rows = new List<TimecardDetailRow>();
+        for (Date day : days) {
+            Integer visits = visitsByDay.get(day);
+            String subtitle = visits == 1 ? '1 completed visit' : visits + ' completed visits';
+            rows.add(detailRow('activity-visit-' + String.valueOf(day), formatDetailDate(day), subtitle, null, null, null));
+        }
+        return rows;
+    }
+
+    private static void addVisitGroup(
+        MonthlyTimecardDetails result,
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        Boolean completed
+    ) {
+        List<TimecardDetailRow> rows = new List<TimecardDetailRow>();
+        for (Visit__c visit : queryMonthVisits(userId, monthStart, monthEnd)) {
+            Boolean isCompleted = visit.Status__c == 'Completed';
+            if (completed != isCompleted) {
+                continue;
+            }
+            if (!completed && !POTENTIAL_VISIT_STATUSES.contains(visit.Status__c)) {
+                continue;
+            }
+            Date activityDate = resolveDetailVisitDate(visit);
+            if (activityDate == null || activityDate < monthStart || activityDate > monthEnd) {
+                continue;
+            }
+            String title = visit.Account__r != null && String.isNotBlank(visit.Account__r.Name)
+                ? visit.Account__r.Name
+                : visit.Name;
+            rows.add(
+                detailRow(
+                    String.valueOf(visit.Id),
+                    title,
+                    visit.Status__c,
+                    formatDetailDate(activityDate),
+                    visit.Id,
+                    'Visit__c'
+                )
+            );
+        }
+        String noun = completed ? 'completed visit' : 'planned visit';
+        String totalLabel = rows.size() == 1 ? '1 ' + noun : rows.size() + ' ' + noun + 's';
+        addDetailGroup(result, completed ? 'completed-visits' : 'potential-visits', completed ? 'Completed visits' : 'Planned visits', totalLabel, rows);
+    }
+
+    private static List<Visit__c> queryMonthVisits(Id userId, Date monthStart, Date monthEnd) {
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        return [
+            SELECT Id, Name, Account__r.Name, Status__c, Visit_Type__c, Visit_Date__c, Start_Date__c
+            FROM Visit__c
+            WHERE
+                Assigned_To__c = :userId
+                AND Status__c != 'Cancelled'
+                AND (
+                    (Visit_Date__c >= :startDt AND Visit_Date__c <= :endDt)
+                    OR (Start_Date__c >= :startDt AND Start_Date__c <= :endDt)
+                )
+            WITH USER_MODE
+            ORDER BY Start_Date__c ASC
+        ];
+    }
+
+    private static void addMeetingGroup(
+        MonthlyTimecardDetails result,
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        Boolean completed
+    ) {
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        List<TimecardDetailRow> rows = new List<TimecardDetailRow>();
+        for (Meeting__c meeting : [
+            SELECT Id, Name, Status__c, Start_Date_Time__c, RecordType.Name
+            FROM Meeting__c
+            WHERE OwnerId = :userId AND Start_Date_Time__c >= :startDt AND Start_Date_Time__c <= :endDt
+            WITH USER_MODE
+            ORDER BY Start_Date_Time__c ASC
+        ]) {
+            Boolean isCompleted = COMPLETED_MEETING_STATUSES.contains(meeting.Status__c);
+            if (completed != isCompleted) {
+                continue;
+            }
+            if (!completed && !POTENTIAL_MEETING_STATUSES.contains(meeting.Status__c)) {
+                continue;
+            }
+            Date meetingDay = meeting.Start_Date_Time__c == null ? null : meeting.Start_Date_Time__c.date();
+            String subtitle = String.isNotBlank(meeting.RecordType?.Name) ? meeting.RecordType.Name : meeting.Status__c;
+            rows.add(
+                detailRow(
+                    String.valueOf(meeting.Id),
+                    String.isNotBlank(meeting.Name) ? meeting.Name : 'Meeting',
+                    subtitle,
+                    formatDetailDate(meetingDay),
+                    meeting.Id,
+                    'Meeting__c'
+                )
+            );
+        }
+        String noun = completed ? 'completed meeting' : 'open meeting';
+        String totalLabel = rows.size() == 1 ? '1 ' + noun : rows.size() + ' ' + noun + 's';
+        addDetailGroup(
+            result,
+            completed ? 'completed-meetings' : 'potential-meetings',
+            completed ? 'Completed meetings' : 'Open meetings',
+            totalLabel,
+            rows
+        );
+    }
+
+    private static void addCoachingGroup(
+        MonthlyTimecardDetails result,
+        Id userId,
+        Date monthStart,
+        Date monthEnd,
+        Boolean delivered
+    ) {
+        DateTime startDt = DateTime.newInstance(monthStart, Time.newInstance(0, 0, 0, 0));
+        DateTime endDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+        List<TimecardDetailRow> rows = new List<TimecardDetailRow>();
+        Set<Date> uniqueDays = new Set<Date>();
+        for (Coaching_Event__c eventRecord : [
+            SELECT Id, Name, Status__c, Event_Start__c, Employee__c, Employee__r.Name, Manager__c, Manager__r.Name
+            FROM Coaching_Event__c
+            WHERE
+                Event_Start__c >= :startDt
+                AND Event_Start__c <= :endDt
+                AND Status__c NOT IN ('Draft', 'Planned', 'Cancelled')
+                AND (Employee__c = :userId OR Manager__c = :userId)
+            WITH USER_MODE
+            ORDER BY Event_Start__c ASC
+        ]) {
+            Boolean isDelivered = eventRecord.Manager__c == userId;
+            Boolean isReceived = eventRecord.Employee__c == userId;
+            if (delivered && !isDelivered) {
+                continue;
+            }
+            if (!delivered && !isReceived) {
+                continue;
+            }
+            if (eventRecord.Event_Start__c == null) {
+                continue;
+            }
+            Date eventDay = eventRecord.Event_Start__c.date();
+            uniqueDays.add(eventDay);
+            String personName = delivered
+                ? (eventRecord.Employee__r != null ? eventRecord.Employee__r.Name : eventRecord.Name)
+                : (eventRecord.Manager__r != null ? eventRecord.Manager__r.Name : eventRecord.Name);
+            rows.add(
+                detailRow(
+                    String.valueOf(eventRecord.Id) + (delivered ? '-delivered' : '-received'),
+                    personName,
+                    eventRecord.Status__c,
+                    formatDetailDate(eventDay),
+                    eventRecord.Id,
+                    'Coaching_Event__c'
+                )
+            );
+        }
+        String dayLabel = uniqueDays.size() == 1 ? '1 day' : uniqueDays.size() + ' days';
+        addDetailGroup(
+            result,
+            delivered ? 'coaching' : 'coached',
+            delivered ? 'Coaching delivered' : 'Coaching received',
+            dayLabel,
+            rows
+        );
+    }
+
+    private static void addDetailGroup(
+        MonthlyTimecardDetails result,
+        String key,
+        String label,
+        String totalLabel,
+        List<TimecardDetailRow> rows
+    ) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        TimecardDetailGroup detailGroup = new TimecardDetailGroup();
+        detailGroup.key = key;
+        detailGroup.label = label;
+        detailGroup.totalLabel = totalLabel;
+        detailGroup.rows = rows;
+        result.groups.add(detailGroup);
+    }
+
+    private static TimecardDetailRow detailRow(
+        String key,
+        String title,
+        String subtitle,
+        String meta,
+        Id recordId,
+        String objectApiName
+    ) {
+        TimecardDetailRow row = new TimecardDetailRow();
+        row.key = key;
+        row.title = title;
+        row.subtitle = subtitle;
+        row.meta = meta;
+        row.recordId = recordId;
+        row.objectApiName = objectApiName;
+        return row;
+    }
+
+    private static Date resolveDetailVisitDate(Visit__c visit) {
+        if (visit == null) {
+            return null;
+        }
+        if (visit.Visit_Date__c != null) {
+            return visit.Visit_Date__c.date();
+        }
+        if (visit.Start_Date__c != null) {
+            return visit.Start_Date__c.date();
+        }
+        return null;
+    }
+
+    private static String formatDetailDate(Date day) {
+        if (day == null) {
+            return '—';
+        }
+        return DateTime.newInstance(day, Time.newInstance(12, 0, 0, 0)).format('EEE, MMM d');
     }
 
     private static Set<Id> selectedTerritoryAccountIds(Id userId) {
@@ -1729,4 +2520,3 @@ public with sharing class FieldRepHomeController {
         return accountId != null && scopedAccountIds.contains(accountId);
     }
 }
-

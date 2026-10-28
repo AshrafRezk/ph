@@ -1,0 +1,302 @@
+<template>
+    <div class="wrap">
+        <p class="lead">
+            Set working days and overlap policy (<strong>Allow</strong> / <strong>Warn</strong> /
+            <strong>Block</strong>) at org, line, line+title, title, profile, and user levels. Every level except
+            org-wide takes several picks at once. Cascade is
+            <em>User → Line+Title → Title → Profile → Line → BU → Org</em>.
+        </p>
+
+        <div class="scope-bar" role="tablist" aria-label="Rule scope">
+            <template for:each={scopeTabs} for:item="tab">
+                <button
+                    key={tab.key}
+                    type="button"
+                    class={tab.className}
+                    data-scope={tab.key}
+                    onclick={handleScopeTab}
+                >
+                    {tab.label}
+                </button>
+            </template>
+        </div>
+        <p class="cascade">{cascadeHint}</p>
+
+        <template lwc:if={loading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+        <template lwc:else>
+            <template lwc:if={isLineScope}>
+                <section class="card card--picker">
+                    <h3 class="h">Line</h3>
+                    <p class="hint">
+                        Override org-wide rules for everyone seated on these commercial lines. Pick several to give
+                        them the same settings in one save.
+                    </p>
+                    <lightning-dual-listbox
+                        label="Product lines (pick one or more)"
+                        source-label="Available lines"
+                        selected-label="Selected lines"
+                        options={lineOptions}
+                        value={selectedLines}
+                        size="6"
+                        onchange={handleLineChange}
+                    ></lightning-dual-listbox>
+                </section>
+            </template>
+
+            <template lwc:if={isLineTitleScope}>
+                <section class="card card--picker">
+                    <h3 class="h">Line + Title</h3>
+                    <p class="hint">
+                        Set working days for one title on one line (e.g. Medical Rep on CHC works Sun–Thu).
+                    </p>
+                    <lightning-dual-listbox
+                        label="Product lines (pick one or more)"
+                        source-label="Available lines"
+                        selected-label="Selected lines"
+                        options={lineOptions}
+                        value={selectedLines}
+                        size="5"
+                        onchange={handleLineTitleLineChange}
+                    ></lightning-dual-listbox>
+                    <lightning-dual-listbox
+                        label="Positions (pick one or more)"
+                        source-label="Available positions"
+                        selected-label="Selected positions"
+                        options={titleOptions}
+                        value={selectedTitles}
+                        size="6"
+                        onchange={handleLineTitleTitleChange}
+                    ></lightning-dual-listbox>
+                </section>
+            </template>
+
+            <template lwc:if={isTitleScope}>
+                <section class="card card--picker">
+                    <h3 class="h">Title</h3>
+                    <p class="hint">
+                        Override for everyone with these positions (e.g. District Sales Manager). Pick several to
+                        give them the same settings in one save.
+                    </p>
+                    <lightning-dual-listbox
+                        label="Positions (pick one or more)"
+                        source-label="Available positions"
+                        selected-label="Selected positions"
+                        options={titleOptions}
+                        value={selectedTitles}
+                        size="6"
+                        onchange={handleTitleChange}
+                    ></lightning-dual-listbox>
+                </section>
+            </template>
+
+            <template lwc:if={isProfileScope}>
+                <section class="card card--picker">
+                    <h3 class="h">Profile</h3>
+                    <p class="hint">Override for Salesforce profiles. Pick several to save them together.</p>
+                    <lightning-dual-listbox
+                        label="Profiles (pick one or more)"
+                        source-label="Available profiles"
+                        selected-label="Selected profiles"
+                        options={profileOptions}
+                        value={selectedProfiles}
+                        size="6"
+                        onchange={handleProfileChange}
+                    ></lightning-dual-listbox>
+                </section>
+            </template>
+
+            <template lwc:if={isUserScope}>
+                <section class="card card--picker">
+                    <h3 class="h">User exception</h3>
+                    <p class="hint">
+                        Pin a personal override for one or more people (e.g. supervisors who plan on Fridays).
+                        Search, move people to Selected, then search again to add more.
+                    </p>
+                    <div class="picker-row">
+                        <lightning-input
+                            type="search"
+                            label="Search users"
+                            value={userSearch}
+                            onchange={handleUserSearch}
+                            placeholder="Name or username"
+                        ></lightning-input>
+                    </div>
+                    <lightning-dual-listbox
+                        label="Users (pick one or more)"
+                        source-label="Search results"
+                        selected-label="Selected users"
+                        options={pickedUserOptions}
+                        value={selectedUsers}
+                        size="6"
+                        onchange={handleUserChange}
+                    ></lightning-dual-listbox>
+                </section>
+            </template>
+
+            <template lwc:if={hasMultiplePositions}>
+                <div class="banner">{multiPositionNote}</div>
+            </template>
+            <template lwc:if={showInheritedBanner}>
+                <div class="banner">{inheritedFrom}</div>
+            </template>
+
+            <template lwc:if={canEditMatrix}>
+                <section class="card">
+                    <div class="card-head">
+                        <h3 class="h">Working days</h3>
+                        <span class="scope-pill">{scopeLabel}</span>
+                    </div>
+                    <p class="hint">{weekendPreview}</p>
+                    <p class="hint">
+                        One definition for the planner, the PWA and time cards. Pick a preset or tick days below.
+                    </p>
+                    <div class="presets">
+                        <lightning-button
+                            label="Thu + Fri weekend (Sat–Wed)"
+                            data-preset="THU_FRI"
+                            onclick={handleWeekendPreset}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Fri + Sat weekend (Sun–Thu)"
+                            data-preset="FRI_SAT"
+                            onclick={handleWeekendPreset}
+                        ></lightning-button>
+                    </div>
+                    <div class="days">
+                        <template for:each={dayOptions} for:item="day">
+                            <label key={day.value} class="day">
+                                <input
+                                    type="checkbox"
+                                    checked={day.selected}
+                                    data-value={day.value}
+                                    onchange={handleDayToggle}
+                                />
+                                <span>{day.label}</span>
+                            </label>
+                        </template>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h3 class="h">Overlap policies</h3>
+                    <p class="hint">
+                        Read row against column. Empty cells have no rule.
+                        <span class="legend">
+                            <span class="legend-pill legend-pill--block">Block</span> refuses ·
+                            <span class="legend-pill legend-pill--warn">Warn</span> soft prompt ·
+                            <span class="legend-pill legend-pill--allow">Allow</span> skip check
+                        </span>
+                    </p>
+
+                    <div class="matrix-scroll" role="region" aria-label="Overlap policy matrix">
+                        <table class="matrix">
+                            <thead>
+                                <tr>
+                                    <th class="matrix-corner" scope="col">
+                                        <span class="matrix-corner-label">Row ↓ · Col →</span>
+                                    </th>
+                                    <template for:each={columnHeaders} for:item="col">
+                                        <th key={col.id} class="matrix-colhead" scope="col">{col.label}</th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={matrixRows} for:item="row">
+                                    <tr key={row.id}>
+                                        <th class="matrix-rowhead" scope="row">{row.label}</th>
+                                        <template for:each={row.cells} for:item="cell">
+                                            <td key={cell.id} class={cell.toneClass} title={cell.help}>
+                                                <template lwc:if={cell.editable}>
+                                                    <lightning-combobox
+                                                        variant="label-hidden"
+                                                        label={cell.help}
+                                                        value={cell.value}
+                                                        options={shortPolicyOptions}
+                                                        data-key={cell.key}
+                                                        onchange={handleMatrixPolicy}
+                                                        dropdown-alignment="auto"
+                                                    ></lightning-combobox>
+                                                </template>
+                                                <template lwc:else>
+                                                    <span class="matrix-na" aria-hidden="true">—</span>
+                                                    <span class="slds-assistive-text">No rule</span>
+                                                </template>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="card card--weekend">
+                    <h3 class="h">Weekend / closed day</h3>
+                    <p class="hint">
+                        Separate from pairwise overlaps: visit or meeting on a non-working day (weekend).
+                    </p>
+                    <div class="weekend-row">
+                        <span class="weekend-label">Planning on a weekend</span>
+                        <lightning-combobox
+                            variant="label-hidden"
+                            label="Planning on a weekend"
+                            value={weekendPlanning}
+                            options={shortPolicyOptions}
+                            onchange={handleWeekendPolicy}
+                            class="weekend-select"
+                        ></lightning-combobox>
+                    </div>
+                </section>
+
+                <div class="actions">
+                    <lightning-button
+                        variant="brand"
+                        label={saveLabel}
+                        onclick={handleSave}
+                        disabled={saving}
+                    ></lightning-button>
+                </div>
+            </template>
+
+            <section class="card">
+                <h3 class="h">Saved exceptions</h3>
+                <p class="hint">
+                    Line, title, profile, and user overrides. Open to edit, or delete to fall back to the next
+                    cascade level.
+                </p>
+                <template lwc:if={hasExceptions}>
+                    <ul class="exception-list">
+                        <template for:each={exceptionRows} for:item="row">
+                            <li key={row.key} class="exception-row">
+                                <button
+                                    type="button"
+                                    class="exception-open"
+                                    data-id={row.id}
+                                    data-level={row.scopeLevel}
+                                    data-key={row.scopeKey}
+                                    data-label={row.scopeLabel}
+                                    onclick={handleOpenException}
+                                >
+                                    <strong>{row.scopeLabel}</strong>
+                                    <span>{row.meta}</span>
+                                </button>
+                                <lightning-button
+                                    label="Delete"
+                                    variant="destructive-text"
+                                    data-id={row.id}
+                                    onclick={handleDeleteException}
+                                    disabled={saving}
+                                ></lightning-button>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+                <template lwc:else>
+                    <p class="hint">No line or user exceptions yet. Org-wide rules apply to everyone.</p>
+                </template>
+            </section>
+        </template>
+    </div>
+</template>

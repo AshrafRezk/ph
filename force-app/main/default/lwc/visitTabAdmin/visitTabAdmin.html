@@ -1,0 +1,68 @@
+<template>
+    <section class="vta">
+        <header class="vta-header">
+            <div>
+                <h2 class="vta-title">Visit tabs</h2>
+                <p class="vta-subtitle">
+                    Choose which sections a visit shows for each account record type. Orders and
+                    Requests start on for every type. Details stays on.
+                </p>
+            </div>
+            <lightning-button
+                label={saveLabel}
+                variant="brand"
+                disabled={saveDisabled}
+                onclick={handleSave}
+            ></lightning-button>
+        </header>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading visit tabs" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="vta-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={showEmptyState}>
+                <p class="vta-error">No active account record types were found.</p>
+            </template>
+            <template if:true={hasRows}>
+            <div class="vta-scroll">
+                <table class="vta-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="vta-sticky">Account type</th>
+                            <template for:each={columns} for:item="column">
+                                <th key={column.key} scope="col">{column.label}</th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={rows} for:item="row">
+                            <tr key={row.rowKey}>
+                                <th scope="row" class="vta-sticky">{row.label}</th>
+                                <template for:each={row.cells} for:item="cell">
+                                    <td key={cell.keyToken}>
+                                        <input
+                                            type="checkbox"
+                                            id={cell.inputId}
+                                            checked={cell.enabled}
+                                            disabled={cell.locked}
+                                            data-record={row.rowKey}
+                                            data-tab={cell.key}
+                                            aria-label={cell.ariaLabel}
+                                            onchange={handleToggle}
+                                        />
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            </template>
+        </template>
+    </section>
+</template>

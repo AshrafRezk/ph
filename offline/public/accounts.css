@@ -1,6 +1,16 @@
+html,
+body {
+    height: 100%;
+}
+
 body {
     box-sizing: border-box;
-    padding: 0.75rem calc(12rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(12rem + env(safe-area-inset-left));
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    margin: 0;
+    padding: 0.75rem calc(0.75rem + env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
+    background: #f3f3f3;
 }
 
 .accounts-header {
@@ -130,17 +140,25 @@ body {
 .account-row {
     padding: 0.75rem;
     border: 1px solid #e5e5e5;
+    border-left: 3px solid #032d60;
     border-radius: 0.375rem;
     margin-bottom: 0.375rem;
     background: #fff;
     cursor: pointer;
 }
 
+.account-type-glyph {
+    width: 1.35rem;
+    height: 1.35rem;
+    object-fit: contain;
+    flex: 0 0 1.35rem;
+}
+
 .account-row:hover { border-color: #1b96ff; }
 
-.account-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+.account-row-top { display: flex; justify-content: flex-start; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
 
-.account-name { font-size: 0.875rem; font-weight: 600; color: #181818; }
+.account-name { flex: 1; font-size: 0.875rem; font-weight: 600; color: #181818; }
 
 .account-classification { font-size: 0.625rem; font-weight: 700; padding: 0.05rem 0.4rem; background: #eef4ff; color: #014486; border-radius: 0.25rem; }
 
@@ -160,41 +178,87 @@ body {
 
 .page-label { font-size: 0.75rem; font-weight: 600; color: #444; min-width: 5.5rem; text-align: center; }
 
-.map-view { display: grid; grid-template-columns: 20rem 1fr; min-height: 32rem; border: 1px solid #e5e5e5; border-radius: 0.375rem; overflow: hidden; }
+.map-view {
+    display: none;
+    grid-template-columns: minmax(16.5rem, 22rem) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-height: 28rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: #fff;
+}
 
-.map-list { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: #fafafa; border-right: 1px solid #e5e5e5; }
+.map-view.is-active { display: grid; }
 
-.map-list-header { display: flex; justify-content: space-between; padding: 0.75rem; border-bottom: 1px solid #e5e5e5; background: #fff; flex-shrink: 0; }
-.map-list-title { font-size: 0.875rem; font-weight: 700; color: #181818; }
-.map-list-count { font-size: 0.6875rem; color: #706e6b; }
+.map-list { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #f7f8fa; border-right: 1px solid #e5e5e5; }
 
-.map-account-items { list-style: none; margin: 0; padding: 0.5rem; overflow-y: auto; flex: 1; }
+.map-list-header { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.85rem; border-bottom: 1px solid #e5e5e5; background: #fff; flex-shrink: 0; }
+.map-list-title { font-size: 0.8125rem; font-weight: 700; color: #032d60; }
+.map-list-count { font-size: 0.6875rem; color: #706e6b; text-align: right; }
 
-.map-account-item { display: flex; align-items: flex-start; gap: 0.25rem; padding: 0.5rem; margin-bottom: 0.375rem; background: #fff; border: 1px solid #e5e5e5; border-radius: 0.25rem; cursor: pointer; }
-.map-account-item:hover { border-color: #1b96ff; }
-.map-account-item-selected { border-color: #0176d3; box-shadow: inset 3px 0 0 #0176d3; background: #f3f8ff; }
+.map-account-items { list-style: none; margin: 0; padding: 0.55rem; overflow-y: auto; flex: 1; min-height: 0; }
 
-.map-account-item-top { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem; }
-.map-account-type { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; color: #706e6b; }
-.map-account-badge { margin-left: auto; display: inline-block; padding: 0.05rem 0.4rem; border-radius: 0.25rem; background: #eef4ff; color: #014486; font-size: 0.625rem; font-weight: 700; }
-.map-account-name { margin: 0; font-size: 0.8125rem; font-weight: 600; color: #181818; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-account-subtitle { margin: 0.15rem 0 0; font-size: 0.6875rem; color: #706e6b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-account-item { display: flex; align-items: center; gap: 0.15rem; padding: 0.4rem 0.3rem 0.4rem 0.45rem; margin-bottom: 0.4rem; background: #fff; border: 1px solid transparent; border-radius: 0.7rem; box-shadow: 0 1px 2px rgba(3, 45, 96, 0.04); }
+.map-account-item:hover { border-color: #d4e4f7; box-shadow: 0 4px 12px rgba(3, 45, 96, 0.08); }
+.map-account-item-selected { border-color: #0176d3; background: #f4f8ff; box-shadow: inset 3px 0 0 #0176d3, 0 4px 12px rgba(1, 118, 211, 0.12); }
 
-.map-panel { display: flex; flex-direction: column; min-height: 32rem; flex: 1; padding: 0.5rem; }
-.accounts-map { flex: 1; min-height: 28rem; border: 1px solid #e5e5e5; border-radius: 0.375rem; background: #f5f5f5; }
+.map-account-select { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; display: flex; align-items: flex-start; gap: 0.6rem; flex: 1; min-width: 0; padding: 0.15rem; cursor: pointer; }
+.map-account-avatar { position: relative; width: 2.35rem; height: 2.35rem; border-radius: 50%; border: 2px solid #3f7de5; background: #eaf1fc; display: flex; align-items: center; justify-content: center; flex: 0 0 2.35rem; }
+.map-account-avatar-hcp { border-color: #3f7de5; background: #eaf1fc; }
+.map-account-avatar-hco { border-color: #e0a800; background: #fff6dc; }
+.map-account-avatar-pharmacy { border-color: #176935; background: #e8f4ec; }
+.map-account-avatar .account-type-glyph { width: 1.15rem; height: 1.15rem; flex-basis: 1.15rem; }
+.map-account-avatar .risk-dot-high,
+.map-account-avatar .risk-dot-med,
+.map-account-avatar .risk-dot-low { position: absolute; right: -1px; bottom: -1px; width: 0.62rem; height: 0.62rem; border: 2px solid #fff; box-sizing: content-box; }
+.map-account-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+.map-account-item-top { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.map-account-class { margin-left: auto; flex-shrink: 0; padding: 0.05rem 0.4rem; border-radius: 999px; background: #eef4ff; color: #014486; font-size: 0.625rem; font-weight: 700; }
+.map-account-name { margin: 0; min-width: 0; font-size: 0.8125rem; font-weight: 700; color: #181818; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-account-subtitle { margin: 0; font-size: 0.6875rem; color: #706e6b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-account-meta { display: flex; align-items: center; gap: 0.4rem; min-width: 0; font-size: 0.6875rem; color: #706e6b; }
+.map-risk-chip { display: inline-flex; align-items: center; padding: 0.02rem 0.35rem; border-radius: 999px; font-size: 0.625rem; font-weight: 700; }
+.map-risk-chip-high { background: rgba(186, 5, 23, 0.1); color: #8e030f; }
+.map-risk-chip-med { background: rgba(254, 147, 57, 0.16); color: #8a4b08; }
+.map-risk-chip-low { background: rgba(46, 132, 74, 0.12); color: #1f6b38; }
+.map-account-open { appearance: none; border: 0; background: transparent; color: #0176d3; font-size: 0.6875rem; font-weight: 700; padding: 0.35rem 0.4rem; border-radius: 0.4rem; cursor: pointer; flex-shrink: 0; }
+.map-account-open:hover { background: #eef4ff; }
 
-.map-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: #444; }
-.legend-item { display: inline-flex; align-items: center; gap: 0.25rem; }
-.legend-pin { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.map-panel { position: relative; min-height: 0; min-width: 0; background: #e7eef6; }
+.accounts-map { position: absolute; inset: 0; background: #e7eef6; }
+.accounts-map .leaflet-container { height: 100%; width: 100%; background: #e7eef6; font-family: inherit; }
+
+.map-legend { position: absolute; z-index: 500; left: 0.75rem; bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.3rem; margin: 0; padding: 0.45rem 0.65rem; max-width: calc(100% - 1.5rem); background: rgba(255,255,255,0.96); border: 1px solid rgba(3,45,96,0.08); border-radius: 0.75rem; box-shadow: 0 8px 24px rgba(3,45,96,0.12); font-size: 0.6875rem; color: #444; }
+.legend-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
+.legend-label { min-width: 3.1rem; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #706e6b; }
+.legend-item { display: inline-flex; align-items: center; gap: 0.28rem; font-weight: 600; }
+.legend-ring { display: inline-block; width: 0.72rem; height: 0.72rem; border-radius: 50%; background: #fff; border: 2px solid currentColor; box-sizing: border-box; }
+.legend-ring-hcp { color: #3f7de5; }
+.legend-ring-hco { color: #e0a800; }
+.legend-ring-pharmacy { color: #176935; }
+.legend-pin { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
 .legend-pin-high { background: #ba0517; }
 .legend-pin-med { background: #fe9339; }
 .legend-pin-low { background: #2e844a; }
 
-.map-pagination { display: flex; flex-direction: column; gap: 0.5rem; flex-shrink: 0; padding: 0.5rem 0.75rem 0.75rem; border-top: 1px solid #e5e5e5; background: #fff; }
-.map-pagination .pagination-controls { justify-content: center; }
-.map-pagination .page-btn { flex: 1; max-width: 5.5rem; }
+.map-pagination { display: none; align-items: center; justify-content: space-between; gap: 0.5rem; flex-shrink: 0; padding: 0.55rem 0.7rem; border-top: 1px solid #e5e5e5; background: #fff; }
+.map-pagination.is-visible { display: flex; }
+.map-page-btn { min-width: 3.6rem; }
 
-.map-empty { margin: 0; padding: 1.5rem 0.75rem; font-size: 0.8125rem; color: #706e6b; text-align: center; list-style: none; }
+.map-empty { margin: 0.75rem; padding: 1.25rem 0.75rem; font-size: 0.8125rem; color: #706e6b; text-align: center; list-style: none; background: #fff; border: 1px dashed rgba(0,0,0,0.12); border-radius: 0.65rem; }
+.map-empty-overlay { position: absolute; z-index: 450; left: 50%; top: 42%; transform: translate(-50%, -50%); max-width: 16rem; padding: 0.75rem 0.9rem; background: rgba(255,255,255,0.96); border-radius: 0.75rem; box-shadow: 0 8px 24px rgba(3,45,96,0.12); color: #444; font-size: 0.8125rem; text-align: center; pointer-events: none; }
+.acct-map-pin { background: transparent !important; border: none !important; }
+.leaflet-popup-content-wrapper { border-radius: 14px; box-shadow: 0 12px 32px rgba(3,45,96,.18); padding: 0; }
+.leaflet-popup-content { margin: 0.75rem 0.85rem; min-width: 11.5rem; }
+.acct-popup-name { font-weight: 700; font-size: 0.9rem; color: #181818; line-height: 1.3; }
+.acct-popup-place { margin-top: 0.15rem; color: #706e6b; font-size: 0.75rem; }
+.acct-popup-row { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.45rem; flex-wrap: wrap; }
+.acct-popup-chip { background: #eef4ff; color: #014486; border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.65rem; font-weight: 700; }
+.acct-popup-risk { font-size: 0.65rem; font-weight: 700; }
+.acct-popup-meta { margin-top: 0.4rem; font-size: 0.75rem; color: #444; line-height: 1.45; }
+.acct-popup-open { margin-top: 0.6rem; border: 0; background: #0176d3; color: #fff; border-radius: 0.45rem; padding: 0.32rem 0.65rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
 
 .sync-chip { display: inline-flex; align-items: center; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; }
 .sync-chip-cached { color: #2e844a; background: rgba(46,132,74,0.1); }
@@ -207,11 +271,14 @@ body {
 
 @media (max-width: 64rem) {
     .summary-cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    .map-view { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-    .map-list { max-height: 14rem; border-right: none; border-bottom: 1px solid #e5e5e5; }
-    .map-panel { min-height: 24rem; }
+    .map-view.is-active { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(14rem, 1.15fr) minmax(11rem, 0.85fr); }
+    .map-panel { order: -1; }
+    .map-list { border-right: none; border-top: 1px solid #e5e5e5; }
 }
 
 @media (max-width: 40rem) {
     .summary-cards { grid-template-columns: 1fr; }
+    .map-legend { left: 0.5rem; right: 0.5rem; bottom: 0.5rem; max-width: none; }
+    .map-list-header { align-items: flex-start; flex-direction: column; gap: 0.1rem; }
+    .map-list-count { text-align: left; }
 }

@@ -5,7 +5,9 @@
     <referenceTo>Promo_Budget__c</referenceTo>
     <relationshipLabel>Budget Lines</relationshipLabel>
     <relationshipName>Promo_Budget</relationshipName>
-    <type>MasterDetail</type>
+    <relationshipOrder>0</relationshipOrder>
     <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
     <writeRequiresMasterRead>false</writeRequiresMasterRead>
 </CustomField>

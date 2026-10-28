@@ -29,6 +29,6 @@ export default class ButtonIcon extends LightningElement {
         if (this.size === 'small') {
             parts.push('slds-button_icon-small');
         }
-        return parts.join(' ');
+        return parts.join(" ");
     }
 }

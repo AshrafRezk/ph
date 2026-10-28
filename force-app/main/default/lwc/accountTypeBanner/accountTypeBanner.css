@@ -1,0 +1,43 @@
+.account-type-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--account-theme-border, #c5d7f6);
+    border-left: 4px solid var(--account-theme, #3f7de5);
+    background: linear-gradient(135deg, #fff 0%, var(--account-theme-soft, #eaf1fc) 100%);
+}
+
+.account-type-banner-icon {
+    width: 3rem;
+    height: 3rem;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.account-type-banner-copy {
+    min-width: 0;
+}
+
+.account-type-banner-kicker {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--account-theme, #3f7de5);
+}
+
+.theme-hco .account-type-banner-kicker {
+    color: #8a6200;
+}
+
+.account-type-banner-name {
+    margin: 0.1rem 0 0;
+    font-size: 1.25rem;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #080707;
+}

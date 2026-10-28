@@ -1,0 +1,36 @@
+<template>
+    <article class="workflow-panel">
+        <h2 class="workflow-title">Visit order</h2>
+        <p class="workflow-help">Capture product quantities from this call. Status: {statusLabel}</p>
+        <template if:true={errorMessage}>
+            <p class="workflow-error" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading order" size="small"></lightning-spinner>
+        </template>
+        <template if:false={isLoading}>
+            <div class="add-row">
+                <lightning-combobox label="Product" value={draftProductId} options={productOptions} onchange={handleDraftProduct} disabled={editDisabled}></lightning-combobox>
+                <lightning-input type="number" label="Quantity" value={draftQuantity} onchange={handleDraftQuantity} disabled={editDisabled}></lightning-input>
+                <lightning-button label="Add line" onclick={handleAddLine} disabled={addDisabled}></lightning-button>
+            </div>
+            <template if:true={hasLines}>
+                <ul class="workflow-list">
+                    <template for:each={lines} for:item="line">
+                        <li key={line.key}>
+                            <div>
+                                <strong>{line.productName}</strong>
+                                <span>Qty {line.quantity}</span>
+                            </div>
+                            <lightning-button-icon icon-name="utility:delete" alternative-text="Remove" data-key={line.key} onclick={handleRemove} disabled={editDisabled}></lightning-button-icon>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <div class="slds-m-top_small">
+                <lightning-button label="Save draft" onclick={handleSave} disabled={editDisabled}></lightning-button>
+                <lightning-button class="slds-m-left_x-small" label="Submit order" variant="brand" onclick={handleSubmit} disabled={editDisabled}></lightning-button>
+            </div>
+        </template>
+    </article>
+</template>

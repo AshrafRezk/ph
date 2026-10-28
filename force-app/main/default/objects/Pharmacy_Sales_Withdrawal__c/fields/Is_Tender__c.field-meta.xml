@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Tender__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Tender sale: the line came from a distributor tender sheet (IBNSINA UPA, POS tender) or the pharmacy is a tender account. Left out of achievements and bulk share when the Sales Policy says so.</description>
+    <label>Tender Sale</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

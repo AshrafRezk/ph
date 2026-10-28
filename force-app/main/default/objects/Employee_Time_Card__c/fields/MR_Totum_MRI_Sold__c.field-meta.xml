@@ -3,6 +3,7 @@
     <fullName>MR_Totum_MRI_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Totum MRI Scan Sold</description>
+    <externalId>false</externalId>
     <label>Totum MRI Scan Sold</label>
     <precision>16</precision>
     <required>false</required>

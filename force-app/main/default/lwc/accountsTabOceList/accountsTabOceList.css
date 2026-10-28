@@ -1,8 +1,17 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .oce-list {
     display: flex;
     flex-direction: column;
     min-height: 0;
     flex: 1;
+    overflow: hidden;
 }
 
 .oce-list-toolbar {
@@ -30,11 +39,146 @@
 .oce-table-scroll {
     position: relative;
     width: 100%;
-    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
     border-radius: 0.5rem;
     background: #fff;
+}
+
+.oce-card-list {
+    display: none;
+    position: relative;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.1rem 0.1rem 0.25rem;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+.oce-account-card {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    background: #fff;
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.5rem;
+    box-shadow: none;
+}
+
+.oce-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+
+.oce-card-head .account-cell {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.oce-card-head .oce-account-link {
+    white-space: nowrap;
+}
+
+.oce-card-head .oce-meta-line {
+    white-space: nowrap;
+}
+
+.oce-card-badges {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.05rem;
+}
+
+.oce-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.3rem;
+    margin: 0;
+}
+
+.oce-card-stat {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.3rem;
+    width: auto;
+    min-width: 0;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.3rem;
+    background: #f4f6fb;
+    border: 1px solid #e5eaf1;
+}
+
+.oce-card-stat dt {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #706e6b;
+}
+
+.oce-card-stat dd {
+    margin: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.oce-card-stat .oce-field-subvalue {
+    font-size: 0.625rem;
+}
+
+.oce-card-foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.45rem;
+    min-width: 0;
+}
+
+.oce-card-foot .specialty-text {
+    max-width: 8rem;
+    flex: 0 1 auto;
+    text-align: left;
+}
+
+.oce-card-actions,
+.oce-account-card .row-actions {
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    padding-top: 0;
+    border-top: none;
+    gap: 0.25rem;
+}
+
+.oce-account-card .row-action-btn {
+    min-height: 1.65rem;
+    padding: 0.15rem 0.5rem;
+}
+
+.oce-list-compact .oce-table-scroll,
+.oce-list-compact .oce-list-toolbar {
+    display: none;
+}
+
+.oce-list-compact .oce-card-list {
+    display: flex;
 }
 
 .oce-list-loading-overlay {
@@ -49,7 +193,8 @@
 
 .oce-table {
     width: 100%;
-    min-width: 58rem;
+    /* Fixed columns take 55.5rem; the account name gets the rest (at least ~14.5rem). B1-02 */
+    min-width: 70rem;
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
@@ -93,20 +238,19 @@
 }
 
 .col-account {
-    width: 22%;
-    min-width: 14rem;
+    width: auto;
 }
 
 .col-class {
-    width: 5.5rem;
+    width: 4.5rem;
 }
 
 .col-plan {
-    width: 5.5rem;
+    width: 4.5rem;
 }
 
 .col-visits {
-    width: 8.5rem;
+    width: 7.5rem;
 }
 
 .col-gap {
@@ -114,8 +258,7 @@
 }
 
 .col-health {
-    width: 8.75rem;
-    min-width: 8rem;
+    width: 8rem;
 }
 
 .col-pace {
@@ -127,12 +270,17 @@
 }
 
 .col-specialty {
-    width: 12%;
-    min-width: 8rem;
+    width: 9rem;
+}
+
+.oce-table thead th.col-actions,
+.oce-table tbody td.col-actions {
+    text-align: right;
+    padding-right: 1rem;
 }
 
 .col-actions {
-    width: 13.5rem;
+    width: 12.5rem;
     min-width: 12.5rem;
     text-align: right;
     overflow: visible;
@@ -143,6 +291,7 @@
     flex-direction: row;
     align-items: center;
     justify-content: flex-end;
+    margin-left: auto;
     gap: 0.35rem;
 }
 
@@ -177,6 +326,74 @@
     background: #0b5cab;
     border-color: #0b5cab;
     color: #fff;
+}
+
+.row-action-btn-danger {
+    background: #fff;
+    border-color: #ba0517;
+    color: #ba0517;
+}
+
+.row-action-btn-danger:hover {
+    background: #fef1f1;
+}
+
+.oce-stage-badge {
+    display: inline-block;
+    margin: 0.2rem 0 0;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #8a6116;
+    background: #fbf3e0;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.oce-stage-badge-needs {
+    color: #8c4b02;
+    background: #fff1dc;
+}
+
+.oce-stage-badge-wait {
+    color: #014486;
+    background: #eef4ff;
+}
+
+.oce-stage-badge-sfe {
+    color: #0b5cab;
+    background: #eaf5fe;
+}
+
+.nurture-wait {
+    margin: 0.35rem 0 0;
+    max-width: 16rem;
+    color: #444;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: right;
+}
+
+.oce-card-actions .nurture-wait {
+    text-align: left;
+}
+
+.col-check {
+    width: 2.25rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.approval-check {
+    margin: 0 0.35rem 0 0;
+    flex: 0 0 auto;
+}
+
+.approval-reject-field {
+    margin-top: 0.35rem;
+    min-width: 10rem;
 }
 
 .kol-switch {
@@ -254,14 +471,14 @@
 
 .oce-account-link {
     display: block;
-    max-height: 2.6em;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.3;
     color: #0176d3;
     text-decoration: none;
-    word-break: break-word;
 }
 
 .oce-account-link:hover {
@@ -308,6 +525,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Table view: long Arabic names and specialties wrap to two lines instead of being cut (B1-02). */
+.oce-table .oce-account-link,
+.oce-table .specialty-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .oce-class-badge {
@@ -421,16 +648,32 @@
     background: #2e844a;
 }
 
-.account-type-icon-hcp {
-    --slds-c-icon-color-background: #0176d3;
+.account-type-icon-hcp,
+.account-type-icon-hco,
+.account-type-icon-pharmacy {
     flex-shrink: 0;
     margin-top: 0.1rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    object-fit: contain;
+    border-radius: 0.35rem;
+    padding: 0.1rem;
+    box-sizing: border-box;
+}
+
+.account-type-icon-hcp {
+    background: #eaf1fc;
+    box-shadow: inset 0 0 0 2px #3f7de5;
 }
 
 .account-type-icon-hco {
-    --slds-c-icon-color-background: #6a1b9a;
-    flex-shrink: 0;
-    margin-top: 0.1rem;
+    background: #fff6dc;
+    box-shadow: inset 0 0 0 2px #fdbf29;
+}
+
+.account-type-icon-pharmacy {
+    background: #e8f4ec;
+    box-shadow: inset 0 0 0 2px #176935;
 }
 
 .health-meter {
@@ -580,9 +823,13 @@ th.oce-th > .oce-th-label {
     inset: 0;
     z-index: 10000;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    padding: 0;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    overflow: hidden;
     background: rgba(8, 19, 40, 0.46);
 }
 
@@ -591,16 +838,55 @@ th.oce-th > .oce-th-label {
     z-index: 1;
     display: flex;
     flex-direction: column;
-    width: 100%;
-    max-height: min(92dvh, 44rem);
-    border-radius: 1rem 1rem 0 0;
+    width: min(42rem, 100%);
+    max-height: calc(100vh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+    min-height: 0;
+    border-radius: 0.85rem;
     overflow: hidden;
     background: #fff;
-    box-shadow: 0 -8px 32px rgba(8, 32, 69, 0.22);
+    box-shadow: 0 18px 48px rgba(8, 32, 69, 0.22);
+}
+
+.duplicate-sheet-header {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 0.9rem 2.5rem 0.7rem 1rem;
+    border-bottom: 1px solid #e5eaf1;
+}
+
+.duplicate-sheet-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.duplicate-sheet-close {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.65rem;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 50%;
+    background: #f3f3f3;
+    color: #181818;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.duplicate-sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.75rem;
 }
 
 .health-sheet-footer {
     display: flex;
+    flex: 0 0 auto;
     justify-content: flex-end;
     padding: 0.65rem 1rem;
     border-top: 1px solid #e5eaf1;
@@ -609,6 +895,7 @@ th.oce-th > .oce-th-label {
 
 .health-banner {
     position: relative;
+    flex: 0 0 auto;
     padding: 1.15rem 1.25rem 1rem;
     color: #fff;
     background: linear-gradient(135deg, #0176d3 0%, #0b5cab 100%);
@@ -733,9 +1020,12 @@ th.oce-th > .oce-th-label {
 
 .health-modal-body {
     padding: 1rem 1.15rem 1.15rem;
+    overflow-x: hidden;
     overflow-y: auto;
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .stat-grid {
@@ -1030,15 +1320,12 @@ th.oce-th > .oce-th-label {
 
 @media (min-width: 48rem) {
     .health-overlay {
-        align-items: center;
         padding: 1.5rem;
     }
 
     .health-sheet {
-        width: min(42rem, 100%);
-        max-height: min(88vh, 44rem);
-        border-radius: 0.85rem;
-        box-shadow: 0 18px 48px rgba(8, 32, 69, 0.22);
+        max-height: calc(100vh - 3rem);
+        max-height: calc(100dvh - 3rem);
     }
 
     .stat-grid {
@@ -1046,18 +1333,14 @@ th.oce-th > .oce-th-label {
     }
 }
 
-@media (max-width: 48rem) {
-    .oce-table {
-        min-width: 50rem;
+@media (max-width: 1200px) {
+    .oce-table-scroll,
+    .oce-list-toolbar {
+        display: none;
     }
 
-    .oce-table tbody td {
-        padding: 0.55rem 0.5rem;
-    }
-
-    .oce-th-button,
-    th.oce-th > .oce-th-label {
-        padding: 0.5rem 0.5rem;
+    .oce-card-list {
+        display: flex;
     }
 
     .stat-grid,

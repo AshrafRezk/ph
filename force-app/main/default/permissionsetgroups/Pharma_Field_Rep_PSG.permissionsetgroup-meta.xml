@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Medical rep persona — Pharma Field app only.</description>
+    <description>Medical Rep and Trainer persona — Pharma Field app plus planner, CLM, LMS learner, and coaching.</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Pharma Field Rep PSG</label>
-    <permissionSets>Pharma_Field_App</permissionSets>
-    <permissionSets>Field_Rep_Home</permissionSets>
-    <permissionSets>Field_Planner_Module</permissionSets>
-    <permissionSets>Pharma_Account_Module</permissionSets>
+    <label>Pharma Field Rep</label>
+    <permissionSets>CLM_Fields</permissionSets>
+    <permissionSets>CLM_Player_Pages</permissionSets>
+    <permissionSets>Class_Engine_Module</permissionSets>
     <permissionSets>Coaching_Module</permissionSets>
-    <permissionSets>Medical_Inquiry_Module</permissionSets>
-    <permissionSets>Time_Off_Request_User</permissionSets>
-    <permissionSets>Visit_Survey_Module</permissionSets>
-    <permissionSets>CLM_Module</permissionSets>
-    <status>Updated</status>
+    <permissionSets>Field_Planner_Module</permissionSets>
+    <permissionSets>Field_Workflow_Access</permissionSets>
+    <permissionSets>HCP_Product_ROI</permissionSets>
+    <permissionSets>LMS_Learner</permissionSets>
+    <permissionSets>Meeting_User</permissionSets>
+    <permissionSets>Pending_Payment_Alert</permissionSets>
+    <permissionSets>Pharma_Field_App</permissionSets>
+    <permissionSets>Pharma_Field_Core_Access</permissionSets>
+    <permissionSets>Planner_Mobile_API</permissionSets>
+    <permissionSets>Sales_Request_Access</permissionSets>
+    <permissionSets>Territory_Switcher</permissionSets>
+    <permissionSets>Visit_CLM_Fields</permissionSets>
 </PermissionSetGroup>

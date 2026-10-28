@@ -4,7 +4,6 @@
     <label>Partner Program Level</label>
     <required>false</required>
     <trackFeedHistory>false</trackFeedHistory>
-    <trackHistory>false</trackHistory>
     <type>Picklist</type>
     <valueSet>
         <valueSetDefinition>

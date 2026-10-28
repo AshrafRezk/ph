@@ -1,10 +1,14 @@
 /**
- * Shared name intelligence for Accounts tab search and New Account master-list search.
- * Combines AccountTransliteration (general Arabic ? Latin), AccountNameDictionary
- * (person names + pharmacy brands), Arabic orthography folding, and light phonetic matching.
+ * Shared name intelligence for Accounts tab search, New Account master-list search,
+ * and duplicate check. Person-name spellings come from the bundled index
+ * (AccountNameRomanizer): UNICEF arabic-name-romanizer plus Arabic given-name
+ * spellings. Pharmacy brands stay in AccountNameDictionary. A Latin spelling
+ * the index does not store is tried again through phonetic aliases
+ * (Arabizi digits, doubled letters) before grapheme transliteration.
  */
 public with sharing class AccountCognitiveSearch {
   private static final Integer MAX_VARIANTS_PER_TOKEN = 32;
+  private static final Integer MAX_SEARCH_NEEDLES = 12;
   private static final Integer MIN_TOKEN_LENGTH = 2;
 
   private static Map<String, List<String>> familyByFold;
@@ -219,6 +223,99 @@ public with sharing class AccountCognitiveSearch {
     return best;
   }
 
+  /**
+   * Duplicate-check score. Tokens must line up across Arabic spelling, dictionary
+   * variants, and transliteration. One shared given name does not make two longer
+   * names the same person. Different dictionary families stay apart (Hassan / Hussein,
+   * Mohamed / Mahmoud) even when the consonant key collides.
+   */
+  public static Integer scoreAlignedNames(String leftRaw, String rightRaw) {
+    if (String.isBlank(leftRaw) || String.isBlank(rightRaw)) {
+      return 0;
+    }
+    if (foldCompact(leftRaw) == foldCompact(rightRaw) || sameNameFamily(leftRaw, rightRaw)) {
+      return 100;
+    }
+    List<String> leftTokens = significantNameTokens(leftRaw);
+    List<String> rightTokens = significantNameTokens(rightRaw);
+    if (leftTokens.isEmpty() || rightTokens.isEmpty()) {
+      return 0;
+    }
+    Boolean leftIsShorter = leftTokens.size() <= rightTokens.size();
+    List<String> shorter = leftIsShorter ? leftTokens : rightTokens;
+    List<String> longer = leftIsShorter ? rightTokens : leftTokens;
+    List<Boolean> used = new List<Boolean>();
+    for (Integer i = 0; i < longer.size(); i++) {
+      used.add(false);
+    }
+    Integer matched = 0;
+    for (String token : shorter) {
+      for (Integer i = 0; i < longer.size(); i++) {
+        if (used[i] == true) {
+          continue;
+        }
+        if (tokensCognate(token, longer[i])) {
+          used[i] = true;
+          matched++;
+          break;
+        }
+      }
+    }
+    if (matched == 0) {
+      return 0;
+    }
+    if (matched == shorter.size() && shorter.size() == longer.size()) {
+      return 100;
+    }
+    if (matched == shorter.size()) {
+      Integer cover = matched * 100 / longer.size();
+      if (cover >= 66) {
+        return Math.max(90, cover);
+      }
+      return 0;
+    }
+    Integer raw = matched * 100 / longer.size();
+    return raw >= 72 ? raw : 0;
+  }
+
+  /**
+   * Short LIKE needles for one name token. Known names use the dictionary
+   * (Ahmed, Ahmad, أحمد, احمد). Unknown names also get a cross-script stem so
+   * Wahba still finds وهبة.
+   */
+  public static List<String> searchNeedles(String rawToken) {
+    List<String> picked = new List<String>();
+    Set<String> seen = new Set<String>();
+    if (String.isBlank(rawToken)) {
+      return picked;
+    }
+    addNeedle(picked, seen, rawToken.trim());
+    if (hasNameFamily(rawToken)) {
+      List<String> arabic = new List<String>();
+      List<String> latin = new List<String>();
+      splitScripts(familyMembers(rawToken), arabic, latin);
+      addUpTo(picked, seen, arabic, 4);
+      addUpTo(picked, seen, latin, MAX_SEARCH_NEEDLES);
+      return capNeedles(picked);
+    }
+
+    List<String> expanded = expandToken(rawToken);
+    List<String> arabic = new List<String>();
+    List<String> latin = new List<String>();
+    splitScripts(expanded, arabic, latin);
+    addNeedle(picked, seen, foldName(rawToken));
+    if (!arabic.isEmpty()) {
+      addNeedle(picked, seen, arabic[0]);
+      addNeedle(picked, seen, arabicWeakStem(arabic[0]));
+    }
+    String voiced = voicedLatinCore(latin);
+    addNeedle(picked, seen, voiced);
+    addNeedle(picked, seen, latinSearchStem(voiced));
+    addUpTo(picked, seen, arabic, MAX_SEARCH_NEEDLES);
+    addUpTo(picked, seen, latin, MAX_SEARCH_NEEDLES);
+    return capNeedles(picked);
+  }
+
   public static Boolean isNumericOrCode(String token) {
     if (String.isBlank(token)) {
       return false;
@@ -239,7 +336,7 @@ public with sharing class AccountCognitiveSearch {
 
   /**
    * Compact variants for non-name fields (phone, specialty, city, brick, address).
-   * Keeps SOQL OR clauses bounded � full name-family expansion stays on Name/First/Last.
+   * Keeps SOQL OR clauses bounded � full name-family expansion stays on Name/First/Last.
    */
   public static List<String> expandTokenForFieldSearch(String rawToken) {
     List<String> variants = new List<String>();
@@ -359,17 +456,77 @@ public with sharing class AccountCognitiveSearch {
   }
 
   private static List<String> lookupFamily(String folded, String compact) {
-    if (String.isNotBlank(folded) && familyByFold.containsKey(folded)) {
-      return familyByFold.get(folded);
+    List<String> found = combineFamily(folded, compact);
+    if (found != null) {
+      return found;
     }
-    if (String.isNotBlank(compact) && familyByFold.containsKey(compact)) {
-      return familyByFold.get(compact);
-    }
-    String noArt = AccountTransliteration.foldNoArticle(compact);
-    if (String.isNotBlank(noArt) && familyByFold.containsKey(noArt)) {
-      return familyByFold.get(noArt);
+    for (String alt : AccountTransliteration.phoneticAliases(folded)) {
+      String altFold = foldName(alt);
+      if (String.isBlank(altFold) || altFold == folded) {
+        continue;
+      }
+      found = combineFamily(altFold, foldCompact(alt));
+      if (found != null) {
+        return found;
+      }
     }
     return null;
+  }
+
+  private static List<String> combineFamily(String folded, String compact) {
+    List<String> dict = null;
+    if (String.isNotBlank(folded) && familyByFold.containsKey(folded)) {
+      dict = familyByFold.get(folded);
+    } else if (String.isNotBlank(compact) && familyByFold.containsKey(compact)) {
+      dict = familyByFold.get(compact);
+    } else {
+      String noArt = AccountTransliteration.foldNoArticle(compact);
+      if (String.isNotBlank(noArt) && familyByFold.containsKey(noArt)) {
+        dict = familyByFold.get(noArt);
+      }
+    }
+    List<String> library = AccountNameRomanizer.variants(String.isNotBlank(folded) ? folded : compact);
+    if (library.isEmpty()) {
+      return dict;
+    }
+    if (dict == null || !sameArabicFamily(library, dict)) {
+      return library;
+    }
+    List<String> merged = new List<String>();
+    addAllUnique(merged, library);
+    addAllUnique(merged, dict);
+    return merged;
+  }
+
+  /** Dictionary spellings join the index only when they name the same Arabic. */
+  private static Boolean sameArabicFamily(List<String> library, List<String> dict) {
+    Set<String> libraryArabic = arabicFolds(library);
+    Set<String> dictArabic = arabicFolds(dict);
+    if (libraryArabic.isEmpty() || dictArabic.isEmpty()) {
+      return true;
+    }
+    for (String arabic : libraryArabic) {
+      if (dictArabic.contains(arabic)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Set<String> arabicFolds(List<String> values) {
+    Set<String> folds = new Set<String>();
+    if (values == null) {
+      return folds;
+    }
+    for (String value : values) {
+      if (AccountTransliteration.containsArabic(value)) {
+        String folded = foldCompact(value);
+        if (String.isNotBlank(folded)) {
+          folds.add(folded);
+        }
+      }
+    }
+    return folds;
   }
 
   private static String joinCompound(List<String> tokens) {
@@ -558,5 +715,228 @@ public with sharing class AccountCognitiveSearch {
       addUnique(limited, v);
     }
     return limited;
+  }
+
+  private static Boolean sameNameFamily(String left, String right) {
+    return familyContainsToken(left, right) || familyContainsToken(right, left);
+  }
+
+  private static Boolean familyContainsToken(String owner, String other) {
+    if (String.isBlank(owner) || String.isBlank(other)) {
+      return false;
+    }
+    String otherFold = foldName(other);
+    String otherCompact = foldCompact(other);
+    if (String.isBlank(otherFold) && String.isBlank(otherCompact)) {
+      return false;
+    }
+    for (String member : familyMembers(owner)) {
+      if (foldName(member) == otherFold || foldCompact(member) == otherCompact) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Boolean hasNameFamily(String token) {
+    return !familyMembers(token).isEmpty();
+  }
+
+  private static List<String> familyMembers(String token) {
+    if (String.isBlank(token)) {
+      return new List<String>();
+    }
+    ensureFamilies();
+    List<String> family = lookupFamily(foldName(token), foldCompact(token));
+    return family == null ? new List<String>() : family;
+  }
+
+  private static Boolean tokensCognate(String left, String right) {
+    if (String.isBlank(left) || String.isBlank(right)) {
+      return false;
+    }
+    if (foldCompact(left) == foldCompact(right)) {
+      return true;
+    }
+    if (sameNameFamily(left, right)) {
+      return true;
+    }
+    if (hasNameFamily(left) && hasNameFamily(right)) {
+      return false;
+    }
+    return phoneticClose(left, right);
+  }
+
+  private static Boolean phoneticClose(String left, String right) {
+    String leftKey = AccountTransliteration.phoneticKey(left);
+    String rightKey = AccountTransliteration.phoneticKey(right);
+    if (String.isBlank(leftKey) || String.isBlank(rightKey) || leftKey.length() < 3 || rightKey.length() < 3) {
+      return false;
+    }
+    Integer shorter = Math.min(leftKey.length(), rightKey.length());
+    Integer longer = Math.max(leftKey.length(), rightKey.length());
+    if (shorter * 100 / longer < 75) {
+      return false;
+    }
+    if (leftKey == rightKey || leftKey.contains(rightKey) || rightKey.contains(leftKey)) {
+      return true;
+    }
+    return AccountTransliteration.editDistance(leftKey, rightKey) <= 1;
+  }
+
+  private static List<String> significantNameTokens(String raw) {
+    List<String> tokens = new List<String>();
+    for (String token : tokenize(raw)) {
+      String folded = foldName(token);
+      if (String.isBlank(folded) || folded.length() < 3 || isAlignStop(folded)) {
+        continue;
+      }
+      tokens.add(token);
+    }
+    return tokens;
+  }
+
+  private static Boolean isAlignStop(String folded) {
+    return new Set<String>{
+      'dr', 'doctor', 'prof', 'mr', 'mrs', 'ms', 'pharmacy', 'clinic', 'hospital',
+      'center', 'centre', 'medical', 'lab', 'the', 'and', 'of', 'al', 'el',
+      '\u0635\u064A\u062F\u0644\u064A\u0629', '\u0635\u064A\u062F\u0644\u064A\u0647',
+      '\u0645\u0633\u062A\u0634\u0641\u0649', '\u0645\u0633\u062A\u0634\u0641\u064A',
+      '\u0645\u0631\u0643\u0632', '\u0639\u064A\u0627\u062F\u0629', '\u0639\u064A\u0627\u062F\u0647',
+      '\u062F\u0643\u062A\u0648\u0631', '\u0627\u0644\u062F\u0643\u062A\u0648\u0631'
+    }.contains(folded);
+  }
+
+  private static void splitScripts(List<String> values, List<String> arabic, List<String> latin) {
+    for (String value : values) {
+      if (String.isBlank(value)) {
+        continue;
+      }
+      if (containsArabic(value)) {
+        arabic.add(value);
+      } else {
+        latin.add(value);
+      }
+    }
+  }
+
+  private static void addUpTo(List<String> picked, Set<String> seen, List<String> source, Integer maxFromThis) {
+    Integer added = 0;
+    for (String value : source) {
+      if (added >= maxFromThis || picked.size() >= MAX_SEARCH_NEEDLES) {
+        return;
+      }
+      Integer before = picked.size();
+      addNeedle(picked, seen, value);
+      if (picked.size() > before) {
+        added++;
+      }
+    }
+  }
+
+  private static void addNeedle(List<String> picked, Set<String> seen, String value) {
+    if (String.isBlank(value) || picked.size() >= MAX_SEARCH_NEEDLES) {
+      return;
+    }
+    String trimmed = value.trim();
+    if (trimmed.length() < 3) {
+      return;
+    }
+    String key = trimmed.toLowerCase();
+    if (seen.contains(key)) {
+      return;
+    }
+    seen.add(key);
+    picked.add(trimmed);
+  }
+
+  private static List<String> capNeedles(List<String> picked) {
+    if (picked.size() <= MAX_SEARCH_NEEDLES) {
+      return picked;
+    }
+    List<String> limited = new List<String>();
+    for (Integer i = 0; i < MAX_SEARCH_NEEDLES; i++) {
+      limited.add(picked[i]);
+    }
+    return limited;
+  }
+
+  /** Grapheme transliteration drops vowels (whbh). Put them back so LIKE '%wah%' hits Wahba. */
+  private static String voicedLatinCore(List<String> latin) {
+    String best = null;
+    for (String variant : latin) {
+      String folded = foldName(variant).replace(' ', '').replace('-', '');
+      if (folded.startsWith('el') && folded.length() > 2) {
+        folded = folded.substring(2);
+      } else if (folded.startsWith('al') && folded.length() > 2) {
+        folded = folded.substring(2);
+      }
+      if (String.isBlank(folded) || folded.length() < 3 || containsArabic(folded)) {
+        continue;
+      }
+      String voiced = voiceHardConsonants(folded);
+      if (best == null || voiced.length() < best.length()) {
+        best = voiced;
+      }
+    }
+    return best;
+  }
+
+  private static String voiceHardConsonants(String raw) {
+    if (String.isBlank(raw) || raw.length() < 2) {
+      return raw;
+    }
+    String out = raw.substring(0, 1);
+    for (Integer i = 0; i < raw.length() - 1; i++) {
+      String current = raw.substring(i, i + 1);
+      String next = raw.substring(i + 1, i + 2);
+      if (isHardLatin(current) && isHardLatin(next)) {
+        out += 'a';
+      }
+      out += next;
+    }
+    return out;
+  }
+
+  private static Boolean isHardLatin(String ch) {
+    return String.isNotBlank(ch) && 'bcdfghjklmnpqrstvwxyz'.contains(ch);
+  }
+
+  private static String latinSearchStem(String latin) {
+    if (String.isBlank(latin)) {
+      return null;
+    }
+    String folded = foldName(latin).replace(' ', '');
+    if (folded.length() <= 3) {
+      return folded.length() >= 3 ? folded : null;
+    }
+    return folded.substring(0, 3);
+  }
+
+  private static String arabicWeakStem(String arabic) {
+    if (String.isBlank(arabic) || !containsArabic(arabic)) {
+      return null;
+    }
+    String stem = foldName(arabic).replace(' ', '');
+    while (stem.length() > 3 && isWeakArabicEnding(stem.substring(stem.length() - 1, stem.length()))) {
+      stem = stem.substring(0, stem.length() - 1);
+    }
+    String original = foldName(arabic).replace(' ', '');
+    if (stem.length() < 3 || stem == original) {
+      return null;
+    }
+    return stem;
+  }
+
+  private static Boolean isWeakArabicEnding(String ch) {
+    return ch == '\u0627' ||
+      ch == '\u0623' ||
+      ch == '\u0625' ||
+      ch == '\u0622' ||
+      ch == '\u0647' ||
+      ch == '\u0629' ||
+      ch == '\u064A' ||
+      ch == '\u0649' ||
+      ch == '\u0648';
   }
 }

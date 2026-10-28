@@ -1,0 +1,171 @@
+<template>
+    <section class="sfa">
+        <header class="sfa-header">
+            <div>
+                <h2 class="sfa-title">SFE approvers</h2>
+                <p class="sfa-subtitle">
+                    Choose who approves Class Engine cycles and new accounts at Pending SFE for each
+                    business unit. A business unit covers every line, district, and seat under it.
+                    Everyone who covers a line can act on it; the business unit SFE is named first,
+                    ahead of All lines approvers.
+                </p>
+            </div>
+            <template if:true={canEdit}>
+                <lightning-button
+                    label={saveLabel}
+                    variant="brand"
+                    disabled={saveDisabled}
+                    onclick={handleSave}
+                ></lightning-button>
+            </template>
+        </header>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading SFE approvers" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="sfa-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={canEdit}>
+                <div class="sfa-add">
+                    <lightning-record-picker
+                        class="sfa-picker"
+                        label="Add an SFE approver"
+                        placeholder="Search users..."
+                        object-api-name="User"
+                        filter={userFilter}
+                        onchange={handlePickUser}
+                    ></lightning-record-picker>
+                    <lightning-button
+                        label="Add"
+                        disabled={addDisabled}
+                        onclick={handleAdd}
+                    ></lightning-button>
+                </div>
+            </template>
+
+            <template if:true={showEmptyState}>
+                <p class="sfa-empty">
+                    No SFE approvers yet. Class Engine cycles go to each rep's manager, and accounts
+                    at Pending SFE can be moved on by anyone who can edit them.
+                </p>
+            </template>
+
+            <template if:true={hasRows}>
+                <div class="sfa-scroll">
+                    <table class="sfa-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="sfa-sticky">SFE</th>
+                                <th scope="col">All lines</th>
+                                <template for:each={businessUnits} for:item="unit">
+                                    <th key={unit} scope="col">{unit}</th>
+                                </template>
+                                <th scope="col" class="sfa-split">Class Engine</th>
+                                <th scope="col">New accounts</th>
+                                <th scope="col">Active</th>
+                                <template if:true={canEdit}>
+                                    <th scope="col"><span class="slds-assistive-text">Remove</span></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={displayRows} for:item="row">
+                                <tr key={row.rowKey} class={row.rowClass}>
+                                    <th scope="row" class="sfa-sticky">
+                                        <span class="sfa-name">{row.approverName}</span>
+                                        <template if:true={row.approverTitle}>
+                                            <span class="sfa-meta">{row.approverTitle}</span>
+                                        </template>
+                                        <template if:true={row.extraLabel}>
+                                            <span class="sfa-meta">{row.extraLabel}</span>
+                                        </template>
+                                    </th>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={row.allLines}
+                                            disabled={readOnly}
+                                            data-key={row.rowKey}
+                                            data-field="allLines"
+                                            aria-label={row.allLinesLabel}
+                                            onchange={handleToggle}
+                                        />
+                                    </td>
+                                    <template for:each={row.cells} for:item="cell">
+                                        <td key={cell.key}>
+                                            <input
+                                                type="checkbox"
+                                                checked={cell.checked}
+                                                disabled={cell.disabled}
+                                                data-key={row.rowKey}
+                                                data-line={cell.line}
+                                                aria-label={cell.label}
+                                                onchange={handleLineToggle}
+                                            />
+                                        </td>
+                                    </template>
+                                    <td class="sfa-split">
+                                        <input
+                                            type="checkbox"
+                                            checked={row.classification}
+                                            disabled={readOnly}
+                                            data-key={row.rowKey}
+                                            data-field="classification"
+                                            aria-label={row.classificationLabel}
+                                            onchange={handleToggle}
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={row.newAccounts}
+                                            disabled={readOnly}
+                                            data-key={row.rowKey}
+                                            data-field="newAccounts"
+                                            aria-label={row.newAccountsLabel}
+                                            onchange={handleToggle}
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={row.isActive}
+                                            disabled={readOnly}
+                                            data-key={row.rowKey}
+                                            data-field="isActive"
+                                            aria-label={row.activeLabel}
+                                            onchange={handleToggle}
+                                        />
+                                    </td>
+                                    <template if:true={canEdit}>
+                                        <td>
+                                            <lightning-button-icon
+                                                icon-name="utility:delete"
+                                                variant="bare"
+                                                alternative-text={row.removeLabel}
+                                                title={row.removeLabel}
+                                                disabled={isSaving}
+                                                data-key={row.rowKey}
+                                                onclick={handleRemove}
+                                            ></lightning-button-icon>
+                                        </td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <p class="sfa-footnote">
+                A line with no approver here falls back: Class Engine cycles go to the rep's manager,
+                and accounts at Pending SFE can be moved on by anyone who can edit them. SFEs never
+                approve their own submissions.
+            </p>
+        </template>
+    </section>
+</template>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Metric__c</fullName>
+    <label>Metric</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>false</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Sales_Achievement</fullName><default>true</default><label>Sales Achievement</label></value>
+            <value><fullName>Coverage</fullName><default>false</default><label>Coverage</label></value>
+            <value><fullName>Right_Frequency</fullName><default>false</default><label>Right Frequency</label></value>
+            <value><fullName>Daily_Call_Rate</fullName><default>false</default><label>Daily Call Rate</label></value>
+            <value><fullName>Quiz</fullName><default>false</default><label>Quizzes</label></value>
+            <value><fullName>Reps_At_90</fullName><default>false</default><label>Percent employees at 90% sales</label></value>
+            <value><fullName>KOL_Coverage</fullName><default>false</default><label>KOL Coverage</label></value>
+            <value><fullName>Field_Working_Days</fullName><default>false</default><label>Field Working Days</label></value>
+            <value><fullName>Double_Visit_Coverage</fullName><default>false</default><label>Double Visit Coverage</label></value>
+            <value><fullName>Active_Pharmacies</fullName><default>false</default><label>Active Pharmacies</label></value>
+            <value><fullName>Pharmacy_Frequency</fullName><default>false</default><label>Pharmacy Sales Frequency</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

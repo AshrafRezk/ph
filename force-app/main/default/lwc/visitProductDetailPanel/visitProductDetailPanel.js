@@ -40,13 +40,27 @@ export default class VisitProductDetailPanel extends LightningElement {
 
     get sidebarProducts() {
         const selectedIds = new Set((this.products || []).map((row) => row.productId));
-        return (this.territoryProducts || []).map((row) => ({
+        return this.detailTerritoryProducts.map((row) => ({
             productId: row.productId,
             productName: row.productName,
             imageUrl: row.imageUrl,
             label: this.formatProductLabel(row),
             checked: selectedIds.has(row.productId)
         }));
+    }
+
+    get detailTerritoryProducts() {
+        const rows = this.territoryProducts || [];
+        const detailRows = rows.filter((row) => row.productType === 'Detail');
+        if (detailRows.length > 0) {
+            return detailRows;
+        }
+        return rows.filter(
+            (row) =>
+                row.productType !== 'Sample' &&
+                row.productType !== 'Brand Reminder' &&
+                row.productType !== 'Brand'
+        );
     }
 
     get displayProducts() {
@@ -126,6 +140,9 @@ export default class VisitProductDetailPanel extends LightningElement {
                 productId,
                 productName: territoryRow?.productName,
                 imageUrl: territoryRow?.imageUrl,
+                productType: territoryRow?.productType,
+                parentProductId: territoryRow?.parentProductId,
+                brandName: territoryRow?.brandName,
                 displayOrder: (this.products || []).length + 1,
                 detailType: 'Detail',
                 notes: '',

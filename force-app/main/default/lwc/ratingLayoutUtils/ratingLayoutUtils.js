@@ -12,114 +12,93 @@ const SECTION_LABELS_HCO = {
     accountTerritoryProduct: 'Organization Product Ratings'
 };
 
+const HCP_CLASSIFICATION_OPTIONS = [
+    { label: 'A1', value: 'A1' },
+    { label: 'A2', value: 'A2' },
+    { label: 'A3', value: 'A3' },
+    { label: 'B1', value: 'B1' },
+    { label: 'B2', value: 'B2' },
+    { label: 'B3', value: 'B3' },
+    { label: 'C1', value: 'C1' },
+    { label: 'C2', value: 'C2' },
+    { label: 'C3', value: 'C3' }
+];
+
+const KOL_TYPE_OPTIONS = [
+    { label: 'High Prescriber', value: 'High Prescriber' },
+    { label: 'Key Scientific Leader', value: 'Key Scientific Leader' }
+];
+
+const PHARMACY_KOL_TYPE_OPTIONS = [
+    { label: 'High Dispenser', value: 'High Dispenser' },
+    { label: 'Key Retail Account', value: 'Key Retail Account' },
+    { label: 'Chain / Network Influence', value: 'Chain / Network Influence' },
+    { label: 'Strategic Location', value: 'Strategic Location' }
+];
+
+const TOGGLE_FIELD_NAMES = new Set(['Is_KOL__c', 'Has_KOLs__c', 'Is_Speaker__c']);
+
+export function kolReasonOptionsForVariant(accountVariant) {
+    return accountVariant === 'Pharmacy' ? PHARMACY_KOL_TYPE_OPTIONS : KOL_TYPE_OPTIONS;
+}
+
+const SHARED_TERRITORY_FIELDS = [
+    {
+        objectApiName: 'Account_Territory_Fields__c',
+        fieldApiName: 'HCP_Classification__c',
+        label: 'Classification',
+        widget: 'picklist',
+        order: 10,
+        options: HCP_CLASSIFICATION_OPTIONS
+    },
+    {
+        objectApiName: 'Account_Territory_Fields__c',
+        fieldApiName: 'Is_Speaker__c',
+        label: 'Is Speaker',
+        widget: 'toggle',
+        order: 20
+    },
+    {
+        objectApiName: 'Account_Territory_Fields__c',
+        fieldApiName: 'Is_KOL__c',
+        label: 'Is KOL',
+        widget: 'toggle',
+        order: 30
+    },
+    {
+        objectApiName: 'Account_Territory_Fields__c',
+        fieldApiName: 'KOL_In_What__c',
+        label: 'KOL Type',
+        widget: 'picklist',
+        order: 40,
+        options: KOL_TYPE_OPTIONS
+    }
+];
+
+const SHARED_PRODUCT_FIELDS = [
+    {
+        objectApiName: 'Account_Territory_Product_Fields__c',
+        fieldApiName: 'Potential__c',
+        label: 'Potentiality',
+        widget: 'numberDonut',
+        order: 10
+    },
+    {
+        objectApiName: 'Account_Territory_Product_Fields__c',
+        fieldApiName: 'Penetration__c',
+        label: 'Penetration',
+        widget: 'numberDonut',
+        order: 20
+    }
+];
+
 const DEFAULT_HCO_LAYOUT = {
     version: 2,
     accountVariant: 'HCO',
     sections: {
         account: [],
-        accountTerritory: [
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Has_KOLs__c',
-                label: 'Has KOLs',
-                widget: 'toggle',
-                order: 5
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'KOL_Profile__c',
-                label: 'KOL Profile',
-                widget: 'picklist',
-                order: 6,
-                options: [
-                    { label: 'Multiple High Prescribers', value: 'Multiple High Prescribers' },
-                    { label: 'Department Chiefs', value: 'Department Chiefs' },
-                    { label: 'Academic Leaders', value: 'Academic Leaders' },
-                    { label: 'Mixed Influencers', value: 'Mixed Influencers' }
-                ]
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Potential__c',
-                label: 'Strategic Priority',
-                widget: 'dotScale',
-                order: 10
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Penetration__c',
-                label: 'Access Level',
-                widget: 'dotScale',
-                order: 20
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Matrix_Rating__c',
-                label: 'Priority Matrix',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Potential__c', 'Penetration__c'],
-                readOnly: true,
-                order: 30
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Classification__c',
-                label: 'Account Tier',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Matrix_Rating__c'],
-                readOnly: true,
-                order: 40
-            }
-        ],
-        accountTerritoryProduct: [
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Rx_Per_Week__c',
-                label: 'Monthly Volume',
-                widget: 'numberDonut',
-                order: 10
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Adoption__c',
-                label: 'Formulary Status',
-                widget: 'dotScale',
-                order: 20,
-                options: [
-                    { label: 'On Formulary', value: 'H' },
-                    { label: 'Restricted', value: 'M' },
-                    { label: 'Not Listed', value: 'L' }
-                ]
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Loyalty__c',
-                label: 'Contract Tier',
-                widget: 'dotScale',
-                order: 30,
-                options: [
-                    { label: 'Preferred', value: 'H' },
-                    { label: 'Standard', value: 'M' },
-                    { label: 'None', value: 'L' }
-                ]
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Product_Matrix_Rating__c',
-                label: 'Product Priority',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Adoption__c', 'Loyalty__c'],
-                readOnly: true,
-                order: 40
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Target_Visit_Frequency__c',
-                label: 'Target Visit Frequency',
-                widget: 'dotScale',
-                order: 50
-            }
-        ]
+        accountTerritory: SHARED_TERRITORY_FIELDS.map((field) => ({ ...field })),
+        accountTerritoryProduct: SHARED_PRODUCT_FIELDS.map((field) => ({ ...field }))
     }
 };
 
@@ -128,93 +107,8 @@ const DEFAULT_LAYOUT = {
     accountVariant: 'HCP',
     sections: {
         account: [],
-        accountTerritory: [
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Is_KOL__c',
-                label: 'Is KOL',
-                widget: 'toggle',
-                order: 5
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'KOL_In_What__c',
-                label: 'KOL Reason',
-                widget: 'picklist',
-                order: 6
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Potential__c',
-                label: 'Potential',
-                widget: 'dotScale',
-                order: 10
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Penetration__c',
-                label: 'Penetration',
-                widget: 'dotScale',
-                order: 20
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Matrix_Rating__c',
-                label: 'Matrix Rating',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Potential__c', 'Penetration__c'],
-                readOnly: true,
-                order: 30
-            },
-            {
-                objectApiName: 'Account_Territory_Fields__c',
-                fieldApiName: 'Classification__c',
-                label: 'Classification',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Matrix_Rating__c'],
-                readOnly: true,
-                order: 40
-            }
-        ],
-        accountTerritoryProduct: [
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Rx_Per_Week__c',
-                label: 'Rx Per Week',
-                widget: 'numberDonut',
-                order: 10
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Adoption__c',
-                label: 'Adoption',
-                widget: 'dotScale',
-                order: 20
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Loyalty__c',
-                label: 'Loyalty',
-                widget: 'dotScale',
-                order: 30
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Product_Matrix_Rating__c',
-                label: 'Product Matrix Rating',
-                widget: 'calculatedBadge',
-                calculatedFrom: ['Adoption__c', 'Loyalty__c'],
-                readOnly: true,
-                order: 40
-            },
-            {
-                objectApiName: 'Account_Territory_Product_Fields__c',
-                fieldApiName: 'Target_Visit_Frequency__c',
-                label: 'Target Visit Frequency',
-                widget: 'dotScale',
-                order: 50
-            }
-        ]
+        accountTerritory: SHARED_TERRITORY_FIELDS.map((field) => ({ ...field })),
+        accountTerritoryProduct: SHARED_PRODUCT_FIELDS.map((field) => ({ ...field }))
     }
 };
 
@@ -310,12 +204,29 @@ export function getSectionCounts(layout) {
 export function flattenLayoutFields(layout) {
     const parsed = typeof layout === 'string' ? parseLayoutJson(layout) : layout;
     const sectionLabels =
-        parsed.accountVariant === 'HCO' ? SECTION_LABELS_HCO : SECTION_LABELS;
+        parsed.accountVariant === 'HCO' || parsed.accountVariant === 'Pharmacy'
+            ? SECTION_LABELS_HCO
+            : SECTION_LABELS;
     const rows = [];
     SECTION_ORDER.forEach((sectionKey) => {
         (parsed.sections[sectionKey] || []).forEach((field) => {
+            if (field.fieldApiName === 'Is_Speaker__c' && parsed.accountVariant === 'Pharmacy') {
+                return;
+            }
+            let nextField = field;
+            if (TOGGLE_FIELD_NAMES.has(field.fieldApiName)) {
+                nextField = { ...nextField, widget: 'toggle' };
+            }
+            if (field.fieldApiName === 'KOL_In_What__c' && parsed.accountVariant === 'Pharmacy') {
+                nextField = {
+                    ...nextField,
+                    label: 'KOL Reason',
+                    widget: 'picklist',
+                    options: PHARMACY_KOL_TYPE_OPTIONS
+                };
+            }
             rows.push({
-                ...field,
+                ...nextField,
                 sectionKey,
                 sectionLabel: sectionLabels[sectionKey]
             });
@@ -332,4 +243,10 @@ export function getDefaultLayout() {
     return JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
 }
 
-export { SECTION_ORDER, SECTION_LABELS, SECTION_LABELS_HCO };
+export {
+    SECTION_ORDER,
+    SECTION_LABELS,
+    SECTION_LABELS_HCO,
+    KOL_TYPE_OPTIONS,
+    PHARMACY_KOL_TYPE_OPTIONS
+};

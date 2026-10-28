@@ -6,6 +6,7 @@
     <referenceTo>CLM_Presentation__c</referenceTo>
     <relationshipLabel>CLM Sessions</relationshipLabel>
     <relationshipName>CLM_Sessions</relationshipName>
+    <required>false</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>Lookup</type>

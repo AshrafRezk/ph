@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Admin Console Help</masterLabel>
+    <description>Searchable bilingual walkthrough for Admin Console tiles with offline intent matching.</description>
+</LightningComponentBundle>

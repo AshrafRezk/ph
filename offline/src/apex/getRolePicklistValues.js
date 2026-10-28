@@ -1,5 +1,23 @@
 import { makeDualApex } from './_wireAdapter.js';
+import { plannerApiFetch } from './restHelper.js';
 
-// Picklist options for the affiliation network filters. The graph is empty
-// offline (mirrors the org), so options resolve empty rather than erroring.
-export default makeDualApex(() => []);
+const API_VERSION = 'v62.0';
+
+async function describePicklist(objectName, fieldName) {
+    try {
+        const describe = await plannerApiFetch(
+            `/services/data/${API_VERSION}/sobjects/${objectName}/describe`
+        );
+        const field = (describe?.fields || []).find((f) => f.name === fieldName);
+        return (field?.picklistValues || [])
+            .filter((entry) => entry.active !== false)
+            .map((entry) => ({
+                label: entry.label,
+                value: entry.value
+            }));
+    } catch (_err) {
+        return [];
+    }
+}
+
+export default makeDualApex(() => describePicklist('Account_Affiliation__c', 'Role__c'));

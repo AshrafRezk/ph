@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Field rep home dashboard — messages first, then performance, today plan, NBC, reports.</description>
+    <description>Field rep home dashboard — messages, Stay in the Know, performance, today plan, NBC, reports.</description>
     <flexiPageRegions>
         <itemInstances>
                 <componentInstance>
@@ -24,6 +24,12 @@
             <componentInstance>
                 <componentName>homeOfficeMessages</componentName>
                 <identifier>homeOfficeMessages</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>stayInTheKnow</componentName>
+                <identifier>stayInTheKnow</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>

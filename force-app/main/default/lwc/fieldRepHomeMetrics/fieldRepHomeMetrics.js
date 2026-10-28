@@ -1,5 +1,6 @@
 import { LightningElement, track, wire } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
+import { accountTypeIconUrl } from 'c/accountTypeTheme';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import Id from '@salesforce/user/Id';
 import { MessageContext } from 'lightning/messageService';
@@ -15,7 +16,8 @@ import getPerformanceGamification from '@salesforce/apex/FieldRepHomeController.
 import getPerformanceRankings from '@salesforce/apex/FieldRepHomeController.getPerformanceRankings';
 import upsertVisit from '@salesforce/apex/FieldPlannerController.upsertVisit';
 import { getHomeMetricsCache, getUserHomeMetricsKey, newClientKey, putHomeMetrics } from 'c/clmOfflineStore';
-import { isOfflineMode, queueOfflineAction } from 'c/clmOfflineSync';
+import { isOfflineMode, queueOfflineAction, registerOfflineListener } from 'c/clmOfflineSync';
+import { isFieldFeatureEnabled, loadFieldFeatures } from 'c/fieldFeatureFlags';
 
 const BADGE_DEFINITIONS = [
     {
@@ -82,20 +84,47 @@ const DRILL_MODES = {
     ACHIEVEMENT: 'achievement',
     CUSTOMER: 'customer',
     RF: 'rf',
-    REMAINING: 'remaining'
+    REMAINING: 'remaining',
+    AM: 'am',
+    PM: 'pm'
 };
 const DRILL_SORT = {
     [DRILL_MODES.ACHIEVEMENT]: { field: 'reach', direction: 'asc' },
     [DRILL_MODES.REMAINING]: { field: 'gap', direction: 'desc' },
     [DRILL_MODES.CUSTOMER]: { field: 'class', direction: 'asc' },
-    [DRILL_MODES.RF]: { field: 'gap', direction: 'desc' }
+    [DRILL_MODES.RF]: { field: 'gap', direction: 'desc' },
+    [DRILL_MODES.AM]: { field: 'gap', direction: 'desc' },
+    [DRILL_MODES.PM]: { field: 'gap', direction: 'desc' }
 };
 const KPI_HELP = {
     visit: 'Completed vs target visits this month. Click to see who is behind plan — lowest reach first.',
     customer: 'Share of in-plan accounts visited at least once. Click to see who has not been visited yet.',
     rf: 'Share of in-plan accounts at or above target frequency. Click to see LCF accounts that still need calls.',
-    remaining: 'Total visits still needed to hit plan. Click to see the biggest remaining gaps — then plan those calls.'
+    remaining: 'Total visits still needed to hit plan. Click to see the biggest remaining gaps — then plan those calls.',
+    am: 'Completed vs target visits on hospital accounts (HCO). Clinics, pharmacies, and HCPs are not included. Planned drafts are shown separately until submitted.',
+    pm: 'Completed vs target visits on HCPs, clinics, and pharmacies — any account that is not a hospital. Planned drafts are shown separately until submitted.'
 };
+
+function formatRate(value) {
+    if (value == null || Number.isNaN(Number(value))) {
+        return '—';
+    }
+    const num = Number(value);
+    return Number.isInteger(num) ? String(num) : num.toFixed(1);
+}
+
+function buildRateChip(id, label, actual, target, hint) {
+    const actualLabel = formatRate(actual);
+    const targetLabel = formatRate(target);
+    return {
+        id,
+        label,
+        valueLabel: `${actualLabel} / ${targetLabel}`,
+        hint,
+        ariaLabel: `${label}: actual ${actualLabel} per day versus territory target ${targetLabel}`
+    };
+}
+const HOSPITAL_RECORD_TYPE = 'Institution_HCO';
 const PLANNER_TAB_API = 'Field_Rep_Planner';
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 20;
@@ -179,6 +208,31 @@ const CLASS_SORT_ORDER = {
 const STATUS_SORT_ORDER = { LCF: 0, RCF: 1, MCF: 2 };
 const SORTABLE_ACCOUNT_FIELDS = ['name', 'class', 'reach', 'status', 'gap'];
 
+function isAmHospitalAccount(row) {
+    const recordType = row?.recordTypeDeveloperName || '';
+    const institutionType = String(row?.accountSubtype || '').trim();
+    if (recordType !== HOSPITAL_RECORD_TYPE) {
+        return false;
+    }
+    return !institutionType || institutionType === 'Hospital';
+}
+
+function summarizeShift(rows, predicate) {
+    let actual = 0;
+    let target = 0;
+    (rows || []).forEach((row) => {
+        if (!predicate(row)) {
+            return;
+        }
+        actual += Math.round(row.actualVisits || 0);
+        target += Math.round(row.targetVisits || 0);
+    });
+    return {
+        percent: target > 0 ? Math.round((actual / target) * 100) : 0,
+        countLabel: `${actual}/${target}`
+    };
+}
+
 function normalizeClass(value) {
     if (!value) {
         return 'Other';
@@ -248,6 +302,17 @@ function isMilestonePercent(percent) {
     return KPI_MILESTONES.some((milestone) => p === milestone || (milestone === 100 && p > 100));
 }
 
+const SHIFT_SCENES = {
+    morning: {
+        logoUrl: accountTypeIconUrl('hco'),
+        accent: '#e8a317'
+    },
+    night: {
+        logoUrl: accountTypeIconUrl('hcp'),
+        accent: '#3f7de5'
+    }
+};
+
 function buildKpiCard(id, label, hint, percent, options = {}) {
     const percentDisplay = Math.round(percent || 0);
     const tierId = resolveTierId(percentDisplay);
@@ -259,6 +324,8 @@ function buildKpiCard(id, label, hint, percent, options = {}) {
     const subLabel = options.subLabel || null;
     const helpContent = KPI_HELP[id] || hint;
     const isCounter = options.isCounter === true;
+    const scene = SHIFT_SCENES[options.scene] ? options.scene : '';
+    const sceneMeta = scene ? SHIFT_SCENES[scene] : null;
 
     return {
         id,
@@ -275,8 +342,15 @@ function buildKpiCard(id, label, hint, percent, options = {}) {
         tierAriaLabel: `Tier: ${tier.label}`,
         tagline: taglineForTier(tierId, percentDisplay),
         ringStyle: isCounter ? '' : `stroke-dasharray: ${RING_CIRCUMFERENCE}; stroke-dashoffset: ${offset};`,
-        cardClass: `kpi-card kpi-card-tier-${tierId}${tierId === 'legend' ? ' kpi-card-legend' : ''}${options.isActive ? ' kpi-card-active' : ''}${isCounter ? ' kpi-card-counter' : ''}`,
-        cardStyle: `border-left-color: ${tier.accent}; background: linear-gradient(135deg, ${tier.bg} 0%, #fff 100%);`,
+        shellClass: options.wide ? 'kpi-card-shell kpi-card-shell-shift' : 'kpi-card-shell',
+        cardClass: `kpi-card kpi-card-tier-${tierId}${tierId === 'legend' ? ' kpi-card-legend' : ''}${options.isActive ? ' kpi-card-active' : ''}${isCounter ? ' kpi-card-counter' : ''}${scene ? ` kpi-card-${scene}` : ''}`,
+        cardStyle: sceneMeta
+            ? `border-left-color: ${sceneMeta.accent};`
+            : `border-left-color: ${tier.accent}; background: linear-gradient(135deg, ${tier.bg} 0%, #fff 100%);`,
+        showScene: Boolean(sceneMeta),
+        isMorning: scene === 'morning',
+        isNight: scene === 'night',
+        logoUrl: sceneMeta ? sceneMeta.logoUrl : '',
         ringFillClass: `kpi-ring-fill kpi-ring-fill-tier-${tierId}${tierId === 'legend' ? ' kpi-ring-legend-pulse' : ''}`,
         tierPillClass: `kpi-tier-pill kpi-tier-pill-${tierId}`,
         showNextTier: !isCounter && Boolean(next && gap > 0),
@@ -673,12 +747,76 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         return this.metrics?.visitCoveragePercentDisplay != null;
     }
 
+    get shiftAttainment() {
+        const metrics = this.metrics || {};
+        if (metrics.amAttainmentPercent != null && metrics.pmAttainmentPercent != null) {
+            const amActual = Math.round(metrics.amActualVisits || 0);
+            const amTarget = Math.round(metrics.amTargetVisits || 0);
+            const amPlanned = Math.round(metrics.amPlannedVisits || 0);
+            const pmActual = Math.round(metrics.pmActualVisits || 0);
+            const pmTarget = Math.round(metrics.pmTargetVisits || 0);
+            const pmPlanned = Math.round(metrics.pmPlannedVisits || 0);
+            return {
+                am: {
+                    percent: Math.round(metrics.amAttainmentPercent || 0),
+                    countLabel: `${amActual}/${amTarget}`,
+                    plannedLabel: `${amPlanned} planned`
+                },
+                pm: {
+                    percent: Math.round(metrics.pmAttainmentPercent || 0),
+                    countLabel: `${pmActual}/${pmTarget}`,
+                    plannedLabel: `${pmPlanned} planned`
+                }
+            };
+        }
+        const am = summarizeShift(this.allAccountRows, isAmHospitalAccount);
+        const pm = summarizeShift(this.allAccountRows, (row) => !isAmHospitalAccount(row));
+        return {
+            am: { ...am, plannedLabel: '0 planned' },
+            pm: { ...pm, plannedLabel: '0 planned' }
+        };
+    }
+
+    get callRateChips() {
+        const metrics = this.metrics || {};
+        return [
+            buildRateChip(
+                'call',
+                'Call rate',
+                metrics.actualCallRate,
+                metrics.targetCallRate,
+                'Actual visits per activity day vs territory Call Rate'
+            ),
+            buildRateChip(
+                'amCall',
+                'AM call rate',
+                metrics.actualAmCallRate,
+                metrics.targetAmCallRate,
+                'Hospital visits per activity day vs territory AM Call Rate'
+            ),
+            buildRateChip(
+                'pmCall',
+                'PM call rate',
+                metrics.actualPmCallRate,
+                metrics.targetPmCallRate,
+                'HCP / clinic / pharmacy visits per activity day vs territory PM Call Rate'
+            )
+        ];
+    }
+
+    get showCallRateStrip() {
+        return (this.callRateChips || []).length > 0;
+    }
+
     get kpiCards() {
         const visitPct = this.metrics?.visitCoveragePercentDisplay || 0;
         const customerPct = this.metrics?.customerCoveragePercentDisplay || 0;
         const rfPct = this.metrics?.rfPercentTotalDisplay || 0;
         const activeDrill = this.drillMode;
-        return [
+        const shift = this.shiftAttainment;
+        const flags = this._metricFlags || {};
+        const cards = [
+            flags.visit !== false &&
             buildKpiCard(
                 'visit',
                 'Visits Achievement',
@@ -690,6 +828,7 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                     isActive: activeDrill === DRILL_MODES.ACHIEVEMENT
                 }
             ),
+            flags.customer !== false &&
             buildKpiCard(
                 'customer',
                 'Customer Coverage',
@@ -700,6 +839,7 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                     isActive: activeDrill === DRILL_MODES.CUSTOMER
                 }
             ),
+            flags.rf !== false &&
             buildKpiCard(
                 'rf',
                 'Right Frequency',
@@ -710,6 +850,7 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                     isActive: activeDrill === DRILL_MODES.RF
                 }
             ),
+            flags.remaining !== false &&
             buildKpiCard(
                 'remaining',
                 'Remaining Calls',
@@ -720,8 +861,37 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                     isCounter: true,
                     isActive: activeDrill === DRILL_MODES.REMAINING
                 }
+            ),
+            flags.am !== false &&
+            buildKpiCard(
+                'am',
+                'AM Attainment',
+                'Hospital visits vs target',
+                shift.am.percent,
+                {
+                    countLabel: shift.am.countLabel,
+                    subLabel: `${shift.am.plannedLabel || '0 planned'} · Hospitals`,
+                    wide: true,
+                    scene: 'morning',
+                    isActive: activeDrill === DRILL_MODES.AM
+                }
+            ),
+            flags.pm !== false &&
+            buildKpiCard(
+                'pm',
+                'PM Attainment',
+                'HCP, clinic, and pharmacy visits vs target',
+                shift.pm.percent,
+                {
+                    countLabel: shift.pm.countLabel,
+                    subLabel: `${shift.pm.plannedLabel || '0 planned'} · HCP, clinic, pharmacy`,
+                    wide: true,
+                    scene: 'night',
+                    isActive: activeDrill === DRILL_MODES.PM
+                }
             )
-        ];
+        ].filter(Boolean);
+        return cards;
     }
 
     get recordTypeOptions() {
@@ -750,6 +920,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 return 'Below target frequency';
             case DRILL_MODES.REMAINING:
                 return 'Remaining call gap';
+            case DRILL_MODES.AM:
+                return 'AM attainment — hospitals';
+            case DRILL_MODES.PM:
+                return 'PM attainment — HCP, clinic, pharmacy';
             default:
                 return this.selectedFilter !== 'All' ? `Class ${this.selectedFilter} accounts` : 'Priority accounts';
         }
@@ -765,6 +939,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 return 'LCF accounts';
             case DRILL_MODES.REMAINING:
                 return 'Biggest gaps first';
+            case DRILL_MODES.AM:
+                return 'Hospital accounts';
+            case DRILL_MODES.PM:
+                return 'HCP, clinic, pharmacy';
             default:
                 return this.selectedFilter !== 'All' ? `Class ${this.selectedFilter}` : '';
         }
@@ -792,6 +970,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 return `${count} ${accountWord} below frequency · ${remaining} ${callWord} still needed`;
             case DRILL_MODES.REMAINING:
                 return `${remaining} remaining ${callWord} across ${count} ${accountWord}`;
+            case DRILL_MODES.AM:
+                return `${count} hospital ${accountWord} · ${remaining} remaining ${callWord}`;
+            case DRILL_MODES.PM:
+                return `${count} HCP, clinic, or pharmacy ${accountWord} · ${remaining} remaining ${callWord}`;
             default:
                 return remaining > 0
                     ? `${count} ${accountWord} · ${remaining} remaining ${callWord}`
@@ -822,6 +1004,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 return 'Every in-plan account has been visited this cycle.';
             case DRILL_MODES.RF:
                 return 'No accounts are below target frequency (LCF).';
+            case DRILL_MODES.AM:
+                return 'No hospital accounts on this month’s plan.';
+            case DRILL_MODES.PM:
+                return 'No HCP, clinic, or pharmacy accounts on this month’s plan.';
             default:
                 return 'No accounts match this filter.';
         }
@@ -915,9 +1101,43 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         return `scope-chip${this.isCompanyScopeActive ? ' scope-chip-active' : ''}`;
     }
 
+    featureEnabled = true;
+    _metricFlags = {
+        visit: true,
+        customer: true,
+        rf: true,
+        remaining: true,
+        am: true,
+        pm: true
+    };
+
     connectedCallback() {
+        this.ensureShiftSceneMotion();
         this.subscribeTerritoryContext();
-        this.init();
+        this._unsubscribeOffline = registerOfflineListener((status) => {
+            if (status?.phase === 'idle' && status?.synced > 0) {
+                void this.init();
+            }
+        });
+        void this.bootstrapFeatures();
+    }
+
+    async bootstrapFeatures() {
+        await loadFieldFeatures();
+        this.featureEnabled = isFieldFeatureEnabled('home.yourPerformance');
+        this._metricFlags = {
+            visit: isFieldFeatureEnabled('metric.visit'),
+            customer: isFieldFeatureEnabled('metric.customer'),
+            rf: isFieldFeatureEnabled('metric.rf'),
+            remaining: isFieldFeatureEnabled('metric.remaining'),
+            am: isFieldFeatureEnabled('metric.am'),
+            pm: isFieldFeatureEnabled('metric.pm')
+        };
+        if (this.featureEnabled) {
+            this.init();
+        } else {
+            this.isLoading = false;
+        }
     }
 
     disconnectedCallback() {
@@ -926,12 +1146,118 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
         }
         unsubscribeTerritoryContext(this.territoryContextSubscription);
         this.territoryContextSubscription = undefined;
+        if (typeof this._unsubscribeOffline === 'function') {
+            this._unsubscribeOffline();
+        }
+        this.releaseShiftSceneMotion();
+    }
+
+    renderedCallback() {
+        this.ensureShiftSceneMotion();
+        this.syncShiftScenes();
+    }
+
+    ensureShiftSceneMotion() {
+        if (!this._shiftSceneBound) {
+            this._shiftSceneBound = true;
+            this._shiftScrollTargets = [];
+            this._onShiftSceneScroll = () => this.scheduleShiftScenes();
+            const listen = (target) => {
+                if (!target || this._shiftScrollTargets.includes(target)) {
+                    return;
+                }
+                target.addEventListener('scroll', this._onShiftSceneScroll, { passive: true, capture: true });
+                this._shiftScrollTargets.push(target);
+            };
+            listen(window);
+            listen(document);
+            let node = this.template && this.template.host;
+            let depth = 0;
+            while (node && depth < 30) {
+                listen(node);
+                const root = node.getRootNode && node.getRootNode();
+                const next = node.parentElement || (root && root.host) || null;
+                node = next === node ? null : next;
+                depth += 1;
+            }
+            window.addEventListener('resize', this._onShiftSceneScroll, { passive: true });
+        }
+        const skies = this.template.querySelectorAll('.kpi-sky');
+        if (!skies.length || typeof IntersectionObserver !== 'function') {
+            return;
+        }
+        if (this._shiftObservedCount === skies.length && this._shiftSceneObserver) {
+            return;
+        }
+        if (this._shiftSceneObserver) {
+            this._shiftSceneObserver.disconnect();
+        }
+        this._shiftSceneObserver = new IntersectionObserver(() => this.scheduleShiftScenes(), {
+            threshold: [0, 0.15, 0.4, 0.7, 1]
+        });
+        skies.forEach((sky) => {
+            this._shiftSceneObserver.observe(sky.closest('.kpi-card') || sky);
+        });
+        this._shiftObservedCount = skies.length;
+    }
+
+    releaseShiftSceneMotion() {
+        if (this._shiftSceneObserver) {
+            this._shiftSceneObserver.disconnect();
+            this._shiftSceneObserver = undefined;
+        }
+        if (this._onShiftSceneScroll) {
+            (this._shiftScrollTargets || []).forEach((target) => {
+                target.removeEventListener('scroll', this._onShiftSceneScroll, { capture: true });
+            });
+            window.removeEventListener('resize', this._onShiftSceneScroll);
+            this._onShiftSceneScroll = undefined;
+        }
+        this._shiftScrollTargets = [];
+        this._shiftObservedCount = 0;
+        if (this._shiftSceneFrame) {
+            cancelAnimationFrame(this._shiftSceneFrame);
+            this._shiftSceneFrame = 0;
+        }
+        this._shiftSceneBound = false;
+    }
+
+    scheduleShiftScenes() {
+        if (this._shiftSceneFrame) {
+            return;
+        }
+        this._shiftSceneFrame = requestAnimationFrame(() => {
+            this._shiftSceneFrame = 0;
+            this.syncShiftScenes();
+        });
+    }
+
+    syncShiftScenes() {
+        const skies = this.template.querySelectorAll('.kpi-sky');
+        if (!skies.length) {
+            return;
+        }
+        const reduceMotion =
+            window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const viewH = window.innerHeight || 1;
+        const start = viewH * 0.98;
+        const span = viewH * 0.52 || 1;
+        skies.forEach((sky) => {
+            const card = sky.closest('.kpi-card');
+            const rect = (card || sky).getBoundingClientRect();
+            const progress = reduceMotion
+                ? 1
+                : Math.min(1, Math.max(0, (start - rect.top) / span));
+            sky.style.setProperty('--scene', progress.toFixed(3));
+            sky.classList.toggle('scene-awake', progress > 0.16);
+        });
     }
 
     subscribeTerritoryContext() {
-        if (this.territoryContextSubscription || !this._messageContext) {
+        if (this.territoryContextSubscription) {
             return;
         }
+        // Subscribe even when LMS MessageContext is missing (PWA stub / LWS); window + BroadcastChannel still fire.
         this.territoryContextSubscription = subscribeTerritoryContext(this._messageContext, () => {
             void this.init();
         });
@@ -939,15 +1265,30 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
 
     async init() {
         this.isLoading = true;
+        const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
+        if (cached) {
+            this.applyCachedBundle(cached);
+            this.isLoading = false;
+        }
+        if (isOfflineMode()) {
+            if (!cached) {
+                this.metrics = { ...EMPTY_METRICS };
+                this.gamification = { ...EMPTY_GAMIFICATION };
+                this.rankings = { ...EMPTY_RANKINGS };
+                this.allAccountRows = [];
+                this.classFilteredRows = [];
+                this.filteredAccountRows = [];
+                this.displayAccountRows = [];
+                this.searchDraft = '';
+                this.showErrorToast(
+                    new Error('Home metrics are not cached for offline use.'),
+                    'Unable to load rep metrics.'
+                );
+            }
+            this.isLoading = false;
+            return;
+        }
         try {
-            if (isOfflineMode()) {
-                const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
-                if (cached) {
-                    this.applyCachedBundle(cached);
-                } else {
-                    throw new Error('Home metrics are not cached for offline use.');
-                }
-            } else {
             const [metrics, rows, gamification, rankings, filterOpts] = await Promise.all([
                 getHomeMetrics({ contextUserId: null }),
                 getAccountCoverageRows({
@@ -1013,30 +1354,41 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
             this.allAccountRows = safeRows.map((row) => this.enrichAccountRow(row));
             this.applyClassFilter();
 
+            const priorCache = cached || (await getHomeMetricsCache(getUserHomeMetricsKey(Id))) || {};
             await putHomeMetrics(getUserHomeMetricsKey(Id), {
+                ...priorCache,
                 metrics: this.metrics,
                 gamification: this.gamification,
                 rankings: this.rankings,
                 allAccountRows: this.allAccountRows
             });
-            }
         } catch (e) {
-            const cached = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
-            if (cached) {
-                this.applyCachedBundle(cached);
-            } else {
-            this.metrics = { ...EMPTY_METRICS };
-            this.gamification = { ...EMPTY_GAMIFICATION };
-            this.rankings = { ...EMPTY_RANKINGS };
-            this.allAccountRows = [];
-            this.classFilteredRows = [];
-            this.filteredAccountRows = [];
-            this.displayAccountRows = [];
-            this.searchDraft = '';
-            this.showErrorToast(e, 'Unable to load rep metrics.');
+            if (!cached) {
+                const fallback = await getHomeMetricsCache(getUserHomeMetricsKey(Id));
+                if (fallback) {
+                    this.applyCachedBundle(fallback);
+                } else {
+                    this.metrics = { ...EMPTY_METRICS };
+                    this.gamification = { ...EMPTY_GAMIFICATION };
+                    this.rankings = { ...EMPTY_RANKINGS };
+                    this.allAccountRows = [];
+                    this.classFilteredRows = [];
+                    this.filteredAccountRows = [];
+                    this.displayAccountRows = [];
+                    this.searchDraft = '';
+                    this.showErrorToast(e, 'Unable to load rep metrics.');
+                }
             }
         } finally {
             this.isLoading = false;
+            this.refreshMonthlyTimecard();
+        }
+    }
+
+    refreshMonthlyTimecard() {
+        const timecard = this.template.querySelector('c-field-rep-home-monthly-timecard');
+        if (timecard && typeof timecard.refresh === 'function') {
+            void timecard.refresh();
         }
     }
 
@@ -1115,6 +1467,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                     return `Below frequency (${plan})`;
                 }
                 return row.frequencyStatus ? `${row.frequencyStatus} · ${plan}` : plan;
+            case DRILL_MODES.AM:
+                return gap > 0 ? `${plan} hospital visits` : 'Hospital on target';
+            case DRILL_MODES.PM:
+                return gap > 0 ? `${plan} — still short` : 'On target';
             default:
                 if (gap > 0) {
                     return `${gap} remaining`;
@@ -1178,6 +1534,10 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 return rows.filter((row) => !row.isVisited);
             case DRILL_MODES.RF:
                 return rows.filter((row) => row.frequencyStatus === 'LCF' || (row.visitGap || 0) > 0);
+            case DRILL_MODES.AM:
+                return rows.filter((row) => isAmHospitalAccount(row));
+            case DRILL_MODES.PM:
+                return rows.filter((row) => !isAmHospitalAccount(row));
             default:
                 return rows;
         }
@@ -1308,7 +1668,9 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
             visit: DRILL_MODES.ACHIEVEMENT,
             customer: DRILL_MODES.CUSTOMER,
             rf: DRILL_MODES.RF,
-            remaining: DRILL_MODES.REMAINING
+            remaining: DRILL_MODES.REMAINING,
+            am: DRILL_MODES.AM,
+            pm: DRILL_MODES.PM
         };
         const nextMode = modeMap[kpiId];
         if (!nextMode) {
@@ -1424,7 +1786,8 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
                 visitType: 'Planned (Automatically)',
                 cancellationReason: null,
                 zetaProjectId: null,
-                visitObjective: null
+                visitObjective: null,
+                acknowledgeWarnings: false
             });
 
             this.showToast('Draft created', 'Opening the visit so you can finish planning.', 'success');
@@ -1438,10 +1801,6 @@ export default class FieldRepHomeMetrics extends NavigationMixin(LightningElemen
             this.planningAccountId = null;
             this.updatePage();
         }
-    }
-
-    handleStopHelpClick(event) {
-        event.stopPropagation();
     }
 
     handleLeaderboardScope(event) {

@@ -2,7 +2,7 @@
     <section class="timecard-section" aria-label="Monthly timecard">
         <header class="timecard-header">
             <div>
-                <h3 class="section-label">Monthly Timecard</h3>
+                <h3 class="timecard-title">Monthly Timecard</h3>
                 <p class="timecard-subtitle">{monthLabel}</p>
             </div>
         </header>
@@ -17,19 +17,219 @@
             <template if:true={hasTiles}>
                 <div class="timecard-grid">
                     <template for:each={summary.tiles} for:item="tile">
-                        <article key={tile.id} class="timecard-tile">
-                            <div class="tile-label-row">
+                        <div key={tile.id} class="timecard-tile-wrap">
+                            <button
+                                type="button"
+                                class="timecard-tile"
+                                data-tile-id={tile.id}
+                                onclick={handleTileClick}
+                                aria-label={tile.ariaLabel}
+                            >
                                 <span class="tile-label">{tile.label}</span>
+                                <span class="tile-value">{tile.value}</span>
+                                <span class="tile-hint">View details</span>
+                            </button>
+                            <span class="tile-help">
                                 <lightning-helptext content={tile.help}></lightning-helptext>
-                            </div>
-                            <span class="tile-value">{tile.value}</span>
-                        </article>
+                            </span>
+                        </div>
                     </template>
                 </div>
             </template>
             <template if:false={hasTiles}>
                 <p class="timecard-empty">No timecard data for this month yet.</p>
             </template>
+        </template>
+
+        <template if:true={showLeaveModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                class="detail-modal"
+                onclick={handleCloseLeaveModal}
+            >
+                <div class="detail-modal-panel" onclick={handleModalContentClick}>
+                    <header class="detail-modal-header">
+                        <h2 class="detail-modal-title">{leaveModalTitle}</h2>
+                        <button type="button" class="detail-modal-close" onclick={handleCloseLeaveModal} title="Close">
+                            ×
+                        </button>
+                    </header>
+                    <div class="detail-modal-body">
+                        <template if:true={leaveDetailsLoading}>
+                            <div class="detail-modal-loading">
+                                <lightning-spinner alternative-text="Loading leave details" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:false={leaveDetailsLoading}>
+                            <template if:true={hasLeaveRows}>
+                                <section class="detail-group" aria-label="Approved leave">
+                                    <div class="detail-group-header">
+                                        <h3 class="detail-group-title">Approved</h3>
+                                        <span class="detail-group-total">{approvedDaysLabel}</span>
+                                    </div>
+                                    <template if:true={hasApprovedLeaves}>
+                                        <ul class="detail-list">
+                                            <template for:each={decoratedApprovedRows} for:item="row">
+                                                <li key={row.key} class="detail-row">
+                                                    <button
+                                                        type="button"
+                                                        class="detail-row-link"
+                                                        data-record-id={row.recordId}
+                                                        data-object-api-name="Time_Off_Request__c"
+                                                        onclick={handleOpenRecord}
+                                                    >
+                                                        <div class="detail-row-main">
+                                                            <span class="detail-title">{row.type}</span>
+                                                            <span class="detail-stage detail-stage-approved">{row.stageLabel}</span>
+                                                        </div>
+                                                        <div class="detail-row-meta">
+                                                            <span>{row.rangeLabel}</span>
+                                                            <span>{row.daysLabel}</span>
+                                                        </div>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                    <template if:false={hasApprovedLeaves}>
+                                        <p class="detail-empty">No approved leave this month.</p>
+                                    </template>
+                                </section>
+
+                                <section class="detail-group" aria-label="Pending leave">
+                                    <div class="detail-group-header">
+                                        <h3 class="detail-group-title">Pending</h3>
+                                        <span class="detail-group-total">{pendingDaysLabel}</span>
+                                    </div>
+                                    <template if:true={hasPendingLeaves}>
+                                        <ul class="detail-list">
+                                            <template for:each={decoratedPendingRows} for:item="row">
+                                                <li key={row.key} class="detail-row">
+                                                    <button
+                                                        type="button"
+                                                        class="detail-row-link"
+                                                        data-record-id={row.recordId}
+                                                        data-object-api-name="Time_Off_Request__c"
+                                                        onclick={handleOpenRecord}
+                                                    >
+                                                        <div class="detail-row-main">
+                                                            <span class="detail-title">{row.type}</span>
+                                                            <span class="detail-stage detail-stage-pending">{row.stageLabel}</span>
+                                                        </div>
+                                                        <div class="detail-row-meta">
+                                                            <span>{row.rangeLabel}</span>
+                                                            <span>{row.daysLabel}</span>
+                                                        </div>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                    <template if:false={hasPendingLeaves}>
+                                        <p class="detail-empty">No pending leave this month.</p>
+                                    </template>
+                                </section>
+                            </template>
+                            <template if:false={hasLeaveRows}>
+                                <p class="detail-empty">No approved or pending leave this month.</p>
+                            </template>
+                        </template>
+                    </div>
+                    <footer class="detail-modal-footer">
+                        <button type="button" class="detail-close-btn" onclick={handleCloseLeaveModal}>Close</button>
+                    </footer>
+                </div>
+            </section>
+            <div class="detail-backdrop"></div>
+        </template>
+
+        <template if:true={showDetailModal}>
+            <section
+                role="dialog"
+                tabindex="-1"
+                aria-modal="true"
+                class="detail-modal"
+                onclick={handleCloseDetailModal}
+            >
+                <div class="detail-modal-panel" onclick={handleModalContentClick}>
+                    <header class="detail-modal-header">
+                        <h2 class="detail-modal-title">{detailModalTitle}</h2>
+                        <button type="button" class="detail-modal-close" onclick={handleCloseDetailModal} title="Close">
+                            ×
+                        </button>
+                    </header>
+                    <div class="detail-modal-body">
+                        <template if:true={detailLoading}>
+                            <div class="detail-modal-loading">
+                                <lightning-spinner alternative-text="Loading details" size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                        <template if:false={detailLoading}>
+                            <template if:true={hasDetailGroups}>
+                                <template for:each={detailGroups} for:item="group">
+                                    <section key={group.key} class="detail-group" aria-label={group.label}>
+                                        <div class="detail-group-header">
+                                            <h3 class="detail-group-title">{group.label}</h3>
+                                            <span class="detail-group-total">{group.totalLabel}</span>
+                                        </div>
+                                        <ul class="detail-list">
+                                            <template for:each={group.rows} for:item="row">
+                                                <li key={row.key} class="detail-row">
+                                                    <template if:true={row.recordId}>
+                                                        <button
+                                                            type="button"
+                                                            class="detail-row-link"
+                                                            data-record-id={row.recordId}
+                                                            data-object-api-name={row.objectApiName}
+                                                            onclick={handleOpenRecord}
+                                                        >
+                                                            <div class="detail-row-main">
+                                                                <span class="detail-title">{row.title}</span>
+                                                                <template if:true={row.subtitle}>
+                                                                    <span class="detail-stage">{row.subtitle}</span>
+                                                                </template>
+                                                            </div>
+                                                            <template if:true={row.meta}>
+                                                                <div class="detail-row-meta">
+                                                                    <span>{row.meta}</span>
+                                                                </div>
+                                                            </template>
+                                                        </button>
+                                                    </template>
+                                                    <template if:false={row.recordId}>
+                                                        <div class="detail-row-static">
+                                                            <div class="detail-row-main">
+                                                                <span class="detail-title">{row.title}</span>
+                                                                <template if:true={row.subtitle}>
+                                                                    <span class="detail-stage">{row.subtitle}</span>
+                                                                </template>
+                                                            </div>
+                                                            <template if:true={row.meta}>
+                                                                <div class="detail-row-meta">
+                                                                    <span>{row.meta}</span>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </section>
+                                </template>
+                            </template>
+                            <template if:false={hasDetailGroups}>
+                                <p class="detail-empty">{detailEmptyMessage}</p>
+                            </template>
+                        </template>
+                    </div>
+                    <footer class="detail-modal-footer">
+                        <button type="button" class="detail-close-btn" onclick={handleCloseDetailModal}>Close</button>
+                    </footer>
+                </div>
+            </section>
+            <div class="detail-backdrop"></div>
         </template>
     </section>
 </template>

@@ -16,13 +16,19 @@ Summary:
 
 | Variable | Where | Notes |
 | --- | --- | --- |
-| `VITE_SF_CLIENT_ID` | Build | Connected App consumer key |
+| `VITE_SF_CLIENT_ID` | Build | **Connected App** consumer key (works across orgs). Do **not** use an External Client App key — Salesforce returns `Cross-org OAuth flows are not supported for this external client app`. |
 | `VITE_SF_WEB_REDIRECT_URI` | Build | `https://www.salesforceoffline.com/oauth/callback` |
 | `VITE_SF_LOGIN_URL` | Build (optional) | Default `https://login.salesforce.com`; login form can override |
 | `VITE_SF_REDIRECT_URI` | Build (native) | Capacitor deep link |
 | `SF_CLIENT_SECRET` | Functions only (optional) | Only if Connected App still requires a secret; prefer PKCE public client |
 
+Do **not** set `VITE_SF_INSTANCE_URL` on Netlify. That value is a local Vite proxy target only; baking it in sends every user to one org.
+
 ## Connected App checklist
+
+This PWA is multi-org. The login client **must** be a classic **Connected App** in App Manager, not an External Client App. Local ECAs cannot authorize users from other Salesforce companies (including My Domain hosts like `cloudastick.my.salesforce.com`).
+
+Use **Pharma Field Offline** (`Pharma_Field_Offline`) in the Pharmaceuticals org (`pharma-prod` / `admin@pharma.eg`). Zeta cannot create new Connected Apps after Spring ’26. Permitted users: all users may self-authorize. PKCE required; consumer secret optional. Set Netlify `VITE_SF_CLIENT_ID` to that app’s consumer key and rebuild.
 
 Add **exactly**:
 

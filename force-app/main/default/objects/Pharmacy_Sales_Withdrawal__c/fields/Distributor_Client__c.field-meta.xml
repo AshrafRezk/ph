@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Distributor_Client__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The distributor's client (pharmacy as the distributor names it) this sales line came from. Its location decides the brick; a CRM pharmacy link is optional.</description>
+    <label>Distributor Client</label>
+    <referenceTo>Distributor_Sellout_Alias__c</referenceTo>
+    <relationshipLabel>Sales Lines</relationshipLabel>
+    <relationshipName>Sales_Lines</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

@@ -3,6 +3,7 @@
     <fullName>MR_Fluoroscopy_Target__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Fluoroscopy Target</description>
+    <externalId>false</externalId>
     <label>Fluoroscopy Target</label>
     <precision>16</precision>
     <required>false</required>

@@ -16,6 +16,21 @@
                 <label>Distribute</label>
             </value>
             <value>
+                <fullName>Allocation</fullName>
+                <default>false</default>
+                <label>Allocation</label>
+            </value>
+            <value>
+                <fullName>Transfer In</fullName>
+                <default>false</default>
+                <label>Transfer In</label>
+            </value>
+            <value>
+                <fullName>Transfer Out</fullName>
+                <default>false</default>
+                <label>Transfer Out</label>
+            </value>
+            <value>
                 <fullName>Return</fullName>
                 <default>false</default>
                 <label>Return</label>

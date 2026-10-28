@@ -1,0 +1,334 @@
+<template>
+    <div class="cc-page">
+        <c-care-coach-view-bar
+            title={greeting}
+            subtitle={subtitle}
+            icon-name="standard:care_request_reviewer"
+            context={context}
+            mode={mode}
+            scope={scope}
+            coach-id={coachId}
+            coaches={coaches}
+            onmodechange={handleModeChange}
+            onscopechange={handleScopeChange}
+            oncoachchange={handleCoachChange}
+        >
+            <div slot="actions" class="header-actions">
+                <template lwc:if={hasDashboard}>
+                    <lightning-button label="Dashboard" icon-name="utility:dashboard" onclick={handleDashboard}></lightning-button>
+                </template>
+                <lightning-button-icon icon-name="utility:refresh" alternative-text="Refresh" onclick={handleRefresh}></lightning-button-icon>
+            </div>
+        </c-care-coach-view-bar>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+
+        <template lwc:if={isLoading}>
+            <div class="loading"><lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner></div>
+        </template>
+
+        <template lwc:if={data}>
+            <!-- Performance -->
+            <section class="cc-card">
+                <div class="cc-card-header">
+                    <div>
+                        <h2 class="cc-card-title">Your performance</h2>
+                        <p class="cc-card-subtitle">Patient journey status across the programme</p>
+                    </div>
+                </div>
+                <div class="cc-card-body">
+                    <div class="kpi-row">
+                        <template for:each={kpiCards} for:item="kpi">
+                            <div key={kpi.id} class="kpi-card" style={kpi.style}>
+                                <button type="button" class="kpi-main" data-status={kpi.id} onclick={handleKpiDrill} title={kpi.description}>
+                                    <div class="kpi-top">
+                                        <span class="kpi-label">{kpi.label}</span>
+                                        <span class="kpi-icon"><lightning-icon icon-name={kpi.icon} size="x-small"></lightning-icon></span>
+                                    </div>
+                                    <div class="kpi-value">
+                                        <lightning-formatted-number value={kpi.value} format-style="decimal"></lightning-formatted-number>
+                                    </div>
+                                    <div class="kpi-meta">
+                                        <span class="kpi-change">{kpi.changeLabel}</span>
+                                        <span class="kpi-share">{kpi.share}</span>
+                                    </div>
+                                </button>
+                                <template lwc:if={kpi.hasReport}>
+                                    <button type="button" class="kpi-report cc-link" data-report={kpi.reportName} onclick={handleKpiReport}>
+                                        View report
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="stat-strip">
+                        <template for:each={stats} for:item="s">
+                            <div key={s.id} class="stat">
+                                <span class="stat-value">{s.value}</span>
+                                <span class="stat-label">{s.label}</span>
+                                <template lwc:if={s.sub}><span class="stat-sub">{s.sub}</span></template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Status board -->
+            <section class="cc-card">
+                <div class="cc-card-header">
+                    <div>
+                        <h2 class="cc-card-title">{boardTitle}</h2>
+                        <p class="cc-card-subtitle">Most recently updated patients in each status</p>
+                    </div>
+                </div>
+                <div class="board">
+                    <template for:each={boardColumns} for:item="col">
+                        <div key={col.status} class="board-col" style={col.style}>
+                            <button type="button" class="board-head" data-status={col.status} onclick={handleColumnOpen}>
+                                <span class="board-head-label">{col.status}</span>
+                                <span class="board-count">{col.count}</span>
+                            </button>
+                            <ul class="cc-list board-list">
+                                <template for:each={col.patients} for:item="p">
+                                    <li key={p.id} class="cc-list-item" data-id={p.id} onclick={handleOpenPatient}>
+                                        <div class="cc-row">
+                                            <span class={p.avatarClass}>{p.avatar}</span>
+                                            <div class="cc-row-main">
+                                                <div class="cc-row-title">{p.displayName}</div>
+                                                <div class="cc-row-sub">{p.sub}</div>
+                                            </div>
+                                            <template lwc:if={p.riskLabel}>
+                                                <span class={p.riskClass}>{p.riskLabel}</span>
+                                            </template>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                            <template lwc:if={col.hasMore}>
+                                <button type="button" class="cc-link board-more" data-status={col.status} onclick={handleColumnOpen}>
+                                    View all {col.count}
+                                </button>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <div class="cc-grid-2">
+                <!-- Calls -->
+                <section class="cc-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">Calls (last 30 days)</h2>
+                            <p class="cc-card-subtitle">Outcome by direction. Hover a bar for the share of calls.</p>
+                        </div>
+                        <button type="button" class="cc-link" onclick={handleCallsReport}>View report</button>
+                    </div>
+                    <div class="cc-card-body">
+                        <template lwc:if={hasCalls}>
+                            <template for:each={callRows} for:item="row">
+                                <div key={row.direction} class="call-row">
+                                    <div class="call-row-head">
+                                        <span class="call-dir">{row.direction}</span>
+                                        <span class="cc-muted">{row.total} calls</span>
+                                    </div>
+                                    <div class="call-track" style={row.trackStyle}>
+                                        <template for:each={row.segments} for:item="seg">
+                                            <span key={seg.key} class="call-seg" style={seg.style} title={seg.title}>
+                                                <template lwc:if={seg.showLabel}>{seg.count}</template>
+                                            </span>
+                                        </template>
+                                    </div>
+                                    <div class="call-legend">
+                                        <template for:each={row.breakdown} for:item="b">
+                                            <span key={b.key} class="legend-item">
+                                                <span class="legend-dot" style={b.dot}></span>
+                                                {b.status}
+                                                <strong>{b.count}</strong>
+                                                <span class="cc-muted">({b.pct})</span>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </template>
+                        <template lwc:else>
+                            <div class="cc-empty">No calls logged in the last 30 days.</div>
+                        </template>
+                    </div>
+                </section>
+
+                <!-- Monthly enrolment -->
+                <section class="cc-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">New patients per month</h2>
+                            <p class="cc-card-subtitle">Enrolments by product, last 6 months</p>
+                        </div>
+                        <button type="button" class="cc-link" onclick={handleTrendReport}>View report</button>
+                    </div>
+                    <div class="cc-card-body">
+                        <div class="month-chart">
+                            <template for:each={monthBars} for:item="m">
+                                <div key={m.key} class="month">
+                                    <span class="month-total">{m.total}</span>
+                                    <div class="month-slot">
+                                        <div class="month-col" style={m.columnStyle}>
+                                            <template for:each={m.segments} for:item="seg">
+                                                <span key={seg.key} class="month-seg" style={seg.style} title={seg.title}></span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                    <span class="month-label">{m.label}</span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="call-legend slds-m-top_small">
+                            <template for:each={productLegend} for:item="p">
+                                <span key={p.name} class="legend-item"><span class="legend-dot" style={p.dot}></span>{p.name}</span>
+                            </template>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Work -->
+            <div class="work-grid">
+                <section class="cc-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">Today's calls <span class="count-badge">{todayCount}</span></h2>
+                            <p class="cc-card-subtitle">Planned patient calls for today</p>
+                        </div>
+                        <button type="button" class="cc-link" onclick={handleOpenPlanner}>Open planner</button>
+                    </div>
+                    <div class="cc-card-body work-body">
+                        <ul class="cc-list">
+                            <template for:each={todayItems} for:item="w">
+                                <li key={w.interactionId} class="cc-list-item" data-id={w.patientId} onclick={handleOpenPatient}>
+                                    <div class="cc-row">
+                                        <span class="time-chip">{w.when}</span>
+                                        <div class="cc-row-main">
+                                            <div class="cc-row-title">{w.patientName}</div>
+                                            <div class="cc-row-sub">{w.sub}</div>
+                                        </div>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                        <template lwc:if={noToday}><div class="cc-empty">No calls planned today.</div></template>
+                    </div>
+                </section>
+
+                <section class="cc-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">Overdue calls <span class="count-badge count-badge_warn">{overdueCount}</span></h2>
+                            <p class="cc-card-subtitle">Planned calls that were not completed</p>
+                        </div>
+                    </div>
+                    <div class="cc-card-body work-body">
+                        <ul class="cc-list">
+                            <template for:each={overdueItems} for:item="w">
+                                <li key={w.interactionId} class="cc-list-item" data-id={w.patientId} onclick={handleOpenPatient}>
+                                    <div class="cc-row">
+                                        <span class={w.avatarClass}>{w.avatar}</span>
+                                        <div class="cc-row-main">
+                                            <div class="cc-row-title">{w.patientName}</div>
+                                            <div class="cc-row-sub">{w.when} · {w.sub}</div>
+                                        </div>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                        <template lwc:if={noOverdue}><div class="cc-empty">You're all caught up.</div></template>
+                    </div>
+                </section>
+
+                <section class="cc-card ai-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">
+                                <lightning-icon icon-name="utility:einstein" size="x-small" class="slds-m-right_xx-small"></lightning-icon>
+                                AI adherence alerts <span class="count-badge count-badge_ai">{alertCount}</span>
+                            </h2>
+                            <p class="cc-card-subtitle">High-risk calls and side effects from the last 14 days</p>
+                        </div>
+                    </div>
+                    <div class="cc-card-body work-body">
+                        <ul class="cc-list">
+                            <template for:each={alertItems} for:item="w">
+                                <li key={w.interactionId} class="cc-list-item" data-id={w.patientId} onclick={handleOpenPatient}>
+                                    <div class="cc-row">
+                                        <span class={w.avatarClass}>{w.avatar}</span>
+                                        <div class="cc-row-main">
+                                            <div class="cc-row-title">{w.patientName}</div>
+                                            <div class="cc-row-sub">{w.detail}</div>
+                                        </div>
+                                        <span class={w.riskClass}>{w.riskScore}</span>
+                                    </div>
+                                </li>
+                            </template>
+                        </ul>
+                        <template lwc:if={noAlerts}><div class="cc-empty">No high-risk signals detected.</div></template>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Coaches -->
+            <template lwc:if={showCoaches}>
+                <section class="cc-card">
+                    <div class="cc-card-header">
+                        <div>
+                            <h2 class="cc-card-title">Care coach overview</h2>
+                            <p class="cc-card-subtitle">Patient mix and reached calls this month. Select a coach to filter the page.</p>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="cc-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Care coach</th>
+                                    <th>Patients</th>
+                                    <th class="mix-col">Status mix</th>
+                                    <th>Ongoing</th>
+                                    <th>Pending</th>
+                                    <th>Dropped</th>
+                                    <th>Unknown</th>
+                                    <th>Retention</th>
+                                    <th>Reached (MTD)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={coachRows} for:item="c">
+                                    <tr key={c.coachId} data-id={c.coachId} onclick={handleCoachRow}>
+                                        <td>{c.rank}</td>
+                                        <td><strong>{c.coachName}</strong></td>
+                                        <td>{c.total}</td>
+                                        <td class="mix-col">
+                                            <div class="mix">
+                                                <span class="mix-seg mix-ongoing" style={c.barOngoing}></span>
+                                                <span class="mix-seg mix-pending" style={c.barPending}></span>
+                                                <span class="mix-seg mix-dropped" style={c.barDropped}></span>
+                                                <span class="mix-seg mix-unknown" style={c.barUnknown}></span>
+                                            </div>
+                                        </td>
+                                        <td>{c.ongoing}</td>
+                                        <td>{c.pending}</td>
+                                        <td>{c.dropped}</td>
+                                        <td>{c.unknown}</td>
+                                        <td>{c.retention}</td>
+                                        <td>{c.reachedThisMonth}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </template>
+        </template>
+    </div>
+</template>

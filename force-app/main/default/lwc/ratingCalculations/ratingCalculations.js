@@ -110,6 +110,18 @@ export function applyProductCalculatedValues(values) {
     return next;
 }
 
+function isExplicitBoolean(value) {
+    return value === true || value === false || value === 'true' || value === 'false';
+}
+
+function isTruthyFlag(value) {
+    return value === true || value === 'true';
+}
+
+function hasMeaningfulText(value) {
+    return value != null && String(value).trim().length > 0;
+}
+
 export function applyCalculatedValues(fields, values, accountVariant = 'HCP') {
     const next = { ...values };
     const potential = next.Potential__c ?? next.potential__c;
@@ -126,10 +138,16 @@ export function applyCalculatedValues(fields, values, accountVariant = 'HCP') {
         next.classification__c = bucket;
     }
 
-    if (accountVariant === 'HCO') {
-        const hasKols = next.Has_KOLs__c === true || next.Has_KOLs__c === 'true';
+    const kolReason = next.KOL_In_What__c ?? next.kol_in_what__c;
+    const kolProfile = next.KOL_Profile__c ?? next.kol_profile__c;
+    const usesHcpKol = isExplicitBoolean(next.Is_KOL__c) || hasMeaningfulText(kolReason);
+    const usesHcoKol = isExplicitBoolean(next.Has_KOLs__c) || hasMeaningfulText(kolProfile);
+
+    // Shared HCO/Pharmacy layouts use Is KOL. Only run the org "Has KOLs" model when
+    // those fields are present and Is KOL is not being edited/displayed.
+    if (usesHcoKol && !usesHcpKol) {
+        const hasKols = isTruthyFlag(next.Has_KOLs__c);
         const hasKolsExplicitlyOff = next.Has_KOLs__c === false || next.Has_KOLs__c === 'false';
-        const kolProfile = next.KOL_Profile__c ?? next.kol_profile__c;
 
         if (hasKolsExplicitlyOff) {
             next.KOL_Profile__c = '';
@@ -144,9 +162,8 @@ export function applyCalculatedValues(fields, values, accountVariant = 'HCP') {
         next.Is_KOL__c = false;
         next.KOL_In_What__c = '';
     } else {
-        const isKol = next.Is_KOL__c === true || next.Is_KOL__c === 'true';
+        const isKol = isTruthyFlag(next.Is_KOL__c);
         const isKolExplicitlyOff = next.Is_KOL__c === false || next.Is_KOL__c === 'false';
-        const kolReason = next.KOL_In_What__c ?? next.kol_in_what__c;
 
         if (isKolExplicitlyOff) {
             next.KOL_In_What__c = '';
@@ -158,8 +175,14 @@ export function applyCalculatedValues(fields, values, accountVariant = 'HCP') {
             next.kol_in_what__c = '';
         }
 
-        next.Has_KOLs__c = false;
-        next.KOL_Profile__c = '';
+        if (!usesHcoKol) {
+            next.Has_KOLs__c = false;
+            next.KOL_Profile__c = '';
+        }
+    }
+
+    if (accountVariant === 'Pharmacy') {
+        next.Is_Speaker__c = false;
     }
 
     return applyProductCalculatedValues(next);

@@ -17,10 +17,16 @@ function navigateInApp(recordId, objectApiName, actionName) {
         actionName: actionName || 'view'
     };
     if (typeof window === 'undefined') return;
-    window.dispatchEvent(new CustomEvent('zeta-navigate-record', { detail }));
+    window.dispatchEvent(new CustomEvent('zeta-navigate-record', { detail, bubbles: true, composed: true }));
     if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: 'zeta-navigate-record', ...detail }, '*');
     }
+}
+
+export function navigateNavItem(apiName, state) {
+    if (typeof window === 'undefined' || !apiName) return;
+    publishPageState(apiName, state);
+    navigateTab(apiName);
 }
 
 function navigateTab(apiName, state = {}) {
@@ -41,8 +47,19 @@ export const NavigationMixin = (Base) => {
             const actionName = pageRef?.attributes?.actionName || 'view';
             const objectApiName = objectFromPageRef(pageRef);
 
-            if (type === 'standard__navItemPage' || type === 'standard__app') {
-                navigateTab(pageRef?.attributes?.apiName || pageRef?.attributes?.appTarget, {
+            if (type === 'standard__app') {
+                const nested = pageRef?.attributes?.pageRef;
+                navigateTab(nested?.attributes?.apiName || pageRef?.attributes?.appTarget, {
+                    appTarget: pageRef?.attributes?.appTarget || null,
+                    accountId: pageRef?.state?.c__accountId || pageRef?.state?.accountId || null
+                });
+                return;
+            }
+
+            if (type === 'standard__navItemPage') {
+                const apiName = pageRef?.attributes?.apiName;
+                publishPageState(apiName, pageRef?.state);
+                navigateTab(apiName, {
                     accountId: pageRef?.state?.c__accountId || pageRef?.state?.accountId || null
                 });
                 return;
@@ -51,6 +68,16 @@ export const NavigationMixin = (Base) => {
             if (type === 'standard__objectPage' && actionName === 'new') {
                 // Offline: open a lightweight create flow via tab navigation event.
                 navigateTab('Accounts_Tab', { action: 'newAccount', objectApiName });
+                return;
+            }
+
+            if (type === 'standard__webPage') {
+                const url = pageRef?.attributes?.url;
+                if (url && typeof window !== 'undefined') {
+                    // Google Maps waypoints use literal |; URLSearchParams encodes as %7C.
+                    const openUrl = String(url).replace(/%7C/gi, '|');
+                    window.open(openUrl, '_blank', 'noopener,noreferrer');
+                }
                 return;
             }
 
@@ -66,7 +93,7 @@ export const NavigationMixin = (Base) => {
                 return Promise.resolve('#');
             }
             if (VISIT_OBJECTS.has(obj)) {
-                return Promise.resolve(`/?visit=${encodeURIComponent(recordId)}`);
+                return Promise.resolve(`#visit/${encodeURIComponent(recordId)}`);
             }
             const base = (import.meta.env && import.meta.env.BASE_URL) || '/';
             return Promise.resolve(
@@ -80,22 +107,41 @@ export const NavigationMixin = (Base) => {
 NavigationMixin.Navigate = Symbol('Navigate');
 NavigationMixin.GenerateUrl = Symbol('GenerateUrl');
 
-/** @wire(CurrentPageReference) — offline emits a minimal home page reference. */
+const HOME_PAGE_REF = { type: 'standard__namedPage', attributes: { pageName: 'home' } };
+const PAGE_REF_EVENT = 'zeta-page-reference';
+let currentPageRef = HOME_PAGE_REF;
+
+// Only c__ state (e.g. c__productId, c__status) is carried over; plain tab
+// switches keep the home reference existing offline components expect.
+function publishPageState(apiName, state) {
+    const carried = {};
+    Object.entries(state || {}).forEach(([key, value]) => {
+        if (key.startsWith('c__') && value !== undefined && value !== null) carried[key] = value;
+    });
+    if (!apiName || !Object.keys(carried).length || typeof window === 'undefined') return;
+    currentPageRef = { type: 'standard__navItemPage', attributes: { apiName }, state: carried };
+    window.dispatchEvent(new CustomEvent(PAGE_REF_EVENT, { detail: currentPageRef }));
+}
+
+/** @wire(CurrentPageReference) — home reference, or the last navItemPage navigation with c__ state. */
 export function CurrentPageReference(dataCallback) {
     if (!(this instanceof CurrentPageReference)) {
-        return { type: 'standard__namedPage', attributes: { pageName: 'home' } };
+        return currentPageRef;
     }
     this._dataCallback = dataCallback;
+    this._onChange = () => this._emit();
 }
-CurrentPageReference.prototype.connect = function connect() {
+CurrentPageReference.prototype._emit = function _emit() {
     if (this._dataCallback) {
-        this._dataCallback({
-            data: { type: 'standard__namedPage', attributes: { pageName: 'home' } },
-            error: undefined
-        });
+        this._dataCallback({ data: currentPageRef, error: undefined });
     }
+};
+CurrentPageReference.prototype.connect = function connect() {
+    if (typeof window !== 'undefined') window.addEventListener(PAGE_REF_EVENT, this._onChange);
+    this._emit();
 };
 CurrentPageReference.prototype.update = function update() {};
 CurrentPageReference.prototype.disconnect = function disconnect() {
+    if (typeof window !== 'undefined') window.removeEventListener(PAGE_REF_EVENT, this._onChange);
     this._dataCallback = null;
 };

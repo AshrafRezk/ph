@@ -55,7 +55,9 @@ const ICONS = {
     sms: svg('<path d="M10 12h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-8 8v-8h-4a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4z"/>'),
     chat: null,
     clock: svg('<path d="M26 8a18 18 0 1 1 0 36 18 18 0 0 1 0-36zm2 9a2 2 0 0 0-4 0v9c0 .5.2 1 .6 1.4l6 6a2 2 0 1 0 2.8-2.8L28 25.2V17z"/>'),
-    money: svg('<path d="M26 8c10 0 18 8 18 18s-8 18-18 18S8 36 8 26 16 8 26 8zm0 6c-1.7 0-3 .9-3 2h-4c0-3.5 3.1-6 7-6s7 2.5 7 6c0 2.4-1.5 3.9-4.2 5.1L26 22.5c-1.8.8-2.8 1.4-2.8 2.5 0 1.1 1.3 2 3 2s3-.9 3-2h4c0 3.5-3.1 6-7 6s-7-2.5-7-6c0-2.6 1.7-4.2 4.5-5.4L26 18.3c1.6-.7 2.5-1.3 2.5-2.3 0-1.1-1.3-2-2.5-2z"/>'),
+    money: svg(
+        '<path fill-rule="evenodd" d="M8 16h36c1.7 0 3 1.3 3 3v14c0 1.7-1.3 3-3 3H8c-1.7 0-3-1.3-3-3V19c0-1.7 1.3-3 3-3zm17.6 3.6h-2.8v1.6c-2.4.4-4.1 2-4.1 4.2 0 2.4 1.8 3.6 4.4 4.1l1.3.3c1.3.3 1.9.7 1.9 1.6 0 1-.9 1.6-2.2 1.6s-2.3-.6-2.5-1.7h-3c.3 2.6 2.3 4.2 5.5 4.6v1.7h2.8v-1.7c2.6-.4 4.4-2 4.4-4.4 0-2.5-1.9-3.8-4.6-4.3l-1.3-.3c-1.2-.2-1.8-.7-1.8-1.4 0-.8.8-1.5 2-1.5 1.2 0 2.1.6 2.2 1.5h2.9c-.3-2.4-2.1-3.9-5-4.3v-1.6z"/>'
+    ),
     bid: null,
     home: svg('<path d="M26 8.5 44 24v18a2 2 0 0 1-2 2H32V32H20v12H10a2 2 0 0 1-2-2V24L26 8.5z"/>'),
     world: svg('<path d="M26 8a18 18 0 1 1 0 36 18 18 0 0 1 0-36zm0 4c-2.2 0-4.3 3.5-5.2 8.5h10.4C30.3 15.5 28.2 12 26 12zm-9.4 2.6A14 14 0 0 0 12.1 24h7.1c.3-4.2 1.3-7.9 2.8-10.4l-5.4 1zm18.8 0 5.4-1A14 14 0 0 1 39.9 24h-7.1c-.3-4.2-1.3-7.9-2.8-10.4zM12.1 28a14 14 0 0 0 4.5 9.4l5.4-1c-1.5-2.5-2.5-6.2-2.8-10.4h-7.1zm15.8 0c.3 4.2 1.3 7.9 2.8 10.4l5.4 1A14 14 0 0 0 39.9 28h-7.1zM20.8 39.5C21.7 44.5 23.8 48 26 48s4.3-3.5 5.2-8.5H20.8z"/>'),
@@ -63,6 +65,7 @@ const ICONS = {
     user: svg('<path d="M26 8a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 24c9.4 0 17 5.4 17 12v2H9v-2c0-6.6 7.6-12 17-12z"/>'),
     people: svg('<path d="M18 10a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm16 2a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM18 30c8.3 0 15 4.5 15 10v2H3v-2c0-5.5 6.7-10 15-10zm18 2c6.6 0 12 3.6 12 8v2H36v-2c0-3.1-1.7-5.8-4.4-7.5 1.4-.3 2.9-.5 4.4-.5z"/>'),
     table: svg('<path d="M10 12h32a2 2 0 0 1 2 2v24a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V14a2 2 0 0 1 2-2zm2 8v6h12v-6H12zm16 0v6h12v-6H28zM12 30v6h12v-6H12zm16 0v6h12v-6H28z"/>'),
+    report: svg('<path d="M14 8h16l8 8v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4zm16 2.8V18h7.2L30 10.8zM18 24h4v12h-4V24zm8-4h4v16h-4V20zm8 6h4v10h-4V26z"/>'),
     tile: null,
     chart: svg('<path d="M12 12h4v28h-4V12zm10 10h4v18h-4V22zm10-6h4v24h-4V16zm10 12h4v12h-4V28z"/>'),
     dashboard: null,
@@ -85,7 +88,20 @@ const ICONS = {
     offline: svg('<path d="M8.6 10.6 41.4 43.4l-2.8 2.8-5.4-5.4A18 18 0 0 1 10.1 28H6v-4h4.1a17.8 17.8 0 0 1 3.2-7.9L5.8 13.4l2.8-2.8zM26 8c6.2 0 11.7 3.1 15 7.9l-2.9 2.3A14 14 0 0 0 16.6 14L13.4 11A17.9 17.9 0 0 1 26 8zm0 12c2.4 0 4.6.8 6.4 2.2l-3.1 3.1A6 6 0 0 0 20.9 28H16a10 10 0 0 1 10-8z"/>'),
     pause: svg('<path d="M16 12h6v28h-6V12zm14 0h6v28h-6V12z"/>'),
     play: svg('<path d="M16 10v32l26-16L16 10z"/>'),
-    comments: svg('<path d="M10 12h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-8 8v-8h-4a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4zm4 8v4h20v-4H14zm0 8v4h14v-4H14z"/>')
+    comments: svg('<path d="M10 12h32a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H22l-8 8v-8h-4a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4zm4 8v4h20v-4H14zm0 8v4h14v-4H14z"/>'),
+    apps: svg('<path d="M12 12h10v10H12V12zm18 0h10v10H30V12zM12 30h10v10H12V30zm18 0h10v10H30V30z"/>'),
+    // Learning / curriculum (course player) — keys must match normalizeIconKey()
+    video: svg('<path d="M10 14h22a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4zm26 4.5 10-6v25l-10-6v-13zM14 20v16h14V20H14z"/>'),
+    file: svg('<path d="M14 8h16l10 10v22a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4zm16 2.8V20h9.2L30 10.8zM18 26h16v3H18v-3zm0 7h16v3H18v-3z"/>'),
+    question: svg('<path d="M26 8a18 18 0 1 1 0 36 18 18 0 0 1 0-36zm0 26a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm0-20c-4.4 0-8 3-8 7h4c0-1.9 1.7-3 4-3s4 1.1 4 3c0 1.4-.8 2.2-2.6 3.3l-1.2.7C24.4 26.2 23 28 23 31h4c0-1.5.7-2.4 2.4-3.4l1.2-.7C33.2 25.2 34 23.4 34 21c0-4-3.6-7-8-7z"/>'),
+    knowledgebase: svg('<path d="M12 10h12a2 2 0 0 1 2 2v26l-8-4-8 4V12a2 2 0 0 1 2-2zm16 0h12a2 2 0 0 1 2 2v26l-8-4-8 4V12a2 2 0 0 1 2-2zm2 4v18.2l4-2 4 2V14H30zM14 14v18.2l4-2 4 2V14H14z"/>'),
+    education: svg('<path d="M26 8 4 20l22 12 18-9.8V36h4V20L26 8zm0 27.2L8.5 25.4 6 26.8 26 38l20-11.2-2.5-1.4L26 35.2z"/>'),
+    radiobutton: svg('<circle cx="26" cy="26" r="14" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="26" cy="26" r="5"/>'),
+    record: svg('<circle cx="26" cy="26" r="14" fill="none" stroke="currentColor" stroke-width="3"/>'),
+    back: svg('<path d="M30.7 12.3a2 2 0 0 1 0 2.8L21.8 24l8.9 8.9a2 2 0 1 1-2.8 2.8l-10.3-10.3a2 2 0 0 1 0-2.8L27.9 12.3a2 2 0 0 1 2.8 0z"/>'),
+    trail: svg('<path d="M14 38a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-4a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10-2a2 2 0 0 1 2-2h4.2l8.3-14.4A6 6 0 1 1 44 18a6 6 0 0 1-5.2 5.9L30.8 38H26a2 2 0 0 1-2-2zm14-12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>'),
+    metrics: svg('<path d="M12 12h4v28h-4V12zm10 10h4v18h-4V22zm10-6h4v24h-4V16zm10 12h4v12h-4V28z"/>'),
+    history: svg('<path d="M26 8a18 18 0 1 1-12.7 31.3 2 2 0 1 1 2.8-2.8A14 14 0 1 0 12 26h4.5a1.5 1.5 0 0 1 1.1 2.5l-6 6.5a1.5 1.5 0 0 1-2.2 0l-6-6.5A1.5 1.5 0 0 1 4.5 26H10A16 16 0 0 1 26 8zm2 9a2 2 0 0 0-4 0v9c0 .5.2 1 .6 1.4l6 6a2 2 0 1 0 2.8-2.8L28 25.2V17z"/>')
 };
 
 // Resolve aliases
@@ -108,12 +124,16 @@ ICONS.check = ICONS.success;
 ICONS.chat = ICONS.sms;
 ICONS.bid = ICONS.money;
 ICONS.tile = ICONS.table;
+ICONS.reports = ICONS.report;
 ICONS.dashboard = ICONS.chart;
 ICONS.light_bulb = ICONS.lightbulb;
 ICONS.announcements = ICONS.announcement;
 ICONS.retail = ICONS.store;
 ICONS.account = ICONS.company;
 ICONS.building = ICONS.company;
+ICONS.contact = ICONS.user;
+ICONS.personaccount = ICONS.user;
+ICONS.household = ICONS.store;
 ICONS.people = ICONS.groups;
 ICONS.group = ICONS.groups;
 ICONS.holiday = ICONS.away;
@@ -128,6 +148,59 @@ ICONS.comment = ICONS.comments;
 ICONS.topic = ICONS.comments;
 ICONS.new_window = ICONS.link;
 ICONS.newwindow = ICONS.link;
+ICONS.page = ICONS.file;
+ICONS.course = ICONS.education;
+ICONS.training = ICONS.education;
+ICONS.knowledge_base = ICONS.knowledgebase;
+ICONS.radio_button = ICONS.radiobutton;
+ICONS.app = ICONS.apps;
+ICONS.apps_admin = ICONS.apps;
+ICONS.moneybag = ICONS.money;
+ICONS.currency = ICONS.money;
+ICONS.note = ICONS.file;
+ICONS.picklisttype = ICONS.list;
+ICONS.retailexecution = ICONS.store;
+ICONS.travelandplaces = ICONS.home;
+
+function outline(shapes) {
+    return svg(
+        `<g style="fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-linejoin:round">${shapes}</g>`
+    );
+}
+
+Object.assign(ICONS, {
+    ban: outline('<circle cx="26" cy="26" r="17"/><path d="M14 14l24 24"/>'),
+    cart: outline('<path d="M7 9h6l5 23h21l4-15H15"/><circle cx="21" cy="41" r="3"/><circle cx="37" cy="41" r="3"/>'),
+    orders: outline('<path d="M7 9h6l5 23h21l4-15H15"/><circle cx="21" cy="41" r="3"/><circle cx="37" cy="41" r="3"/>'),
+    changerecordtype: outline('<path d="M11 18h28M33 12l6 6-6 6M41 34H13M19 28l-6 6 6 6"/>'),
+    heart: outline('<path d="M26 43S8 32 8 19.5A9 9 0 0 1 26 17a9 9 0 0 1 18 2.5C44 32 26 43 26 43z"/>'),
+    hide: outline('<path d="M6 26s7-12 20-12 20 12 20 12-7 12-20 12S6 26 6 26z"/><circle cx="26" cy="26" r="5"/><path d="M10 42L42 10"/>'),
+    identity: outline('<rect x="7" y="11" width="38" height="30" rx="4"/><circle cx="19" cy="23" r="4"/><path d="M12 34c1.5-3 4-4.5 7-4.5s5.5 1.5 7 4.5M31 21h8M31 28h8"/>'),
+    kanban: outline('<rect x="7" y="9" width="10" height="32" rx="2"/><rect x="21" y="9" width="10" height="22" rx="2"/><rect x="35" y="9" width="10" height="27" rx="2"/>'),
+    like: outline('<path d="M15 23v19H8V23h7zM15 23l8-13c3 0 5.5 2.4 4.8 5.6L26.5 22H38a4 4 0 0 1 4 4.6l-2 12A4 4 0 0 1 36 42H15"/>'),
+    lock: outline('<rect x="11" y="23" width="30" height="21" rx="3"/><path d="M17 23v-6a9 9 0 0 1 18 0v6M26 31v5"/>'),
+    phoneportrait: outline('<rect x="15" y="6" width="22" height="40" rx="4"/><path d="M23 39h6"/>'),
+    shield: outline('<path d="M26 6l16 6v12c0 10-7 17.5-16 22-9-4.5-16-12-16-22V12z"/><path d="M19 26l5 5 9-10"/>'),
+    target: outline('<circle cx="26" cy="26" r="18"/><circle cx="26" cy="26" r="10"/><circle cx="26" cy="26" r="2.5" style="fill:currentColor"/>'),
+    trending: outline('<path d="M6 38l13-13 8 8 17-17M32 16h12v12"/>'),
+    unmuted: outline('<rect x="19" y="6" width="14" height="24" rx="7"/><path d="M12 24a14 14 0 0 0 28 0M26 38v8M19 46h14"/>'),
+    endcall: svg('<path d="M26 18c7.6 0 14.6 2.4 19.2 6.5a3 3 0 0 1 .3 4.1l-3.3 4a3 3 0 0 1-3.7.7l-5.2-2.6a3 3 0 0 1-1.6-2.9l.2-3.3a26 26 0 0 0-11.8 0l.2 3.3a3 3 0 0 1-1.6 2.9l-5.2 2.6a3 3 0 0 1-3.7-.7l-3.3-4a3 3 0 0 1 .3-4.1C11.4 20.4 18.4 18 26 18z"/>'),
+    carerequestreviewer: outline('<circle cx="22" cy="17" r="7"/><path d="M8 43c1-8 6.5-13 14-13 3 0 5.6.8 7.6 2.2M32 38l4.5 4.5L45 33"/>')
+});
+ICONS.individual = ICONS.user;
+ICONS.muted = ICONS.unmuted;
+ICONS.mic = ICONS.unmuted;
+ICONS.hangup = ICONS.endcall;
+ICONS.knowledge = ICONS.knowledgebase;
+ICONS.incomingcall = ICONS.call;
+ICONS.outgoingcall = ICONS.call;
+ICONS.block = ICONS.ban;
+ICONS.favorite_alt = ICONS.heart;
+ICONS.preview_off = ICONS.hide;
+ICONS.password = ICONS.lock;
+ICONS.mobile = ICONS.phoneportrait;
+ICONS.trend = ICONS.trending;
+ICONS.goals = ICONS.target;
 
 const FALLBACK = svg(
     '<rect x="18" y="18" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="3"/>'

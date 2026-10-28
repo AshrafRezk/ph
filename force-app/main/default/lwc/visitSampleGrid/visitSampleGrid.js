@@ -1,22 +1,55 @@
 import { LightningElement, api, wire } from 'lwc';
-import getSampleInventoryForUser from '@salesforce/apex/VisitCallReportController.getSampleInventoryForUser';
+import getTerritoryProducts from '@salesforce/apex/VisitCallReportController.getTerritoryProducts';
+
+const DISPENSE_TYPES = new Set(['Sample', 'Brand Reminder']);
 
 export default class VisitSampleGrid extends LightningElement {
+    @api visitId;
     @api samples = [];
     @api attendees = [];
     @api disabled = false;
+    @api scopedBrandIds = [];
 
-    inventoryOptions = [];
+    territoryProducts = [];
 
-    @wire(getSampleInventoryForUser)
-    wiredInventory({ data }) {
+    @wire(getTerritoryProducts, { visitId: '$visitId' })
+    wiredProducts({ data }) {
         if (data) {
-            this.inventoryOptions = data.map((row) => ({
-                label: `${row.productName} · Lot ${row.lotNumber} (${row.quantityOnHand})`,
-                value: row.id,
-                row
-            }));
+            this.territoryProducts = data;
         }
+    }
+
+    get scopedBrandIdSet() {
+        return new Set((this.scopedBrandIds || []).filter(Boolean).map((id) => String(id)));
+    }
+
+    get hasScopedBrands() {
+        return this.scopedBrandIdSet.size > 0;
+    }
+
+    get addDisabled() {
+        return this.disabled || !this.hasScopedBrands;
+    }
+
+    get productOptions() {
+        const brandIds = this.scopedBrandIdSet;
+        return (this.territoryProducts || [])
+            .filter((row) => DISPENSE_TYPES.has(row.productType))
+            .filter((row) => {
+                if (brandIds.size === 0) {
+                    return false;
+                }
+                const parentId = row.parentProductId ? String(row.parentProductId) : null;
+                const productId = row.productId ? String(row.productId) : null;
+                return (parentId && brandIds.has(parentId)) || (productId && brandIds.has(productId));
+            })
+            .map((row) => ({
+                label: row.brandName ? `${row.productName} (${row.brandName})` : row.productName,
+                value: row.productId,
+                row
+            }))
+            .filter((opt, index, all) => all.findIndex((item) => item.value === opt.value) === index)
+            .sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
     }
 
     get displaySamples() {
@@ -28,11 +61,11 @@ export default class VisitSampleGrid extends LightningElement {
     }
 
     resolveImageUrl(row) {
-        if (!row.sampleInventoryId) {
+        if (!row.productId) {
             return null;
         }
-        const inv = (this.inventoryOptions || []).find((opt) => opt.value === row.sampleInventoryId);
-        return inv?.row?.imageUrl || null;
+        const match = (this.productOptions || []).find((opt) => opt.value === row.productId);
+        return match?.row?.imageUrl || null;
     }
 
     get attendeeOptions() {
@@ -43,7 +76,7 @@ export default class VisitSampleGrid extends LightningElement {
     }
 
     handleAddRow() {
-        if (this.disabled) {
+        if (this.disabled || !this.hasScopedBrands) {
             return;
         }
         const next = [
@@ -51,6 +84,7 @@ export default class VisitSampleGrid extends LightningElement {
             {
                 productId: null,
                 productName: '',
+                imageUrl: null,
                 visitAttendeeId: null,
                 attendeeName: '',
                 quantity: 1,
@@ -75,17 +109,17 @@ export default class VisitSampleGrid extends LightningElement {
             if (idx !== index) {
                 return row;
             }
-            if (field === 'sampleInventoryId') {
-                const inv = (this.inventoryOptions || []).find((opt) => opt.value === value);
+            if (field === 'productId') {
+                const product = (this.productOptions || []).find((opt) => opt.value === value);
                 return {
                     ...row,
-                    sampleInventoryId: value,
-                    productId: inv?.row?.productId,
-                    productName: inv?.row?.productName,
-                    imageUrl: inv?.row?.imageUrl,
-                    lotNumber: inv?.row?.lotNumber,
-                    inventoryOnHand: inv?.row?.quantityOnHand,
-                    inventoryExpiry: inv?.row?.expiryDate
+                    productId: value,
+                    productName: product?.row?.productName || product?.label || '',
+                    imageUrl: product?.row?.imageUrl || null,
+                    sampleInventoryId: null,
+                    lotNumber: '',
+                    inventoryOnHand: null,
+                    inventoryExpiry: null
                 };
             }
             if (field === 'visitAttendeeId') {
@@ -97,6 +131,10 @@ export default class VisitSampleGrid extends LightningElement {
                     visitAttendeeId: value,
                     attendeeName: attendee?.accountName
                 };
+            }
+            if (field === 'quantity') {
+                const qty = value === '' || value == null ? null : Number(value);
+                return { ...row, quantity: qty };
             }
             return { ...row, [field]: value };
         });

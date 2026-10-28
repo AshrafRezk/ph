@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FOC__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>This line is free of charge and is also sent as a sample request.</description>
+    <label>FOC</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

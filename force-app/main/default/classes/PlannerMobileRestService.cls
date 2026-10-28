@@ -7,12 +7,55 @@ global with sharing class PlannerMobileRestService {
     }
   }
 
+  // REST-safe error. AuraHandledException cannot be thrown in a @RestResource
+  // context (it raises an uncatchable System.LimitException that 500s the whole
+  // outbox batch). This plain exception is caught by the per-action try/catch in
+  // drainOutbox and recorded as a single failed action instead.
+  public class OutboxException extends Exception {}
+
   global class OutboxAction {
     public String id;
     public String actionType;
     public String payloadJson;
     public String clientVisitKey;
+    public String clientActionKey;
+    // CLM / call-report actions (same shape as ClmOfflineSyncController.OfflineAction).
+    // Ids are Strings on purpose: an offline-created record carries a client key, and a typed
+    // Id here would fail deserialization of the entire batch.
+    public String clientSessionKey;
+    public String clientCoachingKey;
+    public String visitId;
+    public String presentationId;
+    public String sequenceId;
+    public String layoutId;
+    public String accountId;
+    public String startedAtIso;
+    public String endedAtIso;
+    public Decimal dwellSeconds;
+    public Boolean trackingPaused;
+    public Integer slidesPresentedCount;
+    public Decimal totalDurationSeconds;
+    public String responsesJson;
+    public String ratingsJson;
+    public String callReportJson;
   }
+
+  /** Server ids created earlier in the same batch, so later actions can use client keys. */
+  private class OutboxBatchContext {
+    Map<String, Id> sessionIdByClientKey = new Map<String, Id>();
+    Map<String, Id> visitIdByClientKey = new Map<String, Id>();
+  }
+
+  private static final Set<String> CLM_OUTBOX_ACTION_TYPES = new Set<String>{
+    'SAVE_CALL_REPORT',
+    'START_SESSION',
+    'START_ADHOC_SESSION',
+    'LOG_SLIDE_EVENT',
+    'COMPLETE_SESSION',
+    'CANCEL_SESSION',
+    'SAVE_MESSAGE_RESPONSES',
+    'SAVE_VISIT_RATINGS'
+  };
 
   global class OutboxRequest {
     public List<OutboxAction> actions;
@@ -23,10 +66,12 @@ global with sharing class PlannerMobileRestService {
     public Boolean success;
     public String error;
     public Map<String, String> visitIdByClientKey;
+    public Map<String, String> sessionIdByClientKey;
   }
 
   global class OutboxResponse {
     public List<OutboxResultItem> results;
+    public Map<String, String> sessionIdByClientKey;
   }
 
   global class SyncPullResponse {
@@ -59,16 +104,15 @@ global with sharing class PlannerMobileRestService {
           weekEnd,
           contextUserId
         );
-        writeJson(
-          res,
-          200,
-          new Map<String, Object>{
-            'weekStart' => String.valueOf(weekStart),
-            'weekEnd' => String.valueOf(weekEnd),
-            'visits' => payload.visits,
-            'timeOff' => payload.timeOffBlocks
-          }
-        );
+        Map<String, Object> body = new Map<String, Object>{
+          'weekStart' => String.valueOf(weekStart),
+          'weekEnd' => String.valueOf(weekEnd),
+          'visits' => payload.visits,
+          'timeOff' => payload.timeOffBlocks,
+          'publicHolidayDates' => payload.publicHolidayDates,
+          'meetings' => payload.meetings
+        };
+        writeJson(res, 200, body);
         return;
       }
       if (path == 'accounts/map') {
@@ -167,6 +211,23 @@ global with sharing class PlannerMobileRestService {
         );
         return;
       }
+      // Timecard tiles (field days, coached, activities...) and the leave list, opened from the Home timecard.
+      if (path == 'home/monthly-timecard/details') {
+        writeJson(
+          res,
+          200,
+          FieldRepHomeController.getMonthlyTimecardDetails(blankToNullId(params.get('contextUserId')), params.get('tileId'))
+        );
+        return;
+      }
+      if (path == 'home/monthly-timecard/leaves') {
+        writeJson(
+          res,
+          200,
+          FieldRepHomeController.getMonthlyLeaveDetails(blankToNullId(params.get('contextUserId')))
+        );
+        return;
+      }
       if (path == 'accounts-tab/page') {
         writeJson(res, 200, AccountsTabController.getAccountsTabPage(
           params.get('scope'),
@@ -181,7 +242,10 @@ global with sharing class PlannerMobileRestService {
           blankToNullId(params.get('contextUserId')),
           commaSeparatedToList(params.get('accountIds')),
           blankToNullId(params.get('brickId')),
-          params.get('specialtyFilter')
+          params.get('specialtyFilter'),
+          params.get('approvalScope'),
+          params.get('nurtureLane'),
+          'true'.equalsIgnoreCase(params.get('repBookOnly'))
         ));
         return;
       }
@@ -199,7 +263,8 @@ global with sharing class PlannerMobileRestService {
           blankToNullId(params.get('contextUserId')),
           commaSeparatedToList(params.get('accountIds')),
           blankToNullId(params.get('brickId')),
-          params.get('specialtyFilter')
+          params.get('specialtyFilter'),
+          'true'.equalsIgnoreCase(params.get('repBookOnly'))
         ));
         return;
       }
@@ -209,6 +274,42 @@ global with sharing class PlannerMobileRestService {
       }
       if (path == 'territory-context') {
         writeJson(res, 200, TerritoryContextService.getSwitcherContext());
+        return;
+      }
+      if (path == 'viewer-context') {
+        writeJson(res, 200, FieldPlannerController.getPlannerViewerContext());
+        return;
+      }
+      if (path == 'brick-alerts') {
+        writeJson(res, 200, new List<Object>());
+        return;
+      }
+      if (path == 'classification-suggestions') {
+        writeJson(res, 200, new List<Object>());
+        return;
+      }
+      if (path == 'visits/pending-approvals') {
+        writeJson(res, 200, new List<Object>());
+        return;
+      }
+      if (path == 'book-mode') {
+        writeJson(res, 200, FieldBookAccess.getBookMode());
+        return;
+      }
+      if (path == 'meetings/record-types') {
+        writeJson(res, 200, MeetingPlannerController.getMeetingRecordTypes());
+        return;
+      }
+      if (path == 'meetings') {
+        writeJson(
+          res,
+          200,
+          MeetingPlannerController.fetchMeetings(
+            parseDate(params.get('weekStart')),
+            parseDate(params.get('weekEnd')),
+            blankToNullId(params.get('contextUserId'))
+          )
+        );
         return;
       }
       if (path == 'me') {
@@ -292,7 +393,10 @@ global with sharing class PlannerMobileRestService {
         contextUserId,
         accountIds,
         null,
-        null
+        null,
+        null,
+        null,
+        false
       );
     } catch (Exception e) {
       throw new AuraHandledException(e.getMessage());
@@ -327,7 +431,8 @@ global with sharing class PlannerMobileRestService {
         contextUserId,
         accountIds,
         null,
-        null
+        null,
+        false
       );
     } catch (Exception e) {
       throw new AuraHandledException(e.getMessage());
@@ -429,7 +534,112 @@ global with sharing class PlannerMobileRestService {
         writeJson(res, 200, new Map<String, Object>{ 'ok' => true });
         return;
       }
-      if (path == 'time-off') {
+      if (path == 'visits/submit') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(res, 200, FieldPlannerController.submitVisit(blankToNullId((String) m.get('visitId'))));
+        return;
+      }
+      if (path == 'visits/submit-week') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(
+          res,
+          200,
+          FieldPlannerController.submitWeekPlans(
+            parseDate((String) m.get('weekStart')),
+            parseDate((String) m.get('weekEnd'))
+          )
+        );
+        return;
+      }
+      if (path == 'visits/approve') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(res, 200, FieldPlannerController.approvePlanVisit(blankToNullId((String) m.get('visitId'))));
+        return;
+      }
+      if (path == 'visits/reject') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        VisitValidationController.rejectPlanVisit(
+          blankToNullId((String) m.get('visitId')),
+          (String) m.get('rejectionReason')
+        );
+        writeJson(res, 200, new Map<String, Object>{ 'ok' => true });
+        return;
+      }
+      if (path == 'meetings') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(
+          res,
+          200,
+          MeetingPlannerController.createMeeting(
+            (String) m.get('recordTypeDeveloperName'),
+            parseDt((String) m.get('startDateTime')),
+            parseDt((String) m.get('endDateTime')),
+            (String) m.get('title'),
+            blankToNullId((String) m.get('pharmaProjectId'))
+          )
+        );
+        return;
+      }
+      if (path == 'meetings/update') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(
+          res,
+          200,
+          MeetingPlannerController.updateMeeting(
+            optionalSalesforceId((String) m.get('meetingId')),
+            parseDt((String) m.get('startDateTime')),
+            parseDt((String) m.get('endDateTime')),
+            (String) m.get('title')
+          )
+        );
+        return;
+      }
+      if (path == 'meetings/delete') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        Id meetingId = optionalSalesforceId((String) m.get('meetingId'));
+        if (meetingId != null) {
+          MeetingPlannerController.deleteMeeting(meetingId);
+        }
+        writeJson(res, 200, new Map<String, Object>{ 'ok' => true });
+        return;
+      }
+      if (path == 'meetings/approve') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(
+          res,
+          200,
+          MeetingPlannerController.approveMeetingPlan(blankToNullId((String) m.get('meetingId')))
+        );
+        return;
+      }
+      if (path == 'meetings/reject') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        writeJson(
+          res,
+          200,
+          MeetingPlannerController.rejectMeetingPlan(
+            blankToNullId((String) m.get('meetingId')),
+            (String) m.get('rejectionReason')
+          )
+        );
+        return;
+      }
+      if (path == 'time-off/approve') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        TimeOffRequestController.approveRequest(blankToNullId((String) m.get('requestId')));
+        writeJson(res, 200, new Map<String, Object>{ 'ok' => true });
+        return;
+      }
+      if (path == 'time-off/reject') {
+        Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
+        TimeOffRequestController.rejectRequest(
+          blankToNullId((String) m.get('requestId')),
+          (String) m.get('rejectionReason')
+        );
+        writeJson(res, 200, new Map<String, Object>{ 'ok' => true });
+        return;
+      }
+      if (path == 'time-off' || path == 'mutate/time-off') {
         Map<String, Object> m = (Map<String, Object>) JSON.deserializeUntyped(body);
         writeJson(
           res,
@@ -473,32 +683,151 @@ global with sharing class PlannerMobileRestService {
     OutboxRequest req = (OutboxRequest) JSON.deserialize(body, OutboxRequest.class);
     OutboxResponse response = new OutboxResponse();
     response.results = new List<OutboxResultItem>();
+    response.sessionIdByClientKey = new Map<String, String>();
     if (req == null || req.actions == null) {
       return response;
     }
+    OutboxBatchContext ctx = new OutboxBatchContext();
     for (OutboxAction action : req.actions) {
       OutboxResultItem item = new OutboxResultItem();
       item.id = action.id;
       item.visitIdByClientKey = new Map<String, String>();
+      item.sessionIdByClientKey = new Map<String, String>();
       try {
-        processOutboxAction(action, item);
+        processOutboxAction(action, item, ctx);
         item.success = true;
       } catch (Exception e) {
         item.success = false;
         item.error = e.getMessage();
+      }
+      rememberBatchKeys(item, ctx);
+      for (String key : item.sessionIdByClientKey.keySet()) {
+        response.sessionIdByClientKey.put(key, item.sessionIdByClientKey.get(key));
       }
       response.results.add(item);
     }
     return response;
   }
 
-  private static void processOutboxAction(OutboxAction action, OutboxResultItem item) {
-    Map<String, Object> payload = String.isBlank(action.payloadJson)
+  /** Later actions in the batch (e.g. LOG_SLIDE_EVENT after START_SESSION) resolve client keys from here. */
+  private static void rememberBatchKeys(OutboxResultItem item, OutboxBatchContext ctx) {
+    for (String key : item.visitIdByClientKey.keySet()) {
+      Id serverId = optionalSalesforceId(item.visitIdByClientKey.get(key));
+      if (serverId != null) {
+        ctx.visitIdByClientKey.put(key, serverId);
+      }
+    }
+    for (String key : item.sessionIdByClientKey.keySet()) {
+      Id serverId = optionalSalesforceId(item.sessionIdByClientKey.get(key));
+      if (serverId != null) {
+        ctx.sessionIdByClientKey.put(key, serverId);
+      }
+    }
+  }
+
+  private static void processClmOutboxAction(OutboxAction action, OutboxResultItem item, OutboxBatchContext ctx) {
+    ClmOfflineSyncController.OfflineAction clm = new ClmOfflineSyncController.OfflineAction();
+    clm.actionType = action.actionType;
+    clm.clientActionKey = action.clientActionKey;
+    clm.clientSessionKey = action.clientSessionKey;
+    clm.clientVisitKey = action.clientVisitKey;
+    clm.clientCoachingKey = action.clientCoachingKey;
+    clm.visitId = optionalSalesforceId(action.visitId);
+    clm.presentationId = optionalSalesforceId(action.presentationId);
+    clm.sequenceId = optionalSalesforceId(action.sequenceId);
+    clm.layoutId = optionalSalesforceId(action.layoutId);
+    clm.startedAtIso = action.startedAtIso;
+    clm.endedAtIso = action.endedAtIso;
+    clm.dwellSeconds = action.dwellSeconds;
+    clm.trackingPaused = action.trackingPaused;
+    clm.slidesPresentedCount = action.slidesPresentedCount;
+    clm.totalDurationSeconds = action.totalDurationSeconds;
+    clm.responsesJson = action.responsesJson;
+    clm.ratingsJson = action.ratingsJson;
+    clm.callReportJson = action.callReportJson;
+    clm.payloadJson = action.payloadJson;
+
+    if (action.actionType == 'SAVE_CALL_REPORT') {
+      clm.callReportJson = reconcileCallReportVisit(action, ctx);
+    }
+
+    Map<String, Id> sessionMap = ctx.sessionIdByClientKey.clone();
+    Map<String, Id> visitMap = ctx.visitIdByClientKey.clone();
+    try {
+      ClmOfflineSyncController.processSingleAction(clm, sessionMap, visitMap);
+    } catch (OutboxException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new OutboxException(e.getMessage());
+    }
+    for (String key : sessionMap.keySet()) {
+      if (!ctx.sessionIdByClientKey.containsKey(key)) {
+        item.sessionIdByClientKey.put(key, String.valueOf(sessionMap.get(key)));
+      }
+    }
+    for (String key : visitMap.keySet()) {
+      if (!ctx.visitIdByClientKey.containsKey(key)) {
+        item.visitIdByClientKey.put(key, String.valueOf(visitMap.get(key)));
+      }
+    }
+  }
+
+  /**
+   * The call report JSON carries its own visitId. Swap a client key for the server id created
+   * earlier in this batch, and refuse a report whose visitId disagrees with the action's visit.
+   */
+  private static String reconcileCallReportVisit(OutboxAction action, OutboxBatchContext ctx) {
+    if (String.isBlank(action.callReportJson)) {
+      throw new OutboxException('callReportJson is required.');
+    }
+    Object parsed = JSON.deserializeUntyped(action.callReportJson);
+    if (!(parsed instanceof Map<String, Object>)) {
+      throw new OutboxException('callReportJson must be an object.');
+    }
+    Map<String, Object> report = (Map<String, Object>) parsed;
+    String reportVisit = report.get('visitId') == null ? null : String.valueOf(report.get('visitId'));
+    Id resolved = optionalSalesforceId(reportVisit);
+    if (resolved == null && String.isNotBlank(reportVisit) && ctx.visitIdByClientKey.containsKey(reportVisit)) {
+      resolved = ctx.visitIdByClientKey.get(reportVisit);
+    }
+    if (resolved == null) {
+      throw new OutboxException('Visit is not saved on the server yet.');
+    }
+    Id actionVisit = optionalSalesforceId(action.visitId);
+    if (actionVisit != null && actionVisit != resolved) {
+      throw new OutboxException('Call report visit does not match the queued action.');
+    }
+    report.put('visitId', String.valueOf(resolved));
+    return JSON.serialize(report);
+  }
+
+  private static Map<String, Object> outboxPayload(OutboxAction action) {
+    return String.isBlank(action.payloadJson)
       ? new Map<String, Object>()
       : (Map<String, Object>) JSON.deserializeUntyped(action.payloadJson);
+  }
 
-    if (action.actionType == 'UPSERT_VISIT') {
-      FieldPlannerController.VisitSummary saved = FieldPlannerController.upsertVisit(
+  private static void processOutboxAction(OutboxAction action, OutboxResultItem item, OutboxBatchContext ctx) {
+    Map<String, Object> payload = outboxPayload(action);
+
+    if (CLM_OUTBOX_ACTION_TYPES.contains(action.actionType)) {
+      processClmOutboxAction(action, item, ctx);
+    } else if (action.actionType == 'MARK_ACCOUNT_DUPLICATE') {
+      PlannerOutboxAccountActions.markDuplicate(payload);
+    } else if (action.actionType == 'MARK_ACCOUNT_INACTIVE') {
+      PlannerOutboxAccountActions.markInactive(payload);
+    } else if (action.actionType == 'ADVANCE_ACCOUNT_STAGE') {
+      PlannerOutboxAccountActions.advanceStage(payload);
+    } else if (action.actionType == 'SAVE_ACCOUNT_RATINGS') {
+      PlannerOutboxAccountActions.saveRatings(payload);
+    } else if (action.actionType == 'CAPTURE_CONSENT') {
+      PlannerOutboxAccountActions.captureConsent(payload);
+    } else if (action.actionType == 'UPSERT_VISIT') {
+      // D6-01: the client key is stored on new visits so a replayed upsert updates instead of inserting.
+      String clientKey = String.isNotBlank(action.clientVisitKey)
+        ? action.clientVisitKey
+        : (String) payload.get('clientVisitKey');
+      FieldPlannerController.VisitSummary saved = FieldPlannerController.upsertVisitWithClientKey(
         blankToNullId((String) payload.get('visitId')),
         blankToNullId((String) payload.get('accountId')),
         parseDt((String) payload.get('startDateTime')),
@@ -507,7 +836,8 @@ global with sharing class PlannerMobileRestService {
         (String) payload.get('visitType'),
         (String) payload.get('cancellationReason'),
         blankToNullId((String) payload.get('zetaProjectId')),
-        (String) payload.get('visitObjective')
+        (String) payload.get('visitObjective'),
+        optionalSalesforceId(clientKey) == null ? clientKey : null
       );
       if (saved != null && saved.id != null && String.isNotBlank(action.clientVisitKey)) {
         item.visitIdByClientKey.put(action.clientVisitKey, String.valueOf(saved.id));
@@ -527,8 +857,44 @@ global with sharing class PlannerMobileRestService {
       FieldPlannerController.rescheduleVisits(visitIds, starts, ends);
     } else if (action.actionType == 'DELETE_VISIT') {
       FieldPlannerController.deleteVisit(blankToNullId((String) payload.get('visitId')));
+    } else if (action.actionType == 'SUBMIT_VISIT') {
+      Id visitId = blankToNullId((String) payload.get('visitId'));
+      if (visitId == null) {
+        visitId = blankToNullId(action.clientVisitKey);
+      }
+      FieldPlannerController.VisitSummary submitted = FieldPlannerController.submitVisit(visitId);
+      if (submitted != null && submitted.id != null && String.isNotBlank(action.clientVisitKey)) {
+        item.visitIdByClientKey.put(action.clientVisitKey, String.valueOf(submitted.id));
+      }
+    } else if (action.actionType == 'CREATE_MEETING') {
+      MeetingPlannerController.MeetingSummary created = MeetingPlannerController.createMeeting(
+        (String) payload.get('recordTypeDeveloperName'),
+        parseDt((String) payload.get('startDateTime')),
+        parseDt((String) payload.get('endDateTime')),
+        (String) payload.get('title'),
+        blankToNullId((String) payload.get('pharmaProjectId'))
+      );
+      if (created != null && created.id != null && String.isNotBlank(action.clientActionKey)) {
+        item.visitIdByClientKey.put(action.clientActionKey, String.valueOf(created.id));
+      }
+    } else if (action.actionType == 'UPDATE_MEETING') {
+      Id meetingId = optionalSalesforceId((String) payload.get('meetingId'));
+      if (meetingId == null) {
+        throw new OutboxException('Meeting is not saved yet.');
+      }
+      MeetingPlannerController.updateMeeting(
+        meetingId,
+        parseDt((String) payload.get('startDateTime')),
+        parseDt((String) payload.get('endDateTime')),
+        (String) payload.get('title')
+      );
+    } else if (action.actionType == 'DELETE_MEETING') {
+      Id meetingId = optionalSalesforceId((String) payload.get('meetingId'));
+      if (meetingId != null) {
+        MeetingPlannerController.deleteMeeting(meetingId);
+      }
     } else if (action.actionType == 'CREATE_TIME_OFF') {
-      FieldPlannerController.createTimeOff(
+      FieldPlannerController.TotSummary created = FieldPlannerController.createTimeOff(
         (String) payload.get('typeValue'),
         (String) payload.get('spanType'),
         (String) payload.get('durationHours'),
@@ -536,8 +902,65 @@ global with sharing class PlannerMobileRestService {
         (String) payload.get('comments'),
         (String) payload.get('stage')
       );
+      if (created != null && created.id != null) {
+        String totKey = String.isNotBlank(action.clientActionKey) ? action.clientActionKey : action.id;
+        if (String.isNotBlank(totKey)) {
+          item.visitIdByClientKey.put(totKey, String.valueOf(created.id));
+        }
+      }
+    } else if (action.actionType == 'CREATE_FIELD_REQUEST') {
+      FieldRequestService.RequestInput input = new FieldRequestService.RequestInput();
+      input.accountId = blankToNullId((String) payload.get('Account__c'));
+      input.visitId = blankToNullId((String) payload.get('Visit__c'));
+      input.productId = blankToNullId((String) payload.get('Product__c'));
+      input.kind = (String) payload.get('Kind__c');
+      input.requestType = (String) payload.get('Request_Type__c');
+      input.urgency = (String) payload.get('Urgency__c');
+      input.summary = (String) payload.get('Summary__c');
+      input.source = (String) payload.get('Source__c');
+      FieldRequestService.RequestView created = FieldRequestService.createRequest(input);
+      if (created != null && created.id != null && String.isNotBlank(action.clientActionKey)) {
+        item.visitIdByClientKey.put(action.clientActionKey, String.valueOf(created.id));
+      }
+    } else if (action.actionType == 'CREATE_FIELD_ORDER') {
+      FieldOrderService.OrderInput input = new FieldOrderService.OrderInput();
+      input.accountId = blankToNullId((String) payload.get('Account__c'));
+      input.visitId = blankToNullId((String) payload.get('Visit__c'));
+      input.orderType = (String) payload.get('Order_Type__c');
+      input.distributorName = (String) payload.get('Distributor_Name__c');
+      input.branchName = (String) payload.get('Branch_Name__c');
+      Object discount = payload.get('Discount_Percent__c');
+      if (discount != null) {
+        input.discountPercent = Decimal.valueOf(String.valueOf(discount));
+      }
+      input.foc = payload.get('FOC__c') == true;
+      input.notes = (String) payload.get('Notes__c');
+      input.source = (String) payload.get('Source__c');
+      input.submitNow = payload.get('submitNow') == true;
+      input.lines = new List<FieldOrderService.LineInput>();
+      Object rawLines = payload.get('lines');
+      if (rawLines instanceof List<Object>) {
+        for (Object rawLine : (List<Object>) rawLines) {
+          if (!(rawLine instanceof Map<String, Object>)) {
+            continue;
+          }
+          Map<String, Object> lineMap = (Map<String, Object>) rawLine;
+          FieldOrderService.LineInput line = new FieldOrderService.LineInput();
+          line.productId = blankToNullId((String) lineMap.get('productId'));
+          Object qty = lineMap.get('quantity');
+          if (qty != null) {
+            line.quantity = Decimal.valueOf(String.valueOf(qty));
+          }
+          line.notes = (String) lineMap.get('notes');
+          input.lines.add(line);
+        }
+      }
+      FieldOrderService.OrderView created = FieldOrderService.saveAndSubmit(input);
+      if (created != null && created.id != null && String.isNotBlank(action.clientActionKey)) {
+        item.visitIdByClientKey.put(action.clientActionKey, String.valueOf(created.id));
+      }
     } else {
-      throw new AuraHandledException('Unsupported outbox action: ' + action.actionType);
+      throw new OutboxException('Unsupported outbox action: ' + action.actionType);
     }
   }
 
@@ -918,6 +1341,18 @@ global with sharing class PlannerMobileRestService {
 
   private static Id blankToNullId(String value) {
     return String.isBlank(value) ? null : (Id) value;
+  }
+
+  /** Offline-created meetings carry a client key until they sync; those are not Salesforce Ids. */
+  private static Id optionalSalesforceId(String value) {
+    if (String.isBlank(value) || !Pattern.matches('[a-zA-Z0-9]{15}|[a-zA-Z0-9]{18}', value.trim())) {
+      return null;
+    }
+    try {
+      return (Id) value.trim();
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   private static Date parseDate(String value) {

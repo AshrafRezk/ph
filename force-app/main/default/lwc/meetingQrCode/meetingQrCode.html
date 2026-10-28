@@ -1,0 +1,7 @@
+<template>
+    <figure class="qr">
+        <canvas class="qr__canvas" aria-label="Check-in QR code"></canvas>
+        <figcaption lwc:if={caption} class="qr__caption">{caption}</figcaption>
+        <a lwc:if={hasImage} class="qr__download" href={pngUrl} download={downloadName}>Download PNG</a>
+    </figure>
+</template>

@@ -1,0 +1,60 @@
+<template>
+    <article class="visit-panel">
+        <div class="panel-header">
+            <div>
+                <h2 class="visit-panel-title">Store Check</h2>
+                <p class="visit-panel-subtitle">
+                    Take or upload photos of the pharmacy. Files save to this visit immediately.
+                </p>
+            </div>
+        </div>
+
+        <template if:false={disabled}>
+            <lightning-file-upload
+                label="Upload store photos"
+                name="storeCheckUpload"
+                accept=".jpg,.jpeg,.png,.webp,.gif,image/*"
+                record-id={visitId}
+                multiple
+                disabled={uploadDisabled}
+                onuploadfinished={handleUploadFinished}
+            ></lightning-file-upload>
+            <p class="upload-hint">On a phone, choose the camera or an existing photo.</p>
+        </template>
+        <template if:true={disabled}>
+            <p class="upload-hint">This visit is locked. Store check photos are read-only.</p>
+        </template>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading store photos" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={hasPhotos}>
+            <div class="photo-grid">
+                <template for:each={photos} for:item="photo">
+                    <figure key={photo.contentDocumentId} class="photo-card">
+                        <a href={photo.downloadUrl} target="_blank" rel="noreferrer">
+                            <img src={photo.thumbnailUrl} alt={photo.title} class="photo-image" />
+                        </a>
+                        <figcaption class="photo-caption">{photo.title}</figcaption>
+                        <template if:false={disabled}>
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                alternative-text="Delete photo"
+                                title="Delete photo"
+                                data-document-id={photo.contentDocumentId}
+                                onclick={handleDelete}
+                                disabled={isBusy}
+                            ></lightning-button-icon>
+                        </template>
+                    </figure>
+                </template>
+            </div>
+        </template>
+        <template if:false={hasPhotos}>
+            <template if:false={isLoading}>
+                <p class="empty-hint">No store photos yet. Upload the first picture of this pharmacy.</p>
+            </template>
+        </template>
+    </article>
+</template>

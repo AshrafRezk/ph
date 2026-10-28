@@ -3,6 +3,7 @@
     <fullName>MR_PET_CT_Target__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — PET/CT Target</description>
+    <externalId>false</externalId>
     <label>PET/CT Target</label>
     <precision>16</precision>
     <required>false</required>

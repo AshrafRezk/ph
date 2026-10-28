@@ -1,0 +1,68 @@
+:host {
+    display: block;
+    max-width: 100%;
+}
+
+.slds-form-element {
+    min-width: 0;
+    margin-bottom: var(--slds-c-form-element-spacing-block-end, 0.75rem);
+}
+
+.slds-form-element__label {
+    display: block;
+    margin: 0 0 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #181818;
+}
+
+.slds-form-element__control {
+    min-width: 0;
+}
+
+.slds-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: var(--zeta-field-control-height, 2.75rem);
+    padding: 0.45rem 0.7rem;
+    border: 1px solid #c9c7c5;
+    border-radius: 0.25rem;
+    background: #fff;
+    color: #181818;
+    font: inherit;
+    font-size: 0.9375rem;
+}
+
+.slds-input:focus {
+    outline: none;
+    border-color: #0176d3;
+    box-shadow: 0 0 0 1px #0176d3;
+}
+
+.slds-input:disabled {
+    background: #f3f3f3;
+    color: #706e6b;
+}
+
+.slds-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+}
+
+.slds-checkbox input {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    flex: none;
+}
+
+.slds-checkbox .slds-form-element__label {
+    display: inline;
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+}

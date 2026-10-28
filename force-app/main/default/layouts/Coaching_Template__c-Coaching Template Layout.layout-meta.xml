@@ -46,6 +46,19 @@
     <layoutSections>
         <customLabel>true</customLabel>
         <detailHeading>true</detailHeading>
+        <editHeading>false</editHeading>
+        <label>Questions JSON</label>
+        <layoutColumns>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>Questions_JSON__c</field>
+            </layoutItems>
+        </layoutColumns>
+        <style>OneColumn</style>
+    </layoutSections>
+    <layoutSections>
+        <customLabel>false</customLabel>
+        <detailHeading>true</detailHeading>
         <editHeading>true</editHeading>
         <label>System Information</label>
         <layoutColumns>
@@ -62,7 +75,24 @@
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>
+    <layoutSections>
+        <customLabel>false</customLabel>
+        <detailHeading>false</detailHeading>
+        <editHeading>false</editHeading>
+        <layoutColumns/>
+        <style>CustomLinks</style>
+    </layoutSections>
+    <relatedLists>
+        <fields>NAME</fields>
+        <fields>Employee__c</fields>
+        <fields>Manager__c</fields>
+        <fields>Status__c</fields>
+        <fields>Event_Start__c</fields>
+        <relatedList>Coaching_Event__c.Coaching_Template__c</relatedList>
+    </relatedLists>
     <showEmailCheckbox>false</showEmailCheckbox>
+    <showHighlightsPanel>false</showHighlightsPanel>
+    <showInteractionLogPanel>false</showInteractionLogPanel>
     <showRunAssignmentRulesCheckbox>false</showRunAssignmentRulesCheckbox>
     <showSubmitAndAttachButton>false</showSubmitAndAttachButton>
 </Layout>

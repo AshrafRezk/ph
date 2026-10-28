@@ -1,5 +1,11 @@
 public with sharing class ReportsHubController {
 
+    private static final Set<String> MANAGER_PERMISSION_SETS = new Set<String>{
+        'Pharma_Management_Access',
+        'Pharma_Management_App',
+        'Pharma_C_Levels_App'
+    };
+
     public class TileTarget {
         @AuraEnabled public String recordId;
         @AuraEnabled public String objectApiName;
@@ -13,6 +19,7 @@ public with sharing class ReportsHubController {
         targets.put('working-days-analysis', resolveReport('Working_Days_Analysis', 'Working Days Analysis'));
         targets.put('medical-rep-360', resolveDashboard('Medical_Rep_360_Dashboard', 'Management'));
         targets.put('pharmacy-sales', resolveCustomTab('Pharmacy_Sales_Dashboard'));
+        targets.put('kam-management', resolveManagerTab('KAM_Management_Dashboard'));
         return targets;
     }
 
@@ -62,5 +69,33 @@ public with sharing class ReportsHubController {
         target.apiName = tabApiName;
         target.accessible = true;
         return target;
+    }
+
+    private static TileTarget resolveManagerTab(String tabApiName) {
+        TileTarget target = resolveCustomTab(tabApiName);
+        target.accessible = currentUserCanOpenKam();
+        return target;
+    }
+
+    private static Boolean currentUserCanOpenKam() {
+        if (isSystemAdministrator()) {
+            return true;
+        }
+        return [
+            SELECT COUNT()
+            FROM PermissionSetAssignment
+            WHERE AssigneeId = :UserInfo.getUserId()
+            AND PermissionSet.Name IN :MANAGER_PERMISSION_SETS
+        ] > 0;
+    }
+
+    private static Boolean isSystemAdministrator() {
+        List<User> users = [
+            SELECT Profile.Name
+            FROM User
+            WHERE Id = :UserInfo.getUserId()
+            LIMIT 1
+        ];
+        return !users.isEmpty() && users[0].Profile != null && users[0].Profile.Name == 'System Administrator';
     }
 }

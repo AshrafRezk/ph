@@ -1,0 +1,173 @@
+{
+  "info": {
+    "name": "Zeta Pharma — Mendix Integration API",
+    "description": "OAuth client-credentials for Mendix Integration API (Meetings now; Time Off / TOT next).\n\nMeetings GET: list, detail with base64 invoices, attachment download.\n\n1) Set collection variables consumer_key and consumer_secret.\n2) Run \"Get Access Token\".\n3) Run List / Get Detail requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "instance_url", "value": "https://zetapharma.my.salesforce.com" },
+    { "key": "consumer_key", "value": "3MVG9U65ySgtae71Qj6sHa91riTQ7YsIfolfXII_SSnlT9AGCEglUrVPiYSiM2ZBP5ntbCKR1PLqBBYSeGL3o" },
+    { "key": "consumer_secret", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "meeting_key", "value": "MTG-DEMO-SPEAKER" },
+    { "key": "content_document_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Get Access Token (Client Credentials)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', json.access_token);",
+                  "  if (json.instance_url) { pm.collectionVariables.set('instance_url', json.instance_url); }",
+                  "  pm.test('Got access_token', function () { pm.expect(json.access_token).to.be.ok; });",
+                  "} else {",
+                  "  pm.test('Token request failed — set consumer_secret from Salesforce Setup', function () { pm.expect.fail(pm.response.text()); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{consumer_key}}" },
+                { "key": "client_secret", "value": "{{consumer_secret}}" }
+              ]
+            },
+            "url": "{{instance_url}}/services/oauth2/token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meetings",
+      "item": [
+        {
+          "name": "List Meetings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Has records', function () { pm.expect(json.records).to.be.an('array'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{instance_url}}/services/apexrest/meetings/v1?limit=20",
+              "host": ["{{instance_url}}"],
+              "path": ["services", "apexrest", "meetings", "v1"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "", "disabled": true },
+                { "key": "recordType", "value": "Speaker_Meeting", "disabled": true },
+                { "key": "updatedSince", "value": "2026-09-01T00:00:00Z", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Meeting Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Has expenses array', function () { pm.expect(json.expenses).to.be.an('array'); });",
+                  "if (json.attachments && json.attachments.length) {",
+                  "  pm.collectionVariables.set('content_document_id', json.attachments[0].contentDocumentId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{instance_url}}/services/apexrest/meetings/v1/{{meeting_key}}"
+          }
+        },
+        {
+          "name": "Get Meeting Detail (with base64 for Mendix DB)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Attachment has contentBase64', function () {",
+                  "  pm.expect(json.attachments && json.attachments.length).to.be.above(0);",
+                  "  pm.expect(json.attachments[0].contentBase64).to.be.ok;",
+                  "});",
+                  "if (json.attachments && json.attachments.length) {",
+                  "  pm.collectionVariables.set('content_document_id', json.attachments[0].contentDocumentId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{instance_url}}/services/apexrest/meetings/v1/{{meeting_key}}?includeContent=true"
+          }
+        },
+        {
+          "name": "Download Attachment (binary)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Has body bytes', function () { pm.expect(pm.response.stream.length).to.be.above(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{instance_url}}/services/apexrest/meetings/v1/{{meeting_key}}/attachments/{{content_document_id}}"
+          }
+        }
+      ]
+    }
+  ]
+}

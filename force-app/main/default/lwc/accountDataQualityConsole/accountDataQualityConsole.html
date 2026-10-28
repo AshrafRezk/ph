@@ -1,0 +1,278 @@
+<template>
+    <div class="wrap">
+        <div class="tabs">
+            <template for:each={tabs} for:item="tab">
+                <button
+                    key={tab.id}
+                    class={tab.className}
+                    data-tab-id={tab.id}
+                    onclick={handleTabClick}
+                    type="button"
+                >
+                    {tab.label}
+                </button>
+            </template>
+        </div>
+
+        <template if:true={isSpecialtyTab}>
+            <c-doctor-specialty-merger></c-doctor-specialty-merger>
+        </template>
+
+        <div class="panel" if:true={isScanTab}>
+            <p class="help">
+                <template if:true={isDuplicatesTab}>
+                    Scan existing accounts with cognitive name matching. Review pairs, then mark or merge
+                    only the rows you greenlight.
+                </template>
+                <template if:true={isNurtureTab}>
+                    Search Google Places and Vezeeta for missing or conflicting data. Review fills and
+                    corrections, then greenlight all or some fields.
+                </template>
+            </p>
+
+            <div class="filters">
+                <template for:each={recordTypeOptions} for:item="opt">
+                    <label key={opt.value} class="filter-check">
+                        <input
+                            type="checkbox"
+                            value={opt.value}
+                            checked={opt.checked}
+                            onchange={handleRecordTypeToggle}
+                        />
+                        {opt.label}
+                    </label>
+                </template>
+                <template if:true={isDuplicatesTab}>
+                    <label class="filter-check">
+                        <input
+                            type="checkbox"
+                            checked={showPossible}
+                            onchange={handleShowPossibleToggle}
+                        />
+                        Show Possible (50-69%)
+                    </label>
+                </template>
+                <template if:true={isNurtureTab}>
+                    <label class="filter-check">
+                        <input
+                            type="checkbox"
+                            checked={skipRecentlyReviewed}
+                            onchange={handleSkipToggle}
+                        />
+                        Skip accounts reviewed in the last 30 days
+                    </label>
+                </template>
+            </div>
+
+            <div class="toolbar">
+                <lightning-button
+                    label={runScanLabel}
+                    variant="brand"
+                    onclick={handleRunScan}
+                    disabled={isBusy}
+                ></lightning-button>
+                <lightning-button
+                    label="Refresh"
+                    onclick={refreshLatest}
+                    disabled={isBusy}
+                ></lightning-button>
+                <p class="summary">{runSummary}</p>
+            </div>
+
+            <template if:true={isBusy}>
+                <div class="progress">
+                    <p class="progress-msg">{progressMessage}</p>
+                    <lightning-progress-bar value={progressPercent} size="large"></lightning-progress-bar>
+                </div>
+            </template>
+
+            <template if:true={hasProposals}>
+                <div class="actions">
+                    <label class="select-all">
+                        <input
+                            type="checkbox"
+                            checked={allPendingSelected}
+                            onchange={handleSelectAll}
+                        />
+                        Select all pending
+                    </label>
+                    <lightning-button
+                        label="Dismiss selected"
+                        onclick={handleDismiss}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <lightning-button
+                        label="Greenlight selected"
+                        variant="brand"
+                        onclick={handleGreenlight}
+                        disabled={isBusy}
+                    ></lightning-button>
+                    <span class="muted">{selectedCount} selected</span>
+                </div>
+
+                <div class="list">
+                    <template for:each={proposalCards} for:item="row">
+                        <article key={row.id} class={row.cardClass}>
+                            <div class="card-top">
+                                <template if:true={row.isPending}>
+                                    <input
+                                        type="checkbox"
+                                        data-id={row.id}
+                                        checked={row.selected}
+                                        onchange={handleRowSelect}
+                                    />
+                                </template>
+                                <div class="card-body">
+                                    <p class="card-title">
+                                        {row.accountName}
+                                        <template if:true={row.isDuplicate}>
+                                            ↔ {row.matchAccountName}
+                                        </template>
+                                        <template if:true={row.isNurture}>
+                                            · {row.provider}: {row.externalName}
+                                        </template>
+                                        <span class={row.badgeClass}
+                                            >{row.scoreLabel} {row.possibilityLabel}</span
+                                        >
+                                        <span class="badge">{row.status}</span>
+                                    </p>
+                                    <p class="meta">{row.summary}</p>
+                                    <template if:true={row.externalDetail}>
+                                        <p class="meta">{row.externalDetail}</p>
+                                    </template>
+
+                                    <template if:true={row.hasFactors}>
+                                        <ul class="factors">
+                                            <template for:each={row.factors} for:item="factor">
+                                                <li key={factor.key} class="factor">
+                                                    <span>{factor.label}</span>
+                                                    <span>{factor.percent}%</span>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+
+                                    <template if:true={row.isDuplicate}>
+                                        <div class="decision-row">
+                                            <label class="filter-check">
+                                                <input
+                                                    type="radio"
+                                                    name={row.decisionGroupName}
+                                                    value="Mark"
+                                                    data-id={row.id}
+                                                    checked={row.markChecked}
+                                                    onchange={handleDecisionChange}
+                                                />
+                                                Mark as duplicate
+                                            </label>
+                                            <template if:true={row.showMerge}>
+                                                <label class="filter-check">
+                                                    <input
+                                                        type="radio"
+                                                        name={row.decisionGroupName}
+                                                        value="Merge"
+                                                        data-id={row.id}
+                                                        checked={row.mergeChecked}
+                                                        onchange={handleDecisionChange}
+                                                    />
+                                                    Merge into survivor
+                                                </label>
+                                            </template>
+                                            <template if:false={row.showMerge}>
+                                                <span class="muted"
+                                                    >Merge unavailable (person vs business)</span
+                                                >
+                                            </template>
+                                        </div>
+                                        <div class="decision-row">
+                                            <span class="muted">Survivor:</span>
+                                            <label class="filter-check">
+                                                <input
+                                                    type="radio"
+                                                    name={row.survivorGroupName}
+                                                    value={row.accountId}
+                                                    data-id={row.id}
+                                                    checked={row.survivorIsAccount}
+                                                    onchange={handleSurvivorChange}
+                                                />
+                                                {row.accountName}
+                                            </label>
+                                            <label class="filter-check">
+                                                <input
+                                                    type="radio"
+                                                    name={row.survivorGroupName}
+                                                    value={row.matchAccountId}
+                                                    data-id={row.id}
+                                                    checked={row.survivorIsMatch}
+                                                    onchange={handleSurvivorChange}
+                                                />
+                                                {row.matchAccountName}
+                                            </label>
+                                        </div>
+                                    </template>
+
+                                    <template if:true={row.hasDoctors}>
+                                        <ul class="doctors">
+                                            <template for:each={row.doctors} for:item="doctor">
+                                                <li key={doctor.key} class="doctor-row">
+                                                    <div>
+                                                        <strong>{doctor.name}</strong>
+                                                        <span class="meta"
+                                                            >{doctor.specialty} · {doctor.address}</span
+                                                        >
+                                                    </div>
+                                                    <lightning-button
+                                                        label="Use this doctor"
+                                                        data-id={row.id}
+                                                        data-url={doctor.urlName}
+                                                        onclick={handlePickDoctor}
+                                                        disabled={isBusy}
+                                                    ></lightning-button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+
+                                    <template if:true={row.hasFields}>
+                                        <ul class="fields">
+                                            <template for:each={row.fields} for:item="field">
+                                                <li key={field.key} class="field-row">
+                                                    <label class="filter-check">
+                                                        <input
+                                                            type="checkbox"
+                                                            data-id={row.id}
+                                                            data-field={field.field}
+                                                            checked={field.accepted}
+                                                            onchange={handleFieldToggle}
+                                                            disabled={row.fieldsLocked}
+                                                        />
+                                                        {field.label}
+                                                    </label>
+                                                    <span class={field.kindClass}>{field.kind}</span>
+                                                    <span class="muted"
+                                                        >{field.currentDisplay} →
+                                                        {field.proposedDisplay}</span
+                                                    >
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+
+                                    <template if:true={row.errorMessage}>
+                                        <p class="error">{row.errorMessage}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </article>
+                    </template>
+                </div>
+            </template>
+
+            <template if:false={hasProposals}>
+                <p class="muted">
+                    No proposals yet. Run a scan, then review outcomes here before greenlighting.
+                </p>
+            </template>
+        </div>
+    </div>
+</template>

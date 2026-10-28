@@ -1,12 +1,12 @@
-import { LightningElement, track } from 'lwc';
-import getExecutiveBuComparison from '@salesforce/apex/ManagementKpiController.getExecutiveBuComparison';
-import getExecutiveOrgSnapshot from '@salesforce/apex/ManagementKpiController.getExecutiveOrgSnapshot';
-import getExecutiveBuProductPerformance from '@salesforce/apex/ManagementKpiController.getExecutiveBuProductPerformance';
-import getTeamKpis from '@salesforce/apex/ManagementKpiController.getTeamKpis';
-import getLineOptions from '@salesforce/apex/ManagementKpiController.getLineOptions';
-import getDistrictOptions from '@salesforce/apex/ManagementKpiController.getDistrictOptions';
-import getWorkforceRoster from '@salesforce/apex/ManagementKpiController.getWorkforceRoster';
+import getDistrictOptions from '@salesforce/apex/TerritoryHierarchyService.getDistrictOptions';
 import getEmployeeAttendanceDetail from '@salesforce/apex/ManagementKpiController.getEmployeeAttendanceDetail';
+import getExecutiveBuComparison from '@salesforce/apex/ManagementKpiController.getExecutiveBuComparison';
+import getExecutiveBuProductPerformance from '@salesforce/apex/ManagementKpiController.getExecutiveBuProductPerformance';
+import getExecutiveOrgSnapshot from '@salesforce/apex/ManagementKpiController.getExecutiveOrgSnapshot';
+import getLineOptions from '@salesforce/apex/TerritoryHierarchyService.getLineOptions';
+import getTeamKpis from '@salesforce/apex/ManagementKpiController.getTeamKpis';
+import getWorkforceRoster from '@salesforce/apex/ManagementKpiController.getWorkforceRoster';
+import { LightningElement, track } from 'lwc';
 
 const WORKFORCE_TILE_IDS = new Set(['reps', 'managers']);
 const RING_CIRCUMFERENCE = 2 * Math.PI * 22;
@@ -779,7 +779,10 @@ export default class CLevelsExecutiveHome extends LightningElement {
 
     async loadLineOptions() {
         try {
-            const data = await getLineOptions({ buTerritoryId: this.selectedBuId });
+            const data = await getLineOptions({
+                businessUnitTerritoryId:
+                    !this.selectedBuId || this.selectedBuId === 'ALL' ? null : this.selectedBuId
+            });
             this.lineOptions = data.map((option) => ({ label: option.label, value: option.value }));
         } catch (error) {
             this.lineOptions = [{ label: 'All Lines', value: 'ALL' }];
@@ -788,7 +791,9 @@ export default class CLevelsExecutiveHome extends LightningElement {
 
     async loadDistrictOptions() {
         try {
-            const data = await getDistrictOptions({ lineTerritoryId: this.selectedLine });
+            const data = await getDistrictOptions({
+                lineTerritoryId: !this.selectedLine || this.selectedLine === 'ALL' ? null : this.selectedLine
+            });
             this.districtOptions = data.map((option) => ({ label: option.label, value: option.value }));
         } catch (error) {
             this.districtOptions = [{ label: 'All Districts', value: 'ALL' }];
@@ -853,7 +858,8 @@ export default class CLevelsExecutiveHome extends LightningElement {
             this.summary = await getTeamKpis({
                 buTerritoryId: this.selectedBuId,
                 lineTerritoryId: this.selectedLine,
-                districtTerritoryId: this.selectedDistrict
+                districtTerritoryId: this.selectedDistrict,
+                periodMonthKey: null
             });
             const rootKeys = (this.summary?.drillDown || []).map((row) => row.key);
             this.expandedKeys = new Set(rootKeys);

@@ -121,9 +121,11 @@ async function loadAffiliations(config) {
 
     const addNode = (id, name, accountType, isActive) => {
         if (!id || nodeMap.has(id)) return;
+        const displayName = name || String(id);
         nodeMap.set(id, {
             id: String(id),
-            name: name || String(id),
+            label: displayName,
+            name: displayName,
             accountType: accountType || null,
             isActive: isActive !== false,
             hasMoreAffiliations: false

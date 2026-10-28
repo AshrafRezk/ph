@@ -1,0 +1,39 @@
+<template>
+    <div class="tools-shell">
+        <div class="tools-warn">
+            This is the live Zeta org. These tools act with your full admin access, so use them to read and check data, not to bulk-change it. Exporting HCP or pharmacy data out of Salesforce needs IT approval. Never mass-delete accounts or overwrite plan cycles; set records inactive instead.
+        </div>
+
+        <section class="tools-section">
+            <h2>Chrome extensions</h2>
+            <template for:each={extensions} for:item="ext">
+                <article key={ext.id} class="tools-card">
+                    <h3>{ext.name}</h3>
+                    <p>{ext.blurb}</p>
+                    <a class="ext-link" href={ext.url} target="_blank" rel="noopener noreferrer">Open store / download</a>
+                </article>
+            </template>
+        </section>
+
+        <section class="tools-section">
+            <h2>Useful SOQL</h2>
+            <p>Paste into Salesforce Inspector or Developer Console. Adjust LIMIT and filters before running.</p>
+            <template for:each={queries} for:item="q">
+                <article key={q.id} class="tools-card">
+                    <h3>{q.title}</h3>
+                    <pre>{q.soql}</pre>
+                </article>
+            </template>
+        </section>
+
+        <section class="tools-section">
+            <h2>DML operations</h2>
+            <template for:each={dmlDocs} for:item="d">
+                <article key={d.id} class="tools-card">
+                    <h3>{d.title}</h3>
+                    <p>{d.body}</p>
+                </article>
+            </template>
+        </section>
+    </div>
+</template>

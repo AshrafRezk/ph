@@ -1,0 +1,155 @@
+<template>
+    <section class="dp">
+        <header class="dp-header">
+            <h1 class="dp-title">Monthly data pack</h1>
+            <p class="dp-sub">
+                Drop the month's zip (nested zips are opened too). Each file is fingerprinted, recognised and previewed
+                before anything is written. Sales, leave, time off and historical visits import in staged server batches.
+            </p>
+        </header>
+
+        <div
+            class={dropClass}
+            ondragover={handleDragOver}
+            ondragleave={handleDragLeave}
+            ondrop={handleDrop}
+        >
+            <lightning-icon icon-name="utility:upload" size="small" class="dp-drop-icon"></lightning-icon>
+            <p class="dp-drop-text">Drop a .zip (or spreadsheets) here, or choose files</p>
+            <lightning-input
+                type="file"
+                label="Choose data pack files"
+                variant="label-hidden"
+                accept=".zip,.xlsx,.xls,.xlsm,.csv"
+                multiple
+                disabled={isBusy}
+                onchange={handleFileInput}
+            ></lightning-input>
+        </div>
+
+        <template if:true={statusMessage}>
+            <p class="dp-status-line" role="status">
+                <template if:true={isBusy}>
+                    <lightning-spinner alternative-text="Working" size="x-small" class="dp-inline-spinner"></lightning-spinner>
+                </template>
+                {statusMessage}
+            </p>
+        </template>
+
+        <template if:true={hasSkipped}>
+            <p class="dp-muted">Ignored: {skippedSummary}</p>
+        </template>
+
+        <template if:true={hasFiles}>
+            <div class="dp-controls">
+                <lightning-input
+                    label="Report month (YYYY-MM)"
+                    value={reportMonth}
+                    placeholder="2026-09"
+                    onchange={handleReportMonthChange}
+                    class="dp-month"
+                ></lightning-input>
+                <p class="dp-muted dp-month-help">
+                    Filled from the sales file dates. A month you type is never replaced. It applies to sales files; leave and time off use their own dates.
+                </p>
+            </div>
+            <template if:true={hasMonthNotice}>
+                <p class="dp-warn">{monthNotice}</p>
+            </template>
+
+            <table class="dp-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Import</th>
+                        <th scope="col">File</th>
+                        <th scope="col">Recognised as</th>
+                        <th scope="col">Rows</th>
+                        <th scope="col">Size</th>
+                        <th scope="col">Fingerprint</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={fileRows} for:item="f">
+                        <tr key={f.key}>
+                            <td>
+                                <lightning-input
+                                    type="checkbox"
+                                    variant="label-hidden"
+                                    label="Include in import"
+                                    data-key={f.key}
+                                    checked={f.selected}
+                                    disabled={f.checkDisabled}
+                                    onchange={handleSelect}
+                                ></lightning-input>
+                            </td>
+                            <td>
+                                <span class="dp-file">{f.name}</span>
+                                <span class="dp-muted dp-path">{f.path}</span>
+                            </td>
+                            <td>{f.kindLabel}</td>
+                            <td class="dp-num">{f.rowsLabel}</td>
+                            <td class="dp-num">{f.sizeLabel}</td>
+                            <td><code class="dp-fp">{f.fingerprintShort}</code></td>
+                            <td><span class={f.statusClass}>{f.statusText}</span></td>
+                            <td>
+                                <span class="dp-sample">{f.sample}</span>
+                                <span class="dp-muted dp-note">{f.note}</span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+
+            <div class="dp-actions">
+                <lightning-button
+                    variant="brand"
+                    label="Import selected"
+                    disabled={importDisabled}
+                    onclick={handleImport}
+                ></lightning-button>
+                <lightning-button label="Start over" disabled={isBusy} onclick={handleReset}></lightning-button>
+                <lightning-button
+                    label="Download error CSV"
+                    icon-name="utility:download"
+                    disabled={errorButtonDisabled}
+                    onclick={handleDownloadErrors}
+                ></lightning-button>
+                <span class="dp-muted">{clientErrorCount} row(s) rejected in the browser</span>
+            </div>
+        </template>
+
+        <template if:true={hasBatches}>
+            <h2 class="dp-h2">Import progress</h2>
+            <table class="dp-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Batch</th>
+                        <th scope="col">File</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Progress</th>
+                        <th scope="col">Inserted</th>
+                        <th scope="col">Updated</th>
+                        <th scope="col">Not imported</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={batchRows} for:item="b">
+                        <tr key={b.key}>
+                            <td>{b.batchName}</td>
+                            <td>{b.fileName}</td>
+                            <td>{b.kind}</td>
+                            <td><span class={b.statusClass}>{b.status}</span></td>
+                            <td>{b.progress}</td>
+                            <td class="dp-num">{b.rowsInserted}</td>
+                            <td class="dp-num">{b.rowsUpdated}</td>
+                            <td class="dp-num">{b.rowsFailed}</td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </template>
+    </section>
+</template>

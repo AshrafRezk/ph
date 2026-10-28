@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_Placement__c</fullName>
+    <description>Result of placing this client's location in a brick region: inside a region, snapped to the nearest region across a small gap, approximate location (too coarse to place), outside all regions, or no location.</description>
+    <label>Brick Placement</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>In region</fullName>
+                <default>false</default>
+                <label>In region</label>
+            </value>
+            <value>
+                <fullName>Nearest region</fullName>
+                <default>false</default>
+                <label>Nearest region</label>
+            </value>
+            <value>
+                <fullName>Approximate location</fullName>
+                <default>false</default>
+                <label>Approximate location</label>
+            </value>
+            <value>
+                <fullName>Address match</fullName>
+                <default>false</default>
+                <label>Address match</label>
+            </value>
+            <value>
+                <fullName>Outside regions</fullName>
+                <default>false</default>
+                <label>Outside regions</label>
+            </value>
+            <value>
+                <fullName>No location</fullName>
+                <default>false</default>
+                <label>No location</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

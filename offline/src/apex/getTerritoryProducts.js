@@ -38,7 +38,7 @@ function mapProduct(p, atpf) {
     };
 }
 
-async function loadTerritoryProducts(params) {
+export async function loadTerritoryProducts(params) {
     const visitId = params && params.visitId;
     if (!visitId) {
         return [];
@@ -74,6 +74,32 @@ async function loadTerritoryProducts(params) {
         'Parent_Product__r.Name, Primary_Brand__c, Strength__c, Form__c ' +
         `FROM Product2 WHERE Id IN (${quoteList(productIds)}) AND IsActive = TRUE ORDER BY Name ASC`
     );
+
+    const parentIds = new Set();
+    products.forEach((p) => {
+        if (p.Id) {
+            parentIds.add(p.Id);
+        }
+        if (p.Parent_Product__c) {
+            parentIds.add(p.Parent_Product__c);
+        }
+    });
+    if (parentIds.size) {
+        const siblings = await soql(
+            'SELECT Id, Name, Product_Image_URL__c, Product_Type__c, Parent_Product__c, ' +
+            'Parent_Product__r.Name, Primary_Brand__c, Strength__c, Form__c ' +
+            'FROM Product2 WHERE IsActive = TRUE ' +
+            "AND Product_Type__c IN ('Sample','Brand Reminder') " +
+            `AND Parent_Product__c IN (${quoteList([...parentIds])}) ORDER BY Name ASC`
+        );
+        const seen = new Set(products.map((p) => p.Id));
+        siblings.forEach((p) => {
+            if (p.Id && !seen.has(p.Id)) {
+                seen.add(p.Id);
+                products.push(p);
+            }
+        });
+    }
 
     return products.map((p) => mapProduct(p, atpfByProduct.get(p.Id)));
 }

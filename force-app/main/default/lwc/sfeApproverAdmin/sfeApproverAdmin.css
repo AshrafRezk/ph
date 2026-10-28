@@ -1,0 +1,124 @@
+.sfa-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.sfa-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.sfa-subtitle {
+    margin: 0.35rem 0 0;
+    max-width: 44rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.sfa-error {
+    color: #c23934;
+}
+
+.sfa-add {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.sfa-picker {
+    flex: 0 1 22rem;
+}
+
+.sfa-empty,
+.sfa-footnote {
+    color: #706e6b;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.sfa-footnote {
+    margin: 0.75rem 0 0;
+    max-width: 44rem;
+}
+
+.sfa-scroll {
+    overflow-x: auto;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.sfa-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+}
+
+.sfa-table th,
+.sfa-table td {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid #f3f3f3;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.sfa-table thead th {
+    background: #f7f8fa;
+    font-weight: 700;
+    color: #3e3e3c;
+}
+
+.sfa-table .sfa-split {
+    border-left: 1px solid #e5e5e5;
+}
+
+.sfa-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    text-align: left !important;
+    background: #fff;
+    min-width: 11rem;
+}
+
+.sfa-table thead .sfa-sticky {
+    z-index: 2;
+    background: #f7f8fa;
+}
+
+.sfa-name {
+    display: block;
+    font-weight: 700;
+    color: #181818;
+}
+
+.sfa-meta {
+    display: block;
+    margin-top: 0.1rem;
+    color: #706e6b;
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+.sfa-row--off th,
+.sfa-row--off td {
+    opacity: 0.55;
+}
+
+.sfa-table tbody tr:last-child th,
+.sfa-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.sfa-table input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: #0176d3;
+}

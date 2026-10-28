@@ -1,8 +1,13 @@
 public with sharing class HcpProductRoiController {
+    @TestVisible static Boolean throwUnexpected = false;
+
     @AuraEnabled(cacheable=true)
-    public static HcpProductRoiService.RoiPayload getAccountRoi(Id accountId, Id productId) {
+    public static HcpProductRoiService.RoiPayload getAccountRoi(Id accountId, List<Id> productIds) {
         try {
-            return HcpProductRoiService.getAccountRoi(accountId, productId);
+            if (throwUnexpected) {
+                throw new QueryException('Unexpected ROI failure.');
+            }
+            return HcpProductRoiService.getAccountRoi(accountId, productIds);
         } catch (AuraHandledException ahe) {
             throw ahe;
         } catch (Exception e) {

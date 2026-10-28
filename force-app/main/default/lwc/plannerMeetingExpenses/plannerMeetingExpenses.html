@@ -1,0 +1,23 @@
+<template>
+    <div class="expense-panel">
+        <template if:true={errorMessage}>
+            <p class="expense-error">{errorMessage}</p>
+        </template>
+        <lightning-combobox label="Type" value={expenseType} options={typeOptions} onchange={handleType}></lightning-combobox>
+        <lightning-input class="slds-m-top_small" type="number" label="Amount" value={amount} onchange={handleAmount}></lightning-input>
+        <lightning-input class="slds-m-top_small" label="Comments" value={comments} onchange={handleComments}></lightning-input>
+        <div class="slds-m-top_small">
+            <lightning-button label="Add expense" variant="brand" onclick={handleAdd} disabled={addDisabled}></lightning-button>
+        </div>
+        <template if:true={hasRows}>
+            <ul class="expense-list">
+                <template for:each={rows} for:item="row">
+                    <li key={row.id}>
+                        <strong>{row.type}</strong>
+                        <span>{row.amountLabel} · {row.status}</span>
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </div>
+</template>

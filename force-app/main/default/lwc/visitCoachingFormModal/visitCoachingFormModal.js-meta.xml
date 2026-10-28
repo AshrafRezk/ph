@@ -3,5 +3,5 @@
     <apiVersion>67.0</apiVersion>
     <isExposed>false</isExposed>
     <masterLabel>Visit Coaching Form Modal</masterLabel>
-    <description>Modal to create a double-visit coaching event from a visit record.</description>
+    <description>Modal to coach a visit and optionally include other same-day visits for the same rep.</description>
 </LightningComponentBundle>

@@ -24,15 +24,15 @@ const AFFILIATION_ICON_PATHS = {
 };
 
 const AFFILIATION_ICON_COLORS = {
-    hcp: '#0176d3',
-    hco: '#6a1b9a',
-    pharmacy: '#2e844a'
+    hcp: '#3f7de5',
+    hco: '#fdbf29',
+    pharmacy: '#176935'
 };
 
 const AFFILIATION_ICON_BACKGROUNDS = {
-    hcp: '#e8f4fd',
-    hco: '#f3e8fd',
-    pharmacy: '#e8f5e9'
+    hcp: '#eaf1fc',
+    hco: '#fff6dc',
+    pharmacy: '#e8f4ec'
 };
 
 export default class AccountAffiliationNetwork extends NavigationMixin(LightningElement) {
@@ -569,7 +569,7 @@ export default class AccountAffiliationNetwork extends NavigationMixin(Lightning
         const iconType = node.iconType || this.resolveIconType(node.accountType);
         const isHighlighted = node.isSelected || node.isOnPath;
         const baseColor = AFFILIATION_ICON_COLORS[iconType] || AFFILIATION_ICON_COLORS.hco;
-        const iconFill = isHighlighted ? '#ffffff' : baseColor;
+        const iconFill = iconType === 'hco' ? '#3a2a00' : isHighlighted ? '#ffffff' : baseColor;
         const iconX = node.x + 9;
         const iconY = node.y + 10;
         const size = 24;

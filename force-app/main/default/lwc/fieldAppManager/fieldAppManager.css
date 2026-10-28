@@ -1,0 +1,93 @@
+.fam {
+    max-width: 52rem;
+}
+
+.fam-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.fam-subtitle {
+    margin: 0.35rem 0 1.25rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.fam-error {
+    color: #c23934;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.fam-section {
+    margin-bottom: 1.25rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.625rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.fam-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: #f7f8fa;
+    border-bottom: 1px solid #ecebea;
+}
+
+.fam-section-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.fam-section-desc {
+    margin: 0.2rem 0 0;
+    font-size: 0.78rem;
+    color: #706e6b;
+}
+
+.fam-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.fam-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #f3f3f3;
+}
+
+.fam-row:first-child {
+    border-top: none;
+}
+
+.fam-row--nested {
+    padding-left: 1.75rem;
+    background: #fbfbfb;
+}
+
+.fam-row--disabled {
+    opacity: 0.55;
+}
+
+.fam-name {
+    font-weight: 600;
+    color: #181818;
+}
+
+.fam-desc {
+    font-size: 0.8125rem;
+    color: #706e6b;
+    margin-top: 0.125rem;
+}

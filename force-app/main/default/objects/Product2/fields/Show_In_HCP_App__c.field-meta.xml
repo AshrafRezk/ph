@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Show_In_HCP_App__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Lists the product in the Products tab of the Zeta app for HCPs (/meet site).</description>
+    <inlineHelpText>Only products approved for HCP communication should be ticked.</inlineHelpText>
+    <label>Show in HCP App</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,296 @@
+<template>
+    <section class="logistics">
+        <header class="logistics-header">
+            <div>
+                <h3 class="logistics-title">Sample logistics</h3>
+                <p class="logistics-subtitle">
+                    PM / Brand Reminder request → Supply Chain allocates lots to reps → inventory by
+                    product, lot, and expiry. Transfer or return as needed.
+                </p>
+            </div>
+            <lightning-button label="Refresh" onclick={refresh} disabled={isBusy}></lightning-button>
+        </header>
+
+        <template if:true={errorMessage}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+                {errorMessage}
+            </div>
+        </template>
+
+        <template if:true={isLoading}>
+            <div class="loading-wrap">
+                <lightning-spinner alternative-text="Loading sample logistics" size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <lightning-tabset>
+            <lightning-tab label="Requests">
+                <div class="request-form">
+                    <h4 class="section-title">New request</h4>
+                    <p class="section-hint">Brand / product managers submit Sample or Brand Reminder demand to Supply Chain.</p>
+                    <template if:false={hasProducts}>
+                        <p class="empty-copy">
+                            No active Sample or Brand Reminder products. Add them in Products Manager first.
+                        </p>
+                    </template>
+                    <template if:true={hasProducts}>
+                        <div class="form-grid">
+                            <lightning-combobox
+                                label="Product"
+                                placeholder="Sample or Brand Reminder"
+                                options={products}
+                                value={requestProductId}
+                                data-field="product"
+                                onchange={handleRequestField}
+                            ></lightning-combobox>
+                            <lightning-input
+                                type="number"
+                                label="Quantity"
+                                min="1"
+                                value={requestQuantity}
+                                data-field="quantity"
+                                onchange={handleRequestField}
+                            ></lightning-input>
+                            <lightning-combobox
+                                label="Preferred rep (optional)"
+                                placeholder="Any rep"
+                                options={reps}
+                                value={requestTargetRepId}
+                                data-field="rep"
+                                onchange={handleRequestField}
+                            ></lightning-combobox>
+                            <lightning-input
+                                label="Notes"
+                                value={requestNotes}
+                                data-field="notes"
+                                onchange={handleRequestField}
+                            ></lightning-input>
+                        </div>
+                        <div class="form-actions">
+                            <lightning-button
+                                variant="brand"
+                                label="Submit to Supply Chain"
+                                onclick={handleSubmitRequest}
+                                disabled={isSubmitDisabled}
+                            ></lightning-button>
+                        </div>
+                    </template>
+                </div>
+
+                <h4 class="section-title">Request queue</h4>
+                <template if:false={hasRequests}>
+                    <p class="empty-copy">No sample requests yet.</p>
+                </template>
+                <template if:true={hasRequests}>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Request</th>
+                                <th>Product</th>
+                                <th>Type</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                                <th>Requester</th>
+                                <th>Target rep</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={requests} for:item="row">
+                                <tr key={row.id} class={row.rowClass}>
+                                    <td>
+                                        <div class="cell-strong">{row.name}</div>
+                                        <div class="cell-muted">{row.submittedLabel}</div>
+                                    </td>
+                                    <td>{row.productName}</td>
+                                    <td>{row.requestType}</td>
+                                    <td>{row.requestedLabel}</td>
+                                    <td><span class={row.statusClass}>{row.status}</span></td>
+                                    <td>{row.requestedByName}</td>
+                                    <td>{row.targetRepName}</td>
+                                    <td class="actions">
+                                        <template if:true={row.canAllocate}>
+                                            <lightning-button
+                                                label="Allocate"
+                                                data-id={row.id}
+                                                onclick={openAllocate}
+                                            ></lightning-button>
+                                            <lightning-button
+                                                label="Cancel"
+                                                data-id={row.id}
+                                                onclick={handleCancelRequest}
+                                            ></lightning-button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+            </lightning-tab>
+
+            <lightning-tab label="Rep inventory">
+                <p class="section-hint">
+                    On-hand lots by product, lot, expiry, and rep. Transfer between reps or return to Supply Chain.
+                </p>
+                <template if:false={hasInventory}>
+                    <p class="empty-copy">No allocated inventory yet. Allocate an open request first.</p>
+                </template>
+                <template if:true={hasInventory}>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Lot</th>
+                                <th>Expiry</th>
+                                <th>Qty</th>
+                                <th>Rep</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template for:each={inventory} for:item="row">
+                                <tr key={row.inventoryId} class={row.rowClass}>
+                                    <td>
+                                        <div class="cell-strong">{row.productName}</div>
+                                        <div class="cell-muted">{row.productType}</div>
+                                    </td>
+                                    <td>{row.lotNumber}</td>
+                                    <td>{row.expiryLabel}</td>
+                                    <td>{row.quantityOnHand}</td>
+                                    <td>{row.ownerUserName}</td>
+                                    <td class="actions">
+                                        <lightning-button
+                                            label="Transfer"
+                                            data-id={row.inventoryId}
+                                            onclick={openTransfer}
+                                            disabled={row.expired}
+                                        ></lightning-button>
+                                        <lightning-button
+                                            label="Return"
+                                            data-id={row.inventoryId}
+                                            onclick={openReturn}
+                                        ></lightning-button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+            </lightning-tab>
+        </lightning-tabset>
+    </section>
+
+    <template if:true={showAllocate}>
+        <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_small" aria-modal="true">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">Allocate to rep</h2>
+                    <p class="slds-m-top_x-small">{allocateForm.requestLabel}</p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <lightning-combobox
+                        label="Rep"
+                        options={reps}
+                        value={allocateForm.repUserId}
+                        data-field="repUserId"
+                        onchange={handleAllocateField}
+                    ></lightning-combobox>
+                    <lightning-input
+                        label="Lot number"
+                        value={allocateForm.lotNumber}
+                        data-field="lotNumber"
+                        onchange={handleAllocateField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                    <lightning-input
+                        type="date"
+                        label="Expiry date"
+                        min={todayIso}
+                        message-when-range-underflow="This lot has expired and can't be allocated."
+                        value={allocateForm.expiryDate}
+                        data-field="expiryDate"
+                        onchange={handleAllocateField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                    <lightning-input
+                        type="number"
+                        label="Quantity"
+                        min="1"
+                        max={allocateForm.remaining}
+                        value={allocateForm.quantity}
+                        data-field="quantity"
+                        onchange={handleAllocateField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                    <lightning-input
+                        label="Notes"
+                        value={allocateForm.notes}
+                        data-field="notes"
+                        onchange={handleAllocateField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeAllocate}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Allocate"
+                        onclick={handleAllocateSave}
+                        disabled={isAllocateDisabled}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showMove}>
+        <section role="dialog" class="slds-modal slds-fade-in-open slds-modal_small" aria-modal="true">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">{moveTitle}</h2>
+                    <p class="slds-m-top_x-small">{moveLabel}</p>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={showMoveRep}>
+                        <lightning-combobox
+                            label="Destination rep"
+                            options={reps}
+                            value={moveRepId}
+                            data-field="rep"
+                            onchange={handleMoveField}
+                        ></lightning-combobox>
+                    </template>
+                    <lightning-input
+                        type="number"
+                        label="Quantity"
+                        min="1"
+                        max={moveMax}
+                        value={moveQuantity}
+                        data-field="quantity"
+                        onchange={handleMoveField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                    <lightning-input
+                        label="Notes"
+                        value={moveNotes}
+                        data-field="notes"
+                        onchange={handleMoveField}
+                        class="slds-m-top_small"
+                    ></lightning-input>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeMove}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label={moveSubmitLabel}
+                        onclick={handleMoveSave}
+                        disabled={isMoveDisabled}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

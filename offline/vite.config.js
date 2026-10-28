@@ -7,7 +7,65 @@ import { transformSync } from '@lwc/compiler';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const lwcDir = path.resolve(root, '../force-app/main/default/lwc');
+const orgLwcDir = path.resolve(root, '../../Jennyazmy-Zeta/force-app/main/default/lwc');
+const zetaLwcDir = path.resolve(root, '../../force-app/main/default/lwc');
+// Care Coach Co-pilot bundles, synced from the ZetaPharma project by scripts/sync-care-coach-lwc.mjs.
+const externalLwcDir = path.resolve(root, 'lwc-external');
 const engineDom = path.resolve(root, 'node_modules/@lwc/engine-dom/dist/index.js');
+
+// These match the Salesforce org pages. Prefer them over the older ph copies.
+const ZETA_LWC_FIRST = new Set([
+    'fieldRepPlanner',
+    'accountsTab',
+    'accountsTabOceList',
+    'adminConsole',
+    'visitTabAdmin',
+    'distributorsManagement',
+    'meetingHome',
+    'meetingWorkspace',
+    'meetingScanner',
+    'meetingAccountingQueue',
+    'meetingQrCode',
+    'meetingQrLib',
+    'meetingUtils',
+    'homeOfficeMessages',
+    'stayInTheKnow',
+    'accountApprovalQueue',
+    'fieldRepHomeMetrics',
+    'fieldRepHomeTodayPlan',
+    'fieldRepHomeNextBestCustomer',
+    'fieldRepKpiDashboard',
+    'reportsHub',
+    'classEngineTab',
+    'repSalesVsTarget',
+    'visitCallShell',
+    // The root planner and call screens need the root copies (setWorkingDays, status rules);
+    // the ph/force-app copies are stale.
+    'visitStatusUtils',
+    'visitWorkspace',
+    'visitSampleGrid',
+    'fieldFeatureFlags',
+    'fieldAppManager',
+    'hcpPortalManager',
+    'fieldRequestsHome',
+    'fieldRequestsManagerStrip',
+    'fieldAccountLookup',
+    'fieldRequestSheet',
+    'visitFieldRequests',
+    'fieldOrdersHome',
+    'fieldOrdersManagerStrip',
+    'fieldOrderSheet',
+    'visitFieldOrders'
+]);
+
+const ORG_LWC_FIRST = new Set([
+    'managementTeamKpiDashboard',
+    'myTeamHierarchy',
+    'meetingApprovalQueue',
+    'timeOffApprovalQueue',
+    'accountApprovalQueue',
+    'accountDuplicateCheck'
+]);
 
 const ASSET_PREFIX = '\0lwc-asset:';
 
@@ -66,10 +124,50 @@ function componentMeta(filename) {
     };
 }
 
+function lwcFile(name) {
+    const zetaFile = path.join(zetaLwcDir, name, `${name}.js`);
+    const orgFile = path.join(orgLwcDir, name, `${name}.js`);
+    const localFile = path.join(lwcDir, name, `${name}.js`);
+    if (ZETA_LWC_FIRST.has(name) && fs.existsSync(zetaFile)) {
+        return zetaFile;
+    }
+    if (ORG_LWC_FIRST.has(name) && fs.existsSync(orgFile)) {
+        return orgFile;
+    }
+    if (fs.existsSync(localFile)) {
+        return localFile;
+    }
+    if (fs.existsSync(orgFile)) {
+        return orgFile;
+    }
+    if (fs.existsSync(zetaFile)) {
+        return zetaFile;
+    }
+    const externalFile = path.join(externalLwcDir, name, `${name}.js`);
+    if (fs.existsSync(externalFile)) {
+        return externalFile;
+    }
+    return null;
+}
+
+// CSS-only modules (e.g. c/careCoachStyles, c/meetingStyles) are imported from other stylesheets.
+function lwcCssModule(name) {
+    for (const dir of [lwcDir, zetaLwcDir, externalLwcDir]) {
+        const cssFile = path.join(dir, name, `${name}.css`);
+        if (fs.existsSync(cssFile) && !fs.existsSync(path.join(dir, name, `${name}.js`))) {
+            return cssFile;
+        }
+    }
+    return null;
+}
+
 function isSfdxLwcFile(filename) {
     const normalized = path.normalize(filename);
     return (
         normalized.startsWith(lwcDir + path.sep) ||
+        normalized.startsWith(zetaLwcDir + path.sep) ||
+        normalized.startsWith(orgLwcDir + path.sep) ||
+        normalized.startsWith(externalLwcDir + path.sep) ||
         normalized.startsWith(stubsLightningDir + path.sep)
     );
 }
@@ -93,10 +191,13 @@ function compileSfdxLwc() {
                 return engineDom;
             }
             if (id.startsWith('c/')) {
-                const name = id.slice(2);
-                const file = path.join(lwcDir, name, `${name}.js`);
-                if (fs.existsSync(file)) {
+                const file = lwcFile(id.slice(2));
+                if (file) {
                     return file;
+                }
+                const cssModule = lwcCssModule(id.slice(2));
+                if (cssModule) {
+                    return encodeAsset('css', cssModule, false);
                 }
             }
             if (id === '@salesforce/apex') {
@@ -183,12 +284,25 @@ function compileSfdxLwc() {
             if (id === '@salesforce/resourceUrl/CloudastickLogo') {
                 return path.resolve(root, 'src/stubs/resourceCloudastickLogo.js');
             }
+            if (id === '@salesforce/resourceUrl/JsSIP') {
+                return path.resolve(root, 'src/stubs/resourceJsSIP.js');
+            }
+            if (id === '@salesforce/resourceUrl/NbcRankMedals') {
+                return path.resolve(root, 'src/stubs/nbcRankMedals.js');
+            }
+            if (id === '@salesforce/resourceUrl/MeetingJsQR' || id === '@salesforce/resourceUrl/ZetaBlueZ') {
+                return '\0meetingresource:' + id.slice('@salesforce/resourceUrl/'.length);
+            }
             if (id.startsWith('@salesforce/resourceUrl/')) {
                 return path.resolve(root, 'src/stubs/leafletUrl.js');
             }
             return virtualFromImporter(id, importer);
         },
         load(id) {
+            if (id.startsWith('\0meetingresource:')) {
+                const file = { MeetingJsQR: 'MeetingJsQR.js', ZetaBlueZ: 'ZetaBlueZ.png' }[id.slice('\0meetingresource:'.length)];
+                return `export default ${JSON.stringify('/vendor/meeting/' + file)};`;
+            }
             if (id.startsWith('\0sfschema:')) {
                 const spec = id.slice('\0sfschema:'.length);
                 const dot = spec.indexOf('.');
@@ -203,6 +317,7 @@ function compileSfdxLwc() {
                 return null;
             }
             const { kind, filename, scoped } = asset;
+            this.addWatchFile(filename);
             if (kind === 'html') {
                 const src = fs.existsSync(filename)
                     ? fs.readFileSync(filename, 'utf8')
@@ -309,6 +424,47 @@ function netlifyFunctionsPlugin() {
                     const qs = new URL(req.url || '/', 'http://localhost').searchParams;
                     const payload = await aggregateStayInTheKnow({
                         specialties: qs.get('specialties') || '',
+                        products: qs.get('products') || ''
+                    });
+                    res.statusCode = 200;
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    res.setHeader('Cache-Control', 'public, max-age=900');
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(payload));
+                } catch (e) {
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(
+                        JSON.stringify({
+                            error: e instanceof Error ? e.message : String(e),
+                            articles: [],
+                            categories: []
+                        })
+                    );
+                }
+            });
+
+            server.middlewares.use('/.netlify/functions/care-coach-news', async (req, res) => {
+                if (req.method === 'OPTIONS') {
+                    res.statusCode = 204;
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                    res.end();
+                    return;
+                }
+                if (req.method !== 'GET') {
+                    res.statusCode = 405;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+                    return;
+                }
+                try {
+                    const { aggregateCareCoachNews } = await import(
+                        path.resolve(root, 'netlify/functions/careCoachNews.js')
+                    );
+                    const qs = new URL(req.url || '/', 'http://localhost').searchParams;
+                    const payload = await aggregateCareCoachNews({
                         products: qs.get('products') || ''
                     });
                     res.statusCode = 200;
@@ -458,18 +614,25 @@ export default defineConfig(({ mode }) => {
         plugins: [
             compileSfdxLwc(),
             netlifyFunctionsPlugin(),
-            basicSsl({
-                name: 'zeta-field-pwa',
-                domains: ['localhost']
-            })
+            ...(process.env.ZETA_HTTP === '1'
+                ? []
+                : [
+                      basicSsl({
+                          name: 'zeta-field-pwa',
+                          domains: ['localhost']
+                      })
+                  ])
         ],
         optimizeDeps: {
-            exclude: ['c/fieldRepHomeMetrics', 'c/clmOfflineStore']
+            exclude: ['c/fieldRepHomeMetrics', 'c/clmOfflineStore', '@huggingface/transformers']
+        },
+        worker: {
+            format: 'es'
         },
         server: {
             port: 5173,
             fs: {
-                allow: [root, path.resolve(root, '..')]
+                allow: [root, path.resolve(root, '..'), path.resolve(root, '../..')]
             },
             ...(instanceUrl
                 ? { proxy: { '/services': salesforceProxy(instanceUrl) } }

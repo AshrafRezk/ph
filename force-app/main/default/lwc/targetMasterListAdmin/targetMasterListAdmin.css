@@ -1,0 +1,111 @@
+.wrap {
+    max-width: 52rem;
+}
+
+.stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 6rem;
+}
+
+.stat-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #706e6b;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.panel {
+    border: 1px solid #e5e5e5;
+    border-radius: 0.35rem;
+    padding: 0.85rem 1rem 1rem;
+    margin-bottom: 0.85rem;
+    background: #fff;
+}
+
+.h {
+    margin: 0 0 0.35rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #706e6b;
+}
+
+.help {
+    margin: 0 0 0.75rem;
+    font-size: 0.8125rem;
+    color: #706e6b;
+    line-height: 1.45;
+}
+
+.file-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    margin-bottom: 0.65rem;
+}
+
+.file-meta {
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.progress {
+    height: 0.35rem;
+    background: #f3f2f2;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 0.75rem;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #0176d3;
+    transition: width 0.2s ease;
+}
+
+.progress-msg,
+.summary {
+    margin: 0.5rem 0 0;
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+}
+
+.errors {
+    margin: 0.75rem 0 0;
+    padding: 0.65rem 0.75rem;
+    background: #fef2f2;
+    border-radius: 0.35rem;
+    max-height: 10rem;
+    overflow: auto;
+}
+
+.errors li {
+    font-size: 0.75rem;
+    color: #b42318;
+    margin: 0.15rem 0;
+}

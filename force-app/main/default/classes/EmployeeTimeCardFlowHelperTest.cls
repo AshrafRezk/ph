@@ -52,6 +52,44 @@ private class EmployeeTimeCardFlowHelperTest {
     }
 
     @IsTest
+    static void calculateLeaveTotals_sumsLeaveTypes() {
+        Date monthStart = Date.today().toStartOfMonth();
+        Date monthEnd = monthStart.addMonths(1).addDays(-1);
+        String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(UserInfo.getUserId());
+        Date weekday = null;
+        for (Date cursor = monthStart; cursor <= monthEnd; cursor = cursor.addDays(1)) {
+            if (!EmployeeTimeCardFlowHelper.isWeekendDay(cursor, department)) {
+                weekday = cursor;
+                break;
+            }
+        }
+        System.assertNotEquals(null, weekday, 'Expected a weekday in the current month.');
+
+        insert new Time_Off_Request__c(
+            Type__c = 'Sick Leave',
+            Stage__c = 'Approved',
+            Span_Type__c = 'Full_Day',
+            Span_Duration__c = 1,
+            Start_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(0, 0, 0, 0)),
+            End_Date_Time__c = DateTime.newInstance(weekday, Time.newInstance(23, 59, 0, 0)),
+            OwnerId = UserInfo.getUserId()
+        );
+
+        Test.startTest();
+        EmployeeTimeCardFlowHelper.LeaveTotals totals = EmployeeTimeCardFlowHelper.calculateLeaveTotals(
+            UserInfo.getUserId(),
+            monthStart,
+            monthEnd,
+            department
+        );
+        Test.stopTest();
+
+        System.assert(totals.totalLeaveDays >= 1, 'Sick leave should count in leave totals.');
+        System.assert(totals.leaveByDate.containsKey(weekday));
+        System.assert(totals.leaveByDate.get(weekday) >= 1);
+    }
+
+    @IsTest
     static void recalcTOTForEmployeeAndRange_executes() {
         Date d0 = Date.today();
         EmployeeTimeCardFlowHelper.recalcTOTForEmployeeAndRange(UserInfo.getUserId(), d0.addDays(-2), d0.addDays(2));
@@ -131,6 +169,109 @@ private class EmployeeTimeCardFlowHelperTest {
         );
         System.assertEquals(2, tot.get(d0));
         System.assertEquals(1, tot.get(d1));
+    }
+
+    @IsTest
+    static void weekdaysInRange_default_follows_the_planner_rules_weekend() {
+        Date startDate = Date.newInstance(2026, 9, 1);
+        Date endDate = Date.newInstance(2026, 9, 30);
+        // No department: the Org planner rule decides. Default is Thursday + Friday off (Sat-Wed working).
+        Set<Date> weekdays = EmployeeTimeCardFlowHelper.weekdaysInRange(startDate, endDate, null);
+        System.assertEquals(22, weekdays.size(), 'September 2026 has 22 Sat-Wed working days.');
+        System.assert(!weekdays.contains(Date.newInstance(2026, 9, 3)), 'Thursday is a weekend.');
+        System.assert(!weekdays.contains(Date.newInstance(2026, 9, 4)), 'Friday is a weekend.');
+        System.assert(weekdays.contains(Date.newInstance(2026, 9, 5)), 'Saturday is a working day.');
+        System.assert(weekdays.contains(Date.newInstance(2026, 9, 6)), 'Sunday is a working day.');
+    }
+
+    @IsTest
+    static void countFieldDays_subtracts_leave_on_weekdays() {
+        Date startDate = Date.newInstance(2026, 9, 1);
+        Date endDate = Date.newInstance(2026, 9, 30);
+        Map<Date, Decimal> leaveByDate = new Map<Date, Decimal>{
+            Date.newInstance(2026, 9, 7) => 1
+        };
+        System.assertEquals(
+            21,
+            EmployeeTimeCardFlowHelper.countFieldDays(startDate, endDate, null, leaveByDate)
+        );
+    }
+
+    @IsTest
+    static void expandHoliday_one_off_and_yearly() {
+        Date monthStart = Date.newInstance(2026, 1, 1);
+        Date monthEnd = Date.newInstance(2026, 1, 31);
+        Holiday oneOff = new Holiday(
+            ActivityDate = Date.newInstance(2026, 1, 7),
+            IsRecurrence = false
+        );
+        Set<Date> oneOffDates = EmployeeTimeCardFlowHelper.expandHoliday(oneOff, monthStart, monthEnd);
+        System.assert(oneOffDates.contains(Date.newInstance(2026, 1, 7)));
+
+        Holiday yearly = new Holiday(
+            IsRecurrence = true,
+            RecurrenceType = 'RecursYearly',
+            RecurrenceMonthOfYear = 'January',
+            RecurrenceDayOfMonth = 1,
+            RecurrenceStartDate = Date.newInstance(2020, 1, 1)
+        );
+        Set<Date> yearlyDates = EmployeeTimeCardFlowHelper.expandHoliday(yearly, monthStart, monthEnd);
+        System.assert(yearlyDates.contains(Date.newInstance(2026, 1, 1)));
+
+        Holiday yearlyNth = new Holiday(
+            IsRecurrence = true,
+            RecurrenceType = 'RecursYearlyNth',
+            RecurrenceMonthOfYear = 'January',
+            RecurrenceInstance = 'First',
+            RecurrenceDayOfWeekMask = 2,
+            RecurrenceStartDate = Date.newInstance(2020, 1, 1)
+        );
+        Set<Date> nthDates = EmployeeTimeCardFlowHelper.expandHoliday(
+            yearlyNth,
+            monthStart,
+            monthEnd
+        );
+        System.assert(nthDates.contains(Date.newInstance(2026, 1, 5)), 'First Monday of Jan 2026 is the 5th.');
+
+        Holiday monthly = new Holiday(
+            IsRecurrence = true,
+            RecurrenceType = 'RecursMonthly',
+            RecurrenceDayOfMonth = 15,
+            RecurrenceStartDate = Date.newInstance(2026, 1, 1)
+        );
+        Set<Date> monthlyDates = EmployeeTimeCardFlowHelper.expandHoliday(monthly, monthStart, monthEnd);
+        System.assert(monthlyDates.contains(Date.newInstance(2026, 1, 15)));
+
+        Holiday weekly = new Holiday(
+            IsRecurrence = true,
+            RecurrenceType = 'RecursWeekly',
+            RecurrenceInterval = 7,
+            RecurrenceDayOfWeekMask = 1,
+            RecurrenceStartDate = Date.newInstance(2026, 1, 4)
+        );
+        Set<Date> weeklyDates = EmployeeTimeCardFlowHelper.expandHoliday(weekly, monthStart, monthEnd);
+        System.assert(weeklyDates.contains(Date.newInstance(2026, 1, 4)));
+        System.assert(weeklyDates.contains(Date.newInstance(2026, 1, 11)));
+    }
+
+    @IsTest
+    static void publicHolidayDatesInRange_and_empty_windows() {
+        System.assertEquals(0, EmployeeTimeCardFlowHelper.weekdaysInRange(null, Date.today(), null).size());
+        System.assertEquals(0, EmployeeTimeCardFlowHelper.publicHolidayDatesInRange(null, Date.today()).size());
+        System.assertEquals(0, EmployeeTimeCardFlowHelper.countFieldDays(null, Date.today(), null, null));
+        Set<Date> none = EmployeeTimeCardFlowHelper.expandHoliday(null, Date.today(), Date.today());
+        System.assertEquals(0, none.size());
+        EmployeeTimeCardFlowHelper.publicHolidayDatesInRange(Date.newInstance(2026, 1, 1), Date.newInstance(2026, 1, 31));
+    }
+
+    @IsTest
+    static void isLeaveTotType_matches_leave_only() {
+        System.assert(EmployeeTimeCardFlowHelper.isLeaveTotType('Sick Leave'));
+        System.assert(EmployeeTimeCardFlowHelper.isLeaveTotType('Annual Vacation'));
+        System.assert(EmployeeTimeCardFlowHelper.isLeaveTotType('Conference'));
+        System.assert(EmployeeTimeCardFlowHelper.isLeaveTotType('Holiday'));
+        System.assert(!EmployeeTimeCardFlowHelper.isLeaveTotType('Training'));
+        System.assert(!EmployeeTimeCardFlowHelper.isLeaveTotType('Travelling'));
     }
 
     @IsTest

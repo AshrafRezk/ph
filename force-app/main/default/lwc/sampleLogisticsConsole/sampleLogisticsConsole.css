@@ -1,0 +1,145 @@
+.logistics {
+    background: #fff;
+    min-height: 24rem;
+}
+
+.logistics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.logistics-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.logistics-subtitle {
+    margin: 0.3rem 0 0;
+    color: #5f6368;
+    font-size: 0.875rem;
+    max-width: 46rem;
+    line-height: 1.4;
+}
+
+.section-title {
+    margin: 1.25rem 0 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.section-hint,
+.empty-copy {
+    margin: 0 0 0.75rem;
+    color: #5f6368;
+    font-size: 0.8125rem;
+}
+
+.request-form {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    background: #f8fafc;
+    margin-bottom: 0.5rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.form-actions {
+    margin-top: 0.85rem;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.data-table th {
+    text-align: left;
+    color: #5f6368;
+    font-weight: 600;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.5rem 0.4rem;
+}
+
+.data-table td {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 0.55rem 0.4rem;
+    vertical-align: middle;
+}
+
+.data-row--muted td {
+    color: #64748b;
+}
+
+.data-row--expired td {
+    background: #fff7ed;
+}
+
+.cell-strong {
+    font-weight: 650;
+    color: #111827;
+}
+
+.cell-muted {
+    color: #6b7280;
+    font-size: 0.75rem;
+}
+
+.actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.actions lightning-button + lightning-button {
+    margin-left: 0.35rem;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 650;
+}
+
+.status-pill--open {
+    background: #e0f2fe;
+    color: #075985;
+}
+
+.status-pill--partial {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-pill--done {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-pill--cancel {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.loading-wrap {
+    position: relative;
+    min-height: 4rem;
+}
+
+@media (max-width: 720px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}

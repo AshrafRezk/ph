@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Count_Source__c</fullName>
+    <label>Count Source</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>false</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Visit_Coverage</fullName><default>false</default><label>Visit coverage (visited ÷ target list)</label></value>
+            <value><fullName>Visit_Frequency</fullName><default>false</default><label>Visit frequency (actual ÷ planned frequency)</label></value>
+            <value><fullName>Daily_Call_Rate</fullName><default>false</default><label>Daily call rate (visits ÷ field days)</label></value>
+            <value><fullName>Sales_Achievement</fullName><default>false</default><label>Sales achievement (sell-out ÷ sales target)</label></value>
+            <value><fullName>Field_Working_Days</fullName><default>false</default><label>Field working days (active days ÷ planned)</label></value>
+            <value><fullName>Double_Visit</fullName><default>false</default><label>Double visit coverage (accounts)</label></value>
+            <value><fullName>Team_Double_Visit</fullName><default>false</default><label>Team double-visit coverage (reps coached ÷ team)</label></value>
+            <value><fullName>Regions_Visited</fullName><default>false</default><label>Regions visited (districts visited ÷ districts on line)</label></value>
+            <value><fullName>KOL_Coverage</fullName><default>false</default><label>KOL coverage (KOL visited ÷ KOL list)</label></value>
+            <value><fullName>Quiz_Score</fullName><default>false</default><label>Quiz / learning scores</label></value>
+            <value><fullName>Active_Pharmacies</fullName><default>false</default><label>Active pharmacies (with sell-out ÷ assigned)</label></value>
+            <value><fullName>Pharmacy_Frequency</fullName><default>false</default><label>Pharmacy sales frequency</label></value>
+            <value><fullName>Team_Reps_At_90</fullName><default>false</default><label>Team % at 90% sales</label></value>
+            <value><fullName>Custom_Report</fullName><default>false</default><label>Custom report / formula</label></value>
+            <value><fullName>Manual</fullName><default>true</default><label>Manual (not auto-counted)</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

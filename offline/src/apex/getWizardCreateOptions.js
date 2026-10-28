@@ -1,35 +1,9 @@
 import { makeDualApex } from './_wireAdapter.js';
+import { plannerApiFetch } from './restHelper.js';
 
-export default makeDualApex(async () => ({
-    governorates: [
-        'Cairo',
-        'Giza',
-        'Alexandria',
-        'Dakahlia',
-        'Sharqia',
-        'Qalyubia',
-        'Gharbia',
-        'Monufia',
-        'Beheira',
-        'Kafr El Sheikh',
-        'Damietta',
-        'Port Said',
-        'Ismailia',
-        'Suez',
-        'Faiyum',
-        'Beni Suef',
-        'Minya',
-        'Asyut',
-        'Sohag',
-        'Qena',
-        'Luxor',
-        'Aswan',
-        'Red Sea',
-        'New Valley',
-        'Matrouh',
-        'North Sinai',
-        'South Sinai'
-    ],
-    specialties: [],
-    bricks: []
-}));
+const PATH = '/services/apexrest/accounts-tab/v1/wizard-options';
+
+export default makeDualApex(async () => {
+    const options = await plannerApiFetch(PATH, { method: 'GET' });
+    return options || {};
+});

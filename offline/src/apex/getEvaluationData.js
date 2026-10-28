@@ -1,85 +1,72 @@
 import { makeDualApex } from './_wireAdapter.js';
 import { plannerApiFetch } from './restHelper.js';
+import { currentUserId, esc, soql } from './learningShared.js';
 
-const API_VERSION = 'v62.0';
-
-async function soql(query) {
-    const path = `/services/data/${API_VERSION}/query?q=${encodeURIComponent(query)}`;
-    const result = await plannerApiFetch(path);
-    return result && Array.isArray(result.records) ? result.records : [];
-}
-
-function esc(value) {
-    return String(value || '').replace(/'/g, "\\'");
+function escId(value) {
+    return esc(value);
 }
 
 async function getEvaluationData(config) {
     const eventId = config && (config.eventId || config.recordId || config.Id);
     if (!eventId) {
-        return {
-            eventId: null,
-            status: null,
-            userRole: 'viewer',
-            managerScore: null,
-            employeeScore: null,
-            previousScore: null,
-            questions: [],
-            managerResponsesJson: null,
-            employeeResponsesJson: null,
-            canRequestSelfEval: false,
-            canEdit: false
-        };
+        throw Object.assign(new Error('Event Id is required.'), { body: { message: 'Event Id is required.' } });
+    }
+    if (String(eventId).startsWith('local_')) {
+        throw Object.assign(new Error('This coaching event is still queued offline. Connect and sync to score it.'), {
+            body: { message: 'This coaching event is still queued offline. Connect and sync to score it.' }
+        });
     }
     const events = await soql(
-        'SELECT Id, Name, Status__c, Manager_Score__c, Employee_Score__c, Previous_Score__c,' +
-            ' Manager_Responses__c, Employee_Responses__c, Coaching_Template__c,' +
-            ' Coaching_Template__r.Name' +
-            ` FROM Coaching_Event__c WHERE Id = '${esc(eventId)}' LIMIT 1`
+        'SELECT Id, Employee__c, Manager__c, Status__c, Responses_JSON__c, ' +
+            'Manager_Total_Score__c, Employee_Total_Score__c, Previous_Score__c, ' +
+            'Section_Scores_JSON__c, Self_Evaluation_Requested__c, Self_Evaluation_Completed__c, ' +
+            'Coaching_Template__r.Questions_JSON__c ' +
+            `FROM Coaching_Event__c WHERE Id = '${escId(eventId)}' LIMIT 1`,
+        { fresh: true }
     );
-    const event = events[0] || {};
-    let questions = [];
-    const templateId = event.Coaching_Template__c;
-    if (templateId) {
+    const event = events[0];
+    if (!event) {
+        throw Object.assign(new Error('Coaching event not found.'), {
+            body: { message: 'Coaching event not found.' }
+        });
+    }
+    const template = event.Coaching_Template__r || {};
+    const me = currentUserId();
+    let userRole = 'admin';
+    if (me && event.Manager__c === me) {
+        userRole = 'manager';
+    } else if (me && event.Employee__c === me) {
+        userRole = 'employee';
+    }
+    let previousScore = event.Previous_Score__c;
+    if (previousScore == null && event.Employee__c) {
         try {
-            questions = await soql(
-                'SELECT Id, Name, Label__c, Section__c, Sort_Order__c, Question_Type__c,' +
-                    ' Scale_Points_JSON__c' +
-                    ' FROM Coaching_Template_Question__c' +
-                    ` WHERE Coaching_Template__c = '${esc(templateId)}'` +
-                    ' ORDER BY Sort_Order__c, Name'
+            const prior = await soql(
+                'SELECT Manager_Total_Score__c FROM Coaching_Event__c ' +
+                    `WHERE Employee__c = '${escId(event.Employee__c)}' ` +
+                    "AND Status__c IN ('Closed','Completed') " +
+                    `AND Id != '${escId(event.Id)}' AND Manager_Total_Score__c != null ` +
+                    'ORDER BY Event_End__c DESC NULLS LAST LIMIT 1'
             );
-        } catch (_err) {
-            questions = [];
+            previousScore = prior[0] ? prior[0].Manager_Total_Score__c : null;
+        } catch (_error) {
+            previousScore = null;
         }
     }
     return {
-        eventId: event.Id || eventId,
-        status: event.Status__c || null,
-        userRole: 'manager',
-        managerScore: event.Manager_Score__c,
-        employeeScore: event.Employee_Score__c,
-        previousScore: event.Previous_Score__c,
-        questions: questions.map((q) => {
-            let scalePoints = [];
-            try {
-                scalePoints = q.Scale_Points_JSON__c ? JSON.parse(q.Scale_Points_JSON__c) : [];
-            } catch (_err) {
-                scalePoints = [];
-            }
-            return {
-                id: q.Id,
-                label: q.Label__c || q.Name,
-                section: q.Section__c || 'General',
-                sortOrder: q.Sort_Order__c || 0,
-                type: (q.Question_Type__c || 'scale').toLowerCase(),
-                scalePoints
-            };
-        }),
-        managerResponsesJson: event.Manager_Responses__c || null,
-        employeeResponsesJson: event.Employee_Responses__c || null,
-        canRequestSelfEval: true,
-        canEdit: true,
-        templateName: event.Coaching_Template__r?.Name || null
+        templateJson: template.Questions_JSON__c || '{"questions":[]}',
+        responsesJson: event.Responses_JSON__c || '{"version":"1.0","answers":[]}',
+        sectionScoresJson: event.Section_Scores_JSON__c || null,
+        managerTotalScore: event.Manager_Total_Score__c,
+        employeeTotalScore: event.Employee_Total_Score__c,
+        previousScore,
+        status: event.Status__c,
+        employeeId: event.Employee__c,
+        managerId: event.Manager__c,
+        selfEvaluationRequested: event.Self_Evaluation_Requested__c === true,
+        selfEvaluationCompleted: event.Self_Evaluation_Completed__c === true,
+        userRole,
+        currentUserId: me || null
     };
 }
 

@@ -2,7 +2,8 @@
     <lightning-card title="Request Time Off" icon-name="standard:date_input">
         <div class="slds-p-horizontal_medium slds-p-bottom_medium">
             <p class="slds-text-body_regular slds-m-bottom_medium">
-                Submit holiday, sick leave, training, or other time away. Your manager will be notified when you submit for approval.
+                Submit time off for approval. Durations support half day (0.5), full day, or multiple working days.
+                Submitted requests sync to Mendix for manager approval.
             </p>
 
             <div class="slds-grid slds-wrap slds-gutters">
@@ -23,15 +24,15 @@
                         options={spanTypeOptions}
                         onchange={handleSpanTypeChange}
                         required
-                        placeholder="Full day or partial hours"
-                        field-level-help="Full Day covers one calendar day. For multiple days, submit separate requests."
+                        placeholder="Half day, full day, hours, or days"
+                        field-level-help="Half Day = 0.5. Full Day = 1 day. Days = multi-day working-day span. Hours = partial day (4h = 0.5)."
                     ></lightning-combobox>
                 </div>
 
                 <template if:true={isHoursSpan}>
                     <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
                         <lightning-combobox
-                            label="Duration (Hours)"
+                            label={durationLabel}
                             value={durationValue}
                             options={durationOptions}
                             onchange={handleDurationChange}
@@ -50,16 +51,40 @@
                     </div>
                 </template>
 
-                <template if:true={isFullDaySpan}>
+                <template if:true={isDaysSpan}>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                        <lightning-combobox
+                            label={durationLabel}
+                            value={durationValue}
+                            options={durationOptions}
+                            onchange={handleDurationChange}
+                            required
+                            placeholder="1–90 days"
+                        ></lightning-combobox>
+                    </div>
                     <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
                         <lightning-input
                             type="date"
-                            label="Date"
+                            label="Start Date"
                             value={startDateValue}
                             onchange={handleStartDateChange}
                             required
                         ></lightning-input>
                     </div>
+                </template>
+
+                <template if:true={showDateOnly}>
+                    <template if:false={isDaysSpan}>
+                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                            <lightning-input
+                                type="date"
+                                label="Date"
+                                value={startDateValue}
+                                onchange={handleStartDateChange}
+                                required
+                            ></lightning-input>
+                        </div>
+                    </template>
                 </template>
 
                 <div class="slds-col slds-size_1-of-1">
@@ -68,7 +93,7 @@
                         value={commentsValue}
                         onchange={handleCommentsChange}
                         placeholder="Optional notes for your manager"
-                        max-length="32000"
+                        max-length="255"
                     ></lightning-textarea>
                 </div>
             </div>
@@ -100,6 +125,7 @@
                     data={myRequests}
                     columns={columns}
                     hide-checkbox-column
+                    onrowaction={handleRowAction}
                 ></lightning-datatable>
             </template>
             <template if:false={hasRequests}>

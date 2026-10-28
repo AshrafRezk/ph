@@ -1,0 +1,29 @@
+<template>
+    <template lwc:if={hasInvitees}>
+        <div class="invitee-bar" role="list">
+            <template for:each={rows} for:item="row">
+                <button
+                    key={row.accountId}
+                    type="button"
+                    class={row.btnClass}
+                    data-id={row.accountId}
+                    onclick={handleSelect}
+                    aria-pressed={row.selected}
+                >
+                    <span class="invitee-name">{row.name}</span>
+                    <template lwc:if={row.subtitle}>
+                        <span class="invitee-sub">{row.subtitle}</span>
+                    </template>
+                </button>
+            </template>
+        </div>
+        <template lwc:if={hasSelection}>
+            <div class="apm-embed">
+                <c-account-hcp-product-roi record-id={selectedAccountId}></c-account-hcp-product-roi>
+            </div>
+        </template>
+    </template>
+    <template lwc:else>
+        <div class="empty">Add HCP invitees on People to see their APM glance here.</div>
+    </template>
+</template>

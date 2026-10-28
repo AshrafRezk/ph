@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Baseline_Frequency__c</fullName>
+    <externalId>false</externalId>
+    <inlineHelpText>Planned visits before the first manager change this month; the ±deviation rule compares against it.</inlineHelpText>
+    <label>Visits Before Change</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

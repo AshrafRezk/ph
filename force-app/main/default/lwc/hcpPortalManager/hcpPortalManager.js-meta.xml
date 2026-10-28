@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>HCP Portal</masterLabel>
+    <description>Choose which tabs show on the meeting invite HCP app. Entry pass always stays on.</description>
+</LightningComponentBundle>

@@ -1,0 +1,47 @@
+.tools-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 56rem;
+}
+.tools-section h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+    color: #032d60;
+}
+.tools-card {
+    border: 1px solid #dddbda;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.65rem;
+    background: #fff;
+}
+.tools-card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 0.95rem;
+}
+.tools-card pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #f3f2f2;
+    padding: 0.65rem;
+    border-radius: 0.35rem;
+    font-size: 0.75rem;
+    margin: 0.5rem 0 0;
+}
+.tools-warn {
+    background: #fef3e8;
+    border: 1px solid #fe9339;
+    border-radius: 0.35rem;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.8125rem;
+}
+.ext-link {
+    display: inline-block;
+    margin-top: 0.35rem;
+}
+.tools-kind {
+    font-weight: 400;
+    color: #706e6b;
+    font-size: 0.8125rem;
+}

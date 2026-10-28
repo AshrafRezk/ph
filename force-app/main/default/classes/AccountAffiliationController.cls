@@ -2,6 +2,12 @@ public with sharing class AccountAffiliationController {
 
     private static final Integer DEFAULT_PAGE_SIZE = 25;
     private static final Integer MAX_PAGE_SIZE = 100;
+    private static final Boolean HAS_DESCRIPTION = Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Description__c')
+        && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Description__c').getDescribe().isAccessible();
+    private static final Boolean HAS_OUTSIDE_TERRITORY = Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Outside_Territory__c')
+        && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Outside_Territory__c').getDescribe().isAccessible();
+    private static final Boolean HAS_STRENGTH = Schema.sObjectType.Account_Affiliation__c.fields.getMap().containsKey('Strength__c')
+        && Schema.sObjectType.Account_Affiliation__c.fields.getMap().get('Strength__c').getDescribe().isAccessible();
 
     public class GraphNode {
         @AuraEnabled public String id;
@@ -129,6 +135,9 @@ public with sharing class AccountAffiliationController {
 
     @AuraEnabled(cacheable=true)
     public static List<PicklistValue> getStrengthPicklistValues() {
+        if (!HAS_STRENGTH) {
+            return new List<PicklistValue>();
+        }
         return describePicklist(Account_Affiliation__c.Strength__c);
     }
 
@@ -210,10 +219,29 @@ public with sharing class AccountAffiliationController {
         Integer offset,
         Integer pageSize
     ) {
-        String soql = 'SELECT Id, Primary_Account__c, Related_Account__c, Affiliation_Type__c,' +
-            ' Description__c, Is_Active__c, Outside_Territory__c, Role__c, Strength__c,' +
-            ' Primary_Account__r.Name, Primary_Account__r.RecordType.Name,' +
-            ' Related_Account__r.Name, Related_Account__r.RecordType.Name' +
+        List<String> selectFields = new List<String>{
+            'Id',
+            'Primary_Account__c',
+            'Related_Account__c',
+            'Affiliation_Type__c',
+            'Is_Active__c',
+            'Role__c',
+            'Primary_Account__r.Name',
+            'Primary_Account__r.RecordType.Name',
+            'Related_Account__r.Name',
+            'Related_Account__r.RecordType.Name'
+        };
+        if (HAS_DESCRIPTION) {
+            selectFields.add('Description__c');
+        }
+        if (HAS_OUTSIDE_TERRITORY) {
+            selectFields.add('Outside_Territory__c');
+        }
+        if (HAS_STRENGTH) {
+            selectFields.add('Strength__c');
+        }
+
+        String soql = 'SELECT ' + String.join(selectFields, ', ') +
             ' FROM Account_Affiliation__c' +
             ' WHERE (Primary_Account__c IN :seedAccountIds OR Related_Account__c IN :seedAccountIds)';
         soql += buildFilterClause(filters);
@@ -231,7 +259,7 @@ public with sharing class AccountAffiliationController {
         if (!filters.showInactive) {
             clause += ' AND Is_Active__c = true';
         }
-        if (!filters.showOutsideTerritory) {
+        if (!filters.showOutsideTerritory && HAS_OUTSIDE_TERRITORY) {
             clause += ' AND Outside_Territory__c = false';
         }
         if (filters.relationType != 'All') {
@@ -240,7 +268,7 @@ public with sharing class AccountAffiliationController {
         if (filters.role != 'All') {
             clause += ' AND Role__c = :roleFilter';
         }
-        if (filters.strength != 'All') {
+        if (filters.strength != 'All' && HAS_STRENGTH) {
             clause += ' AND Strength__c = :strengthFilter';
         }
         return clause;
@@ -285,7 +313,7 @@ public with sharing class AccountAffiliationController {
                 edge.fromId = String.valueOf(fromId);
                 edge.toId = String.valueOf(toId);
                 edge.relationType = affiliation.Affiliation_Type__c;
-                edge.description = affiliation.Description__c;
+                edge.description = HAS_DESCRIPTION ? (String) affiliation.get('Description__c') : null;
                 edge.affiliationId = affiliation.Id;
                 graph.edges.add(edge);
                 edgeKeys.add(edgeKey);
@@ -354,6 +382,9 @@ public with sharing class AccountAffiliationController {
 
     private static List<PicklistValue> describePicklist(Schema.SObjectField fieldToken) {
         List<PicklistValue> values = new List<PicklistValue>();
+        if (fieldToken == null) {
+            return values;
+        }
         Schema.DescribeFieldResult fieldDescribe = fieldToken.getDescribe();
         for (Schema.PicklistEntry entry : fieldDescribe.getPicklistValues()) {
             if (entry.isActive()) {

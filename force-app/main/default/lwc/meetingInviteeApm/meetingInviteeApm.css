@@ -1,0 +1,56 @@
+:host {
+    display: block;
+}
+
+.invitee-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 0.85rem;
+}
+
+.invitee {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid #d8dde6;
+    border-radius: 0.35rem;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+    max-width: 14rem;
+}
+
+.invitee:hover {
+    border-color: #0176d3;
+}
+
+.invitee_active {
+    border-color: #0176d3;
+    background: #f3f9ff;
+    box-shadow: 0 0 0 1px #0176d3 inset;
+}
+
+.invitee-name {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.invitee-sub {
+    font-size: 0.7rem;
+    color: #706e6b;
+}
+
+.apm-embed {
+    border-top: 1px solid #ecebea;
+    padding-top: 0.5rem;
+}
+
+.empty {
+    padding: 1rem 0.25rem;
+    color: #706e6b;
+    font-size: 0.875rem;
+}

@@ -1,16 +1,21 @@
 {
   "name": "zeta-field-pwa",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.5",
   "type": "module",
   "scripts": {
+    "sync:care-coach": "node scripts/sync-care-coach-lwc.mjs",
+    "predev": "npm run sync:care-coach",
     "dev": "vite",
+    "prebuild": "npm run sync:care-coach",
     "build": "vite build",
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android",
-    "cap:build": "npm run build && cap sync"
+    "cap:build": "npm run build && cap sync",
+    "deploy:web": "npm run build && NETLIFY_CLI_SKIP_PLUGIN_INSTALL=true netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site=d46a554a-27f8-44ec-a39f-f36ae015202a",
+    "test": "node --test src/**/*.test.mjs src/apex/**/*.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -19,10 +24,14 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@huggingface/transformers": "^3.8.1",
     "@lwc/compiler": "^9.4.1",
     "@lwc/engine-dom": "^9.4.1",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "jszip": "^3.10.1",
     "lwc": "^9.4.1",
+    "pdfjs-dist": "^3.11.174",
     "vite": "^6.4.3"
   },
   "devDependencies": {

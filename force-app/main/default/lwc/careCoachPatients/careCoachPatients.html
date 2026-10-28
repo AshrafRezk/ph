@@ -1,0 +1,185 @@
+<template>
+    <div class="cc-page">
+        <template lwc:if={selectedPatientId}>
+            <c-care-coach-patient360
+                patient-id={selectedPatientId}
+                mode={mode}
+                context={context}
+                onclose={handleClose360}
+                onchanged={handleChanged}
+            ></c-care-coach-patient360>
+        </template>
+        <template lwc:else>
+            <c-care-coach-view-bar
+                title="Patients"
+                subtitle={subtitle}
+                icon-name="standard:individual"
+                context={context}
+                mode={mode}
+                scope={scope}
+                coach-id={coachId}
+                coaches={options.coaches}
+                onmodechange={handleModeChange}
+                onscopechange={handleScopeChange}
+                oncoachchange={handleCoachChange}
+            ></c-care-coach-view-bar>
+
+            <template lwc:if={error}>
+                <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+            </template>
+
+            <section class="cc-card">
+                <div class="filters">
+                    <lightning-input
+                        class="search"
+                        type="search"
+                        label="Search"
+                        variant="label-hidden"
+                        placeholder={searchPlaceholder}
+                        onchange={handleSearch}
+                    ></lightning-input>
+                    <lightning-combobox
+                        data-field="productId"
+                        label="Product"
+                        variant="label-hidden"
+                        value={productId}
+                        options={productOptions}
+                        onchange={handleFilter}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        data-field="therapyArea"
+                        label="Therapy area"
+                        variant="label-hidden"
+                        value={therapyArea}
+                        options={therapyOptions}
+                        onchange={handleFilter}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        data-field="adherence"
+                        label="Adherence"
+                        variant="label-hidden"
+                        value={adherence}
+                        options={adherenceOptions}
+                        onchange={handleFilter}
+                    ></lightning-combobox>
+                    <lightning-button variant="base" label="Clear" onclick={handleClearFilters}></lightning-button>
+                    <div class="cc-segmented view-switch" role="group" aria-label="Layout">
+                        <button type="button" class={listBtnClass} data-view="list" onclick={handleView}>
+                            <lightning-icon icon-name="utility:list" size="xx-small"></lightning-icon> List
+                        </button>
+                        <button type="button" class={boardBtnClass} data-view="board" onclick={handleView}>
+                            <lightning-icon icon-name="utility:kanban" size="xx-small"></lightning-icon> Board
+                        </button>
+                    </div>
+                </div>
+                <div class="chips">
+                    <template for:each={statusChips} for:item="chip">
+                        <button key={chip.key} type="button" class={chip.cls} style={chip.style} data-value={chip.value} onclick={handleChip}>
+                            <span class="chip-label">{chip.label}</span>
+                            <span class="chip-count">{chip.count}</span>
+                        </button>
+                    </template>
+                </div>
+            </section>
+
+            <section class="cc-card results">
+                <template lwc:if={isLoading}>
+                    <lightning-spinner alternative-text="Loading patients" size="small"></lightning-spinner>
+                </template>
+
+                <template lwc:if={isList}>
+                    <div class="table-wrap">
+                        <table class="cc-table">
+                            <thead>
+                                <tr>
+                                    <th>Patient</th>
+                                    <th>Gender / Age</th>
+                                    <th>Product</th>
+                                    <th>Status</th>
+                                    <th>Adherence</th>
+                                    <th>AI risk</th>
+                                    <th>Last call</th>
+                                    <th>Next call</th>
+                                    <template lwc:if={showContactColumn}><th>Mobile</th></template>
+                                    <template lwc:if={showCoachColumn}><th>Care coach</th></template>
+                                    <th>Enrolled</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={decoratedRows} for:item="p">
+                                    <tr key={p.id} data-id={p.id} onclick={handleOpen}>
+                                        <td>
+                                            <div class="cc-row">
+                                                <span class={p.avatarClass}>{p.avatar}</span>
+                                                <div class="cc-row-main">
+                                                    <div class="cc-row-title">{p.displayName}</div>
+                                                    <div class="cc-row-sub">{p.patientNumber}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>{p.demo}</td>
+                                        <td>
+                                            <div>{p.productName}</div>
+                                            <div class="cc-muted">{p.therapyArea}</div>
+                                        </td>
+                                        <td><span class="cc-status" style={p.statusStyle}>{p.status}</span></td>
+                                        <td><span class={p.riskClass}>{p.riskLabel}</span></td>
+                                        <td><span class="score">{p.scoreLabel}</span></td>
+                                        <td title={p.lastCallTitle}>
+                                            <div>{p.lastCall}</div>
+                                            <div class="cc-muted">{p.lastCallStatus}</div>
+                                        </td>
+                                        <td>{p.nextCall}</td>
+                                        <template lwc:if={showContactColumn}><td>{p.contact}</td></template>
+                                        <template lwc:if={showCoachColumn}><td>{p.coachName}</td></template>
+                                        <td>{p.enrolled}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template lwc:else>
+                    <div class="board">
+                        <template for:each={boardColumns} for:item="col">
+                            <div key={col.status} class="board-col" style={col.style}>
+                                <div class="board-head">
+                                    <span>{col.status}</span>
+                                    <span class="board-count">{col.count}</span>
+                                </div>
+                                <div class="board-items">
+                                    <template for:each={col.items} for:item="p">
+                                        <button key={p.id} type="button" class="board-card" data-id={p.id} onclick={handleOpen}>
+                                            <div class="cc-row">
+                                                <span class={p.avatarClass}>{p.avatar}</span>
+                                                <div class="cc-row-main">
+                                                    <div class="cc-row-title">{p.displayName}</div>
+                                                    <div class="cc-row-sub">{p.productName} · {p.demo}</div>
+                                                </div>
+                                            </div>
+                                            <div class="board-card-foot">
+                                                <span class={p.riskClass}>{p.riskLabel}</span>
+                                                <span class="cc-muted">Last call {p.lastCall}</span>
+                                            </div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <template lwc:if={showEmpty}>
+                    <div class="cc-empty">No patients match these filters.</div>
+                </template>
+
+                <div class="results-foot">
+                    <span class="cc-muted">{countLabel}</span>
+                    <template lwc:if={hasMore}>
+                        <lightning-button label="Load more" onclick={handleLoadMore}></lightning-button>
+                    </template>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomNotificationType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customNotifTypeName>Visit_Plan_Submitted_To_Manager</customNotifTypeName>
+    <description>In-app alert when a direct report submits a visit plan for approval.</description>
+    <desktop>true</desktop>
+    <masterLabel>Visit Plan Submitted To Manager</masterLabel>
+    <mobile>true</mobile>
+    <slack>false</slack>
+</CustomNotificationType>

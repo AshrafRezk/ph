@@ -39,11 +39,21 @@ public without sharing class VisitCallReportSeed {
             List<Product2> products = [
                 SELECT Id, Name
                 FROM Product2
-                WHERE IsActive = TRUE
+                WHERE IsActive = TRUE AND Product_Type__c IN ('Sample', 'Brand Reminder')
                 WITH SYSTEM_MODE
                 ORDER BY Name ASC
                 LIMIT 10
             ];
+            if (products.isEmpty()) {
+                products = [
+                    SELECT Id, Name
+                    FROM Product2
+                    WHERE IsActive = TRUE
+                    WITH SYSTEM_MODE
+                    ORDER BY Name ASC
+                    LIMIT 10
+                ];
+            }
             result.sampleInventoryCount = seedSampleInventory(new Set<Id>(userIds.values()), products);
         }
 

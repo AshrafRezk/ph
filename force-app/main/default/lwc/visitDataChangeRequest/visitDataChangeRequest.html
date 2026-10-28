@@ -1,0 +1,30 @@
+<template>
+    <article class="workflow-panel">
+        <h2 class="workflow-title">Account change request</h2>
+        <p class="workflow-help">Submit a correction for {accountName} without editing master data yourself.</p>
+        <template if:true={errorMessage}>
+            <p class="workflow-error" role="alert">{errorMessage}</p>
+        </template>
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading change requests" size="small"></lightning-spinner>
+        </template>
+        <template if:false={isLoading}>
+            <lightning-combobox label="Change type" value={changeType} options={changeTypeOptions} onchange={handleType} disabled={disabled} required></lightning-combobox>
+            <lightning-input class="slds-m-top_small" label="Proposed value" value={proposedValue} onchange={handleProposed} disabled={disabled} required></lightning-input>
+            <lightning-input class="slds-m-top_small" label="Reason" value={reason} onchange={handleReason} disabled={disabled}></lightning-input>
+            <div class="slds-m-top_small">
+                <lightning-button label="Submit request" variant="brand" onclick={handleSubmit} disabled={submitDisabled}></lightning-button>
+            </div>
+            <template if:true={hasRows}>
+                <ul class="workflow-list">
+                    <template for:each={rows} for:item="row">
+                        <li key={row.id}>
+                            <strong>{row.changeType}</strong>
+                            <span>{row.currentValue} → {row.proposedValue} · {row.status}</span>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </template>
+    </article>
+</template>

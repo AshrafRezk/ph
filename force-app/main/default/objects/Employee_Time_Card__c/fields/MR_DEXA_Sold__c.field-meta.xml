@@ -3,6 +3,7 @@
     <fullName>MR_DEXA_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — DEXA Sold</description>
+    <externalId>false</externalId>
     <label>DEXA Sold</label>
     <precision>16</precision>
     <required>false</required>

@@ -1,22 +1,42 @@
 public without sharing class EmployeeTimeCardMetricsService {
 
     private static final Decimal COMPLIANCE_HOURS_THRESHOLD = 8;
-    private static final Set<String> HCO_RECORD_TYPES = new Set<String>{
-        'Institution_HCO',
-        'Pharmacy'
+    private static final String HOSPITAL_RECORD_TYPE = 'Institution_HCO';
+    private static final String HOSPITAL_INSTITUTION_TYPE = 'Hospital';
+    private static final Set<String> POTENTIAL_VISIT_STATUSES = new Set<String>{
+        'Draft',
+        'Submitted',
+        'Scheduled',
+        'Rescheduled'
     };
-    private static final Set<String> HCP_RECORD_TYPES = new Set<String>{
-        'SDO_PersonAccounts',
-        'Medical_Professional_HCP',
-        'PersonAccount',
-        'Business_Contact'
+    private static final Set<String> POTENTIAL_MEETING_STATUSES = new Set<String>{
+        'Draft',
+        'PendingApproval',
+        'Pending GPM Approval',
+        'Pending NLM Approval',
+        'Approved'
+    };
+    private static final Set<String> COMPLETED_MEETING_STATUSES = new Set<String>{
+        'Closed',
+        'Concluded'
+    };
+    private static final Set<String> EXCLUDED_COACHING_STATUSES = new Set<String>{
+        'Draft',
+        'Planned',
+        'Cancelled'
     };
 
     @TestVisible
     private static Boolean suppressVisitProcessing = false;
+    @TestVisible
+    private static Boolean suppressMonthlyKpiRecalc = false;
 
     public static void setSuppressVisitProcessing(Boolean suppress) {
         suppressVisitProcessing = suppress == true;
+    }
+
+    public static void setSuppressMonthlyKpiRecalc(Boolean suppress) {
+        suppressMonthlyKpiRecalc = suppress == true;
     }
 
     public static void processVisitChanges(List<Visit__c> newVisits, Map<Id, Visit__c> oldMap) {
@@ -28,23 +48,270 @@ public without sharing class EmployeeTimeCardMetricsService {
         }
 
         List<VisitDelta> deltas = new List<VisitDelta>();
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
         for (Visit__c visit : newVisits) {
             Visit__c prior = oldMap == null ? null : oldMap.get(visit.Id);
-            String oldStatus = prior == null ? null : prior.Status__c;
-            String newStatus = visit.Status__c;
-            if (oldStatus == newStatus) {
-                continue;
+            Boolean oldCountable = countsTowardActuals(prior);
+            Boolean newCountable = countsTowardActuals(visit);
+            Date oldDate = prior == null ? null : resolveVisitDate(prior);
+            Date newDate = resolveVisitDate(visit);
+            Id oldAssignee = prior == null ? null : prior.Assigned_To__c;
+            Id newAssignee = visit.Assigned_To__c;
+            Boolean completedContextChanged = oldCountable != newCountable
+                || oldDate != newDate
+                || oldAssignee != newAssignee;
+
+            if (oldCountable && completedContextChanged) {
+                deltas.add(new VisitDelta(prior, -1));
             }
-            if (newStatus == 'Completed') {
+            if (newCountable && (prior == null || completedContextChanged)) {
                 deltas.add(new VisitDelta(visit, 1));
-            } else if (oldStatus == 'Completed') {
-                deltas.add(new VisitDelta(visit, -1));
             }
+
+            collectKpiMonth(kpiMonthsByEmployee, oldAssignee, oldDate);
+            collectKpiMonth(kpiMonthsByEmployee, newAssignee, newDate);
         }
-        if (deltas.isEmpty()) {
+        if (!deltas.isEmpty()) {
+            applyVisitDeltas(deltas);
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    public static void processVisitDeletes(List<Visit__c> oldVisits) {
+        if (suppressVisitProcessing) {
             return;
         }
-        applyVisitDeltas(deltas);
+        if (oldVisits == null || oldVisits.isEmpty()) {
+            return;
+        }
+
+        List<VisitDelta> deltas = new List<VisitDelta>();
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
+        for (Visit__c visit : oldVisits) {
+            if (countsTowardActuals(visit)) {
+                deltas.add(new VisitDelta(visit, -1));
+            }
+            collectKpiMonth(kpiMonthsByEmployee, visit.Assigned_To__c, resolveVisitDate(visit));
+        }
+        if (!deltas.isEmpty()) {
+            applyVisitDeltas(deltas);
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    public static void processMeetingChanges(List<Meeting__c> newMeetings, Map<Id, Meeting__c> oldMap) {
+        if (suppressMonthlyKpiRecalc) {
+            return;
+        }
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
+        if (newMeetings != null) {
+            for (Meeting__c meeting : newMeetings) {
+                collectMeetingKpiMonth(kpiMonthsByEmployee, meeting);
+                Meeting__c prior = oldMap == null ? null : oldMap.get(meeting.Id);
+                if (prior != null) {
+                    collectMeetingKpiMonth(kpiMonthsByEmployee, prior);
+                }
+            }
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    public static void processMeetingDeletes(List<Meeting__c> oldMeetings) {
+        if (suppressMonthlyKpiRecalc) {
+            return;
+        }
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
+        if (oldMeetings != null) {
+            for (Meeting__c meeting : oldMeetings) {
+                collectMeetingKpiMonth(kpiMonthsByEmployee, meeting);
+            }
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    public static void processCoachingEventChanges(
+        List<Coaching_Event__c> newEvents,
+        Map<Id, Coaching_Event__c> oldMap
+    ) {
+        if (suppressMonthlyKpiRecalc) {
+            return;
+        }
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
+        if (newEvents != null) {
+            for (Coaching_Event__c eventRecord : newEvents) {
+                collectCoachingKpiMonth(kpiMonthsByEmployee, eventRecord);
+                Coaching_Event__c prior = oldMap == null ? null : oldMap.get(eventRecord.Id);
+                if (prior != null) {
+                    collectCoachingKpiMonth(kpiMonthsByEmployee, prior);
+                }
+            }
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    public static void processCoachingEventDeletes(List<Coaching_Event__c> oldEvents) {
+        if (suppressMonthlyKpiRecalc) {
+            return;
+        }
+        Map<Id, Set<Date>> kpiMonthsByEmployee = new Map<Id, Set<Date>>();
+        if (oldEvents != null) {
+            for (Coaching_Event__c eventRecord : oldEvents) {
+                collectCoachingKpiMonth(kpiMonthsByEmployee, eventRecord);
+            }
+        }
+        flushMonthlyKpis(kpiMonthsByEmployee);
+    }
+
+    /**
+     * Recomputes persisted monthly home/time-card KPI snapshot fields for the given employees.
+     */
+    public static void recalcMonthlyKpis(Set<Id> employeeIds, Date monthStart) {
+        if (suppressMonthlyKpiRecalc || employeeIds == null || employeeIds.isEmpty() || monthStart == null) {
+            return;
+        }
+        Date normalizedStart = Date.newInstance(monthStart.year(), monthStart.month(), 1);
+        Date monthEnd = normalizedStart.addMonths(1).addDays(-1);
+        DateTime rangeStartDt = DateTime.newInstance(normalizedStart, Time.newInstance(0, 0, 0, 0));
+        DateTime rangeEndDt = DateTime.newInstance(monthEnd, Time.newInstance(23, 59, 59, 0));
+
+        Map<Id, Employee_Time_Card__c> cardsByEmployee = new Map<Id, Employee_Time_Card__c>();
+        for (Id employeeId : employeeIds) {
+            if (employeeId == null) {
+                continue;
+            }
+            Employee_Time_Card__c card = EmployeeTimeCardService.ensureMonthlyTimeCard(
+                employeeId,
+                normalizedStart,
+                true,
+                true
+            );
+            if (card != null) {
+                cardsByEmployee.put(employeeId, card);
+            }
+        }
+        if (cardsByEmployee.isEmpty()) {
+            return;
+        }
+
+        Map<Id, Integer> potentialVisitsByEmployee = new Map<Id, Integer>();
+        Map<Id, Integer> completedVisitsByEmployee = new Map<Id, Integer>();
+        for (Id employeeId : cardsByEmployee.keySet()) {
+            potentialVisitsByEmployee.put(employeeId, 0);
+            completedVisitsByEmployee.put(employeeId, 0);
+        }
+        for (Visit__c visit : [
+            SELECT Id, Assigned_To__c, Status__c, Visit_Date__c, Start_Date__c
+            FROM Visit__c
+            WHERE Assigned_To__c IN :cardsByEmployee.keySet()
+            AND Status__c != 'Cancelled'
+            WITH SYSTEM_MODE
+        ]) {
+            Date visitDate = resolveVisitDate(visit);
+            if (visitDate == null || visitDate < normalizedStart || visitDate > monthEnd) {
+                continue;
+            }
+            if (visit.Status__c == 'Completed') {
+                completedVisitsByEmployee.put(
+                    visit.Assigned_To__c,
+                    completedVisitsByEmployee.get(visit.Assigned_To__c) + 1
+                );
+            } else if (POTENTIAL_VISIT_STATUSES.contains(visit.Status__c)) {
+                potentialVisitsByEmployee.put(
+                    visit.Assigned_To__c,
+                    potentialVisitsByEmployee.get(visit.Assigned_To__c) + 1
+                );
+            }
+        }
+
+        Map<Id, Integer> potentialMeetingsByEmployee = new Map<Id, Integer>();
+        Map<Id, Integer> completedMeetingsByEmployee = new Map<Id, Integer>();
+        for (Id employeeId : cardsByEmployee.keySet()) {
+            potentialMeetingsByEmployee.put(employeeId, 0);
+            completedMeetingsByEmployee.put(employeeId, 0);
+        }
+        for (Meeting__c meeting : [
+            SELECT Id, OwnerId, Status__c, Start_Date_Time__c
+            FROM Meeting__c
+            WHERE OwnerId IN :cardsByEmployee.keySet()
+            AND Start_Date_Time__c >= :rangeStartDt
+            AND Start_Date_Time__c <= :rangeEndDt
+            WITH SYSTEM_MODE
+        ]) {
+            if (COMPLETED_MEETING_STATUSES.contains(meeting.Status__c)) {
+                completedMeetingsByEmployee.put(
+                    meeting.OwnerId,
+                    completedMeetingsByEmployee.get(meeting.OwnerId) + 1
+                );
+            } else if (POTENTIAL_MEETING_STATUSES.contains(meeting.Status__c)) {
+                potentialMeetingsByEmployee.put(
+                    meeting.OwnerId,
+                    potentialMeetingsByEmployee.get(meeting.OwnerId) + 1
+                );
+            }
+        }
+
+        Map<Id, Set<Date>> coachedDaysByEmployee = new Map<Id, Set<Date>>();
+        Map<Id, Set<Date>> coachingDaysByManager = new Map<Id, Set<Date>>();
+        for (Id employeeId : cardsByEmployee.keySet()) {
+            coachedDaysByEmployee.put(employeeId, new Set<Date>());
+            coachingDaysByManager.put(employeeId, new Set<Date>());
+        }
+        for (Coaching_Event__c eventRecord : [
+            SELECT Id, Employee__c, Manager__c, Status__c, Event_Start__c
+            FROM Coaching_Event__c
+            WHERE Event_Start__c >= :rangeStartDt
+            AND Event_Start__c <= :rangeEndDt
+            AND (
+                Employee__c IN :cardsByEmployee.keySet()
+                OR Manager__c IN :cardsByEmployee.keySet()
+            )
+            WITH SYSTEM_MODE
+        ]) {
+            if (eventRecord.Event_Start__c == null) {
+                continue;
+            }
+            if (EXCLUDED_COACHING_STATUSES.contains(eventRecord.Status__c)) {
+                continue;
+            }
+            Date eventDay = eventRecord.Event_Start__c.date();
+            if (eventRecord.Employee__c != null && coachedDaysByEmployee.containsKey(eventRecord.Employee__c)) {
+                coachedDaysByEmployee.get(eventRecord.Employee__c).add(eventDay);
+            }
+            if (eventRecord.Manager__c != null && coachingDaysByManager.containsKey(eventRecord.Manager__c)) {
+                coachingDaysByManager.get(eventRecord.Manager__c).add(eventDay);
+            }
+        }
+
+        List<Employee_Time_Card__c> updates = new List<Employee_Time_Card__c>();
+        for (Id employeeId : cardsByEmployee.keySet()) {
+            Employee_Time_Card__c card = cardsByEmployee.get(employeeId);
+            String department = EmployeeTimeCardFlowHelper.getEmployeeDepartment(employeeId);
+            EmployeeTimeCardFlowHelper.LeaveTotals leaves = EmployeeTimeCardFlowHelper.calculateLeaveTotals(
+                employeeId,
+                normalizedStart,
+                monthEnd,
+                department
+            );
+            Integer fieldDays = EmployeeTimeCardFlowHelper.countFieldDays(
+                normalizedStart,
+                monthEnd,
+                department,
+                leaves.leaveByDate
+            );
+            updates.add(new Employee_Time_Card__c(
+                Id = card.Id,
+                Field_Days_Total__c = fieldDays,
+                Leave_Days_Total__c = leaves.totalLeaveDays,
+                Potential_Visits_Total__c = potentialVisitsByEmployee.get(employeeId),
+                Completed_Meetings_Total__c = completedMeetingsByEmployee.get(employeeId),
+                Potential_Meetings_Total__c = potentialMeetingsByEmployee.get(employeeId),
+                Coached_Days_Total__c = coachedDaysByEmployee.get(employeeId).size(),
+                Coaching_Days_Delivered__c = coachingDaysByManager.get(employeeId).size()
+            ));
+        }
+        if (!updates.isEmpty()) {
+            update as system updates;
+        }
     }
 
     public static void reconcileTimeCard(Id timeCardId) {
@@ -96,6 +363,9 @@ public without sharing class EmployeeTimeCardMetricsService {
             recalcTimeCardRollups(new Set<Id>{ timeCardId });
         }
         syncAttendanceTimesForTimeCard(timeCardId);
+        if (timeCard.Employee__c != null) {
+            recalcMonthlyKpis(new Set<Id>{ timeCard.Employee__c }, monthStart);
+        }
     }
 
     public static void syncAttendanceTimesForTimeCard(Id timeCardId) {
@@ -195,10 +465,28 @@ public without sharing class EmployeeTimeCardMetricsService {
             }
         }
 
+        // One ensure per employee-month: a reconcile can carry hundreds of visits for the same card.
+        Set<String> ensuredMonths = new Set<String>();
+        for (VisitDelta delta : deltas) {
+            Id employeeId = delta.visit.Assigned_To__c;
+            Date visitDate = resolveVisitDate(delta.visit);
+            if (employeeId == null || visitDate == null || !ensuredMonths.add(employeeId + ':' + visitDate.toStartOfMonth())) {
+                continue;
+            }
+            EmployeeTimeCardService.ensureMonthlyTimeCard(
+                employeeId,
+                visitDate.toStartOfMonth(),
+                true,
+                true
+            );
+        }
+
         Map<String, Employee_Time_Card_Day_Entry__c> dayEntriesByKey = loadDayEntries(employeeIds, visitDates);
         Map<String, Employee_Time_Card_Account_Target__c> targetsByKey = loadAccountTargets(employeeIds, accountIds);
         Map<Id, Account> accountsById = loadAccounts(accountIds);
         Set<Id> affectedTimeCards = new Set<Id>();
+        // Visits to accounts outside the target list would otherwise re-sync the same card once per visit.
+        Set<Id> targetSyncedCards = new Set<Id>();
 
         for (VisitDelta delta : deltas) {
             Id employeeId = delta.visit.Assigned_To__c;
@@ -250,9 +538,15 @@ public without sharing class EmployeeTimeCardMetricsService {
             if (delta.visit.Account__c != null) {
                 String targetKey = buildTargetKey(dayEntry.Employee_Time_Card__c, delta.visit.Account__c);
                 Employee_Time_Card_Account_Target__c target = targetsByKey.get(targetKey);
-                if (target == null) {
+                if (target == null && targetSyncedCards.add(dayEntry.Employee_Time_Card__c)) {
                     EmployeeTimeCardService.syncAccountTargets(dayEntry.Employee_Time_Card__c);
-                    targetsByKey.putAll(loadAccountTargets(new Set<Id>{ employeeId }, new Set<Id>{ delta.visit.Account__c }));
+                    Map<String, Employee_Time_Card_Account_Target__c> synced = loadAccountTargets(new Set<Id>{ employeeId }, accountIds);
+                    for (String key : synced.keySet()) {
+                        // keep in-memory counts already applied earlier in this loop
+                        if (!targetsByKey.containsKey(key)) {
+                            targetsByKey.put(key, synced.get(key));
+                        }
+                    }
                     target = targetsByKey.get(targetKey);
                 }
                 if (target != null) {
@@ -703,12 +997,28 @@ public without sharing class EmployeeTimeCardMetricsService {
         return visit.Visit_Type__c.startsWith('Planned');
     }
 
+    /**
+     * Planned completed visits count immediately.
+     * Out-of-target (Unplanned) visits count only after the DM marks Validation_Status Valid.
+     */
+    @TestVisible
+    private static Boolean countsTowardActuals(Visit__c visit) {
+        if (visit == null || visit.Status__c != 'Completed') {
+            return false;
+        }
+        if (isPlannedVisit(visit)) {
+            return true;
+        }
+        String validation = visit.Validation_Status__c;
+        return validation != null && validation.equalsIgnoreCase('Valid');
+    }
+
     private static Map<Id, Account> loadAccounts(Set<Id> accountIds) {
         if (accountIds == null || accountIds.isEmpty()) {
             return new Map<Id, Account>();
         }
         return new Map<Id, Account>([
-            SELECT Id, RecordType.DeveloperName
+            SELECT Id, RecordType.DeveloperName, Institution_Type__c
             FROM Account
             WHERE Id IN :accountIds
             WITH SYSTEM_MODE
@@ -747,19 +1057,24 @@ public without sharing class EmployeeTimeCardMetricsService {
         }
     }
 
+    /**
+     * AM visits are hospital HCO accounts. Clinics, pharmacies, HCPs, and every
+     * other account type are PM visits.
+     */
+    @TestVisible
+    public static Boolean isAmHospitalAccount(String recordTypeDeveloperName, String institutionType) {
+        if (recordTypeDeveloperName != HOSPITAL_RECORD_TYPE) {
+            return false;
+        }
+        return String.isBlank(institutionType) || institutionType == HOSPITAL_INSTITUTION_TYPE;
+    }
+
     @TestVisible
     private static String resolveVisitChannel(Account account) {
-        if (account == null || account.RecordType == null) {
+        if (account == null || account.RecordType == null || String.isBlank(account.RecordType.DeveloperName)) {
             return null;
         }
-        String developerName = account.RecordType.DeveloperName;
-        if (HCO_RECORD_TYPES.contains(developerName)) {
-            return 'AM';
-        }
-        if (HCP_RECORD_TYPES.contains(developerName)) {
-            return 'PM';
-        }
-        return null;
+        return isAmHospitalAccount(account.RecordType.DeveloperName, account.Institution_Type__c) ? 'AM' : 'PM';
     }
 
     @TestVisible
@@ -794,6 +1109,50 @@ public without sharing class EmployeeTimeCardMetricsService {
             return 'RCF';
         }
         return 'LCF';
+    }
+
+    private static void collectKpiMonth(Map<Id, Set<Date>> kpiMonthsByEmployee, Id employeeId, Date activityDate) {
+        if (employeeId == null || activityDate == null) {
+            return;
+        }
+        if (!kpiMonthsByEmployee.containsKey(employeeId)) {
+            kpiMonthsByEmployee.put(employeeId, new Set<Date>());
+        }
+        kpiMonthsByEmployee.get(employeeId).add(activityDate.toStartOfMonth());
+    }
+
+    private static void collectMeetingKpiMonth(Map<Id, Set<Date>> kpiMonthsByEmployee, Meeting__c meeting) {
+        if (meeting == null || meeting.OwnerId == null || meeting.Start_Date_Time__c == null) {
+            return;
+        }
+        collectKpiMonth(kpiMonthsByEmployee, meeting.OwnerId, meeting.Start_Date_Time__c.date());
+    }
+
+    private static void collectCoachingKpiMonth(Map<Id, Set<Date>> kpiMonthsByEmployee, Coaching_Event__c eventRecord) {
+        if (eventRecord == null || eventRecord.Event_Start__c == null) {
+            return;
+        }
+        Date eventDay = eventRecord.Event_Start__c.date();
+        collectKpiMonth(kpiMonthsByEmployee, eventRecord.Employee__c, eventDay);
+        collectKpiMonth(kpiMonthsByEmployee, eventRecord.Manager__c, eventDay);
+    }
+
+    private static void flushMonthlyKpis(Map<Id, Set<Date>> kpiMonthsByEmployee) {
+        if (kpiMonthsByEmployee == null || kpiMonthsByEmployee.isEmpty()) {
+            return;
+        }
+        Map<Date, Set<Id>> employeesByMonth = new Map<Date, Set<Id>>();
+        for (Id employeeId : kpiMonthsByEmployee.keySet()) {
+            for (Date monthStart : kpiMonthsByEmployee.get(employeeId)) {
+                if (!employeesByMonth.containsKey(monthStart)) {
+                    employeesByMonth.put(monthStart, new Set<Id>());
+                }
+                employeesByMonth.get(monthStart).add(employeeId);
+            }
+        }
+        for (Date monthStart : employeesByMonth.keySet()) {
+            recalcMonthlyKpis(employeesByMonth.get(monthStart), monthStart);
+        }
     }
 
     private class VisitDelta {

@@ -107,20 +107,19 @@
     flex: 1 1 12.5rem;
     max-width: 100%;
     padding: 0.55rem 0.85rem;
-    border: 1px solid #dddbda;
+    border: 1.5px solid #1b1b1b;
     border-radius: 0.75rem;
-    background: #fff;
+    background: #f3f3f3;
     color: #181818;
     text-decoration: none;
     cursor: pointer;
-    box-shadow: none;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
     font: inherit;
     text-align: left;
 }
 
 .download-btn:hover {
-    background: #f4f8fd;
-    border-color: #0176d3;
+    background: #e8e8e8;
 }
 
 .download-logo {

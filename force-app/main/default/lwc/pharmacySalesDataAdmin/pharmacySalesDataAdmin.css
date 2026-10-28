@@ -118,3 +118,16 @@
 .bricks-panel {
     max-width: 40rem;
 }
+
+.digestion-panel {
+    max-width: 56rem;
+}
+
+.digestion-steps {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: #3e3e3c;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}

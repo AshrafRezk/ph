@@ -58,21 +58,50 @@
                 <div class="exam-toolbar">
                     <div class="toolbar-left">
                         <span class="toolbar-title">{quiz.title}</span>
-                        <span class="toolbar-meta">{nextAttemptLabel} � {progressLabel}</span>
+                        <span class="toolbar-meta">{nextAttemptLabel} - {progressLabel}</span>
                     </div>
-                    <div class={timerClass} title="Time remaining">
-                        <lightning-icon icon-name="utility:clock" size="x-small"></lightning-icon>
-                        <span class="timer-text">{timerDisplay}</span>
-                    </div>
+                    <template if:true={hasTimeLimit}>
+                        <div class={timerClass} title="Time remaining">
+                            <lightning-icon
+                                class="timer-icon"
+                                icon-name="utility:clock"
+                                size="x-small"
+                                variant="inverse"
+                            ></lightning-icon>
+                            <span class="timer-text">{timerDisplay}</span>
+                        </div>
+                    </template>
                 </div>
 
                 <template for:each={questionsView} for:item="question">
                     <article key={question.id} class="question-card">
                         <h4>Q{question.number}. {question.question}</h4>
-                        <template if:true={question.isSingle}>
+                        <template if:true={question.isSingleChoice}>
                             <lightning-radio-group
                                 name={question.id}
                                 data-id={question.id}
+                                data-type="single-choice"
+                                options={question.options}
+                                value={question.selectedValue}
+                                onchange={handleAnswer}
+                                type="radio"
+                            ></lightning-radio-group>
+                        </template>
+                        <template if:true={question.isMultipleChoice}>
+                            <lightning-checkbox-group
+                                name={question.id}
+                                data-id={question.id}
+                                data-type="multiple-choice"
+                                options={question.options}
+                                value={question.selectedValues}
+                                onchange={handleAnswer}
+                            ></lightning-checkbox-group>
+                        </template>
+                        <template if:true={question.isScale}>
+                            <lightning-radio-group
+                                name={question.id}
+                                data-id={question.id}
+                                data-type="scale"
                                 options={question.options}
                                 value={question.selectedValue}
                                 onchange={handleAnswer}

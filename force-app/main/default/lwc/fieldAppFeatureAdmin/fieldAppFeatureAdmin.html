@@ -1,0 +1,44 @@
+<template>
+    <section class="feature-admin">
+        <header class="feature-admin-header">
+            <h2 class="feature-admin-title">Field App Features</h2>
+            <p class="feature-admin-subtitle">
+                Show or hide capabilities for field users in the offline app and Lightning.
+            </p>
+        </header>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading features" size="small"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="feature-admin-error">{errorMessage}</p>
+        </template>
+
+        <template if:false={isLoading}>
+            <template for:each={groups} for:item="group">
+                <article key={group.category} class="feature-group">
+                    <h3 class="feature-group-title">{group.category}</h3>
+                    <ul class="feature-list">
+                        <template for:each={group.features} for:item="feature">
+                            <li key={feature.key} class="feature-row">
+                                <div class="feature-copy">
+                                    <div class="feature-name">{feature.label}</div>
+                                    <div class="feature-desc">{feature.description}</div>
+                                </div>
+                                <lightning-input
+                                    type="toggle"
+                                    label={feature.toggleLabel}
+                                    variant="label-hidden"
+                                    data-key={feature.key}
+                                    checked={feature.enabled}
+                                    onchange={handleToggle}
+                                ></lightning-input>
+                            </li>
+                        </template>
+                    </ul>
+                </article>
+            </template>
+        </template>
+    </section>
+</template>

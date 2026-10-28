@@ -1,8 +1,9 @@
 <template>
+    <template if:true={featureEnabled}>
     <section class="reports-hub">
         <header class="reports-hub-header">
             <div class="reports-hub-header-icon" aria-hidden="true">
-                <lightning-icon icon-name="utility:report" size="small"></lightning-icon>
+                <lightning-icon icon-name="utility:chart" size="small" alternative-text=""></lightning-icon>
             </div>
             <div class="reports-hub-header-text">
                 <h1 class="reports-hub-header-title">Reports &amp; Analytics</h1>
@@ -74,4 +75,5 @@
             </template>
         </div>
     </section>
+    </template>
 </template>

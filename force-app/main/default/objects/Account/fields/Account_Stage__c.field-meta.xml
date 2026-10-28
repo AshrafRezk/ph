@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Stage__c</fullName>
+    <description>Account validation path: Draft, DM Approval, SFE Approval, BU Approval, FI Validation, Active, Inactive, Duplicate.</description>
+    <label>Account Stage</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Draft</fullName>
+                <default>true</default>
+                <label>Draft</label>
+            </value>
+            <value>
+                <fullName>Pending DM</fullName>
+                <default>false</default>
+                <label>DM Approval</label>
+            </value>
+            <value>
+                <fullName>Pending SFE</fullName>
+                <default>false</default>
+                <label>SFE Approval</label>
+            </value>
+            <value>
+                <fullName>Pending BU Approval</fullName>
+                <default>false</default>
+                <label>BU Approval</label>
+            </value>
+            <value>
+                <fullName>FI Validation</fullName>
+                <default>false</default>
+                <label>FI Validation</label>
+            </value>
+            <value>
+                <fullName>Active</fullName>
+                <default>false</default>
+                <label>Active</label>
+            </value>
+            <value>
+                <fullName>Inactive</fullName>
+                <default>false</default>
+                <label>Inactive</label>
+            </value>
+            <value>
+                <fullName>Duplicate</fullName>
+                <default>false</default>
+                <label>Duplicate</label>
+            </value>
+            <value>
+                <fullName>Pending FI Validatio</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Pending FI Validatio</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

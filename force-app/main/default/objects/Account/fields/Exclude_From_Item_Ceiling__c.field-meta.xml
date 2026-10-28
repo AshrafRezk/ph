@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Exclude_From_Item_Ceiling__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When true, withdrawal quantity does not enter the item ceiling and stays on the pharmacy.</description>
+    <label>Does not enter the ceiling</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

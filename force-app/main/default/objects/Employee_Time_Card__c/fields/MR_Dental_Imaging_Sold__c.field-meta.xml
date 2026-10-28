@@ -3,6 +3,7 @@
     <fullName>MR_Dental_Imaging_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Dental Imaging Unit Sold</description>
+    <externalId>false</externalId>
     <label>Dental Imaging Unit Sold</label>
     <precision>16</precision>
     <required>false</required>

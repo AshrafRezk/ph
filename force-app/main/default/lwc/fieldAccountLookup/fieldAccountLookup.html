@@ -1,0 +1,104 @@
+<template>
+    <div class="lookup">
+        <div class="label-row">
+            <label class="lookup-label" id={labelId}>{label}</label>
+            <template if:true={required}>
+                <span class="required-mark">Required</span>
+            </template>
+        </div>
+
+        <template if:true={hasSelection}>
+            <div class={selectedControlClass} role="group" aria-labelledby={labelId}>
+                <span class={selectedTheme} aria-hidden="true">
+                    <lightning-icon icon-name={selectedIcon} size="small"></lightning-icon>
+                </span>
+                <span class="selected-copy">
+                    <span class="selected-name">{accountName}</span>
+                    <template if:true={recordTypeLabel}>
+                        <span class="selected-meta">{recordTypeLabel}</span>
+                    </template>
+                </span>
+                <template if:true={showClear}>
+                    <button type="button" class="clear" onclick={handleClear} aria-label="Clear account">
+                        <lightning-icon icon-name="utility:close" size="xx-small"></lightning-icon>
+                    </button>
+                </template>
+            </div>
+        </template>
+
+        <template if:false={hasSelection}>
+            <div class={controlClass}>
+                <lightning-icon icon-name="utility:search" size="x-small" class="search-icon"></lightning-icon>
+                <input
+                    id={inputId}
+                    class="lookup-input"
+                    type="search"
+                    role="combobox"
+                    enterkeyhint="search"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    aria-autocomplete="list"
+                    aria-expanded={expanded}
+                    aria-controls={listId}
+                    aria-activedescendant={activeDescendant}
+                    aria-labelledby={labelId}
+                    aria-required={required}
+                    placeholder={placeholder}
+                    value={query}
+                    onfocus={handleFocus}
+                    oninput={handleInput}
+                    onkeydown={handleKeydown}
+                />
+                <template if:true={hasQuery}>
+                    <button type="button" class="clear" onclick={handleClearQuery} aria-label="Clear search">
+                        <lightning-icon icon-name="utility:close" size="xx-small"></lightning-icon>
+                    </button>
+                </template>
+            </div>
+        </template>
+
+        <div class="sr" aria-live="polite">{liveStatus}</div>
+
+        <div
+            class={menuClass}
+            role="listbox"
+            id={listId}
+            data-menu
+            tabindex="-1"
+            onmousedown={handleMenuMouseDown}
+        >
+            <div class="searching" aria-hidden="true">
+                <template if:true={isSearching}>
+                    <span></span>
+                </template>
+            </div>
+            <p class="menu-title">{menuTitle}</p>
+            <template if:true={statusMessage}>
+                <p class="menu-status">{statusMessage}</p>
+            </template>
+            <template for:each={menuRows} for:item="row">
+                <button
+                    key={row.accountId}
+                    type="button"
+                    role="option"
+                    id={row.optionId}
+                    class={row.className}
+                    aria-selected={row.selected}
+                    data-account-id={row.accountId}
+                    onclick={handlePick}
+                >
+                    <span class={row.theme} aria-hidden="true">
+                        <lightning-icon icon-name={row.iconName} size="small"></lightning-icon>
+                    </span>
+                    <span class="row-copy">
+                        <span class="row-name">{row.accountName}</span>
+                        <template if:true={row.meta}>
+                            <span class="row-meta">{row.meta}</span>
+                        </template>
+                    </span>
+                </button>
+            </template>
+        </div>
+    </div>
+</template>

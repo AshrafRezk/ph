@@ -1,0 +1,122 @@
+<template>
+    <section class="duplicate-panel" aria-label="Duplicate check">
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title">Duplicate check</h2>
+                <p class="panel-help">Possible duplicates from name, mobile, type, and location. Names match across Arabic spelling and Latin transliteration.</p>
+            </div>
+        </header>
+
+        <template if:true={isLoading}>
+            <p class="status-line">Checking for duplicates…</p>
+        </template>
+
+        <template if:true={errorMessage}>
+            <p class="status-line status-error" role="alert">{errorMessage}</p>
+        </template>
+
+        <template if:true={result}>
+            <p class={headlineClass}>{result.headline}</p>
+            <dl class="source-facts">
+                <div>
+                    <dt>Account</dt>
+                    <dd>{result.accountName}</dd>
+                </div>
+                <div>
+                    <dt>Type</dt>
+                    <dd>{sourceType}</dd>
+                </div>
+                <div>
+                    <dt>Mobile</dt>
+                    <dd>{result.phone}</dd>
+                </div>
+                <div>
+                    <dt>Location</dt>
+                    <dd>{result.location}</dd>
+                </div>
+            </dl>
+
+            <template if:true={result.hasMatches}>
+                <ul class="match-list">
+                    <template for:each={matches} for:item="match">
+                        <li key={match.accountId} class="match-card">
+                            <div class="match-top">
+                                <div class="match-identity">
+                                    <button type="button" class="match-name" data-id={match.accountId} onclick={handleOpenMatch}>
+                                        {match.accountName}
+                                    </button>
+                                    <p class="match-meta">{match.typeLine} · {match.phone}</p>
+                                    <p class="match-meta">{match.location}</p>
+                                </div>
+                                <div class="match-score">
+                                    <span class={match.badgeClass}>{match.percent}%</span>
+                                    <span class="possibility-label">{match.possibilityLabel}</span>
+                                </div>
+                            </div>
+                            <div class="meter" aria-hidden="true">
+                                <span class={match.meterClass} style={match.meterStyle}></span>
+                            </div>
+                            <p class="match-summary">{match.summary}</p>
+                            <ul class="factor-list">
+                                <template for:each={match.factors} for:item="factor">
+                                    <li key={factor.key} class={factor.chipClass}>{factor.text}</li>
+                                </template>
+                            </ul>
+                            <div class="match-actions">
+                                <template if:true={result.canReport}>
+                                    <button
+                                        type="button"
+                                        class="action-btn"
+                                        data-id={match.accountId}
+                                        onclick={handleReport}
+                                        disabled={isSaving}
+                                    >
+                                        {match.reportLabel}
+                                    </button>
+                                </template>
+                                <template if:true={result.canMerge}>
+                                    <button
+                                        type="button"
+                                        class="action-btn action-primary"
+                                        data-id={match.accountId}
+                                        data-keep="current"
+                                        onclick={handleMerge}
+                                        disabled={isSaving}
+                                    >
+                                        Merge, keep this account
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="action-btn"
+                                        data-id={match.accountId}
+                                        data-keep="match"
+                                        onclick={handleMerge}
+                                        disabled={isSaving}
+                                    >
+                                        Merge, keep {match.accountName}
+                                    </button>
+                                </template>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template if:true={showEmpty}>
+                <p class="status-line">Nothing close enough to report or merge.</p>
+            </template>
+        </template>
+
+        <template if:true={showConfirm}>
+            <section class="confirm-layer" role="dialog" aria-modal="true" aria-labelledby="duplicate-confirm-title" onclick={handleCancelConfirm}>
+                <div class="confirm-card" onclick={stopConfirmClick}>
+                    <h3 id="duplicate-confirm-title" class="confirm-title">{confirmTitle}</h3>
+                    <p class="confirm-body">{confirmBody}</p>
+                    <div class="confirm-actions">
+                        <button type="button" class="action-btn" onclick={handleCancelConfirm} disabled={isSaving}>Cancel</button>
+                        <button type="button" class="action-btn action-primary" onclick={handleConfirm} disabled={isSaving}>{confirmButtonLabel}</button>
+                    </div>
+                </div>
+            </section>
+        </template>
+    </section>
+</template>

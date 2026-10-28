@@ -3,6 +3,7 @@
         <template if:true={isYouTube}>
             <div class="video-frame">
                 <iframe
+                    data-yt
                     src={youtubeEmbedUrl}
                     title={title}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -10,20 +11,57 @@
                 ></iframe>
             </div>
         </template>
-        <template if:false={isYouTube}>
-            <template if:true={hasUrl}>
-                <div class="link-panel">
-                    <p>Open the {materialType} content in a new tab, then mark the lesson complete when finished.</p>
-                    <a class="slds-button slds-button_brand" href={materialUrl} target="_blank" rel="noopener noreferrer">
-                        {openLabel}
-                    </a>
-                </div>
-            </template>
-            <template if:false={hasUrl}>
-                <div class="link-panel">
-                    <p>No content URL has been set for this lesson yet.</p>
-                </div>
-            </template>
+
+        <template if:true={isHtml5Video}>
+            <div class="video-frame video-frame-html5">
+                <video
+                    class="html5-video"
+                    controls
+                    playsinline
+                    preload="metadata"
+                    title={title}
+                    src={materialUrl}
+                >
+                    Your browser does not support embedded video.
+                </video>
+            </div>
+        </template>
+
+        <template if:true={isPdf}>
+            <div class="link-panel">
+                <p class="pdf-url">{materialUrl}</p>
+                <a
+                    class="slds-button slds-button_brand"
+                    href={materialUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Open PDF in a new tab
+                </a>
+            </div>
+        </template>
+
+        <template if:true={showExternalLink}>
+            <div class="link-panel">
+                <p>Open the {materialType} content in a new tab, then mark the lesson complete when finished.</p>
+                <a class="slds-button slds-button_brand" href={materialUrl} target="_blank" rel="noopener noreferrer">
+                    {openLabel}
+                </a>
+            </div>
+        </template>
+
+        <template if:true={hasDescription}>
+            <div class="lesson-body">{description}</div>
+        </template>
+
+        <template if:true={showEmptyState}>
+            <div class="link-panel">
+                <p>No content URL has been set for this lesson yet.</p>
+            </div>
+        </template>
+
+        <template if:true={showWatchProgress}>
+            <p class="watch-progress">{watchLabel}</p>
         </template>
     </div>
 </template>

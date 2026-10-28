@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Strictly_Greater__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>The planned cost must be above the minimum amount, not equal to it.</inlineHelpText>
+    <label>Strictly Greater</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

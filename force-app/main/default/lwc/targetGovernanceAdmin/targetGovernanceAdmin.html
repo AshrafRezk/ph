@@ -1,0 +1,119 @@
+<template>
+    <section class="panel">
+        <p class="lead">
+            Frequency / list-churn deviation alarms (±10% by default) and the end-of-month out-of-target
+            queue (DM → FI → BU). Only DM-validated visits enter the queue.
+        </p>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+
+        <template if:false={loading}>
+            <div class="card">
+                <h3 class="h">Deviation alarms</h3>
+                <div class="grid">
+                    <lightning-input
+                        type="number"
+                        label="Frequency deviation % (monthly)"
+                        value={rule.frequencyDeviationPct}
+                        data-field="frequencyDeviationPct"
+                        onchange={handleRuleField}
+                    ></lightning-input>
+                    <lightning-input
+                        type="number"
+                        label="List add/remove deviation % (quarterly)"
+                        value={rule.listChurnDeviationPct}
+                        data-field="listChurnDeviationPct"
+                        onchange={handleRuleField}
+                    ></lightning-input>
+                </div>
+                <div class="actions">
+                    <lightning-button
+                        variant="brand"
+                        label="Save alarm thresholds"
+                        onclick={handleSaveRule}
+                        disabled={saving}
+                    ></lightning-button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h3 class="h">Out-of-target queue</h3>
+                    <lightning-combobox
+                        label="Status"
+                        value={statusFilter}
+                        options={statusOptions}
+                        onchange={handleStatusFilter}
+                    ></lightning-combobox>
+                </div>
+                <div class="actions">
+                    <lightning-button
+                        label="Build queue for me"
+                        onclick={handleBuildQueue}
+                        disabled={saving}
+                        title="Creates Pending DM rows from validated OOT visits this quarter"
+                    ></lightning-button>
+                </div>
+                <template if:true={hasProposals}>
+                    <ul class="list">
+                        <template for:each={proposals} for:item="row">
+                            <li key={row.key} class="row">
+                                <div>
+                                    <strong>{row.accountName}</strong>
+                                    <span class="meta">{row.status} · {row.meta}</span>
+                                </div>
+                                <div class="row-actions">
+                                    <template if:true={row.status}>
+                                        <template if:true={row.canToFi}>
+                                        <lightning-button
+                                            label="→ FI"
+                                            data-id={row.id}
+                                            data-next="Pending FI"
+                                            onclick={handleAdvance}
+                                            disabled={saving}
+                                        ></lightning-button>
+                                        </template>
+                                        <template if:true={row.canToBu}>
+                                        <lightning-button
+                                            label="→ BU"
+                                            data-id={row.id}
+                                            data-next="Pending BU"
+                                            onclick={handleAdvance}
+                                            disabled={saving}
+                                        ></lightning-button>
+                                        </template>
+                                        <template if:true={row.canApprove}>
+                                        <lightning-button
+                                            label="Approve"
+                                            variant="brand"
+                                            data-id={row.id}
+                                            data-next="Approved"
+                                            onclick={handleAdvance}
+                                            disabled={saving}
+                                        ></lightning-button>
+                                        </template>
+                                        <template if:true={row.canReject}>
+                                        <lightning-button
+                                            label="Reject"
+                                            variant="destructive-text"
+                                            data-id={row.id}
+                                            data-next="Rejected"
+                                            onclick={handleAdvance}
+                                            disabled={saving}
+                                        ></lightning-button>
+                                        </template>
+                                    </template>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+                <template if:false={hasProposals}>
+                    <p class="hint">No proposals in this status.</p>
+                </template>
+            </div>
+        </template>
+    </section>
+</template>

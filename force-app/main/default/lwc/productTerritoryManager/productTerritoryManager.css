@@ -38,6 +38,28 @@
     font-weight: 600;
 }
 
+.panel-heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.panel-heading-row h3 {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+}
+
+.view-product-btn {
+    flex-shrink: 0;
+}
+
+.view-product-row-btn {
+    flex-shrink: 0;
+}
+
 .tree-list {
     list-style: none;
     margin: 0.75rem 0 0;
@@ -53,6 +75,11 @@
 
 .tree-row--selected {
     background: #eef4ff;
+}
+
+.tree-row--inactive .product-name,
+.tree-row--inactive .product-meta {
+    color: #939393;
 }
 
 .tree-row-content {
@@ -154,6 +181,27 @@
 
 @media (max-width: 48rem) {
     .manager-panels {
+        grid-template-columns: 1fr;
+    }
+}
+.editor-help {
+    margin: 0 0 0.75rem;
+    color: #444;
+    font-size: 0.8125rem;
+}
+
+.editor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.editor-wide {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+    .editor-grid {
         grid-template-columns: 1fr;
     }
 }

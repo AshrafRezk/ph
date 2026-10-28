@@ -5,7 +5,9 @@
     <referenceTo>Pharma_Project__c</referenceTo>
     <relationshipLabel>Project KPIs</relationshipLabel>
     <relationshipName>Pharma_Project</relationshipName>
-    <type>MasterDetail</type>
+    <relationshipOrder>0</relationshipOrder>
     <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
     <writeRequiresMasterRead>false</writeRequiresMasterRead>
 </CustomField>

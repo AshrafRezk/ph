@@ -55,6 +55,14 @@
                         onchange={handleFilterChange}
                     ></lightning-combobox>
                     <lightning-combobox
+                        label="Tender sales"
+                        data-field="tenderMode"
+                        value={tenderModeValue}
+                        options={tenderModeOptions}
+                        field-level-help="Tender sales are not initiated by reps, so they are left out of achievements and bulk share by default (Sales Policy)."
+                        onchange={handleFilterChange}
+                    ></lightning-combobox>
+                    <lightning-combobox
                         label="Therapy Area"
                         data-field="therapyArea"
                         value={therapyArea}
@@ -94,6 +102,9 @@
         <template if:true={isLoading}>
             <div class="sales-loading">
                 <lightning-spinner alternative-text="Loading sales analytics" size="medium"></lightning-spinner>
+                <template if:true={loadProgress}>
+                    <p class="empty-copy" role="status">{loadProgress}</p>
+                </template>
             </div>
         </template>
 
@@ -209,6 +220,9 @@
 
             <section class="panel">
                 <h3 class="panel-title">Detail</h3>
+                <template if:true={detailCapNote}>
+                    <p class="empty-copy">{detailCapNote}</p>
+                </template>
                 <template if:true={isMobile}>
                     <template if:true={hasDetailRows}>
                         <div class="detail-cards">

@@ -78,7 +78,14 @@ public without sharing class EmployeeTimeCardService {
         }
 
         List<Account_Territory_Fields__c> atfRecords = [
-            SELECT Id, Account__c, Territory2_Id__c, Classification__c, Potential__c, Is_Active__c
+            SELECT
+                Id,
+                Account__c,
+                Territory2_Id__c,
+                Classification__c,
+                Potential__c,
+                Is_Active__c,
+                Call_Plan_Visits_Per_Month__c
             FROM Account_Territory_Fields__c
             WHERE Is_Active__c = true
             AND Territory2_Id__c IN :territoryIdStrings
@@ -90,6 +97,13 @@ public without sharing class EmployeeTimeCardService {
         }
 
         Map<String, Decimal> frequencyByAtfKey = loadTargetFrequencies(atfRecords);
+        // A manager's (or an approved class cycle's) visits for this month win over the default.
+        frequencyByAtfKey.putAll(
+            AccountMonthFrequencyService.frequenciesForMonth(atfRecords, timeCard.Time_Card_Month_Start_Date__c)
+        );
+        Decimal qualifyingDays = qualifyingDaysForCard(timeCard);
+        Decimal workingDays = CallTargetAdjustmentService.workingDaysByCard(new Set<Id>{ timeCardId }).get(timeCardId);
+        Map<String, Decimal> baseByKey = new Map<String, Decimal>();
         Map<String, Employee_Time_Card_Account_Target__c> existingByKey = new Map<String, Employee_Time_Card_Account_Target__c>();
         for (Employee_Time_Card_Account_Target__c target : [
             SELECT Id, Unique_Key__c, Account__c
@@ -131,15 +145,11 @@ public without sharing class EmployeeTimeCardService {
             row.Account__c = atf.Account__c;
             row.Account_Territory_Fields__c = atf.Id;
             row.Potentiality__c = resolvePotentiality(atf);
-            if (
-                !upsertsByKey.containsKey(key) ||
-                targetFrequency > row.Target_Visit_Frequency__c
-            ) {
-                row.Target_Visit_Frequency__c = targetFrequency;
-            }
+            rememberBaseFrequency(baseByKey, key, targetFrequency);
             row.Rep__c = timeCard.Employee__c;
             upsertsByKey.put(key, row);
         }
+        stampAdjustedTargets(upsertsByKey, baseByKey, timeCardId, qualifyingDays, workingDays);
 
         for (String key : existingByKey.keySet()) {
             if (!upsertsByKey.containsKey(key)) {
@@ -176,7 +186,14 @@ public without sharing class EmployeeTimeCardService {
         }
 
         List<Account_Territory_Fields__c> atfRecords = [
-            SELECT Id, Account__c, Territory2_Id__c, Classification__c, Potential__c, Is_Active__c
+            SELECT
+                Id,
+                Account__c,
+                Territory2_Id__c,
+                Classification__c,
+                Potential__c,
+                Is_Active__c,
+                Call_Plan_Visits_Per_Month__c
             FROM Account_Territory_Fields__c
             WHERE Is_Active__c = true
             AND Territory2_Id__c IN :territoryIdStrings
@@ -188,6 +205,13 @@ public without sharing class EmployeeTimeCardService {
         }
 
         Map<String, Decimal> frequencyByAtfKey = loadTargetFrequencies(atfRecords);
+        Map<Id, Employee_Time_Card__c> cardsById = new Map<Id, Employee_Time_Card__c>([
+            SELECT Id, Employee__c, Time_Card_Month_Start_Date__c
+            FROM Employee_Time_Card__c
+            WHERE Id IN :timeCardIds
+            WITH SYSTEM_MODE
+        ]);
+        Map<Id, Decimal> workingDaysByCard = CallTargetAdjustmentService.workingDaysByCard(new Set<Id>(timeCardIds));
         Map<Id, Map<String, Employee_Time_Card_Account_Target__c>> existingByCard = new Map<Id, Map<String, Employee_Time_Card_Account_Target__c>>();
         for (Employee_Time_Card_Account_Target__c target : [
             SELECT Id, Unique_Key__c, Account__c, Employee_Time_Card__c
@@ -202,12 +226,18 @@ public without sharing class EmployeeTimeCardService {
         }
 
         Map<String, Employee_Time_Card_Account_Target__c> upsertsByKey = new Map<String, Employee_Time_Card_Account_Target__c>();
+        Map<String, Decimal> baseByKey = new Map<String, Decimal>();
         List<Employee_Time_Card_Account_Target__c> targetsToDelete = new List<Employee_Time_Card_Account_Target__c>();
         Set<Id> targetDeleteIds = new Set<Id>();
         for (Id timeCardId : timeCardIds) {
             Map<String, Employee_Time_Card_Account_Target__c> existingByKey = existingByCard.containsKey(timeCardId)
                 ? existingByCard.get(timeCardId)
                 : new Map<String, Employee_Time_Card_Account_Target__c>();
+            Decimal qualifyingDays = qualifyingDaysForCard(cardsById.get(timeCardId));
+            Map<String, Decimal> monthFrequencyByKey = AccountMonthFrequencyService.frequenciesForMonth(
+                atfRecords,
+                cardsById.get(timeCardId)?.Time_Card_Month_Start_Date__c
+            );
             for (Account_Territory_Fields__c atf : atfRecords) {
                 String key = timeCardId + ':' + String.valueOf(atf.Account__c);
                 if (!includeAccountInPlanCycle(atf.Account__c)) {
@@ -221,9 +251,9 @@ public without sharing class EmployeeTimeCardService {
                     continue;
                 }
                 String freqKey = String.valueOf(atf.Account__c) + ':' + atf.Territory2_Id__c;
-                Decimal targetFrequency = frequencyByAtfKey.containsKey(freqKey)
-                    ? frequencyByAtfKey.get(freqKey)
-                    : 1;
+                Decimal targetFrequency = monthFrequencyByKey.containsKey(freqKey)
+                    ? monthFrequencyByKey.get(freqKey)
+                    : (frequencyByAtfKey.containsKey(freqKey) ? frequencyByAtfKey.get(freqKey) : 1);
 
                 Employee_Time_Card_Account_Target__c row = upsertsByKey.containsKey(key)
                     ? upsertsByKey.get(key)
@@ -236,15 +266,17 @@ public without sharing class EmployeeTimeCardService {
                 row.Account__c = atf.Account__c;
                 row.Account_Territory_Fields__c = atf.Id;
                 row.Potentiality__c = resolvePotentiality(atf);
-                if (
-                    !upsertsByKey.containsKey(key) ||
-                    targetFrequency > row.Target_Visit_Frequency__c
-                ) {
-                    row.Target_Visit_Frequency__c = targetFrequency;
-                }
+                rememberBaseFrequency(baseByKey, key, targetFrequency);
                 row.Rep__c = employeeId;
                 upsertsByKey.put(key, row);
             }
+            stampAdjustedTargets(
+                upsertsByKey,
+                baseByKey,
+                timeCardId,
+                qualifyingDays,
+                workingDaysByCard.get(timeCardId)
+            );
             for (String key : existingByKey.keySet()) {
                 if (!upsertsByKey.containsKey(key)) {
                     Employee_Time_Card_Account_Target__c toDelete = existingByKey.get(key);
@@ -262,6 +294,65 @@ public without sharing class EmployeeTimeCardService {
 
         if (!upsertsByKey.isEmpty()) {
             upsert as system upsertsByKey.values();
+        }
+    }
+
+    public static void reapplyCallTargets(Set<Id> timeCardIds) {
+        if (timeCardIds == null || timeCardIds.isEmpty()) {
+            return;
+        }
+        Map<Id, List<Id>> cardsByEmployee = new Map<Id, List<Id>>();
+        for (Employee_Time_Card__c card : [
+            SELECT Id, Employee__c
+            FROM Employee_Time_Card__c
+            WHERE Id IN :timeCardIds AND Employee__c != null
+            WITH SYSTEM_MODE
+        ]) {
+            if (!cardsByEmployee.containsKey(card.Employee__c)) {
+                cardsByEmployee.put(card.Employee__c, new List<Id>());
+            }
+            cardsByEmployee.get(card.Employee__c).add(card.Id);
+        }
+        for (Id employeeId : cardsByEmployee.keySet()) {
+            syncAccountTargetsForTimeCards(employeeId, cardsByEmployee.get(employeeId));
+        }
+    }
+
+    private static Decimal qualifyingDaysForCard(Employee_Time_Card__c timeCard) {
+        if (timeCard == null || timeCard.Employee__c == null || timeCard.Time_Card_Month_Start_Date__c == null) {
+            return 0;
+        }
+        Date monthStart = timeCard.Time_Card_Month_Start_Date__c;
+        return CallTargetAdjustmentService.qualifyingDays(
+            timeCard.Employee__c,
+            monthStart,
+            monthStart.addMonths(1).addDays(-1)
+        );
+    }
+
+    private static void rememberBaseFrequency(Map<String, Decimal> baseByKey, String key, Decimal targetFrequency) {
+        if (!baseByKey.containsKey(key) || targetFrequency > baseByKey.get(key)) {
+            baseByKey.put(key, targetFrequency);
+        }
+    }
+
+    private static void stampAdjustedTargets(
+        Map<String, Employee_Time_Card_Account_Target__c> upsertsByKey,
+        Map<String, Decimal> baseByKey,
+        Id timeCardId,
+        Decimal qualifyingDays,
+        Decimal workingDays
+    ) {
+        String prefix = String.valueOf(timeCardId) + ':';
+        for (String key : baseByKey.keySet()) {
+            if (!key.startsWith(prefix) || !upsertsByKey.containsKey(key)) {
+                continue;
+            }
+            upsertsByKey.get(key).Target_Visit_Frequency__c = CallTargetAdjustmentService.adjustTarget(
+                baseByKey.get(key),
+                qualifyingDays,
+                workingDays
+            );
         }
     }
 
@@ -319,9 +410,7 @@ public without sharing class EmployeeTimeCardService {
             EmployeeTimeCardFlowHelper.recalcDayDefinitionsForEmployeeAndRange(employeeId, monthStart, monthEnd);
             EmployeeTimeCardFlowHelper.recalcTOTForEmployeeAndRange(employeeId, monthStart, monthEnd);
         }
-        if (!deferDayActivityRecalc) {
-            EmployeeTimeCardMetricsService.recalcDayLevelNoActivity(timeCard.Id);
-        }
+        // EmployeeTimeCardMetricsService is not in this org; day-activity metrics stay at defaults.
     }
 
     @TestVisible
@@ -354,7 +443,13 @@ public without sharing class EmployeeTimeCardService {
     }
 
     @TestVisible
+    private static Set<Id> testOverrideTerritoryIds;
+
+    @TestVisible
     private static Set<Id> resolveEmployeeTerritoryIds(Id employeeId) {
+        if (testOverrideTerritoryIds != null) {
+            return expandTerritoryHierarchy(testOverrideTerritoryIds);
+        }
         Set<Id> territoryIds = new Set<Id>();
         for (UserTerritory2Association assignment : [
             SELECT Territory2Id
@@ -412,12 +507,16 @@ public without sharing class EmployeeTimeCardService {
     private static Map<String, Decimal> loadTargetFrequencies(List<Account_Territory_Fields__c> atfRecords) {
         Set<String> accountIds = new Set<String>();
         Set<String> territoryIds = new Set<String>();
+        Map<String, Decimal> result = new Map<String, Decimal>();
         for (Account_Territory_Fields__c atf : atfRecords) {
             accountIds.add(String.valueOf(atf.Account__c));
             territoryIds.add(atf.Territory2_Id__c);
+            String key = String.valueOf(atf.Account__c) + ':' + atf.Territory2_Id__c;
+            if (atf.Call_Plan_Visits_Per_Month__c != null && atf.Call_Plan_Visits_Per_Month__c > 0) {
+                result.put(key, atf.Call_Plan_Visits_Per_Month__c);
+            }
         }
 
-        Map<String, Decimal> result = new Map<String, Decimal>();
         for (Account_Territory_Product_Fields__c atpf : [
             SELECT Account__c, Territory2_Id__c, Target_Visit_Frequency__c
             FROM Account_Territory_Product_Fields__c
@@ -426,6 +525,9 @@ public without sharing class EmployeeTimeCardService {
         ]) {
             String key = String.valueOf(atpf.Account__c) + ':' + atpf.Territory2_Id__c;
             if (!accountIds.contains(String.valueOf(atpf.Account__c))) {
+                continue;
+            }
+            if (result.containsKey(key)) {
                 continue;
             }
             Decimal mapped = mapFrequencyPicklist(atpf.Target_Visit_Frequency__c);
@@ -477,8 +579,9 @@ public without sharing class EmployeeTimeCardService {
         if (accountId == null) {
             return false;
         }
-        // Keep ~20% of territory accounts out of the monthly plan cycle for demo variety.
-        return Math.mod(Math.abs(String.valueOf(accountId).hashCode()), 5) != 0;
+        // Every territory account belongs in the plan cycle. The old ~20% hash-based demo exclusion
+        // silently dropped real accounts from plan targets (Wave 1A issue 18).
+        return true;
     }
 
     public static void applyVisionWeights(Id timeCardId, Map<String, Object> weights) {

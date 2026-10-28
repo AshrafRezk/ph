@@ -3,6 +3,8 @@
     <contactEmail>admin@pharma.eg</contactEmail>
     <description>Offline Salesforce Runtime (OSR) — Capacitor mobile + web OAuth PKCE client</description>
     <label>OSR Offline Runtime</label>
+    <logoUrl>https://www.salesforceoffline.com/osr-app-icon.png</logoUrl>
+    <iconUrl>https://www.salesforceoffline.com/osr-app-icon.png</iconUrl>
     <oauthConfig>
         <callbackUrl>com.osr.offline://oauth/callback
 com.zetapharma.fieldpwa://oauth/callback

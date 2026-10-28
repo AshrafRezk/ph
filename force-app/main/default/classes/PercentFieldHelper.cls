@@ -3,6 +3,8 @@ public with sharing class PercentFieldHelper {
      * Converts a Salesforce Percent field value to a 0–100 display scale.
      * Apex returns percent fields as a 0–1 ratio; legacy Reach_Percent__c values
      * may still be double-scaled from an old formula that multiplied by 100.
+     * Values already on a 0–100 scale are returned unchanged.
+     * A ratio of 1 is treated as 100 percent.
      */
     public static Decimal toDisplayScale(Decimal percentFieldValue) {
         if (percentFieldValue == null) {

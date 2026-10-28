@@ -1,0 +1,20 @@
+<template>
+    <section class="sla-panel">
+        <h2 class="sla-title">SLA Milestone</h2>
+        <template if:true={hasMilestone}>
+            <article class={cardClass}>
+                <p class="sla-status">{milestone.statusLabel}</p>
+                <p class="sla-elapsed">{milestone.elapsedLabel}</p>
+                <template if:true={showDueIn}>
+                    <p class="sla-due">{milestone.dueInLabel}</p>
+                </template>
+            </article>
+        </template>
+        <template if:false={hasMilestone}>
+            <article class="sla-card sla-card-base">
+                <p class="sla-status">NOT STARTED</p>
+                <p class="sla-elapsed">Elapsed: —</p>
+            </article>
+        </template>
+    </section>
+</template>

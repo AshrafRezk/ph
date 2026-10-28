@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Validation_Overdue__c</fullName>
+    <description>True while a completed unplanned visit is still Pending validation after its 24-hour due time.</description>
+    <externalId>false</externalId>
+    <formula>AND(ISPICKVAL(Validation_Status__c, &quot;Pending&quot;), NOT(ISBLANK(Validation_Due_At__c)), NOW() &gt; Validation_Due_At__c)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Validation Overdue</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

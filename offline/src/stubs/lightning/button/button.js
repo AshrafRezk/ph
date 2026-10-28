@@ -7,6 +7,7 @@ export default class Button extends LightningElement {
     @api disabled = false;
     @api iconName = '';
     @api iconPosition = 'left';
+    @api size = 'medium';
 
     get computedClass() {
         let cls = 'slds-button ';
@@ -17,6 +18,7 @@ export default class Button extends LightningElement {
         else if (this.variant === 'base') cls += 'slds-button_base';
         else cls += 'slds-button_neutral';
         if (this.iconName) cls += ' slds-button_icon-text';
+        if (this.size === 'small') cls += ' slds-button_small';
         return cls;
     }
 

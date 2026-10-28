@@ -7,7 +7,7 @@
 
         <div class="wizard-body">
             <template if:true={isUploadStep}>
-                <p>Select a PDF or ZIP/HTML package to upload.</p>
+                <p>{uploadPrompt}</p>
                 <lightning-combobox
                     label="Format"
                     value={formatType}
@@ -15,12 +15,16 @@
                     onchange={handleFormatChange}
                     disabled={isUploading}
                 ></lightning-combobox>
-                <lightning-input
-                    type="file"
+                <lightning-file-upload
                     label="Choose File"
-                    onchange={handleFileChange}
+                    name="clmPresentationUpload"
+                    accept={uploadAccept}
+                    onuploadfinished={handleUploadFinished}
                     disabled={isUploading}
-                ></lightning-input>
+                ></lightning-file-upload>
+                <template if:true={layoutHint}>
+                    <p class="layout-hint">Detected layout: {layoutHint}</p>
+                </template>
                 <template if:true={isUploading}>
                     <div class="upload-progress">
                         <p class="upload-status">{uploadStatus}</p>

@@ -130,7 +130,7 @@ export default class OfflineAppBanner extends LightningElement {
 
     get androidMetaLabel() {
         if (this.latestVersion) {
-            return `v${this.latestVersion}${this.latestFileName ? ` ù ${this.latestFileName}` : ''}`;
+            return `v${this.latestVersion}${this.latestFileName ? ` ÔøΩ ${this.latestFileName}` : ''}`;
         }
         return 'APK install';
     }
@@ -140,7 +140,7 @@ export default class OfflineAppBanner extends LightningElement {
             return false;
         }
         if (!this.installedVersion) {
-            // Offline shell without a stamped version ù still nudge if we know latest.
+            // Offline shell without a stamped version ÔøΩ still nudge if we know latest.
             return this.clientMode === 'offline';
         }
         return compareAppVersions(this.installedVersion, this.latestVersion) < 0;
@@ -184,7 +184,7 @@ export default class OfflineAppBanner extends LightningElement {
             return `${current}Download v${this.latestVersion} for the latest planner, visits, and offline fixes.`;
         }
         if (this.clientMode === 'salesforceApp') {
-            return 'For tablet field work offline, install the dedicated Offline Field app ù then sign in once with your Salesforce account.';
+            return 'For tablet field work offline, install the dedicated Offline Field app ÔøΩ then sign in once with your Salesforce account.';
         }
         return 'Working from a tablet? Install the Offline Field app so reps can plan visits and detail even without a connection.';
     }
@@ -260,7 +260,7 @@ export default class OfflineAppBanner extends LightningElement {
     }
 
     handleIosClick() {
-        // iOS cannot sideload an IPA here ù open the PWA and show Add to Home Screen guidance.
+        // iOS cannot sideload an IPA here ÔøΩ open the PWA and show Add to Home Screen guidance.
         this.iosHint =
             'On iPhone/iPad: open the Offline Field site in Safari ? Share ? Add to Home Screen. Or open the link below to sign in on the tablet browser.';
         try {

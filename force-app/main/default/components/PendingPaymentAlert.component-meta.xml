@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexComponent xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <description>Dismissible pending-payment warning overlay driven by Org_Feature_Switch__c.Pending_Payment__c.</description>
+    <label>Pending Payment Alert</label>
+</ApexComponent>

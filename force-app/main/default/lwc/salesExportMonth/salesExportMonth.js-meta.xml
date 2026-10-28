@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <isExposed>false</isExposed>
+    <description>Admin Console card: export one report month of consolidated distributor sales (product and revenue per line) to XLSX.</description>
+</LightningComponentBundle>

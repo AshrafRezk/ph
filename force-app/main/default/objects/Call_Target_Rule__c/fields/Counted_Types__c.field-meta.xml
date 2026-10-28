@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Counted_Types__c</fullName>
+    <description>Time-off types that count toward the threshold, one per line. Blank counts every approved type, including office work and meetings.</description>
+    <label>Counted Types</label>
+    <length>4000</length>
+    <type>LongTextArea</type>
+    <visibleLines>8</visibleLines>
+</CustomField>

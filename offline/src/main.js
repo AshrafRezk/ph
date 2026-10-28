@@ -1,16 +1,39 @@
 import '@lwc/synthetic-shadow';
+import { onTranscribeProgress, prepareTranscriber, transcribeBlob } from './callTranscribe.js';
+
+window.careCoachTranscribe = (blob, language) => transcribeBlob(blob, language);
+window.careCoachPrepareTranscriber = (onProgress) => {
+    onTranscribeProgress(onProgress);
+    return prepareTranscriber();
+};
 import { createElement } from 'lwc';
 import FieldRepHomeMetrics from 'c/fieldRepHomeMetrics';
 import FieldRepHomeTodayPlan from 'c/fieldRepHomeTodayPlan';
-import FieldRepHomeActivityPlan from 'c/fieldRepHomeActivityPlan';
 import FieldRepHomeNextBestCustomer from 'c/fieldRepHomeNextBestCustomer';
+import RepSalesVsTarget from 'c/repSalesVsTarget';
 import HomeOfficeMessages from 'c/homeOfficeMessages';
 import StayInTheKnow from 'c/stayInTheKnow';
+import AccountApprovalQueue from 'c/accountApprovalQueue';
 import FieldRepHomeClmPrefetch from 'c/fieldRepHomeClmPrefetch';
+import FieldRequestsManagerStrip from 'c/fieldRequestsManagerStrip';
+import FieldRequestsHome from 'c/fieldRequestsHome';
+import FieldRequestSheet from 'c/fieldRequestSheet';
+import FieldOrdersManagerStrip from 'c/fieldOrdersManagerStrip';
+import FieldOrdersHome from 'c/fieldOrdersHome';
+import FieldOrderSheet from 'c/fieldOrderSheet';
 import ReportsHub from 'c/reportsHub';
+import { readCachedFieldFeatures } from './apex/getEnabledFeatureMap.js';
+import getEnabledFeatureMap from '@salesforce/apex/FieldAppFeatureController.getEnabledFeatureMap';
+import ManagementTeamKpiDashboard from 'c/managementTeamKpiDashboard';
+import MyTeamHierarchy from 'c/myTeamHierarchy';
+import TimeOffApprovalQueue from 'c/timeOffApprovalQueue';
+import MeetingApprovalQueue from 'c/meetingApprovalQueue';
+import ExpenseApprovalQueue from 'c/expenseApprovalQueue';
+import KamManagementDashboard from 'c/kamManagementDashboard';
 import FieldRepPlanner from 'c/fieldRepPlanner';
 import AccountsTab from 'c/accountsTab';
 import ClassEngineTab from 'c/classEngineTab';
+import FieldRepKpiDashboard from 'c/fieldRepKpiDashboard';
 import TimeOffSubmission from 'c/timeOffSubmission';
 import ClmPresentationsHub from 'c/clmPresentationsHub';
 import VisitCallShell from 'c/visitCallShell';
@@ -21,9 +44,51 @@ import AccountStageAssistant from 'c/accountStageAssistant';
 import AccountHcpProductRoi from 'c/accountHcpProductRoi';
 import AccountRatingsPanel from 'c/accountRatingsPanel';
 import AccountVisitInsightsPanel from 'c/accountVisitInsightsPanel';
+import AccountDuplicateCheck from 'c/accountDuplicateCheck';
 import PendingPaymentAlert from 'c/pendingPaymentAlert';
 import OfflineAppBanner from 'c/offlineAppBanner';
+import CareCoachHome from 'c/careCoachHome';
+import CareCoachPatients from 'c/careCoachPatients';
+import CareCoachPlanner from 'c/careCoachPlanner';
+import CareCoachProducts from 'c/careCoachProducts';
+import CareCoachOrders from 'c/careCoachOrders';
+import CareCoachKnowledge from 'c/careCoachKnowledge';
+import MeetingHome from 'c/meetingHome';
+import MeetingAccountingQueue from 'c/meetingAccountingQueue';
+import { MEETING_OUTBOX_EVENT } from './meetingOutbox.js';
+import {
+    clearLoginAs,
+    clearLoginAsHash,
+    clearUserCaches,
+    dropReturnSession,
+    mountLoginAsBanner,
+    readLoginAs,
+    readLoginAsHandoff,
+    rememberLoginAs,
+    restoreReturnSession,
+    saveReturnSession,
+    setLoginAsEndedNotice,
+    takeLoginAsEndedNotice
+} from './loginAs.js';
+import {
+    demoCredentialsMatch,
+    endDemoSession,
+    installDemoFetch,
+    isDemoMode,
+    mountDemoBanner,
+    removeDemoBanner,
+    startDemoSession
+} from './demo/demoMode.js';
 import { plannerApiFetch, isNetworkError } from './apex/restHelper';
+import {
+    applyTokenResponse,
+    accessTokenIsStale,
+    clearStoredTokens,
+    isRefreshRejected,
+    refreshAccessToken,
+    startSessionKeepAlive,
+    touchSession
+} from './sfSession.js';
 import {
     isStaleOfflineBeyond24h,
     isStaleOnlineBeyond1h,
@@ -40,8 +105,10 @@ import {
     isOfflineMode,
     drainQueue
 } from 'c/clmOfflineSync';
-import { countPendingActions } from 'c/clmOfflineStore';
+import { countPendingActions, getPendingActions, removeAction } from 'c/clmOfflineStore';
+import { idbDeletePrefix } from './views/tabCache.js';
 import { startBackgroundSync } from './backgroundSync';
+import { requeueDeadAfterServerUpdate, wireOutboxStatusChip } from './outboxRecovery';
 import { fetchApps, PHARMA_APP, ensureAppTabs, readCachedApps } from './apex/fetchAppTabs';
 import {
     runOfflineBootstrap,
@@ -61,7 +128,7 @@ import {
 import { mountChatterView as renderChatterView } from './views/chatterView';
 import { mountReportsView as renderReportsView } from './views/reportsView';
 import { mountDashboardsView as renderDashboardsView } from './views/dashboardsView';
-import { mountAgentforceChat, setAgentforceChatVisible } from './agentforceChat.js';
+import { mountAgentforceChat, setAgentforceChatVisible, setAgentforcePageContext } from './agentforceChat.js';
 import {
     initUserMenu,
     refreshUserChrome,
@@ -71,6 +138,7 @@ import {
 } from './userMenu';
 import './slds-shim.css';
 import './shell.css';
+import './analytics.css';
 
 const TOKEN_KEY = 'zeta.pwa.sfAccessToken';
 const REFRESH_TOKEN_KEY = 'zeta.pwa.sfRefreshToken';
@@ -371,6 +439,7 @@ function saveIdentity({ name, username, userId, picture, firstName, lastName }) 
     if (firstName) window.localStorage.setItem(USER_FIRST_NAME_KEY, firstName);
     if (lastName) window.localStorage.setItem(USER_LAST_NAME_KEY, lastName);
     paintUserAvatars();
+    paintHomeGreeting();
 }
 
 function clearIdentity() {
@@ -388,8 +457,12 @@ function isSessionConfirmed() {
         if (sessionStorage.getItem(SESSION_CONFIRMED_KEY) === '1') {
             return true;
         }
-        // Native APK: persist across WebView refresh even if sessionStorage is cleared.
-        return localStorage.getItem(SESSION_CONFIRMED_KEY) === '1';
+        // Keep the signed-in app across browser restarts. A refresh token is enough
+        // to mint a new access token, so the person is not sent back to sign-in.
+        if (localStorage.getItem(SESSION_CONFIRMED_KEY) === '1') {
+            return true;
+        }
+        return !!readRefreshToken();
     } catch {
         return false;
     }
@@ -398,9 +471,7 @@ function isSessionConfirmed() {
 function confirmSession() {
     try {
         sessionStorage.setItem(SESSION_CONFIRMED_KEY, '1');
-        if (isCapacitor()) {
-            localStorage.setItem(SESSION_CONFIRMED_KEY, '1');
-        }
+        localStorage.setItem(SESSION_CONFIRMED_KEY, '1');
     } catch {
         /* ignore */
     }
@@ -594,6 +665,8 @@ function enterAuthenticatedApp() {
     });
     startSyncService();
     startBackgroundSync();
+    wireOutboxStatusChip();
+    void requeueDeadAfterServerUpdate().catch(() => {});
     wireBootstrapStatusChip();
     void runOfflineBootstrap({ force: !isBootstrapComplete() }).catch(() => {});
     void maybeNotifyStaleSync();
@@ -744,6 +817,17 @@ function configureRuntime(token, refreshToken = null, instanceUrl = null) {
     if (instanceUrl) {
         window.localStorage.setItem(INSTANCE_URL_KEY, instanceUrl.replace(/\/$/, ''));
     }
+    paintShellBrand(sfInstance);
+}
+
+function paintShellBrand(instanceUrl, label) {
+    if (!window.ShellBrand) return;
+    const options = {
+        native: isCapacitor(),
+        instanceUrl: instanceUrl == null ? readInstanceUrl() : instanceUrl
+    };
+    if (label != null) options.label = label;
+    window.ShellBrand.apply(options);
 }
 
 // OAuth Functions with PKCE
@@ -940,26 +1024,6 @@ async function exchangeCodeForToken(code) {
     return json;
 }
 
-async function refreshAccessToken() {
-    const refreshToken = readRefreshToken();
-    if (!refreshToken) {
-        throw new Error('No refresh token available');
-    }
-
-    const loginUrl = OAUTH_CONFIG.loginUrl;
-    const tokenUrl = `${loginUrl}/services/oauth2/token`;
-
-    return postTokenProxy(
-        {
-            tokenUrl,
-            grant_type: 'refresh_token',
-            client_id: OAUTH_CONFIG.clientId,
-            refresh_token: refreshToken
-        },
-        'Failed to refresh token'
-    );
-}
-
 /** True when this navigation is an OAuth redirect (path and/or ?code=). */
 function isOAuthCallbackLocation(href = window.location.href) {
     try {
@@ -1012,7 +1076,7 @@ async function completeWebOAuthLogin(href = window.location.href) {
 
     const tokenData = await exchangeCodeForToken(code);
     const { access_token, refresh_token, instance_url } = tokenData;
-    window.localStorage.setItem(TOKEN_KEY, access_token);
+    applyTokenResponse(tokenData);
     configureRuntime(access_token, refresh_token, instance_url);
     // Always land on app root after success (not /oauth/callback).
     window.history.replaceState({}, document.title, '/');
@@ -1073,6 +1137,12 @@ function syncLoginFormUi() {
             customField.removeAttribute('hidden');
         }
     }
+    const showDemo = env === 'demo';
+    const demoField = document.getElementById('demo-login-field');
+    if (demoField) {
+        demoField.hidden = !showDemo;
+        demoField.style.display = showDemo ? '' : 'none';
+    }
     const customReady =
         !showCustom ||
         !!myDomainLoginUrlFromLabel(document.getElementById('custom-domain-input')?.value);
@@ -1107,7 +1177,42 @@ function restoreLoginFormChoice() {
     if (savedLabel) input.value = savedLabel;
 }
 
+async function loginDemo() {
+    const username = document.getElementById('demo-username-input')?.value || '';
+    const password = document.getElementById('demo-password-input')?.value || '';
+    if (!(await demoCredentialsMatch(username, password))) {
+        setLoginStatus('That demo username or password is not right.', true);
+        return;
+    }
+    let pending = 0;
+    try {
+        pending = await countPendingActions();
+    } catch {
+        pending = 0;
+    }
+    if (pending > 0) {
+        setLoginStatus(`This device has ${pending} unsynced change(s). Sign in to your account and sync them before opening the demo.`, true);
+        return;
+    }
+    await idbDeletePrefix('sfrest:');
+    clearStoredTokens();
+    clearIdentity();
+    clearSessionConfirmed();
+    clearLastWorkspace();
+    const tokenData = startDemoSession();
+    applyTokenResponse(tokenData);
+    configureRuntime(tokenData.access_token, null, tokenData.instance_url);
+    setLoginStatus('');
+    await fetchAndStoreUserIdentity();
+    mountDemoBanner(() => void logout());
+    enterAuthenticatedApp();
+}
+
 async function login() {
+    if (document.getElementById('login-env')?.value === 'demo') {
+        await loginDemo();
+        return;
+    }
     setLoginStatus('Opening sign-in…');
     const resolved = resolveLoginUrlFromForm();
     if (!resolved) {
@@ -1208,6 +1313,7 @@ async function initCapacitorListener() {
         });
         capacitorApp.addListener('appStateChange', (state) => {
             if (state?.isActive && !isOfflineMode()) {
+                touchSession();
                 startSyncService();
                 startBackgroundSync();
                 void registerPushNotifications();
@@ -1216,12 +1322,30 @@ async function initCapacitorListener() {
     }
 }
 
+/** Drop queued changes and cached REST reads: demo data, or a Login As user's data, must not outlive the session. */
+async function clearDeviceUserData() {
+    try {
+        const actions = await getPendingActions();
+        await Promise.all(actions.map((a) => removeAction(a.id)));
+    } catch {
+        /* nothing queued */
+    }
+    await idbDeletePrefix('sfrest:');
+}
+
 async function logout() {
+    if (isDemoMode()) {
+        await clearDeviceUserData();
+    }
     try {
         await teardownPushNotifications();
     } catch {
         /* best-effort unregister */
     }
+    clearStoredTokens();
+    clearLoginAs();
+    endDemoSession();
+    removeDemoBanner();
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.localStorage.removeItem(INSTANCE_URL_KEY);
@@ -1240,11 +1364,157 @@ async function logout() {
     showScreen('login');
 }
 
+/** User menu Sign out: during Login As it hands the device back instead of signing everyone out. */
+async function signOut() {
+    if (readLoginAs()) {
+        await exitLoginAs();
+        return;
+    }
+    dropReturnSession();
+    await logout();
+}
+
+/** Replace whoever is signed in on this device with the SFE Login As session. */
+async function beginLoginAs(handoff) {
+    clearLoginAsHash();
+    let pending = 0;
+    try {
+        pending = await countPendingActions();
+    } catch {
+        pending = 0;
+    }
+    if (pending > 0 && !readLoginAs()) {
+        return `This device has ${pending} unsynced change(s) for the person signed in. Sync them first, then open the field app from the admin console again.`;
+    }
+    saveReturnSession();
+    await idbDeletePrefix('sfrest:');
+    clearUserCaches();
+    clearStoredTokens();
+    clearIdentity();
+    clearSessionConfirmed();
+    clearLastWorkspace();
+    applyTokenResponse(handoff);
+    configureRuntime(handoff.access_token, null, handoff.instance_url);
+    rememberLoginAs(handoff);
+    return '';
+}
+
+async function exitLoginAs() {
+    let pending = 0;
+    try {
+        pending = await countPendingActions();
+    } catch {
+        pending = 0;
+    }
+    const who = readLoginAs()?.asName || 'this user';
+    if (
+        pending > 0 &&
+        !window.confirm(
+            `${pending} change(s) made as ${who} have not synced yet. If you exit now they are discarded. Exit anyway?`
+        )
+    ) {
+        return;
+    }
+    await endLoginAs(`You're back in your own session. The Login As session for ${who} has ended.`);
+}
+
+/**
+ * Wipe everything the field user left on the device, then give it back to whoever was
+ * signed in before Login As (reloading into their session). Returns false when nobody was.
+ */
+async function endLoginAs(notice) {
+    await clearDeviceUserData();
+    clearUserCaches();
+    await logout();
+    if (!restoreReturnSession()) return false;
+    setLoginAsEndedNotice(notice);
+    window.location.replace(window.location.pathname || '/');
+    return true;
+}
+
+function greetingPeriod(date = new Date()) {
+    const hour = date.getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+}
+
+function homeGreetingName() {
+    const identity = readStoredIdentity();
+    const first = identity.firstName;
+    if (first) return first;
+    const full = identity.name;
+    if (!full || full.includes('@')) return '';
+    const token = full.split(/\s+/).filter(Boolean)[0] || '';
+    return token.length > 1 ? token : '';
+}
+
+function paintHomeGreeting() {
+    const root = document.getElementById('home-greeting');
+    if (!root) return;
+    const name = homeGreetingName();
+    const hello = greetingPeriod();
+    const kicker = root.querySelector('.home-greeting-kicker');
+    const title = root.querySelector('.home-greeting-title');
+    if (kicker) {
+        kicker.textContent = new Date().toLocaleDateString(undefined, {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    if (!title) return;
+    title.replaceChildren();
+    const helloSpan = document.createElement('span');
+    helloSpan.className = 'home-greeting-hello';
+    helloSpan.textContent = name ? `${hello}, ` : `${hello}!`;
+    title.appendChild(helloSpan);
+    if (name) {
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'home-greeting-name';
+        nameSpan.textContent = name;
+        title.appendChild(nameSpan);
+        title.append('!');
+    }
+}
+
+function ensureHomeGreeting(homeRoot) {
+    let greeting = homeRoot.querySelector('#home-greeting');
+    if (!greeting) {
+        greeting = document.createElement('header');
+        greeting.id = 'home-greeting';
+        greeting.className = 'home-greeting';
+        greeting.innerHTML = `
+            <p class="home-greeting-kicker"></p>
+            <h1 class="home-greeting-title"></h1>
+        `;
+    }
+    if (homeRoot.firstElementChild !== greeting) {
+        homeRoot.prepend(greeting);
+    }
+    paintHomeGreeting();
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') paintHomeGreeting();
+});
+
 function mountHomeView() {
     const homeRoot = document.getElementById('view-home');
     if (!homeRoot) {
         return;
     }
+    ensureHomeGreeting(homeRoot);
+    void refreshFieldFeatureCache();
+    // Requests + Orders live on their own nav tabs — strip any leftovers from older builds.
+    [
+        'c-field-requests-manager-strip',
+        'c-field-orders-manager-strip',
+        'c-field-requests-home',
+        'c-field-orders-home'
+    ].forEach((tag) => {
+        homeRoot.querySelectorAll(tag).forEach((node) => node.remove());
+    });
     if (!homeRoot.querySelector('c-offline-app-banner')) {
         homeRoot.appendChild(createElement('c-offline-app-banner', { is: OfflineAppBanner }));
     }
@@ -1260,14 +1530,18 @@ function mountHomeView() {
     if (!homeRoot.querySelector('c-stay-in-the-know')) {
         homeRoot.appendChild(createElement('c-stay-in-the-know', { is: StayInTheKnow }));
     }
+    if (!homeRoot.querySelector('c-account-approval-queue')) {
+        homeRoot.appendChild(createElement('c-account-approval-queue', { is: AccountApprovalQueue }));
+    }
     if (!homeRoot.querySelector('c-field-rep-home-metrics')) {
         homeRoot.appendChild(createElement('c-field-rep-home-metrics', { is: FieldRepHomeMetrics }));
     }
+    // Hides itself when Field App Manager → Home → "Sales vs target" is off.
+    if (!homeRoot.querySelector('c-rep-sales-vs-target')) {
+        homeRoot.appendChild(createElement('c-rep-sales-vs-target', { is: RepSalesVsTarget }));
+    }
     if (!homeRoot.querySelector('c-field-rep-home-today-plan')) {
         homeRoot.appendChild(createElement('c-field-rep-home-today-plan', { is: FieldRepHomeTodayPlan }));
-    }
-    if (!homeRoot.querySelector('c-field-rep-home-activity-plan')) {
-        homeRoot.appendChild(createElement('c-field-rep-home-activity-plan', { is: FieldRepHomeActivityPlan }));
     }
     if (!homeRoot.querySelector('c-field-rep-home-next-best-customer')) {
         homeRoot.appendChild(createElement('c-field-rep-home-next-best-customer', { is: FieldRepHomeNextBestCustomer }));
@@ -1275,6 +1549,167 @@ function mountHomeView() {
     if (!homeRoot.querySelector('c-reports-hub')) {
         homeRoot.appendChild(createElement('c-reports-hub', { is: ReportsHub }));
     }
+}
+
+function mountFieldRequestsView() {
+    const root = document.getElementById('view-field-requests');
+    if (!root) {
+        return;
+    }
+    void refreshFieldFeatureCache();
+    mountOnce(root, 'c-field-requests-manager-strip', FieldRequestsManagerStrip);
+    mountOnce(root, 'c-field-requests-home', FieldRequestsHome);
+}
+
+function mountFieldOrdersView() {
+    const root = document.getElementById('view-field-orders');
+    if (!root) {
+        return;
+    }
+    void refreshFieldFeatureCache();
+    mountOnce(root, 'c-field-orders-manager-strip', FieldOrdersManagerStrip);
+    mountOnce(root, 'c-field-orders-home', FieldOrdersHome);
+}
+
+async function refreshFieldFeatureCache() {
+    try {
+        await getEnabledFeatureMap();
+        syncAgentforceFab(currentScreen === 'app');
+    } catch (_err) {
+        // Cached defaults keep the shell usable offline.
+    }
+}
+
+let fieldRequestSheetEl;
+let fieldOrderSheetEl;
+
+function ensureFieldRequestSheet() {
+    if (fieldRequestSheetEl && document.body.contains(fieldRequestSheetEl)) {
+        return fieldRequestSheetEl;
+    }
+    fieldRequestSheetEl = createElement('c-field-request-sheet', { is: FieldRequestSheet });
+    document.body.appendChild(fieldRequestSheetEl);
+    return fieldRequestSheetEl;
+}
+
+function openFieldRequestSheet(options = {}) {
+    const features = readCachedFieldFeatures();
+    if (features['requests.enabled'] === false) {
+        showToast({
+            title: 'Requests off',
+            message: 'Requests are turned off for the field app.',
+            variant: 'warning'
+        });
+        return;
+    }
+    const sheet = ensureFieldRequestSheet();
+    if (typeof sheet.openSheet === 'function') {
+        sheet.openSheet(options);
+    }
+}
+
+function ensureFieldOrderSheet() {
+    if (fieldOrderSheetEl && document.body.contains(fieldOrderSheetEl)) {
+        return fieldOrderSheetEl;
+    }
+    fieldOrderSheetEl = createElement('c-field-order-sheet', { is: FieldOrderSheet });
+    document.body.appendChild(fieldOrderSheetEl);
+    return fieldOrderSheetEl;
+}
+
+function openFieldOrderSheet(options = {}) {
+    const features = readCachedFieldFeatures();
+    if (features.orders === false) {
+        showToast({
+            title: 'Orders off',
+            message: 'Orders are turned off for the field app.',
+            variant: 'warning'
+        });
+        return;
+    }
+    const sheet = ensureFieldOrderSheet();
+    if (typeof sheet.openSheet === 'function') {
+        sheet.openSheet(options);
+    }
+}
+
+function mountOnce(root, tag, ctor) {
+    if (!root || root.querySelector(tag)) {
+        return;
+    }
+    root.appendChild(createElement(tag, { is: ctor }));
+}
+
+function mountWorkforceView() {
+    const root = document.getElementById('view-workforce');
+    mountOnce(root, 'c-pending-payment-alert', PendingPaymentAlert);
+    mountOnce(root, 'c-management-team-kpi-dashboard', ManagementTeamKpiDashboard);
+    mountOnce(root, 'c-reports-hub', ReportsHub);
+}
+
+function mountMyTeamView() {
+    const root = document.getElementById('view-my-team');
+    mountOnce(root, 'c-my-team-hierarchy', MyTeamHierarchy);
+    mountOnce(root, 'c-time-off-approval-queue', TimeOffApprovalQueue);
+    mountOnce(root, 'c-account-approval-queue', AccountApprovalQueue);
+    mountOnce(root, 'c-meeting-approval-queue', MeetingApprovalQueue);
+    mountOnce(root, 'c-expense-approval-queue', ExpenseApprovalQueue);
+}
+
+function mountCareCoachHomeView() {
+    mountOnce(document.getElementById('view-care-coach-home'), 'c-care-coach-home', CareCoachHome);
+}
+
+function mountCareCoachPatientsView() {
+    mountOnce(document.getElementById('view-care-coach-patients'), 'c-care-coach-patients', CareCoachPatients);
+}
+
+function mountCareCoachPlannerView() {
+    mountOnce(document.getElementById('view-care-coach-planner'), 'c-care-coach-planner', CareCoachPlanner);
+}
+
+function mountCareCoachProductsView() {
+    mountOnce(document.getElementById('view-care-coach-products'), 'c-care-coach-products', CareCoachProducts);
+}
+
+function mountCareCoachOrdersView() {
+    mountOnce(document.getElementById('view-care-coach-orders'), 'c-care-coach-orders', CareCoachOrders);
+}
+
+function mountCareCoachKnowledgeView() {
+    mountOnce(document.getElementById('view-care-coach-knowledge'), 'c-care-coach-knowledge', CareCoachKnowledge);
+}
+
+function mountMeetingsView() {
+    mountOnce(document.getElementById('view-meetings'), 'c-meeting-home', MeetingHome);
+}
+
+function mountMeetingAccountingView() {
+    mountOnce(document.getElementById('view-meeting-accounting'), 'c-meeting-accounting-queue', MeetingAccountingQueue);
+}
+
+function openMeetingRecord(meetingId) {
+    switchTab('Meetings_Home');
+    const home = document.querySelector('#view-meetings c-meeting-home');
+    if (home) {
+        home.openMeeting(meetingId);
+    }
+}
+
+function mountReportsHubView() {
+    const root = document.getElementById('view-reports-hub');
+    if (!root || root.querySelector('c-reports-hub')) {
+        return;
+    }
+    root.appendChild(createElement('c-reports-hub', { is: ReportsHub }));
+}
+
+function mountKamView() {
+    const root = document.getElementById('view-kam');
+    if (!root || root.querySelector('c-kam-management-dashboard')) {
+        return;
+    }
+    root.appendChild(createElement('c-kam-management-dashboard', { is: KamManagementDashboard }));
 }
 
 function mountPlannerView() {
@@ -1309,6 +1744,16 @@ function mountClassEngineView() {
     }
     if (!root.querySelector('c-class-engine-tab')) {
         root.appendChild(createElement('c-class-engine-tab', { is: ClassEngineTab }));
+    }
+}
+
+function mountKpisView() {
+    const root = document.getElementById('view-kpis');
+    if (!root) {
+        return;
+    }
+    if (!root.querySelector('c-field-rep-kpi-dashboard')) {
+        root.appendChild(createElement('c-field-rep-kpi-dashboard', { is: FieldRepKpiDashboard }));
     }
 }
 
@@ -1422,6 +1867,7 @@ function mountVisitCallView() {
     resolveActiveVisitId().then((visitId) => {
         if (visitId) {
             el.recordId = visitId;
+            if (currentTab === VISIT_CALL_TAB_KEY) publishAgentforceTab();
         }
     });
 }
@@ -1444,11 +1890,7 @@ function openVisitCall(recordId) {
     if (el && recordId) {
         el.recordId = recordId;
     }
-    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
-        const active = btn.dataset.tab === 'Visit__c' || btn.dataset.tab === VISIT_CALL_TAB_KEY;
-        btn.classList.toggle('nav-tab-active', active);
-        btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
+    syncNavTabActiveState(VISIT_CALL_TAB_KEY);
 }
 
 function visitIdFromHref(href) {
@@ -1483,6 +1925,10 @@ function handleRecordNavigation(recordId, objectApiName) {
         openVisitCall(recordId);
         return;
     }
+    if (objectApiName === 'Meeting__c') {
+        openMeetingRecord(recordId);
+        return;
+    }
     if (/^report$/i.test(String(objectApiName || '')) || /^dashboard$/i.test(String(objectApiName || ''))) {
         openAnalyticsRecord(recordId, objectApiName);
         return;
@@ -1496,14 +1942,11 @@ function openAnalyticsRecord(recordId, objectApiName) {
     const matched = appTabs.find((tab) => keys.includes(tab.key));
     currentTab = (matched && matched.key) || keys[0];
     if (currentOpenApp) persistOpenWorkspace();
-    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
-        const active = keys.includes(btn.dataset.tab);
-        btn.classList.toggle('nav-tab-active', active);
-        btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
+    syncNavTabActiveState(currentTab);
     const panelId = isReport ? 'view-reports' : 'view-dashboards';
     const root = document.getElementById(panelId);
     activatePanel(panelId);
+    publishAgentforceTab();
     if (isReport) {
         renderReportsView(root, { recordId });
     } else {
@@ -1516,6 +1959,12 @@ window.addEventListener('zeta-navigate-record', (event) => {
     handleRecordNavigation(detail.recordId, detail.objectApiName);
 });
 
+window.addEventListener(MEETING_OUTBOX_EVENT, (event) => {
+    if (event.detail && event.detail.synced) {
+        document.querySelectorAll('c-meeting-home, c-meeting-accounting-queue').forEach((el) => el.refresh());
+    }
+});
+
 window.addEventListener('zeta-navigate-tab', (event) => {
     const detail = (event && event.detail) || {};
     const apiName = detail.apiName || detail.tab || '';
@@ -1523,6 +1972,9 @@ window.addEventListener('zeta-navigate-tab', (event) => {
     if (detail.accountId) {
         try {
             sessionStorage.setItem('zeta.pwa.planAccountId', String(detail.accountId));
+            if (detail.accountName) {
+                sessionStorage.setItem('zeta.pwa.planAccountName', String(detail.accountName));
+            }
         } catch (_e) {
             // ignore
         }
@@ -1534,7 +1986,14 @@ window.addEventListener('zeta-navigate-tab', (event) => {
             // ignore
         }
     }
-    switchTab(apiName);
+    if (detail.appTarget) {
+        openAppTab(detail.appTarget, apiName);
+    } else {
+        switchTab(apiName);
+    }
+    if (detail.accountId) {
+        window.dispatchEvent(new CustomEvent('zeta-plan-account'));
+    }
 });
 
 // The entity list runs in an iframe; it posts here to open Visit records
@@ -1554,6 +2013,22 @@ window.addEventListener('message', (event) => {
         window.dispatchEvent(new CustomEvent('zeta-navigate-tab', { detail: data }));
         return;
     }
+    if (data.type === 'zeta-open-field-request') {
+        openFieldRequestSheet({
+            accountId: data.accountId,
+            visitId: data.visitId,
+            source: data.source || 'Account'
+        });
+        return;
+    }
+    if (data.type === 'zeta-open-field-order') {
+        openFieldOrderSheet({
+            accountId: data.accountId,
+            visitId: data.visitId,
+            source: data.source || 'Account'
+        });
+        return;
+    }
     if (data.type === 'open-record-modal' && data.recordId) {
         openRecordModal(data.recordId, data.objectApiName || data.object);
         return;
@@ -1565,18 +2040,39 @@ window.addEventListener('message', (event) => {
     if (data.type === 'osr-record-title' && data.title) {
         const title = document.querySelector('.record-modal-chrome-title');
         if (title) title.textContent = data.title;
+        return;
+    }
+    if (data.type === 'osr-account-identity' && data.recordId) {
+        renderAccountIdentity(data);
     }
 });
 
 const APP_TAB_VIEWS = {
     Field_Rep_Home_App: { panel: 'view-home', mount: mountHomeView },
+    Management_Home: { panel: 'view-workforce', mount: mountWorkforceView },
+    My_Team: { panel: 'view-my-team', mount: mountMyTeamView },
+    Reports_Hub: { panel: 'view-reports-hub', mount: mountReportsHubView },
+    KAM_Management_Dashboard: { panel: 'view-kam', mount: mountKamView },
     Field_Rep_Planner: { panel: 'view-planner', mount: mountPlannerView },
     Accounts_Tab: { panel: 'view-accounts', mount: mountAccountsView },
+    Field_Requests: { panel: 'view-field-requests', mount: mountFieldRequestsView },
+    Field_Orders: { panel: 'view-field-orders', mount: mountFieldOrdersView },
     Class_Engine: { panel: 'view-class-engine', mount: mountClassEngineView },
+    Field_KPIs: { panel: 'view-kpis', mount: mountKpisView },
     Request_Time_Off: { panel: 'view-timeoff', mount: mountTimeOffView },
     CLM_Presentations: { panel: 'view-clm', mount: mountClmPresentationsView },
     Visit_Call: { panel: 'view-visitcall', mount: mountVisitCallView },
     My_Learning: { panel: 'view-learning', mount: mountMyLearningView },
+    Care_Coach_Home: { panel: 'view-care-coach-home', mount: mountCareCoachHomeView },
+    Care_Coach_Patients: { panel: 'view-care-coach-patients', mount: mountCareCoachPatientsView },
+    Care_Coach_Planner: { panel: 'view-care-coach-planner', mount: mountCareCoachPlannerView },
+    Care_Coach_Products: { panel: 'view-care-coach-products', mount: mountCareCoachProductsView },
+    Care_Coach_Orders: { panel: 'view-care-coach-orders', mount: mountCareCoachOrdersView },
+    Patient_Order__c: { panel: 'view-care-coach-orders', mount: mountCareCoachOrdersView },
+    Care_Coach_Knowledge: { panel: 'view-care-coach-knowledge', mount: mountCareCoachKnowledgeView },
+    Meetings_Home: { panel: 'view-meetings', mount: mountMeetingsView },
+    Meeting__c: { panel: 'view-meetings', mount: mountMeetingsView },
+    Meeting_Accounting: { panel: 'view-meeting-accounting', mount: mountMeetingAccountingView },
     'standard-Chatter': { panel: 'view-chatter', mount: mountChatterPanel },
     Chatter: { panel: 'view-chatter', mount: mountChatterPanel },
     'standard-Dashboard': { panel: 'view-dashboards', mount: mountDashboardsPanel },
@@ -1590,10 +2086,39 @@ function isEntityTab(tab) {
     return appTabs.some((t) => t.key === tab && t.type === 'Entity');
 }
 
+function viewForTab(tabKey) {
+    if (APP_TAB_VIEWS[tabKey]) {
+        return APP_TAB_VIEWS[tabKey];
+    }
+    const exact = String(tabKey || '');
+    const key = exact.toLowerCase();
+    const tab = appTabs.find((item) => item.key === tabKey);
+    const label = String((tab && tab.label) || '').trim().toLowerCase();
+    if (
+        exact === 'Class_Engine' ||
+        key.includes('class_engine') ||
+        key.includes('class-engine') ||
+        key.includes('classengine') ||
+        label === 'class engine'
+    ) {
+        return APP_TAB_VIEWS.Class_Engine;
+    }
+    if (
+        exact === 'Field_KPIs' ||
+        key.includes('field_kpis') ||
+        key.includes('field-kpis') ||
+        label === 'kpis' ||
+        label === 'kpi'
+    ) {
+        return APP_TAB_VIEWS.Field_KPIs;
+    }
+    return null;
+}
+
 // A tab is "supported" if it has an offline renderer or is an object list view.
 function isSupportedTab(tab) {
     if (!tab) return false;
-    if (APP_TAB_VIEWS[tab.key]) return true;
+    if (viewForTab(tab.key)) return true;
     return tab.type === 'Entity';
 }
 
@@ -1653,13 +2178,20 @@ function switchTab(tab) {
         shell.classList.toggle('tab-dir-forward', toIdx > fromIdx);
     }
 
-    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
-        const active = btn.dataset.tab === tab;
-        btn.classList.toggle('nav-tab-active', active);
-        btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
+    // Promote overflow tabs into the primary row (Salesforce More pattern).
+    const visible = new Set(
+        [...document.querySelectorAll('#app-tabs .nav-tab:not(.nav-tab-more)')].map(
+            (btn) => btn.dataset.tab
+        )
+    );
+    if (appTabs.length && (!visible.has(tab) || previousTab !== tab)) {
+        renderTabButtons(appTabs);
+    } else {
+        syncNavTabActiveState(tab);
+    }
+    closeNavMorePanel();
 
-    const view = APP_TAB_VIEWS[tab];
+    const view = viewForTab(tab);
     if (view) {
         view.mount();
         activatePanel(view.panel);
@@ -1728,6 +2260,10 @@ function unmountApp() {
     const reportsRoot = document.getElementById('view-reports');
     const dashboardsRoot = document.getElementById('view-dashboards');
     if (homeRoot) homeRoot.innerHTML = '';
+    const workforceRoot = document.getElementById('view-workforce');
+    const myTeamRoot = document.getElementById('view-my-team');
+    if (workforceRoot) workforceRoot.innerHTML = '';
+    if (myTeamRoot) myTeamRoot.innerHTML = '';
     if (accountsRoot) accountsRoot.innerHTML = '';
     if (plannerRoot) plannerRoot.innerHTML = '';
     if (entityRoot) entityRoot.innerHTML = '';
@@ -1738,6 +2274,9 @@ function unmountApp() {
     if (chatterRoot) chatterRoot.innerHTML = '';
     if (reportsRoot) reportsRoot.innerHTML = '';
     if (dashboardsRoot) dashboardsRoot.innerHTML = '';
+    document.querySelectorAll('[id^="view-care-coach-"]').forEach((root) => {
+        root.innerHTML = '';
+    });
     currentTab = HOME_TAB_KEY;
     currentOpenApp = null;
     primaryTabsWarmed = false;
@@ -1769,7 +2308,28 @@ function registerServiceWorker() {
 }
 
 function syncAgentforceFab(appVisible) {
-    setAgentforceChatVisible(Boolean(appVisible));
+    const features = readCachedFieldFeatures();
+    const fieldAiOn = features.agentforce !== false;
+    const visible = Boolean(appVisible) && fieldAiOn;
+    setAgentforceChatVisible(visible);
+    if (visible) publishAgentforceTab();
+}
+
+function publishAgentforceTab() {
+    const tab = appTabs.find((t) => t.key === currentTab);
+    const view = viewForTab(currentTab);
+    const isReport = currentTab === 'standard-report' || currentTab === 'standard-Report' || currentTab === 'Report';
+    const isDashboard = currentTab === 'standard-Dashboard' || currentTab === 'Dashboard';
+    let panel = view ? view.panel : isEntityTab(currentTab) ? 'view-entity' : 'view-unsupported';
+    if (!view && isReport) panel = 'view-reports';
+    if (!view && isDashboard) panel = 'view-dashboards';
+    setAgentforcePageContext({
+        tabKey: currentTab,
+        tabLabel: (tab && tab.label) || currentTab || '',
+        panel,
+        tabObjectApiName: (tab && tab.objectApiName) || '',
+        visitId: panel === 'view-visitcall' ? window.localStorage.getItem(ACTIVE_VISIT_KEY) : null
+    });
 }
 
 // Show exactly one top-level screen: 'login' | 'chooser' | 'app'.
@@ -1829,7 +2389,7 @@ function showScreen(name) {
 }
 
 // Salesforce-style App Launcher: apps only. Paint cached org apps immediately
-// (no Salesforce OSR seed flash). Refresh quietly in the background.
+// (no seed flash). Refresh quietly in the background.
 let chooserApps = [];
 let chooserSearchWired = false;
 let bootstrapChipWired = false;
@@ -2018,14 +2578,13 @@ const FIELD_ITEM_ALIASES = {
     standard_Account: 'Accounts_Tab'
 };
 
-// Keep the Salesforce logo in the top-left; never replace it with app text.
+// Nav mark follows the signed-in org. Logged out on the website, that is Salesforce.
 function setNavBrand(label) {
-    document.title = 'Salesforce OSR';
-    const brandEl = document.getElementById('nav-title');
-    if (!brandEl) return;
-    const title = label ? `${label} · Salesforce OSR` : 'Salesforce OSR';
-    brandEl.setAttribute('title', title);
-    brandEl.setAttribute('alt', 'Salesforce');
+    paintShellBrand(readInstanceUrl(), label || '');
+}
+
+function shellProductName() {
+    return window.ShellBrand ? window.ShellBrand.productName() : 'Salesforce';
 }
 
 // Open a single object/tab directly (used when navigating to an entity from
@@ -2058,6 +2617,51 @@ function openItem(item) {
     currentTab = item.key;
     showScreen('app');
     switchTab(item.key);
+}
+
+function findChooserApp(appTarget) {
+    const target = String(appTarget || '').trim().toLowerCase();
+    if (!target) return null;
+    const apps = chooserApps.length ? chooserApps : readCachedApps();
+    return (
+        apps.find((app) => String(app.developerName || '').toLowerCase() === target) ||
+        apps.find((app) => {
+            const name = String(app.developerName || '').toLowerCase();
+            const label = String(app.label || '').toLowerCase();
+            return name === 'pharma_management' || label === 'lead co-pilot' || label === 'pharma management';
+        }) ||
+        null
+    );
+}
+
+function openAppTab(appTarget, tabKey) {
+    const app = findChooserApp(appTarget);
+    if (!app || !tabKey) {
+        switchTab(tabKey);
+        return;
+    }
+    const tabs = Array.isArray(app.tabs) ? app.tabs.slice() : [];
+    if (!tabs.some((tab) => tab.key === tabKey)) {
+        tabs.push({
+            key: tabKey,
+            label: tabKey === 'KAM_Management_Dashboard' ? 'KAM Management' : tabKey,
+            type: 'TabFlexiPage'
+        });
+        app.tabs = tabs;
+    }
+    const sameApp =
+        currentOpenApp &&
+        String(currentOpenApp.developerName || '').toLowerCase() ===
+            String(app.developerName || '').toLowerCase();
+    if (sameApp) {
+        if (!appTabs.some((tab) => tab.key === tabKey)) {
+            appTabs = tabs;
+            renderTabButtons(appTabs);
+        }
+        switchTab(tabKey);
+        return;
+    }
+    openApp({ ...app, tabs }, { preferredTab: tabKey });
 }
 
 function isFieldAppChooser(app) {
@@ -2103,6 +2707,7 @@ function openApp(app, options = {}) {
     if (resumeVisitId && (resolved.fullOffline || isFieldAppChooser(resolved))) {
         openVisitCall(resumeVisitId);
     }
+    refreshExpenseApprovalBadge();
 }
 
 function showEmptyApp(app) {
@@ -2143,32 +2748,285 @@ function syncOpenAppFromOrg() {
     }
 }
 
+/** Salesforce iOS-style: keep ~4 primary tabs visible; overflow under More (…). */
+const NAV_PRIMARY_LIMIT = 4;
+const NAV_PRIMARY_PREFS = [
+    'Field_Rep_Home_App',
+    'Care_Coach_Home',
+    'Field_Rep_Planner',
+    'Care_Coach_Planner',
+    'Accounts_Tab',
+    'Care_Coach_Patients',
+    'Field_Requests',
+    'Field_Orders',
+    'Care_Coach_Orders',
+    'My_Team',
+    'Management_Home'
+];
+
+let navOverflowTabs = [];
+
+function splitNavTabs(tabs, activeKey) {
+    const all = (Array.isArray(tabs) ? tabs : []).filter((tab) => tab && tab.key);
+    if (all.length <= NAV_PRIMARY_LIMIT + 1) {
+        return { primary: all, overflow: [] };
+    }
+    const byKey = new Map(all.map((tab) => [tab.key, tab]));
+    const primary = [];
+    const used = new Set();
+    for (const key of NAV_PRIMARY_PREFS) {
+        if (primary.length >= NAV_PRIMARY_LIMIT) break;
+        const tab = byKey.get(key);
+        if (!tab || used.has(key)) continue;
+        primary.push(tab);
+        used.add(key);
+    }
+    for (const tab of all) {
+        if (primary.length >= NAV_PRIMARY_LIMIT) break;
+        if (used.has(tab.key)) continue;
+        primary.push(tab);
+        used.add(tab.key);
+    }
+    if (activeKey && !used.has(activeKey) && byKey.has(activeKey)) {
+        const swapIdx = Math.min(NAV_PRIMARY_LIMIT - 1, primary.length - 1);
+        if (swapIdx >= 0) {
+            used.delete(primary[swapIdx].key);
+            primary[swapIdx] = byKey.get(activeKey);
+            used.add(activeKey);
+        }
+    }
+    return {
+        primary,
+        overflow: all.filter((tab) => !used.has(tab.key))
+    };
+}
+
+function buildNavTabButton(tab) {
+    const btn = document.createElement('button');
+    btn.className = 'nav-tab';
+    btn.type = 'button';
+    btn.role = 'tab';
+    btn.dataset.tab = tab.key;
+    btn.setAttribute('aria-selected', 'false');
+    btn.title = tab.label || tab.key;
+
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'nav-icon-wrap';
+    iconWrap.appendChild(svgIconEl(tab.key));
+
+    const label = document.createElement('span');
+    label.className = 'nav-tab-label';
+    label.textContent = tab.label || tab.key;
+
+    btn.appendChild(iconWrap);
+    btn.appendChild(label);
+    btn.addEventListener('click', () => {
+        closeNavMorePanel();
+        switchTab(tab.key);
+    });
+    return btn;
+}
+
+function buildMoreNavButton(overflow) {
+    const btn = document.createElement('button');
+    btn.className = 'nav-tab nav-tab-more';
+    btn.type = 'button';
+    btn.id = 'nav-more-btn';
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-controls', 'nav-more-panel');
+    btn.title = 'More';
+    btn.dataset.tab = '__more__';
+
+    const iconWrap = document.createElement('span');
+    iconWrap.className = 'nav-icon-wrap';
+    iconWrap.innerHTML =
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+
+    const label = document.createElement('span');
+    label.className = 'nav-tab-label';
+    label.textContent = 'More';
+
+    btn.appendChild(iconWrap);
+    btn.appendChild(label);
+    btn.addEventListener('click', () => toggleNavMorePanel());
+    btn.dataset.overflowCount = String(overflow.length);
+    return btn;
+}
+
+function syncNavTabActiveState(activeKey) {
+    const key = activeKey || currentTab;
+    const overflowActive = navOverflowTabs.some((tab) => tab.key === key);
+    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
+        let active = false;
+        if (btn.classList.contains('nav-tab-more')) {
+            active = overflowActive;
+        } else {
+            active = btn.dataset.tab === key;
+        }
+        btn.classList.toggle('nav-tab-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('#nav-more-list .nav-more-item').forEach((btn) => {
+        const on = btn.dataset.tab === key;
+        btn.classList.toggle('nav-more-item-active', on);
+        btn.setAttribute('aria-current', on ? 'page' : 'false');
+    });
+}
+
+function renderNavMoreList(overflow) {
+    const list = document.getElementById('nav-more-list');
+    if (!list) return;
+    list.innerHTML = '';
+    overflow.forEach((tab) => {
+        const btn = document.createElement('button');
+        btn.className = 'nav-more-item';
+        btn.type = 'button';
+        btn.role = 'menuitem';
+        btn.dataset.tab = tab.key;
+
+        const iconWrap = document.createElement('span');
+        iconWrap.className = 'nav-more-item-icon';
+        iconWrap.appendChild(svgIconEl(tab.key));
+
+        const text = document.createElement('span');
+        text.className = 'nav-more-item-label';
+        text.textContent = tab.label || tab.key;
+
+        btn.appendChild(iconWrap);
+        btn.appendChild(text);
+        btn.addEventListener('click', () => {
+            closeNavMorePanel();
+            switchTab(tab.key);
+            // Re-render so the selected overflow tab can promote into the primary row.
+            renderTabButtons(appTabs);
+            syncNavTabActiveState(tab.key);
+        });
+        list.appendChild(btn);
+    });
+}
+
+function isNavMoreOpen() {
+    const panel = document.getElementById('nav-more-panel');
+    return Boolean(panel && !panel.hidden);
+}
+
+function openNavMorePanel() {
+    const panel = document.getElementById('nav-more-panel');
+    const btn = document.getElementById('nav-more-btn');
+    if (!panel || !navOverflowTabs.length) return;
+    renderNavMoreList(navOverflowTabs);
+    syncNavTabActiveState(currentTab);
+    panel.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+}
+
+function closeNavMorePanel() {
+    const panel = document.getElementById('nav-more-panel');
+    const btn = document.getElementById('nav-more-btn');
+    if (panel) panel.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleNavMorePanel() {
+    if (isNavMoreOpen()) {
+        closeNavMorePanel();
+    } else {
+        openNavMorePanel();
+    }
+}
+
 function renderTabButtons(tabs) {
     const tabsContainer = document.getElementById('app-tabs');
     if (!tabsContainer) return;
+    const { primary, overflow } = splitNavTabs(tabs, currentTab);
+    navOverflowTabs = overflow;
     tabsContainer.innerHTML = '';
-    tabs.forEach((tab) => {
-        const btn = document.createElement('button');
-        btn.className = 'nav-tab';
-        btn.type = 'button';
-        btn.role = 'tab';
-        btn.dataset.tab = tab.key;
-        btn.setAttribute('aria-selected', 'false');
-        btn.title = tab.label;
+    primary.forEach((tab) => tabsContainer.appendChild(buildNavTabButton(tab)));
+    if (overflow.length) {
+        tabsContainer.appendChild(buildMoreNavButton(overflow));
+        renderNavMoreList(overflow);
+    } else {
+        closeNavMorePanel();
+    }
+    syncNavTabActiveState(currentTab);
+    applyMyTeamApprovalBadge();
+}
 
-        const iconWrap = document.createElement('span');
-        iconWrap.className = 'nav-icon-wrap';
-        iconWrap.appendChild(svgIconEl(tab.key));
+document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-nav-more-close]')) {
+        closeNavMorePanel();
+        return;
+    }
+    if (isNavMoreOpen() && !target.closest('#nav-more-panel .nav-more-card') && !target.closest('#nav-more-btn')) {
+        closeNavMorePanel();
+    }
+});
 
-        const label = document.createElement('span');
-        label.textContent = tab.label || tab.key;
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isNavMoreOpen()) {
+        closeNavMorePanel();
+    }
+});
 
-        btn.appendChild(iconWrap);
-        btn.appendChild(label);
-        btn.addEventListener('click', () => switchTab(tab.key));
-        tabsContainer.appendChild(btn);
+const EXPENSE_APPROVAL_COUNT_EVENT = 'zeta-expense-approval-count';
+let expenseApprovalCount = 0;
+
+function actionableExpenseCount(rows) {
+    if (!Array.isArray(rows)) {
+        return 0;
+    }
+    return rows.filter((row) => row && row.canAct === true).length;
+}
+
+function applyMyTeamApprovalBadge() {
+    const myTeamInOverflow = navOverflowTabs.some(
+        (tab) => viewForTab(tab.key) === APP_TAB_VIEWS.My_Team
+    );
+    document.querySelectorAll('#app-tabs .nav-tab').forEach((btn) => {
+        const existing = btn.querySelector('.nav-tab-badge');
+        const isMyTeam = viewForTab(btn.dataset.tab) === APP_TAB_VIEWS.My_Team;
+        const isMoreWithTeam = btn.classList.contains('nav-tab-more') && myTeamInOverflow;
+        if ((!isMyTeam && !isMoreWithTeam) || expenseApprovalCount <= 0) {
+            if (existing) existing.remove();
+            btn.removeAttribute('aria-description');
+            return;
+        }
+        const count = expenseApprovalCount;
+        const label = count > 99 ? '99+' : String(count);
+        const badge = existing || document.createElement('span');
+        badge.className = 'nav-tab-badge';
+        badge.textContent = label;
+        badge.title = `${count} expense${count === 1 ? '' : 's'} pending approval`;
+        badge.setAttribute('aria-hidden', 'true');
+        if (!existing) {
+            btn.appendChild(badge);
+        }
+        btn.setAttribute('aria-description', badge.title);
     });
 }
+
+async function refreshExpenseApprovalBadge() {
+    try {
+        const { default: getPendingExpenseApprovals } = await import('./apex/getPendingExpenseApprovals.js');
+        const rows = await getPendingExpenseApprovals({});
+        expenseApprovalCount = actionableExpenseCount(rows);
+    } catch (_err) {
+        /* Keep the last known count if the queue cannot be loaded. */
+    }
+    applyMyTeamApprovalBadge();
+}
+
+window.addEventListener(EXPENSE_APPROVAL_COUNT_EVENT, (event) => {
+    const count = Number(event && event.detail && event.detail.count);
+    if (!Number.isFinite(count) || count < 0) {
+        return;
+    }
+    expenseApprovalCount = count;
+    applyMyTeamApprovalBadge();
+});
 
 function svgIconEl(tabKey) {
     const span = document.createElement('span');
@@ -2180,7 +3038,19 @@ function svgIconEl(tabKey) {
 function defaultTabIcon(tabKey) {
     const exact = String(tabKey || '');
     const key = exact.toLowerCase();
-    if (exact === 'Field_Rep_Home_App' || key === 'home') {
+    if (exact === 'Care_Coach_Patients') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-7 1.6-7 4v3h14v-3c0-2.4-3.7-4-7-4zm8-2a3 3 0 1 0 0-6v6zm1.5 2.2c1.3.8 2.5 2 2.5 3.8v3h2v-3c0-1.9-2-3.2-4.5-3.8z"/></svg>`;
+    }
+    if (exact === 'Care_Coach_Products') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.2 13.4 13.4 4.2a4.24 4.24 0 0 1 6 6l-9.2 9.2a4.24 4.24 0 0 1-6-6zm1.4 1.4a2.24 2.24 0 0 0 3.2 3.2l4-4-3.2-3.2-4 4z"/></svg>`;
+    }
+    if (exact === 'Care_Coach_Knowledge') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 3h7a3 3 0 0 1 2 .8A3 3 0 0 1 15 3h5v16h-5a2 2 0 0 0-2 2h-2a2 2 0 0 0-2-2H4V3zm2 2v12h3c.7 0 1.4.2 2 .5V6a1 1 0 0 0-1-1H6zm12 0h-3a1 1 0 0 0-1 1v11.5c.6-.3 1.3-.5 2-.5h2V5z"/></svg>`;
+    }
+    if (exact === 'Patient_Order__c' || exact === 'Care_Coach_Orders') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h2l2.7 10.2a2 2 0 0 0 1.9 1.5h7.8a2 2 0 0 0 1.9-1.4L21 8H7.2L6.6 5.6A2 2 0 0 0 4.7 4H3zm6 16a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>`;
+    }
+    if (exact === 'Field_Rep_Home_App' || exact === 'Care_Coach_Home' || key === 'home') {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3 2 10v11h7v-6h6v6h7V10L12 3z"/></svg>`;
     }
     if (exact === 'Field_Rep_Planner' || key.includes('planner')) {
@@ -2188,6 +3058,12 @@ function defaultTabIcon(tabKey) {
     }
     if (exact === 'Accounts_Tab' || key.includes('account')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 21V9l8-6 8 6v12h-6v-6H10v6H4zm2-2h2v-4h8v4h2v-9.2L12 5.5 6 9.8V19z"/></svg>`;
+    }
+    if (exact === 'Field_Requests' || (key.includes('request') && !key.includes('time'))) {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm2 3v2h12V7H6zm0 4v2h8v-2H6z"/></svg>`;
+    }
+    if (exact === 'Field_Orders') {
+        return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 4h2l2.7 10.2a2 2 0 0 0 1.9 1.5h7.8a2 2 0 0 0 1.9-1.4L21 8H7.2L6.6 5.6A2 2 0 0 0 4.7 4H3zm6 16a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>`;
     }
     if (exact === 'Class_Engine' || key.includes('class_engine') || key.includes('class-engine')) {
         return `<svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18v2H3V5zm2 4h14v2H5V9zm-2 4h18v2H3v-2zm2 4h14v2H5v-2z"/></svg>`;
@@ -2430,6 +3306,136 @@ function mountCoachingRecord(recordId) {
         .catch(() => {});
 }
 
+function safeAccountActionHref(href) {
+    if (typeof href !== 'string') return '';
+    if (href.startsWith('tel:') || href.startsWith('https://maps.google.com/')) return href;
+    return '';
+}
+
+function renderAccountIdentity(data) {
+    const host = document.getElementById('record-modal-host');
+    if (!host || host.dataset.recordId !== String(data.recordId || '')) return;
+    const slot = host.querySelector('.account-record-identity');
+    if (!slot) return;
+    slot.hidden = false;
+    slot.replaceChildren();
+
+    const theme = data.theme && data.theme.kind && data.theme.kind !== 'account' ? data.theme : null;
+    slot.classList.toggle('is-themed', Boolean(theme));
+    ['--account-theme', '--account-theme-ink', '--account-theme-soft', '--account-theme-border'].forEach((name) => {
+        slot.style.removeProperty(name);
+    });
+    if (theme) {
+        slot.style.setProperty('--account-theme', theme.color || '#0176d3');
+        slot.style.setProperty('--account-theme-ink', theme.ink || '#fff');
+        slot.style.setProperty('--account-theme-soft', theme.soft || '#eaf1fc');
+        slot.style.setProperty('--account-theme-border', theme.border || '#c5d7f6');
+    }
+
+    const identity = document.createElement('div');
+    identity.className = 'account-identity';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'account-identity-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    if (theme && theme.iconUrl) {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.src = theme.iconUrl;
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = data.avatar || (data.title || '?').trim().charAt(0).toUpperCase();
+    }
+
+    const body = document.createElement('div');
+    body.className = 'account-identity-body';
+    const kicker = document.createElement('div');
+    kicker.className = 'account-identity-kicker';
+    kicker.textContent = data.kicker || 'Account';
+    const title = document.createElement('h1');
+    title.className = 'account-identity-title';
+    title.textContent = data.title || 'Account';
+    body.append(kicker, title);
+    const contactParts = Array.isArray(data.contact) ? data.contact.filter(Boolean) : [];
+    if (contactParts.length) {
+        const contact = document.createElement('div');
+        contact.className = 'account-identity-contact';
+        contactParts.forEach((part) => {
+            const span = document.createElement('span');
+            span.textContent = String(part);
+            contact.appendChild(span);
+        });
+        body.appendChild(contact);
+    }
+
+    identity.append(avatar, body);
+    if (data.status) {
+        const status = document.createElement('span');
+        status.className = 'account-identity-status';
+        status.textContent = String(data.status);
+        identity.appendChild(status);
+    }
+    slot.appendChild(identity);
+
+    const actions = Array.isArray(data.actions) ? data.actions : [];
+    if (actions.length) {
+        const bar = document.createElement('div');
+        bar.className = 'account-identity-actions';
+        actions.forEach((action) => {
+            const primary = Boolean(action && action.primary);
+            if (action && action.navigate === 'visit') {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `account-identity-action${primary ? ' is-primary' : ''}`;
+                button.textContent = action.label || 'Start Visit';
+                button.addEventListener('click', () => {
+                    window.dispatchEvent(
+                        new CustomEvent('zeta-navigate-tab', {
+                            detail: {
+                                apiName: 'Field_Rep_Planner',
+                                accountId: data.recordId,
+                                accountName: data.title || ''
+                            }
+                        })
+                    );
+                    closeRecordModal();
+                });
+                bar.appendChild(button);
+                return;
+            }
+            if (action && action.navigate === 'request') {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `account-identity-action${primary ? ' is-primary' : ''}`;
+                button.textContent = action.label || 'Request';
+                button.addEventListener('click', () => {
+                    openFieldRequestSheet({
+                        accountId: data.recordId,
+                        source: 'Account'
+                    });
+                });
+                bar.appendChild(button);
+                return;
+            }
+            const href = safeAccountActionHref(action && action.href);
+            if (!href) return;
+            const link = document.createElement('a');
+            link.className = `account-identity-action${primary ? ' is-primary' : ''}`;
+            link.href = href;
+            link.textContent = action.label || 'Open';
+            if (href.startsWith('https://')) {
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+            }
+            bar.appendChild(link);
+        });
+        if (bar.childNodes.length) slot.appendChild(bar);
+    }
+
+    const chrome = document.querySelector('.record-modal-chrome-title');
+    if (chrome && data.title) chrome.textContent = data.title;
+}
+
 function mountAccountRecord(recordId) {
     const host = document.getElementById('record-modal-host');
     const frame = document.getElementById('record-modal-frame');
@@ -2445,7 +3451,13 @@ function mountAccountRecord(recordId) {
     host.removeAttribute('hidden');
     host.style.display = 'flex';
     host.innerHTML = '';
+    host.dataset.recordId = String(recordId);
     if (title) title.textContent = 'Account';
+
+    const identityHost = document.createElement('div');
+    identityHost.className = 'account-record-identity';
+    identityHost.hidden = true;
+    host.appendChild(identityHost);
 
     void (async () => {
         try {
@@ -2457,6 +3469,26 @@ function mountAccountRecord(recordId) {
             const name = data?.records?.[0]?.Name;
             if (name && title) {
                 title.textContent = name;
+            }
+            if (name && host.dataset.recordId === String(recordId)) {
+                const slot = host.querySelector('.account-record-identity');
+                if (slot && slot.hidden) {
+                    renderAccountIdentity({
+                        recordId,
+                        kicker: 'Account',
+                        title: name,
+                        contact: [],
+                        status: '',
+                        avatar: name.trim().charAt(0).toUpperCase(),
+                        actions: [
+                            {
+                                label: 'Start Visit',
+                                primary: true,
+                                navigate: 'visit'
+                            }
+                        ]
+                    });
+                }
             }
         } catch (_err) {
             // keep generic title
@@ -2495,6 +3527,7 @@ function mountAccountRecord(recordId) {
 
     const tabDefs = [
         { id: 'details', label: 'Overview' },
+        { id: 'duplicates', label: 'Duplicate check' },
         { id: 'affiliations', label: 'Affiliations' },
         { id: 'apm', label: 'APM' },
         { id: 'ratings', label: 'Ratings' },
@@ -2529,13 +3562,14 @@ function mountAccountRecord(recordId) {
     const mountLwc = (pane, tag, Ctor, emptyTitle) => {
         try {
             const el = createElement(tag, { is: Ctor });
-            pane.appendChild(el);
             el.recordId = recordId;
+            pane.appendChild(el);
         } catch (err) {
             pane.innerHTML = `<div class="unsupported-message"><h2>${emptyTitle}</h2><p>Could not load this panel offline.</p></div>`;
             console.warn(`[Account] ${emptyTitle} mount failed`, err);
         }
     };
+    mountLwc(panes.duplicates, 'c-account-duplicate-check', AccountDuplicateCheck, 'Duplicate check');
     mountLwc(panes.affiliations, 'c-account-affiliation-network', AccountAffiliationNetwork, 'Affiliations');
     mountLwc(panes.apm, 'c-account-hcp-product-roi', AccountHcpProductRoi, 'APM');
     mountLwc(panes.ratings, 'c-account-ratings-panel', AccountRatingsPanel, 'Ratings');
@@ -2582,6 +3616,7 @@ function openRecordModal(recordId, objectApiName) {
         mountCoachingRecord(recordId);
     } else if (isAccount && (objectName === 'Account' || !objectName)) {
         mountAccountRecord(recordId);
+        setAgentforcePageContext({ record: { recordId, objectApiName: 'Account' } });
     } else {
         clearRecordModalHost();
         if (title) title.textContent = 'Record';
@@ -2609,6 +3644,7 @@ function closeRecordModal() {
         modal.setAttribute('hidden', '');
     }
     document.body.classList.remove('record-modal-open');
+    setAgentforcePageContext({ record: null });
 }
 
 // Debug function to test the endpoint
@@ -2661,7 +3697,7 @@ function setupSessionBar(token) {
 
     initUserMenu({
         onSwitchApp: buildAppChooser,
-        onLogout: logout,
+        onLogout: () => void signOut(),
         getIdentity: readStoredIdentity,
         saveIdentity
     });
@@ -2737,7 +3773,7 @@ async function setupLoginDownloads() {
                 const version = String(meta?.version || '').replace(/^v/i, '');
                 if (version) {
                     const file = publicApkFileName(meta?.fileName, version);
-                    androidMeta.textContent = file ? `v${version} - ${file}` : `v${version}`;
+                    androidMeta.textContent = `v${version}`;
                     if (androidLink && file) {
                         androidLink.setAttribute('download', file);
                     }
@@ -2758,7 +3794,7 @@ async function setupLoginDownloads() {
         deferredPwaInstallPrompt = null;
         if (iosHint) {
             iosHint.hidden = false;
-            iosHint.textContent = 'Installed. Open Salesforce OSR from your home screen anytime.';
+            iosHint.textContent = `Installed. Open ${shellProductName()} from your home screen anytime.`;
         }
     });
 
@@ -2782,7 +3818,7 @@ async function setupLoginDownloads() {
                     iosHint.hidden = false;
                     iosHint.textContent =
                         choice?.outcome === 'accepted'
-                            ? 'Installing… Look for Salesforce OSR on your home screen.'
+                            ? `Installing… Look for ${shellProductName()} on your home screen.`
                             : 'Install cancelled. You can try again anytime.';
                 }
                 return;
@@ -2794,8 +3830,8 @@ async function setupLoginDownloads() {
         if (iosHint) {
             iosHint.hidden = false;
             iosHint.textContent = isIosDevice()
-                ? 'On iPhone/iPad: tap Share, then Add to Home Screen to install Salesforce OSR.'
-                : 'In your browser menu, choose Install app or Add to Home Screen to install Salesforce OSR.';
+                ? `On iPhone/iPad: tap Share, then Add to Home Screen to install ${shellProductName()}.`
+                : `In your browser menu, choose Install app or Add to Home Screen to install ${shellProductName()}.`;
         }
     });
 }
@@ -2860,9 +3896,12 @@ async function initializeApp(options = {}) {
     console.log('[App] Initial window.Capacitor:', typeof window.Capacitor);
 
     document.documentElement.classList.add('osr-offline-shell');
+    installDemoFetch();
     hydrateOfflineMode();
 
-    const enterImmediately = !!options.enterImmediately;
+    const loginAsHandoff = readLoginAsHandoff();
+    const loginAsBlocked = loginAsHandoff ? await beginLoginAs(loginAsHandoff) : '';
+    const enterImmediately = !!options.enterImmediately || (!!loginAsHandoff && !loginAsBlocked);
     const oauthCallback = isOAuthCallbackLocation();
     const storedSession = hasStoredSession();
 
@@ -2879,6 +3918,7 @@ async function initializeApp(options = {}) {
     }
 
     const capacitorReady = await waitForCapacitor(3000);
+    paintShellBrand(readInstanceUrl());
     console.log('[App] Capacitor ready:', capacitorReady);
     console.log('[App] isCapacitor():', isCapacitor());
     syncLoginDownloadsVisibility();
@@ -2910,31 +3950,29 @@ async function initializeApp(options = {}) {
             registerServiceWorker();
             return;
         }
-    } else if (!readToken()) {
-        const refreshToken = readRefreshToken();
-        if (refreshToken) {
-            try {
-                const tokenData = await refreshAccessToken();
-                const { access_token, refresh_token, instance_url } = tokenData;
-                console.log('[OAuth] Token refresh successful');
-                window.localStorage.setItem(TOKEN_KEY, access_token);
-                configureRuntime(access_token, refresh_token || null, instance_url);
-            } catch (error) {
-                console.error('Token refresh error:', error);
-                if (isNetworkError(error)) {
-                    hydrateOfflineMode();
-                    configureRuntime(readToken() || '');
-                } else {
-                    window.localStorage.removeItem(TOKEN_KEY);
-                    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-                    window.localStorage.removeItem(INSTANCE_URL_KEY);
-                    clearIdentity();
-                    clearSessionConfirmed();
-                    configureRuntime('');
-                    showFreshLogin();
-                    showScreen('login');
-                    setLoginStatus('Session expired. Please sign in again.', true);
-                }
+    } else if (readRefreshToken() && (!readToken() || accessTokenIsStale())) {
+        try {
+            const tokenData = await refreshAccessToken();
+            const { access_token, refresh_token, instance_url } = tokenData;
+            console.log('[OAuth] Token refresh successful');
+            applyTokenResponse(tokenData);
+            configureRuntime(access_token, refresh_token || readRefreshToken(), instance_url || null);
+        } catch (error) {
+            console.error('Token refresh error:', error);
+            if (isRefreshRejected(error) && !isNetworkError(error)) {
+                clearStoredTokens();
+                window.localStorage.removeItem(INSTANCE_URL_KEY);
+                clearIdentity();
+                clearSessionConfirmed();
+                configureRuntime('');
+                showFreshLogin();
+                showScreen('login');
+                setLoginStatus('Session expired. Please sign in again.', true);
+            } else if (isNetworkError(error)) {
+                hydrateOfflineMode();
+                configureRuntime(readToken() || '');
+            } else {
+                configureRuntime(readToken() || '');
             }
         }
     }
@@ -2945,6 +3983,17 @@ async function initializeApp(options = {}) {
     setupNavigation();
     setupSessionBar(token);
     setupToastListener();
+
+    if (readLoginAs()) {
+        mountLoginAsBanner(() => void exitLoginAs());
+    }
+    if (isDemoMode()) {
+        mountDemoBanner(() => void logout());
+    }
+    if (loginAsBlocked) {
+        setLoginStatus(loginAsBlocked, true);
+    }
+    const loginAsEnded = takeLoginAsEndedNotice();
 
     if (token) {
         void fetchAndStoreUserIdentity();
@@ -2968,7 +4017,35 @@ async function initializeApp(options = {}) {
             syncLoginFormUi();
         }
     }
+    if (loginAsEnded) {
+        showToast({ title: 'Login As ended', message: loginAsEnded, variant: 'success' });
+    }
     registerServiceWorker();
 }
 
+let sessionInvalidWired = false;
+function wireLastingSession() {
+    startSessionKeepAlive();
+    if (sessionInvalidWired) return;
+    sessionInvalidWired = true;
+    window.addEventListener('zeta-session-invalid', () => {
+        if (!readRefreshToken() && !readToken()) return;
+        const loginAs = readLoginAs();
+        const who = loginAs?.asName || 'that user';
+        const ended = loginAs
+            ? endLoginAs(`The Login As session for ${who} timed out. You're back in your own session.`)
+            : logout().then(() => false);
+        void ended.then((handedBack) => {
+            if (handedBack) return;
+            setLoginStatus(
+                loginAs
+                    ? `The session as ${who} has ended. Open it again from the admin console.`
+                    : 'Session expired. Please sign in again.',
+                true
+            );
+        });
+    });
+}
+
+wireLastingSession();
 initializeApp();

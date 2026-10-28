@@ -81,6 +81,11 @@
         <label>Dentistry</label>
     </customValue>
     <customValue>
+        <fullName>Dermatology</fullName>
+        <default>false</default>
+        <label>Dermatology</label>
+    </customValue>
+    <customValue>
         <fullName>Diabetology</fullName>
         <default>false</default>
         <label>Diabetology</label>
@@ -89,6 +94,11 @@
         <fullName>Embryology</fullName>
         <default>false</default>
         <label>Embryology</label>
+    </customValue>
+    <customValue>
+        <fullName>Endocrinology</fullName>
+        <default>false</default>
+        <label>Endocrinology</label>
     </customValue>
     <customValue>
         <fullName>Endoscopic_Surgery</fullName>
@@ -111,6 +121,21 @@
         <label>Gastroenterological Surgery</label>
     </customValue>
     <customValue>
+        <fullName>Gastroenterology</fullName>
+        <default>false</default>
+        <label>Gastroenterology</label>
+    </customValue>
+    <customValue>
+        <fullName>General_Practice</fullName>
+        <default>false</default>
+        <label>General Practice</label>
+    </customValue>
+    <customValue>
+        <fullName>General_Surgery</fullName>
+        <default>false</default>
+        <label>General Surgery</label>
+    </customValue>
+    <customValue>
         <fullName>Genetics</fullName>
         <default>false</default>
         <label>Genetics</label>
@@ -126,9 +151,19 @@
         <label>Haematology</label>
     </customValue>
     <customValue>
+        <fullName>Hepatology</fullName>
+        <default>false</default>
+        <label>Hepatology</label>
+    </customValue>
+    <customValue>
         <fullName>Intensive_Care</fullName>
         <default>false</default>
         <label>Intensive Care</label>
+    </customValue>
+    <customValue>
+        <fullName>Internal_Medicine</fullName>
+        <default>false</default>
+        <label>Internal Medicine</label>
     </customValue>
     <customValue>
         <fullName>Laboratory_Technician</fullName>
@@ -139,6 +174,41 @@
         <fullName>Miscellaneous</fullName>
         <default>false</default>
         <label>Miscellaneous</label>
+    </customValue>
+    <customValue>
+        <fullName>Nephrology</fullName>
+        <default>false</default>
+        <label>Nephrology</label>
+    </customValue>
+    <customValue>
+        <fullName>Neurology</fullName>
+        <default>false</default>
+        <label>Neurology</label>
+    </customValue>
+    <customValue>
+        <fullName>Neuropsychiatry</fullName>
+        <default>false</default>
+        <label>Neuropsychiatry</label>
+    </customValue>
+    <customValue>
+        <fullName>Neurosurgery</fullName>
+        <default>false</default>
+        <label>Neurosurgery</label>
+    </customValue>
+    <customValue>
+        <fullName>Nutrition_Medicine</fullName>
+        <default>false</default>
+        <label>Nutrition Medicine</label>
+    </customValue>
+    <customValue>
+        <fullName>Obstetrics_and_Gynaecology</fullName>
+        <default>false</default>
+        <label>Obstetrics and Gynaecology</label>
+    </customValue>
+    <customValue>
+        <fullName>Oncology</fullName>
+        <default>false</default>
+        <label>Oncology</label>
     </customValue>
     <customValue>
         <fullName>Orthopaedics</fullName>
@@ -201,9 +271,19 @@
         <label>Physiotherapy</label>
     </customValue>
     <customValue>
+        <fullName>Plastic_Surgery</fullName>
+        <default>false</default>
+        <label>Plastic Surgery</label>
+    </customValue>
+    <customValue>
         <fullName>Pneumology</fullName>
         <default>false</default>
         <label>Pneumology</label>
+    </customValue>
+    <customValue>
+        <fullName>Psychiatry</fullName>
+        <default>false</default>
+        <label>Psychiatry</label>
     </customValue>
     <customValue>
         <fullName>Purchasing</fullName>
@@ -214,6 +294,11 @@
         <fullName>Radiotherapy</fullName>
         <default>false</default>
         <label>Radiotherapy</label>
+    </customValue>
+    <customValue>
+        <fullName>Rheumatology</fullName>
+        <default>false</default>
+        <label>Rheumatology</label>
     </customValue>
     <customValue>
         <fullName>Social_Assistant_Worker</fullName>
@@ -230,7 +315,12 @@
         <default>false</default>
         <label>Urology</label>
     </customValue>
+    <customValue>
+        <fullName>Vascular_Surgery</fullName>
+        <default>false</default>
+        <label>Vascular Surgery</label>
+    </customValue>
     <description>Medical specialties for HCP Account records (Specialty 1-4).</description>
     <masterLabel>Medical Specialty</masterLabel>
-    <sorted>true</sorted>
+    <sorted>false</sorted>
 </GlobalValueSet>

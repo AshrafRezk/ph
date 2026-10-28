@@ -1,328 +1,244 @@
-import { cacheRead, cacheWrite, idbGet, idbSet } from './tabCache.js';
-import { sfGet, sfSoql } from './sfRest.js';
-import { barChartHtml, extractChartSeries, extractMetric, extractReportTable, tableHtml } from './reportTable.js';
+import { cacheRead, cacheWrite } from './tabCache.js';
+import { sfSoql } from './sfRest.js';
+import { analyticsOffline, createDashboard, listFolders } from './analyticsApi.js';
+import { mountDashboardBuilder } from './dashboardBuilder.js';
+import { ICONS, openModal, toast } from './analyticsUi.js';
 import { escapeHtml, errorMessage, formatRelative, formatSynced, isNetworkError } from './viewUtils.js';
+import { summarizeDashboardCatalog } from '../analyticsBrief.js';
+import { publishAnalyticsSnapshot } from '../analyticsContext.js';
 
-const LIST_KEY = 'dashboards.catalog';
-const DASH_IDB_PREFIX = 'dashboard.';
+const LIST_KEY = 'dashboards.catalog.v2';
 
 let rootEl = null;
 let loadingList = false;
 let currentDashboardId = null;
+let builder = null;
 let catalog = [];
-
-function dashCacheKey(id) {
-    return `${DASH_IDB_PREFIX}${id}`;
-}
-
-function bannerHtml(savedAt, message) {
-    const bits = [];
-    if (savedAt) bits.push(escapeHtml(formatSynced(savedAt)));
-    if (message) bits.push(escapeHtml(message));
-    if (!bits.length) return '';
-    return `<div class="osr-tab-banner" role="status">${bits.join(' ù ')}</div>`;
-}
+let listState = { savedAt: null, message: '' };
 
 function ensureShell(root) {
     if (root.querySelector('.osr-dashboards')) return;
     root.innerHTML = `
-        <section class="osr-tab osr-dashboards">
+        <section class="osr-tab osr-dashboards an-page">
             <div data-dash-list>
-                <header class="osr-tab-header">
-                    <h1>Dashboards</h1>
-                    <p>Open a Salesforce dashboard as metrics, tables, and simple charts. Last results stay available offline.</p>
-                </header>
-                <div data-dash-banner></div>
-                <div class="osr-tab-toolbar">
-                    <label class="osr-tab-search">
-                        <span class="visually-hidden">Search dashboards</span>
-                        <input type="search" data-dash-search placeholder="Search dashboardsù" />
-                    </label>
-                    <button type="button" class="osr-tab-btn" data-dash-refresh>Refresh</button>
-                </div>
-                <p class="osr-tab-empty" data-dash-empty>Loading dashboardsÖ</p>
-                <ul class="osr-tab-list" data-dash-items></ul>
-            </div>
-            <div data-dash-detail hidden>
-                <header class="osr-tab-header osr-tab-header--row">
-                    <button type="button" class="osr-tab-btn" data-dash-back>Back</button>
+                <header class="an-hero">
                     <div>
-                        <h1 data-dash-title>Dashboard</h1>
-                        <p data-dash-sub></p>
+                        <span class="an-hero-eyebrow">${ICONS.dashboard}Analytics</span>
+                        <h1>Dashboards</h1>
+                        <p>Live Salesforce dashboards with filters, drill-down, and editing. The last results stay available offline.</p>
+                    </div>
+                    <div class="an-hero-actions">
+                        <button type="button" class="an-btn" data-dash-refresh>${ICONS.refresh}<span>Refresh</span></button>
+                        <button type="button" class="an-btn an-btn--primary" data-dash-new>${ICONS.plus}<span>New Dashboard</span></button>
                     </div>
                 </header>
-                <div data-dash-detail-banner></div>
-                <div class="osr-dash-grid" data-dash-body></div>
+                <div data-dash-banner></div>
+                <div class="an-toolbar">
+                    <label class="an-search">${ICONS.search}<input type="search" data-dash-search placeholder="Search dashboards" /></label>
+                </div>
+                <div data-dash-content></div>
             </div>
+            <div data-dash-detail hidden></div>
         </section>
     `;
     bind(root);
 }
 
 function bind(root) {
-    const search = root.querySelector('[data-dash-search]');
-    const refresh = root.querySelector('[data-dash-refresh]');
-    const items = root.querySelector('[data-dash-items]');
-    const back = root.querySelector('[data-dash-back]');
-    if (search) search.addEventListener('input', () => renderList());
-    if (refresh) refresh.addEventListener('click', () => loadCatalog({ force: true }));
-    if (items) {
-        items.addEventListener('click', (event) => {
-            const btn = event.target.closest('[data-dash-id]');
-            if (btn) openDashboard(btn.dataset.dashId);
-        });
-    }
-    if (back) back.addEventListener('click', () => showList());
-}
-
-function filteredCatalog() {
-    const term = (
-        (rootEl &&
-            rootEl.querySelector('[data-dash-search]') &&
-            rootEl.querySelector('[data-dash-search]').value) ||
-        ''
-    )
-        .trim()
-        .toLowerCase();
-    if (!term) return catalog;
-    return catalog.filter((row) => {
-        const hay = `${row.Title || ''} ${row.FolderName || ''} ${row.Description || ''}`.toLowerCase();
-        return hay.includes(term);
+    root.querySelector('[data-dash-search]').addEventListener('input', () => renderList());
+    root.querySelector('[data-dash-refresh]').addEventListener('click', () => loadCatalog({ force: true }));
+    root.querySelector('[data-dash-new]').addEventListener('click', () => newDashboard());
+    root.querySelector('[data-dash-content]').addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-dash-id]');
+        if (btn) openDashboard(btn.dataset.dashId);
     });
 }
 
-function renderList({ savedAt, message } = {}) {
+function filteredCatalog() {
+    const input = rootEl && rootEl.querySelector('[data-dash-search]');
+    const term = ((input && input.value) || '').trim().toLowerCase();
+    if (!term) return catalog;
+    return catalog.filter((row) =>
+        `${row.Title || ''} ${row.FolderName || ''} ${row.Description || ''}`.toLowerCase().includes(term)
+    );
+}
+
+function dashCard(row) {
+    return `<button type="button" class="an-dash-card" data-dash-id="${escapeHtml(row.Id)}">
+        <span class="an-dash-thumb" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="an-dash-body">
+            <span class="an-card-title">${escapeHtml(row.Title || 'Untitled dashboard')}</span>
+            <span class="an-card-meta">${ICONS.folder}${escapeHtml(row.FolderName || 'Private Dashboards')}</span>
+            ${row.Description ? `<span class="an-row-desc">${escapeHtml(row.Description)}</span>` : ''}
+            <span class="an-card-meta">${row.LastViewedDate ? `Viewed ${escapeHtml(formatRelative(row.LastViewedDate))}` : row.LastModifiedDate ? `Updated ${escapeHtml(formatRelative(row.LastModifiedDate))}` : ''}</span>
+        </span>
+    </button>`;
+}
+
+function renderList() {
     if (!rootEl) return;
     const banner = rootEl.querySelector('[data-dash-banner]');
-    const list = rootEl.querySelector('[data-dash-items]');
-    const empty = rootEl.querySelector('[data-dash-empty]');
+    const content = rootEl.querySelector('[data-dash-content]');
+    const bits = [];
+    if (listState.savedAt) bits.push(formatSynced(listState.savedAt));
+    if (listState.message) bits.push(listState.message);
+    banner.innerHTML = bits.length
+        ? `<div class="an-banner${analyticsOffline() ? ' an-banner--offline' : ''}" role="status"><span>${escapeHtml(bits.join(' \u00b7 '))}</span></div>`
+        : '';
+    if (loadingList && !catalog.length) {
+        content.innerHTML = `<div class="an-skel-grid">${'<i></i>'.repeat(6)}</div>`;
+        return;
+    }
     const rows = filteredCatalog();
-    if (banner) banner.innerHTML = bannerHtml(savedAt, message);
-    if (list) {
-        list.innerHTML = rows
+    if (!rows.length) {
+        content.innerHTML = `<div class="an-empty">${ICONS.dashboard}<strong>${catalog.length ? 'No dashboards match' : 'No dashboards yet'}</strong><span>${catalog.length ? 'Try a different search.' : 'Create a dashboard to get started.'}</span></div>`;
+        return;
+    }
+    const folders = new Map();
+    rows.forEach((row) => {
+        const name = row.FolderName || 'Private Dashboards';
+        if (!folders.has(name)) folders.set(name, []);
+        folders.get(name).push(row);
+    });
+    const recent = rows.filter((r) => r.LastViewedDate).slice(0, 4);
+    const input = rootEl.querySelector('[data-dash-search]');
+    const filtering = Boolean(input && input.value.trim());
+    content.innerHTML = `
+        ${!filtering && recent.length ? `<h2 class="an-section-title">Recently viewed</h2><div class="an-dash-cards">${recent.map(dashCard).join('')}</div>` : ''}
+        ${[...folders.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
             .map(
-                (row) => `<li>
-                    <button type="button" class="osr-tab-card" data-dash-id="${escapeHtml(row.Id)}">
-                        <span class="osr-tab-card-title">${escapeHtml(row.Title || 'Untitled dashboard')}</span>
-                        <span class="osr-tab-card-meta">${escapeHtml(row.FolderName || 'Unfiled')}
-                            ${row.LastViewedDate ? ` ù ${escapeHtml(formatRelative(row.LastViewedDate))}` : ''}</span>
-                        ${row.Description ? `<span class="osr-tab-card-desc">${escapeHtml(row.Description)}</span>` : ''}
-                    </button>
-                </li>`
+                ([name, list]) =>
+                    `<h2 class="an-section-title">${ICONS.folder}${escapeHtml(name)}<em>${list.length}</em></h2><div class="an-dash-cards">${list.map(dashCard).join('')}</div>`
             )
-            .join('');
-    }
-    if (empty) {
-        empty.hidden = rows.length > 0;
-        empty.textContent = catalog.length ? 'No dashboards match your search.' : 'No dashboards found.';
-    }
+            .join('')}`;
 }
 
 function showList() {
     currentDashboardId = null;
+    if (builder) {
+        builder.destroy();
+        builder = null;
+    }
     if (!rootEl) return;
-    const list = rootEl.querySelector('[data-dash-list]');
+    rootEl.querySelector('[data-dash-list]').hidden = false;
     const detail = rootEl.querySelector('[data-dash-detail]');
-    if (list) list.hidden = false;
-    if (detail) detail.hidden = true;
-}
-
-function showDetail() {
-    if (!rootEl) return;
-    const list = rootEl.querySelector('[data-dash-list]');
-    const detail = rootEl.querySelector('[data-dash-detail]');
-    if (list) list.hidden = true;
-    if (detail) detail.hidden = false;
-}
-
-function componentType(component) {
-    return String((component && (component.type || component.componentType)) || '').toLowerCase();
-}
-
-function reportFromComponent(component, dataById) {
-    const id = component && (component.id || component.componentId);
-    const packed = id && dataById.get(String(id));
-    return (
-        (packed && (packed.reportResult || packed.report)) ||
-        (component && (component.reportResult || component.report)) ||
-        null
-    );
-}
-
-function renderComponent(component, dataById) {
-    const type = componentType(component);
-    const title = component.header || component.title || component.name || 'Component';
-    if (type.includes('visualforce') || type.includes('image') || type.includes('scontrol')) {
-        return `<article class="osr-dash-card">
-            <h2>${escapeHtml(title)}</h2>
-            <p class="osr-tab-empty">This component isn't available offline.</p>
-        </article>`;
-    }
-    const report = reportFromComponent(component, dataById);
-    if (!report) {
-        return `<article class="osr-dash-card">
-            <h2>${escapeHtml(title)}</h2>
-            <p class="osr-tab-empty">No cached result for this component.</p>
-        </article>`;
-    }
-    let body = '';
-    if (type.includes('metric') || type.includes('gauge')) {
-        const metric = extractMetric(report);
-        body = `<p class="osr-metric">${escapeHtml(metric.value)}</p>`;
-    } else if (type.includes('chart') || type.includes('funnel') || type.includes('donut')) {
-        body = barChartHtml(extractChartSeries(report));
-    } else {
-        try {
-            body = tableHtml(extractReportTable(report));
-        } catch (_err) {
-            const metric = extractMetric(report);
-            body = `<p class="osr-metric">${escapeHtml(metric.value)}</p>`;
-        }
-    }
-    return `<article class="osr-dash-card"><h2>${escapeHtml(title)}</h2>${body}</article>`;
-}
-
-function paintDashboard(payload, { savedAt, message } = {}) {
-    if (!rootEl) return;
-    const title = rootEl.querySelector('[data-dash-title]');
-    const sub = rootEl.querySelector('[data-dash-sub]');
-    const banner = rootEl.querySelector('[data-dash-detail-banner]');
-    const body = rootEl.querySelector('[data-dash-body]');
-    const meta = (payload && (payload.dashboardMetadata || payload.metadata)) || payload || {};
-    if (title) title.textContent = meta.name || meta.label || 'Dashboard';
-    if (sub) sub.textContent = meta.description || 'Component results as last run in Salesforce';
-    if (banner) banner.innerHTML = bannerHtml(savedAt, message);
-    const components = meta.components || payload.components || [];
-    const dataById = new Map();
-    (payload.componentData || []).forEach((row) => {
-        const id = row && (row.componentId || row.id);
-        if (id) dataById.set(String(id), row);
-    });
-    if (body) {
-        if (!components.length) {
-            body.innerHTML = '<p class="osr-tab-empty">This dashboard has no components.</p>';
-            return;
-        }
-        body.innerHTML = components.map((component) => renderComponent(component, dataById)).join('');
-    }
-}
-
-async function hydrateComponentReports(payload) {
-    const meta = (payload && (payload.dashboardMetadata || payload.metadata)) || {};
-    const components = meta.components || payload.components || [];
-    const dataById = new Map();
-    (payload.componentData || []).forEach((row) => {
-        const id = row && (row.componentId || row.id);
-        if (id) dataById.set(String(id), row);
-    });
-    const missing = components.filter((component) => {
-        const id = String(component.id || component.componentId || '');
-        const packed = dataById.get(id);
-        const hasResult = packed && (packed.reportResult || packed.report);
-        return !hasResult && component.reportId;
-    });
-    if (!missing.length) return payload;
-    const extras = await Promise.all(
-        missing.map(async (component) => {
-            try {
-                const report = await sfGet(
-                    `/analytics/reports/${encodeURIComponent(component.reportId)}?includeDetails=true`
-                );
-                return {
-                    componentId: String(component.id || component.componentId),
-                    reportResult: report
-                };
-            } catch (_err) {
-                return null;
-            }
-        })
-    );
-    return {
-        ...payload,
-        componentData: [...(payload.componentData || []), ...extras.filter(Boolean)]
-    };
-}
-
-async function fetchDashboard(recordId) {
-    let payload = await sfGet(`/analytics/dashboards/${encodeURIComponent(recordId)}`);
-    const statuses = (payload.componentData || []).map((row) => String(row.status || '').toUpperCase());
-    if (statuses.some((status) => status === 'RUNNING' || status === 'NEW' || status === 'PENDING')) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        payload = await sfGet(`/analytics/dashboards/${encodeURIComponent(recordId)}`);
-    }
-    return hydrateComponentReports(payload);
+    detail.hidden = true;
+    detail.innerHTML = '';
+    renderList();
+    publishListContext();
 }
 
 async function loadCatalog({ force = false } = {}) {
     if (!rootEl || loadingList) return;
     loadingList = true;
     const cached = cacheRead(LIST_KEY);
-    if (cached && cached.payload && !force) {
+    if (cached && cached.payload && (!catalog.length || !force)) {
         catalog = cached.payload;
-        renderList({ savedAt: cached.savedAt });
+        listState = { savedAt: cached.savedAt, message: '' };
     }
+    renderList();
+    publishListContext();
     try {
         const records = await sfSoql(
-            'SELECT Id, Title, FolderName, Description, LastViewedDate FROM Dashboard ORDER BY LastViewedDate DESC NULLS LAST, Title ASC LIMIT 200'
+            'SELECT Id, Title, FolderName, Description, LastViewedDate, LastModifiedDate FROM Dashboard ORDER BY LastViewedDate DESC NULLS LAST, Title ASC LIMIT 300'
         );
         catalog = records;
         cacheWrite(LIST_KEY, records);
-        renderList({ savedAt: Date.now() });
+        listState = { savedAt: Date.now(), message: '' };
     } catch (error) {
-        if (!catalog.length && cached && cached.payload) {
-            catalog = cached.payload;
-        }
-        renderList({
+        listState = {
             savedAt: cached && cached.savedAt,
             message: catalog.length
                 ? isNetworkError(error)
                     ? 'Showing cached dashboard list.'
                     : errorMessage(error)
                 : errorMessage(error)
-        });
-        if (!catalog.length) {
-            const empty = rootEl.querySelector('[data-dash-empty]');
-            if (empty) {
-                empty.hidden = false;
-                empty.textContent = errorMessage(error);
-            }
-        }
+        };
     } finally {
         loadingList = false;
+        if (!currentDashboardId) {
+            renderList();
+            publishListContext();
+        }
+    }
+}
+
+function publishListContext() {
+    if (currentDashboardId) return;
+    publishAnalyticsSnapshot(summarizeDashboardCatalog(catalog));
+}
+
+async function newDashboard() {
+    if (analyticsOffline()) {
+        await openModal({
+            title: 'New dashboard',
+            body: '<p class="an-modal-text">Creating a dashboard needs a connection to Salesforce.</p>',
+            actions: [{ id: 'ok', label: 'OK', primary: true }]
+        });
+        return;
+    }
+    let folders = [];
+    try {
+        folders = await listFolders('Dashboard');
+    } catch (_err) {
+        folders = [];
+    }
+    const res = await openModal({
+        title: 'New dashboard',
+        body: `
+            <label class="an-field"><span>Name</span><input class="an-input" name="name" maxlength="80" placeholder="e.g. Territory Performance"/></label>
+            <label class="an-field"><span>Folder</span><select class="an-input" name="folderId">${folders.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`).join('')}</select></label>`,
+        actions: [
+            { id: 'cancel', label: 'Cancel' },
+            { id: 'create', label: 'Create', primary: true }
+        ]
+    });
+    if (res.action !== 'create') return;
+    const name = String(res.form.name || '').trim();
+    if (!name) return;
+    try {
+        const out = await createDashboard({ name, folderId: res.form.folderId });
+        const id = out && (out.id || (out.dashboardMetadata && out.dashboardMetadata.id));
+        toast('Dashboard created');
+        await loadCatalog({ force: true });
+        if (id) openDashboard(id);
+    } catch (error) {
+        listState = { ...listState, message: `Couldn\u2019t create the dashboard: ${errorMessage(error)}` };
+        renderList();
     }
 }
 
 export async function openDashboard(recordId) {
     if (!recordId || !rootEl) return;
     currentDashboardId = recordId;
-    showDetail();
-    const title = rootEl.querySelector('[data-dash-title]');
-    const body = rootEl.querySelector('[data-dash-body]');
-    const banner = rootEl.querySelector('[data-dash-detail-banner]');
-    if (title) title.textContent = 'Loading dashboardù';
-    if (body) body.innerHTML = '<p class="osr-tab-empty">Loading componentsù</p>';
-    const cached = await idbGet(dashCacheKey(recordId));
-    if (cached && cached.payload) {
-        paintDashboard(cached.payload, { savedAt: cached.savedAt, message: 'Loading latestù' });
-    }
-    try {
-        const payload = await fetchDashboard(recordId);
-        await idbSet(dashCacheKey(recordId), payload);
-        paintDashboard(payload, { savedAt: Date.now() });
-    } catch (error) {
-        if (cached && cached.payload) {
-            paintDashboard(cached.payload, {
-                savedAt: cached.savedAt,
-                message: isNetworkError(error)
-                    ? 'Showing last cached dashboard.'
-                    : errorMessage(error)
-            });
-            return;
+    const row = catalog.find((r) => r.Id === recordId);
+    publishAnalyticsSnapshot({
+        kind: 'dashboard',
+        id: recordId,
+        name: (row && row.Title) || 'Dashboard',
+        folder: (row && row.FolderName) || '',
+        status: 'loading',
+        filters: [],
+        components: []
+    });
+    if (builder) builder.destroy();
+    rootEl.querySelector('[data-dash-list]').hidden = true;
+    const detail = rootEl.querySelector('[data-dash-detail]');
+    detail.hidden = false;
+    builder = mountDashboardBuilder(detail, {
+        dashboardId: recordId,
+        folderName: row && row.FolderName,
+        name: row && row.Title,
+        onBack: () => {
+            builder = null;
+            showList();
+        },
+        onOpenDashboard: (id) => {
+            loadCatalog({ force: true });
+            openDashboard(id);
         }
-        if (banner) banner.innerHTML = bannerHtml(null, errorMessage(error));
-        if (title) title.textContent = 'Dashboard unavailable';
-        if (body) body.innerHTML = `<p class="osr-tab-empty">${escapeHtml(errorMessage(error))}</p>`;
-    }
+    });
 }
 
 export function mountDashboardsView(root, options = {}) {
@@ -331,12 +247,11 @@ export function mountDashboardsView(root, options = {}) {
     rootEl = root;
     ensureShell(root);
     if (options.recordId) {
-        openDashboard(options.recordId);
+        if (currentDashboardId !== options.recordId || !builder) openDashboard(options.recordId);
         if (!catalog.length) loadCatalog();
         return;
     }
     if (remount || !currentDashboardId) {
-        currentDashboardId = remount ? null : currentDashboardId;
         showList();
         loadCatalog();
     }

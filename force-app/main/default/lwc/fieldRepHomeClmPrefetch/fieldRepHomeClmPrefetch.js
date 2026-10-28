@@ -2,7 +2,7 @@ import { LightningElement, track } from 'lwc';
 import Id from '@salesforce/user/Id';
 import getRepPresentationManifest from '@salesforce/apex/ClmMetricsController.getRepPresentationManifest';
 import getDeployedRatingLayoutJson from '@salesforce/apex/ClmMetricsController.getDeployedRatingLayoutJson';
-import { prefetchPresentationAssets } from 'c/clmContentCache';
+import { prefetchPresentationAssets, presentationNeedsWarm } from 'c/clmContentCache';
 import {
     countPendingActions,
     getManifestEntry,
@@ -81,7 +81,6 @@ export default class FieldRepHomeClmPrefetch extends LightningElement {
       return;
     }
     this.isPrefetching = true;
-    this.statusLabel = 'Preparing CLM library…';
     try {
       const [manifest, ratingLayout] = await Promise.all([
         getRepPresentationManifest(),
@@ -90,7 +89,8 @@ export default class FieldRepHomeClmPrefetch extends LightningElement {
       if (ratingLayout) {
         await putMeta('ratingLayout', ratingLayout);
       }
-      const summaries = (manifest || []).map((entry) => ({
+      const pdfManifest = manifest || [];
+      const summaries = pdfManifest.map((entry) => ({
         id: entry.id,
         name: entry.name,
         status: entry.status,
@@ -103,13 +103,14 @@ export default class FieldRepHomeClmPrefetch extends LightningElement {
       await putPresentationList(getUserPresentationListKey(Id), summaries);
 
       const queue = [];
-      for (const entry of manifest || []) {
+      for (const entry of pdfManifest) {
         const existing = await getManifestEntry(entry.id);
         const existingStamp = existing?.lastModifiedDate
           ? new Date(existing.lastModifiedDate).getTime()
           : 0;
         const nextStamp = entry.lastModifiedDate ? new Date(entry.lastModifiedDate).getTime() : 0;
-        if (!existing || existingStamp !== nextStamp) {
+        const needsWarm = await presentationNeedsWarm(entry);
+        if (!existing || existingStamp !== nextStamp || needsWarm) {
           queue.push(entry);
         }
         await putManifestEntry({
@@ -125,10 +126,10 @@ export default class FieldRepHomeClmPrefetch extends LightningElement {
           if (!entry) {
             break;
           }
-          this.statusLabel = `Caching ${entry.name}…`;
+          this.statusLabel = `Preparing ${entry.name} for instant open…`;
           await prefetchPresentationAssets(entry);
           completed += 1;
-          this.statusLabel = `Cached ${completed} presentation(s)`;
+          this.statusLabel = `Ready ${completed} presentation(s)`;
         }
       });
       await Promise.all(workers);
@@ -150,7 +151,7 @@ export default class FieldRepHomeClmPrefetch extends LightningElement {
   }
 
   get showStatus() {
-    return !!this.statusLabel || this.pendingCount > 0 || this.isOffline;
+    return this.pendingCount > 0 || this.isOffline;
   }
 
   get displayLabel() {

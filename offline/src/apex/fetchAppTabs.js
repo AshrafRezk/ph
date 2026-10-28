@@ -3,32 +3,74 @@
 // collapse the launcher to the local Salesforce OSR fallback.
 
 import { plannerApiFetch } from './restHelper.js';
+import { applyCopilotPolicy, loadSavedNavRules } from './copilotNav.js';
 
-const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v6';
-const APPS_CACHE_KEY = 'zeta.pwa.apps.v6';
-const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v6';
+const APP_TABS_CACHE_KEY = 'zeta.pwa.appTabs.v11';
+const APPS_CACHE_KEY = 'zeta.pwa.apps.v11';
+const TABS_CACHE_KEY = 'zeta.pwa.allTabs.v11';
 const DEFAULT_API_VERSION = 'v62.0';
 const FORM_FACTOR = 'Large';
 const HYDRATE_BATCH = 6;
 
-// Offline-only seed when the org cannot be reached. Labels match LightningSales.
+// App launcher names. API names stay put; these are the labels users see.
+const APP_DISPLAY_NAMES = {
+    lightningsales: 'Field Co-pilot',
+    pharmafield: 'Field Co-pilot',
+    pharma_management: 'Lead Co-pilot',
+    pharma_sfe: 'SFE Co-pilot',
+    care_coach_copilot: 'Care Coach Co-pilot'
+};
+
+const LEGACY_APP_LABELS = {
+    'pharma field': 'Field Co-pilot',
+    'pharma management': 'Lead Co-pilot',
+    'pharma sfe': 'SFE Co-pilot',
+    'force co-pilot': 'SFE Co-pilot'
+};
+
+const APP_ICONS = {
+    lightningsales: '/app-icons/field-copilot.png',
+    pharmafield: '/app-icons/field-copilot.png',
+    pharma_management: '/app-icons/lead-copilot.png',
+    pharma_sfe: '/app-icons/force-copilot.png',
+    care_coach_copilot: '/app-icons/care-coach-copilot.png'
+};
+
+export function displayAppLabel(app) {
+    const byName = APP_DISPLAY_NAMES[String(app && app.developerName ? app.developerName : '').toLowerCase()];
+    if (byName) return byName;
+    const byLabel = LEGACY_APP_LABELS[String(app && app.label ? app.label : '').trim().toLowerCase()];
+    return byLabel || (app && app.label) || '';
+}
+
+function brandApp(app) {
+    if (!app) return app;
+    const label = displayAppLabel(app);
+    const iconKey = String(app.developerName || '').toLowerCase();
+    const iconUrl = APP_ICONS[iconKey] || app.iconUrl || null;
+    let description = app.description || '';
+    description = description.replace(/^Pharma (Field|Management|SFE)\s*[—-]\s*/i, '');
+    return { ...app, label, description, iconUrl };
+}
+
+// Offline-only seed when the org cannot be reached. Must mirror Field Co-pilot
+// (standard__LightningSales) tabs — never invent tabs the Lightning app does not have.
 const FALLBACK_TABS = [
     { key: 'Field_Rep_Home_App', label: 'Home', type: 'TabFlexiPage', iconUrl: null },
     { key: 'Field_Rep_Planner', label: 'Planner', type: 'TabAura', iconUrl: null },
     { key: 'Accounts_Tab', label: 'Accounts', type: 'TabFlexiPage', iconUrl: null },
-    { key: 'Class_Engine', label: 'Class Engine', type: 'TabFlexiPage', iconUrl: null },
-    { key: 'Visit__c', label: 'Visits', type: 'Entity', iconUrl: null, objectApiName: 'Visit__c' },
-    { key: 'CLM_Presentations', label: 'CLM Presentations', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Field_KPIs', label: 'KPIs', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Field_Requests', label: 'Requests', type: 'TabFlexiPage', iconUrl: null },
+    { key: 'Field_Orders', label: 'Orders', type: 'TabFlexiPage', iconUrl: null },
     { key: 'My_Learning', label: 'My Learning', type: 'TabFlexiPage', iconUrl: null },
-    { key: 'Coaching_Event__c', label: 'Coaching Events', type: 'Entity', iconUrl: null, objectApiName: 'Coaching_Event__c' },
-    { key: 'Request_Time_Off', label: 'Request Time Off', type: 'TabFlexiPage', iconUrl: null }
+    { key: 'Class_Engine', label: 'Class Engine', type: 'TabFlexiPage', iconUrl: null }
 ];
 
 export const PHARMA_APP = {
     id: null,
     developerName: 'LightningSales',
-    label: 'Salesforce OSR',
-    iconUrl: null,
+    label: 'Field Co-pilot',
+    iconUrl: '/app-icons/field-copilot.png',
     description: 'Home, planner, accounts, CLM & time off — full offline support.',
     fullOffline: true,
     tabs: FALLBACK_TABS
@@ -106,7 +148,7 @@ function mapOrgApp(app) {
     return {
         id: app.id || app.durableId || app.appId || null,
         developerName: app.developerName || app.label,
-        label: app.label || app.developerName,
+        label: displayAppLabel(app),
         iconUrl,
         description: app.description || '',
         selected: app.selected === true,
@@ -116,8 +158,8 @@ function mapOrgApp(app) {
     };
 }
 
-async function sfGet(path) {
-    return plannerApiFetch(path, { method: 'GET' });
+async function sfGet(path, options = {}) {
+    return plannerApiFetch(path, { method: 'GET', ...options });
 }
 
 async function fetchAppListFromOrg() {
@@ -126,7 +168,9 @@ async function fetchAppListFromOrg() {
         throw new Error('Not signed in.');
     }
     const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps?formFactor=${FORM_FACTOR}`;
-    const data = await sfGet(path);
+    // fresh: a cached app list can freeze an old nav (for example five tabs
+    // and no More) after Requests and Orders were added in Salesforce.
+    const data = await sfGet(path, { fresh: true });
     const apps = Array.isArray(data && data.apps) ? data.apps : [];
     return apps.map(mapOrgApp);
 }
@@ -140,7 +184,7 @@ async function hydrateAppNav(app) {
     for (const factor of factors) {
         try {
             const path = `/services/data/${DEFAULT_API_VERSION}/ui-api/apps/${encodeURIComponent(appId)}?formFactor=${factor}`;
-            detail = await sfGet(path);
+            detail = await sfGet(path, { fresh: true });
             tabs = normalizeTabs(detail);
             if (tabs.length) break;
         } catch (err) {
@@ -160,12 +204,10 @@ async function hydrateAppNav(app) {
 
 async function hydrateMissingNavItems(apps) {
     const list = (apps || []).slice();
-    const pendingIdx = [];
-    list.forEach((app, idx) => {
-        if (!app.tabs || !app.tabs.length) {
-            pendingIdx.push(idx);
-        }
-    });
+    // The apps list often returns an empty or stale nav. The app detail
+    // endpoint is the nav the user should see, including the tabs that
+    // belong under More.
+    const pendingIdx = list.map((_, idx) => idx);
     for (let i = 0; i < pendingIdx.length; i += HYDRATE_BATCH) {
         const chunk = pendingIdx.slice(i, i + HYDRATE_BATCH);
         const results = await Promise.all(
@@ -229,6 +271,7 @@ export function ensureAppTabs(app) {
         ...app,
         fullOffline: true,
         description: app.description || PHARMA_APP.description,
+        // Org Lightning app nav is the source of truth (order + membership).
         tabs: mergeFallbackTabs(app.tabs)
     };
 }
@@ -259,10 +302,10 @@ function isFieldApp(app) {
     return (app.tabs || []).some((t) => t.key === OFFLINE_HOME_TAB);
 }
 
-function markOfflineFirst(apps) {
-    const list = (apps || []).map((app) => {
+function markOfflineFirst(apps, rulesByApp = null) {
+    const list = applyCopilotPolicy(apps, rulesByApp).map((app) => {
         const mapped = isFieldApp(app) ? ensureAppTabs(app) : app;
-        return { ...mapped, fullOffline: true };
+        return { ...brandApp(mapped), fullOffline: true };
     });
     // Prefer the Field app first when present; never inject the OSR seed when
     // the org returned real apps.
@@ -324,13 +367,23 @@ export function readCachedApps() {
     return cached && cached.length ? markOfflineFirst(cached) : [];
 }
 
+async function withNavRules(apps) {
+    let rules = null;
+    try {
+        rules = await loadSavedNavRules();
+    } catch (_err) {
+        rules = null;
+    }
+    return markOfflineFirst(apps, rules);
+}
+
 export async function fetchApps({ forceRefresh = false } = {}) {
     const cached = cacheRead(APPS_CACHE_KEY);
     if (cached && !forceRefresh) {
         refreshApps().catch(() => {
             /* quiet background refresh — keep cached apps on screen */
         });
-        return markOfflineFirst(cached);
+        return withNavRules(cached);
     }
     try {
         const apps = await fetchAppsFromOrg();
@@ -345,12 +398,12 @@ export async function fetchApps({ forceRefresh = false } = {}) {
             const merged = overlayTabIcons(apps, itemTabs);
             cacheWrite(APPS_CACHE_KEY, merged);
             console.log('[AppChooser] loaded', merged.length, 'apps from org');
-            return markOfflineFirst(merged);
+            return withNavRules(merged);
         }
     } catch (err) {
         console.warn('[AppChooser] fetchApps failed', err);
     }
-    if (cached) return markOfflineFirst(cached);
+    if (cached) return withNavRules(cached);
     // Last resort only when cache is empty and the org cannot be reached.
     return [ensureAppTabs(PHARMA_APP)];
 }
@@ -370,7 +423,7 @@ async function refreshApps() {
         }
         const merged = overlayTabIcons(apps, itemTabs);
         cacheWrite(APPS_CACHE_KEY, merged);
-        const marked = markOfflineFirst(merged);
+        const marked = await withNavRules(merged);
         window.dispatchEvent(new CustomEvent('zeta-apps-refreshed', { detail: { apps: marked } }));
         return marked;
     }

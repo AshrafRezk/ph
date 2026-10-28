@@ -16,7 +16,9 @@ export default makeDualApex(async (params = {}) => {
             baseUrl: base,
             version: meta?.version || null,
             file: meta?.file || null,
-            fileName: meta?.fileName || null
+            fileName: String(meta?.fileName || '')
+                .replace(/-debug(?=\.apk$)/i, '')
+                .replace(/-debug/gi, '') || null
         };
     } catch (_e) {
         return { baseUrl: base };

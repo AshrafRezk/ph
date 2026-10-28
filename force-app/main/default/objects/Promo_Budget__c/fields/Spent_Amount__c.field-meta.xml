@@ -3,6 +3,8 @@
     <fullName>Spent_Amount__c</fullName>
     <label>Spent Amount</label>
     <precision>16</precision>
+    <required>false</required>
     <scale>2</scale>
+    <trackTrending>false</trackTrending>
     <type>Currency</type>
 </CustomField>

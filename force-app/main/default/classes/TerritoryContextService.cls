@@ -20,20 +20,34 @@ public without sharing class TerritoryContextService {
         @AuraEnabled public List<TerritoryNode> tree;
     }
 
+    // Seats and the saved selection are read once per request (Home and Planner ask per card), and the
+    // selection cache is cleared whenever it is written. Off in tests by default, because tests seat users as they go.
+    @TestVisible private static Boolean cacheEnabled = !Test.isRunningTest();
+    private static Map<Id, Set<Id>> assignedCache = new Map<Id, Set<Id>>();
+
     public static Set<Id> getAssignedTerritoryIds(Id userId) {
         Set<Id> territoryIds = new Set<Id>();
         if (userId == null) {
             return territoryIds;
         }
+        if (cacheEnabled && assignedCache.containsKey(userId)) {
+            return new Set<Id>(assignedCache.get(userId));
+        }
         for (UserTerritory2Association assignment : [
-            SELECT Territory2Id
+            SELECT Territory2Id, RoleInTerritory2
             FROM UserTerritory2Association
             WHERE UserId = :userId
             WITH SYSTEM_MODE
         ]) {
             territoryIds.add(assignment.Territory2Id);
         }
-        return territoryIds;
+        // Area Managers on a line with no National seat get line-level scope.
+        // Brand Managers seated on a Line already expand to that line's districts.
+        Set<Id> result = TerritoryHierarchyService.promoteActingNationalScope(userId, territoryIds);
+        if (cacheEnabled) {
+            assignedCache.put(userId, new Set<Id>(result));
+        }
+        return result;
     }
 
     public static Set<Id> getSwitchableTerritoryIds(Id userId) {
@@ -57,16 +71,28 @@ public without sharing class TerritoryContextService {
         return new Set<Id>{ selectedId };
     }
 
+    // The saved selection is read once per request: Home and Planner ask for it per account group,
+    // which pushed one dashboard load past 100 queries. Cleared whenever the selection is written.
+    private static Boolean selectionLoaded = false;
+    private static Id selectionCache;
+
     public static Id getSelectedTerritoryId() {
-        User_Territory_Context__c row = User_Territory_Context__c.getValues(UserInfo.getUserId());
-        if (row == null || String.isBlank(row.Territory2_Id__c)) {
-            return null;
+        if (cacheEnabled && selectionLoaded) {
+            return selectionCache;
         }
-        try {
-            return (Id) row.Territory2_Id__c;
-        } catch (Exception ex) {
-            return null;
+        // Read only the running user's own hierarchy row. Do not use getValues(),
+        // which inherits org/profile defaults and can make every user look switched.
+        User_Territory_Context__c row = queryUserContextRow(UserInfo.getUserId());
+        selectionCache = null;
+        if (row != null && String.isNotBlank(row.Territory2_Id__c)) {
+            try {
+                selectionCache = (Id) row.Territory2_Id__c;
+            } catch (Exception ex) {
+                selectionCache = null;
+            }
         }
+        selectionLoaded = true;
+        return selectionCache;
     }
 
     public static Boolean hasSelectedTerritory() {
@@ -119,20 +145,31 @@ public without sharing class TerritoryContextService {
         upsertUserRow(null);
     }
 
-    private static void upsertUserRow(String territoryIdValue) {
-        Id userId = UserInfo.getUserId();
-        List<User_Territory_Context__c> existing = [
-            SELECT Id, Territory2_Id__c
+    private static User_Territory_Context__c queryUserContextRow(Id userId) {
+        if (userId == null) {
+            return null;
+        }
+        List<User_Territory_Context__c> rows = [
+            SELECT Id, Territory2_Id__c, SetupOwnerId
             FROM User_Territory_Context__c
             WHERE SetupOwnerId = :userId
             WITH SYSTEM_MODE
             LIMIT 1
         ];
-        User_Territory_Context__c row = existing.isEmpty()
+        return rows.isEmpty() ? null : rows[0];
+    }
+
+    private static void upsertUserRow(String territoryIdValue) {
+        Id userId = UserInfo.getUserId();
+        User_Territory_Context__c existing = queryUserContextRow(userId);
+        User_Territory_Context__c row = existing == null
             ? new User_Territory_Context__c(SetupOwnerId = userId)
-            : existing[0];
+            : existing;
         row.Territory2_Id__c = territoryIdValue;
-        upsert row;
+        selectionLoaded = false;
+        // Hierarchy custom-setting DML often requires Customize Application for
+        // non-admins; SYSTEM_MODE keeps switch/clear working for all personas.
+        Database.upsert(row, AccessLevel.SYSTEM_MODE);
     }
 
     private static List<TerritoryNode> buildTree(Set<Id> switchableIds) {
@@ -224,7 +261,7 @@ public without sharing class TerritoryContextService {
             if (typeValue == 'District') {
                 return 'District';
             }
-            if (typeValue == 'Position') {
+            if (typeValue == 'Position' || typeValue == 'MR') {
                 return 'Position';
             }
         }
@@ -250,5 +287,120 @@ public without sharing class TerritoryContextService {
             return 'Line';
         }
         return 'Unknown';
+    }
+
+    public static Boolean hasSubordinateTerritories(Id userId) {
+        return hasChildTerritories(getAssignedTerritoryIds(userId));
+    }
+
+    public static Boolean isAlignedOnRepTerritory() {
+        // Assigned hierarchy/role wins over the territory switcher. A manager who
+        // opens a leaf (MR) territory must still be treated as a manager so Coach
+        // stays available without switching back. Anyone with a territory under
+        // theirs is a manager for this check, even without a manager role name.
+        Boolean managesSubordinates = hasSubordinateTerritories(UserInfo.getUserId());
+        Boolean onlyRepTerritories = isAssignedOnlyToRepTerritories(UserInfo.getUserId());
+        if (managesSubordinates || !onlyRepTerritories) {
+            return false;
+        }
+        Id selectedId = getSelectedTerritoryId();
+        if (selectedId != null) {
+            Territory2 selected = queryTerritory(selectedId);
+            String level = resolveLevel(selected);
+            if (isRepLevel(level)) {
+                return true;
+            }
+            if (level != 'Unknown') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Boolean isRepLevel(String level) {
+        return level == 'Position';
+    }
+
+    private static Boolean isAssignedOnlyToRepTerritories(Id userId) {
+        if (userId == null) {
+            return false;
+        }
+        List<UserTerritory2Association> assignments = [
+            SELECT RoleInTerritory2, Territory2Id
+            FROM UserTerritory2Association
+            WHERE UserId = :userId
+            WITH SYSTEM_MODE
+        ];
+        if (assignments.isEmpty()) {
+            return false;
+        }
+
+        Boolean sawManagerRole = false;
+        Boolean sawRepRole = false;
+        Set<Id> territoryIds = new Set<Id>();
+        for (UserTerritory2Association assignment : assignments) {
+            String role = assignment.RoleInTerritory2 == null ? '' : assignment.RoleInTerritory2;
+            if (role == 'Medical Rep') {
+                sawRepRole = true;
+            }
+            if (
+                role == 'District Manager' ||
+                role == 'Region Manager' ||
+                role == 'Line Manager' ||
+                role == 'NSM'
+            ) {
+                sawManagerRole = true;
+            }
+            if (assignment.Territory2Id != null) {
+                territoryIds.add(assignment.Territory2Id);
+            }
+        }
+        if (sawManagerRole) {
+            return false;
+        }
+
+        Integer knownCount = 0;
+        Integer repCount = 0;
+        for (Territory2 territory : queryTerritories(territoryIds)) {
+            String level = resolveLevel(territory);
+            if (level == 'Unknown') {
+                continue;
+            }
+            knownCount++;
+            if (isRepLevel(level)) {
+                repCount++;
+            }
+        }
+        if (knownCount > 0) {
+            return repCount == knownCount;
+        }
+        return sawRepRole;
+    }
+
+    private static Boolean hasChildTerritories(Set<Id> territoryIds) {
+        if (territoryIds == null || territoryIds.isEmpty()) {
+            return false;
+        }
+        return ![
+            SELECT Id
+            FROM Territory2
+            WHERE ParentTerritory2Id IN :territoryIds
+            WITH SYSTEM_MODE
+            LIMIT 1
+        ].isEmpty();
+    }
+
+    private static List<Territory2> queryTerritories(Set<Id> territoryIds) {
+        if (territoryIds == null || territoryIds.isEmpty()) {
+            return new List<Territory2>();
+        }
+        String typeSelect = Schema.SObjectType.Territory2.fields.getMap().containsKey('Territory_Type__c')
+            ? ', Territory_Type__c'
+            : '';
+        String soql =
+            'SELECT Id, Name, External_ID__c' +
+            typeSelect +
+            ' FROM Territory2 WHERE Id IN :territoryIds WITH SYSTEM_MODE';
+        return Database.query(soql);
     }
 }

@@ -1,0 +1,97 @@
+<template>
+    <div class="cc-page">
+        <c-care-coach-view-bar
+            title="Products"
+            subtitle={subtitle}
+            icon-name="standard:product"
+            context={context}
+            mode={mode}
+            scope={scope}
+            onmodechange={handleModeChange}
+            onscopechange={handleScopeChange}
+        ></c-care-coach-view-bar>
+
+        <template lwc:if={error}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">{error}</div>
+        </template>
+
+        <div class="summary">
+            <template for:each={summary} for:item="s">
+                <div key={s.key} class="summary-card">
+                    <span class="summary-value">{s.value}</span>
+                    <span class="summary-label">{s.label}</span>
+                </div>
+            </template>
+        </div>
+
+        <template lwc:if={isLoading}>
+            <div class="loading"><lightning-spinner alternative-text="Loading products" size="small"></lightning-spinner></div>
+        </template>
+
+        <template for:each={decoratedGroups} for:item="g">
+            <section key={g.therapyArea} class="ta">
+                <div class="ta-head">
+                    <lightning-icon icon-name={g.icon} size="x-small"></lightning-icon>
+                    <h2 class="ta-title">{g.therapyArea}</h2>
+                    <span class="cc-pill">{g.count} products</span>
+                </div>
+                <div class="product-grid">
+                    <template for:each={g.products} for:item="p">
+                        <article key={p.id} class="cc-card product" style={p.heroStyle}>
+                            <div class="product-hero">
+                                <template lwc:if={p.hasImage}>
+                                    <img src={p.imageUrl} alt={p.name} class="product-img" />
+                                </template>
+                                <template lwc:else>
+                                    <span class="monogram">{p.monogram}</span>
+                                </template>
+                                <div class="product-id">
+                                    <h3 class="product-name">{p.name}</h3>
+                                    <span class="product-code">{p.code}</span>
+                                </div>
+                            </div>
+                            <p class="product-desc">{p.description}</p>
+                            <div class="metrics">
+                                <div class="metric">
+                                    <span class="metric-value">{p.totalPatients}</span>
+                                    <span class="metric-label">Patients</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-value">{p.newThisMonth}</span>
+                                    <span class="metric-label">New (MTD)</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-value">{p.ordersThisMonth}</span>
+                                    <span class="metric-label">Orders (MTD)</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-value">{p.retention}</span>
+                                    <span class="metric-label">Retention</span>
+                                </div>
+                            </div>
+                            <div class="mix" title="Ongoing / Pending / Dropped">
+                                <span class="mix-seg mix-ongoing" style={p.ongoingStyle}></span>
+                                <span class="mix-seg mix-pending" style={p.pendingStyle}></span>
+                                <span class="mix-seg mix-dropped" style={p.droppedStyle}></span>
+                            </div>
+                            <div class="mix-legend cc-muted">
+                                <span>{p.ongoing} ongoing</span>
+                                <span>{p.pending} pending</span>
+                                <span>{p.dropped} dropped</span>
+                            </div>
+                            <div class="product-actions">
+                                <lightning-button label="View patients" icon-name="utility:people" data-id={p.id} onclick={handlePatients}></lightning-button>
+                                <lightning-button variant="base" label="Scripts" icon-name="utility:knowledge_base" data-id={p.id} onclick={handleScripts}></lightning-button>
+                                <span class="cc-muted">{p.scripts} scripts · {p.unitsThisMonth} units MTD</span>
+                            </div>
+                        </article>
+                    </template>
+                </div>
+            </section>
+        </template>
+
+        <template lwc:if={isEmpty}>
+            <div class="cc-card cc-empty">No PSP products found. Run the Care Coach demo seed to load the Merck programme.</div>
+        </template>
+    </div>
+</template>

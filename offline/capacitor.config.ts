@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.zetapharma.fieldpwa',
-  appName: 'Pharma Field',
+  appName: 'Zeta Co-Pilot',
   webDir: 'dist',
   server: {
     androidScheme: 'https'
@@ -10,10 +10,10 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      backgroundColor: '#0176d3',
+      backgroundColor: '#ffffff',
       showSpinner: false,
       androidSpinnerStyle: 'small',
-      spinnerColor: '#ffffff'
+      spinnerColor: '#0072bc'
     },
     StatusBar: {
       style: 'DARK',
@@ -27,6 +27,9 @@ const config: CapacitorConfig = {
           path: '/oauth/callback'
         }
       ]
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert']
     }
   }
 };

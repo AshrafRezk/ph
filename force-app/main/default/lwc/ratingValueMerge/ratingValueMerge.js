@@ -1,4 +1,4 @@
-const TOGGLE_FIELDS = new Set(['Is_KOL__c', 'Has_KOLs__c']);
+const TOGGLE_FIELDS = new Set(['Is_KOL__c', 'Has_KOLs__c', 'Is_Speaker__c']);
 
 export function hasMeaningfulValue(value) {
     if (typeof value === 'boolean') {

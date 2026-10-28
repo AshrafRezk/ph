@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>PSP patient database with 360 view (identity masked for the pharma company)</description>
+    <flexiPage>Care_Coach_Patients</flexiPage>
+    <label>Patients</label>
+    <motif>Custom15: People</motif>
+</CustomTab>

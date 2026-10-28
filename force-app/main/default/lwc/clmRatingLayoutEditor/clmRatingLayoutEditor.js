@@ -1,3 +1,4 @@
+import LightningConfirm from 'lightning/confirm';
 import { LightningElement, wire } from 'lwc';
 import { refreshApex } from '@salesforce/apex';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
@@ -99,8 +100,8 @@ export default class ClmRatingLayoutEditor extends LightningElement {
             .map((field, index, list) => ({
                 ...field,
                 identity: fieldIdentity(field),
-                canMoveUp: index > 0,
-                canMoveDown: index < list.length - 1
+                disableMoveUp: index === 0,
+                disableMoveDown: index >= list.length - 1
             }));
     }
 
@@ -288,6 +289,17 @@ export default class ClmRatingLayoutEditor extends LightningElement {
     }
 
     async handleSave() {
+        if (this.isDeployed) {
+            const ok = await LightningConfirm.open({
+                message:
+                    'This layout is live for field reps. Saving it as a draft takes the form away from reps until you deploy it again. To change the live form, use Deploy instead.',
+                label: 'Take the live form offline?',
+                theme: 'warning'
+            });
+            if (!ok) {
+                return;
+            }
+        }
         if (!this.selectedLayout) {
             return;
         }
@@ -296,6 +308,57 @@ export default class ClmRatingLayoutEditor extends LightningElement {
         if (total === 0) {
             this.toast('Add at least one field', 'Select fields from any rating section.', 'warning');
             return;
+        }
+        try {
+            const saved = await saveRatingLayout({
+                layout: {
+                    ...this.selectedLayout,
+                    status: 'Draft',
+                    fieldsJson: this.layoutJson,
+                    accountCount: counts.accountCount,
+                    territoryCount: counts.territoryCount,
+                    productCount: counts.productCount
+                }
+            });
+            this.selectedLayoutId = saved.id;
+            this.selectedLayout = saved;
+            this.layoutState = parseLayoutJson(saved.fieldsJson);
+            await refreshApex(this.wiredResult);
+            this.refreshLayoutListClasses();
+            this.toast('Layout saved', saved.name, 'success');
+            return true;
+        } catch (error) {
+            this.toast('Save failed', error?.body?.message || error?.message, 'error');
+            return false;
+        }
+    }
+
+    async handleDeploy() {
+        if (!this.selectedLayout) {
+            return;
+        }
+        // Always persist current field JSON first so reorder is not lost on deploy.
+        const savedOk = await this.persistLayoutForDeploy();
+        if (!savedOk || !this.selectedLayout?.id) {
+            return;
+        }
+        try {
+            await deployRatingLayout({ layoutId: this.selectedLayout.id });
+            this.selectedLayout = { ...this.selectedLayout, status: 'Deployed' };
+            await refreshApex(this.wiredResult);
+            this.refreshLayoutListClasses();
+            this.toast('Layout deployed', 'Field reps will see this form during visits.', 'success');
+        } catch (error) {
+            this.toast('Deploy failed', error?.body?.message || error?.message, 'error');
+        }
+    }
+
+    async persistLayoutForDeploy() {
+        const counts = getSectionCounts(this.layoutState);
+        const total = counts.accountCount + counts.territoryCount + counts.productCount;
+        if (total === 0) {
+            this.toast('Add at least one field', 'Select fields from any rating section.', 'warning');
+            return false;
         }
         try {
             const saved = await saveRatingLayout({
@@ -310,29 +373,10 @@ export default class ClmRatingLayoutEditor extends LightningElement {
             this.selectedLayoutId = saved.id;
             this.selectedLayout = saved;
             this.layoutState = parseLayoutJson(saved.fieldsJson);
-            await refreshApex(this.wiredResult);
-            this.refreshLayoutListClasses();
-            this.toast('Layout saved', saved.name, 'success');
+            return true;
         } catch (error) {
             this.toast('Save failed', error?.body?.message || error?.message, 'error');
-        }
-    }
-
-    async handleDeploy() {
-        if (!this.selectedLayout?.id) {
-            await this.handleSave();
-        }
-        if (!this.selectedLayout?.id) {
-            return;
-        }
-        try {
-            await deployRatingLayout({ layoutId: this.selectedLayout.id });
-            this.selectedLayout = { ...this.selectedLayout, status: 'Deployed' };
-            await refreshApex(this.wiredResult);
-            this.refreshLayoutListClasses();
-            this.toast('Layout deployed', 'Field reps will see this form during visits.', 'success');
-        } catch (error) {
-            this.toast('Deploy failed', error?.body?.message || error?.message, 'error');
+            return false;
         }
     }
 

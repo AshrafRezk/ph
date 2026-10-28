@@ -1,0 +1,60 @@
+.kpi-tile {
+    background: #f3f3f3;
+    border-radius: 0.25rem;
+    padding: 0.75rem 1rem;
+    min-height: 5.5rem;
+}
+
+.kpi-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #706e6b;
+    margin-bottom: 0.25rem;
+}
+
+.kpi-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #181818;
+}
+
+.kpi-hint {
+    font-size: 0.75rem;
+    color: #706e6b;
+    margin-top: 0.25rem;
+}
+
+.impact-badge {
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.impact-warn {
+    background: #fddde3;
+    color: #8e0315;
+}
+
+.impact-ok {
+    background: #cdefc4;
+    color: #2e844a;
+}
+
+.long-leave-chip {
+    display: inline-block;
+    margin-top: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.25rem;
+    background: #f9e3b6;
+    color: #8c4b02;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.rep-row.long-leave {
+    background: #fffaf0;
+}

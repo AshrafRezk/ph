@@ -46,12 +46,18 @@ export async function handler(event) {
     }
     const upstream = await fetch(targetUrl, { method, headers, body });
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const passthrough = {};
+    for (const name of ['content-range', 'content-length', 'accept-ranges']) {
+      const value = upstream.headers.get(name);
+      if (value) passthrough[name] = value;
+    }
     const buf = Buffer.from(await upstream.arrayBuffer());
     return {
       statusCode: upstream.status,
       headers: {
         ...corsHeaders(),
-        'Content-Type': contentType
+        'Content-Type': contentType,
+        ...passthrough
       },
       isBase64Encoded: true,
       body: buf.toString('base64')

@@ -7,7 +7,7 @@ public with sharing class CoachingModuleSeed {
     }
 
     /**
-     * Seeds pharma field coaching template and a demo event.
+     * Seeds / refreshes pharma field coaching template from static resource.
      * Run: CoachingModuleSeed.seedDemoData(null, null);
      * Or pass existing User Ids for Employee (rep) and Manager (DM).
      */
@@ -16,15 +16,37 @@ public with sharing class CoachingModuleSeed {
 
         String templateJson = getPharmaTemplateJson();
 
-        Coaching_Template__c template = new Coaching_Template__c(
-            Template_Title__c = 'Pharma Field Coaching — Core & Selling Skills',
-            Template_Type__c = 'Field Coaching',
-            Is_Active__c = true,
-            Passing_Score__c = 70,
-            Description__c = 'Pharma field coaching — Core Values and Selling Skills competencies.',
-            Questions_JSON__c = templateJson
-        );
-        insert template;
+        Coaching_Template__c template;
+        List<Coaching_Template__c> existing = [
+            SELECT Id
+            FROM Coaching_Template__c
+            WHERE Template_Title__c = 'Pharma Field Coaching — MR Call Skills'
+            WITH USER_MODE
+            ORDER BY CreatedDate DESC
+            LIMIT 1
+        ];
+
+        if (!existing.isEmpty()) {
+            template = existing[0];
+            template.Template_Type__c = 'Field Coaching';
+            template.Is_Active__c = true;
+            template.Passing_Score__c = 70;
+            template.Description__c =
+                'MR field coaching — Selling Skills, Soft Skills, Technical Skills, Product Knowledge, and Core Values.';
+            template.Questions_JSON__c = templateJson;
+            update template;
+        } else {
+            template = new Coaching_Template__c(
+                Template_Title__c = 'Pharma Field Coaching — MR Call Skills',
+                Template_Type__c = 'Field Coaching',
+                Is_Active__c = true,
+                Passing_Score__c = 70,
+                Description__c =
+                    'MR field coaching — Selling Skills, Soft Skills, Technical Skills, Product Knowledge, and Core Values.',
+                Questions_JSON__c = templateJson
+            );
+            insert template;
+        }
         result.templateId = template.Id;
 
         Id repId = employeeUserId;
@@ -59,12 +81,12 @@ public with sharing class CoachingModuleSeed {
         String partialResponses =
             '{"version":"1.0","templateVersion":"1.2","answers":[' +
             '{"questionId":"q1","managerValue":5,"managerScore":5,"managerLabel":"Most of times",' +
-            '"managerComments":"Consistently energetic on calls",' +
+            '"managerComments":"Solid pre-call feedback preparation",' +
             '"employeeValue":6,"employeeScore":6,"employeeLabel":"All the times",' +
-            '"employeeComments":"I bring high energy to every visit"},' +
-            '{"questionId":"q2","managerValue":5,"managerScore":5,"managerLabel":"Most of times",' +
+            '"employeeComments":"I prepare product/competitor/prescriber feedback before each call"},' +
+            '{"questionId":"q3","managerValue":5,"managerScore":5,"managerLabel":"Most of times",' +
             '"employeeValue":5,"employeeScore":5,"employeeLabel":"Most of times"}' +
-            '],"computedAt":"2026-06-15T10:30:00Z"}';
+            '],"computedAt":"2026-08-04T12:00:00Z"}';
 
         CoachingScoringService.ScoreResult scores =
             CoachingScoringService.computeScores(templateJson, partialResponses);
@@ -87,34 +109,58 @@ public with sharing class CoachingModuleSeed {
         return result;
     }
 
-    private static String getPharmaTemplateJson() {
-        return '{"version":"1.2","totalQuestions":6,"totalPoints":36,"questions":[' +
-            buildQuestion('q1', 'Core Values', 'Enthusiasm / Willingness to Work', 1) + ',' +
-            buildQuestion('q2', 'Core Values', 'Creativity', 2) + ',' +
-            buildQuestion('q3', 'Selling Skills', 'Visit Planning', 3) + ',' +
-            buildQuestion('q4', 'Selling Skills', 'Overcoming HCP Objections', 4) + ',' +
-            buildQuestion('q5', 'Selling Skills', 'Probing for Insights', 5) + ',' +
-            buildQuestion('q6', 'Selling Skills', 'Closing', 6) +
-            ']}';
+    /**
+     * Upserts only the active MR call-skills template (no demo event).
+     * Run: CoachingModuleSeed.loadTemplate();
+     */
+    public static Id loadTemplate() {
+        String templateJson = getPharmaTemplateJson();
+        List<Coaching_Template__c> existing = [
+            SELECT Id
+            FROM Coaching_Template__c
+            WHERE Template_Title__c = 'Pharma Field Coaching — MR Call Skills'
+            WITH USER_MODE
+            ORDER BY CreatedDate DESC
+            LIMIT 1
+        ];
+
+        Coaching_Template__c template;
+        if (!existing.isEmpty()) {
+            template = existing[0];
+            template.Template_Type__c = 'Field Coaching';
+            template.Is_Active__c = true;
+            template.Passing_Score__c = 70;
+            template.Description__c =
+                'MR field coaching — Selling Skills, Soft Skills, Technical Skills, Product Knowledge, and Core Values.';
+            template.Questions_JSON__c = templateJson;
+            update template;
+        } else {
+            template = new Coaching_Template__c(
+                Template_Title__c = 'Pharma Field Coaching — MR Call Skills',
+                Template_Type__c = 'Field Coaching',
+                Is_Active__c = true,
+                Passing_Score__c = 70,
+                Description__c =
+                    'MR field coaching — Selling Skills, Soft Skills, Technical Skills, Product Knowledge, and Core Values.',
+                Questions_JSON__c = templateJson
+            );
+            insert template;
+        }
+        return template.Id;
     }
 
-    private static String buildQuestion(String id, String section, String question, Integer sortOrder) {
-        return '{' +
-            '"id":"' + id + '",' +
-            '"section":"' + section + '",' +
-            '"respondent":"both",' +
-            '"question":"' + question + '",' +
-            '"type":"scale",' +
-            '"scaleMin":1,"scaleMax":6,' +
-            '"scaleMinLabel":"Never","scaleMaxLabel":"All the times",' +
-            '"scalePoints":[' +
-            '{"value":1,"weight":1,"label":"Never"},' +
-            '{"value":2,"weight":2,"label":"Rarely"},' +
-            '{"value":3,"weight":3,"label":"Sometimes"},' +
-            '{"value":4,"weight":4,"label":"Often"},' +
-            '{"value":5,"weight":5,"label":"Most of times"},' +
-            '{"value":6,"weight":6,"label":"All the times"}' +
-            '],"points":6,"sortOrder":' + sortOrder +
-            '}';
+    @TestVisible
+    private static String getPharmaTemplateJson() {
+        List<StaticResource> resources = [
+            SELECT Body
+            FROM StaticResource
+            WHERE Name = 'pharma_field_coaching_template'
+            LIMIT 1
+        ];
+        if (!resources.isEmpty() && resources[0].Body != null) {
+            return resources[0].Body.toString();
+        }
+        // Fallback if static resource is not deployed yet
+        return '{"version":"1.2","totalQuestions":0,"totalPoints":0,"questions":[]}';
     }
 }

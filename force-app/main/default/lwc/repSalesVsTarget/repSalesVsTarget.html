@@ -1,0 +1,186 @@
+<template>
+    <template if:true={featureEnabled}>
+        <article class="sales-card">
+            <header class="sales-header">
+                <div>
+                    <h2 class="sales-title">Sales vs Target</h2>
+                    <p class="sales-subtitle">Distributor sell-out in your bricks</p>
+                </div>
+                <div class="view-chips" role="tablist">
+                    <template for:each={viewButtons} for:item="v">
+                        <button key={v.value} type="button" class={v.className} data-view={v.value} onclick={handleView}>
+                            {v.label}
+                        </button>
+                    </template>
+                </div>
+            </header>
+
+            <template if:true={isLoading}>
+                <div class="sales-loading">
+                    <lightning-spinner alternative-text="Loading sales" size="small"></lightning-spinner>
+                </div>
+            </template>
+
+            <template if:false={isLoading}>
+                <div class="sales-body">
+                    <template if:true={error}>
+                        <p class="sales-note sales-note--error">{error}</p>
+                    </template>
+                    <template if:true={data}>
+                        <p class="sales-scope">{scopeLabel}</p>
+                        <template if:true={shareSummary}>
+                            <p class="share-summary">{shareSummary}</p>
+                        </template>
+                        <template if:true={data.message}>
+                            <p class="sales-note">{data.message}</p>
+                        </template>
+
+                        <!-- Months -->
+                        <template if:true={isMonthsView}>
+                            <div class="range-chips">
+                                <template for:each={rangeButtons} for:item="r">
+                                    <button key={r.value} type="button" class={r.className} data-months={r.value} onclick={handleRange}>
+                                        {r.label}
+                                    </button>
+                                </template>
+                            </div>
+                            <template if:true={hasMonths}>
+                                <ul class="month-list">
+                                    <template for:each={months} for:item="m">
+                                        <li key={m.monthKey} class="month-row" data-month={m.monthKey} onclick={handleMonthRow}>
+                                            <div class="month-head">
+                                                <span class="month-label">{m.monthLabel}</span>
+                                                <span class="month-pct">{m.percent}</span>
+                                            </div>
+                                            <div class="bar"><div class={m.barClass} style={m.barStyle}></div></div>
+                                            <div class="month-figures">
+                                                <span>Units {m.qtyLabel} / target {m.targetLabel}</span>
+                                                <span>{m.revenueLabel}</span>
+                                            </div>
+                                            <template if:true={m.hasShare}>
+                                                <div class="month-share">{m.shareText}</div>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ul>
+                                <p class="sales-footnote">Tap a month to see its products and bricks.</p>
+                            </template>
+                        </template>
+
+                        <!-- Products and Map share the month filter -->
+                        <template if:false={isMonthsView}>
+                            <div class="detail-filters">
+                                <lightning-combobox
+                                    label="Month"
+                                    value={monthValue}
+                                    options={monthOptions}
+                                    onchange={handleMonthChange}
+                                ></lightning-combobox>
+                                <template if:true={isMapView}>
+                                    <lightning-combobox
+                                        label="Product"
+                                        value={selectedProduct}
+                                        options={productOptions}
+                                        onchange={handleProductChange}
+                                    ></lightning-combobox>
+                                </template>
+                            </div>
+                            <template if:true={detailError}>
+                                <p class="sales-note sales-note--error">{detailError}</p>
+                            </template>
+                            <template if:true={isLoadingDetail}>
+                                <div class="sales-loading">
+                                    <lightning-spinner alternative-text="Loading bricks" size="small"></lightning-spinner>
+                                </div>
+                            </template>
+                            <template if:true={detail}>
+                                <p class="detail-summary">{detailSummary}</p>
+                                <template if:true={detail.message}>
+                                    <p class="sales-note">{detail.message}</p>
+                                </template>
+                            </template>
+                        </template>
+
+                        <!-- Products -->
+                        <template if:true={isProductsView}>
+                            <template if:true={hasProducts}>
+                                <h3 class="products-title">{productsTitle}</h3>
+                                <table class="products-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Product</th>
+                                            <th class="num">Units</th>
+                                            <th class="num">Target</th>
+                                            <th class="num">Ach.</th>
+                                            <th class="num">Value</th>
+                                            <template if:true={showShare}><th class="num">Your share</th></template>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={products} for:item="p">
+                                            <tr key={p.productId} class={p.rowClass} data-product={p.productId} onclick={handleProductRow}>
+                                                <td>{p.productName}</td>
+                                                <td class="num">{p.qtyLabel}</td>
+                                                <td class="num">{p.targetLabel}</td>
+                                                <td class="num">{p.percent}</td>
+                                                <td class="num">{p.revenueLabel}</td>
+                                                <template if:true={showShare}><td class="num">{p.shareLabel}</td></template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <p class="sales-footnote">Tap a product to see where it sells on the brick map.</p>
+                            </template>
+                        </template>
+
+                        <!-- Map -->
+                        <template if:true={isMapView}>
+                            <div class="sales-map" lwc:dom="manual"></div>
+                            <div class="legend">
+                                <span class="legend-item"><span class="legend-swatch legend-swatch--none"></span>No sales</span>
+                                <template for:each={legend} for:item="l">
+                                    <span key={l.key} class="legend-item"><span class="legend-swatch" style={l.style}></span>{l.label}</span>
+                                </template>
+                            </div>
+                            <template if:true={hasBricks}>
+                                <h3 class="products-title">By brick</h3>
+                                <table class="products-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Brick</th>
+                                            <th class="num">Units</th>
+                                            <th class="num">Target</th>
+                                            <th class="num">Ach.</th>
+                                            <th class="num">Value</th>
+                                            <template if:true={showShare}><th class="num">Your share</th></template>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={bricks} for:item="b">
+                                            <tr key={b.brickId}>
+                                                <td><span class="legend-swatch" style={b.swatchStyle}></span>{b.name}</td>
+                                                <td class="num">{b.qtyLabel}</td>
+                                                <td class="num">{b.targetLabel}</td>
+                                                <td class="num">{b.percent}</td>
+                                                <td class="num">{b.revenueLabel}</td>
+                                                <template if:true={showShare}>
+                                                    <td class="num">{b.shareLabel}<span class="share-visits">{b.visitsLabel}</span></td>
+                                                </template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <template if:true={moreBricksLabel}>
+                                    <p class="sales-footnote">{moreBricksLabel}</p>
+                                </template>
+                            </template>
+                        </template>
+
+                        <p class="sales-footnote">{shareFootnote}</p>
+                        <p class="sales-footnote">Weekly view comes once distributor files keep their invoice dates; sales are stored per month today.</p>
+                    </template>
+                </div>
+            </template>
+        </article>
+    </template>
+</template>

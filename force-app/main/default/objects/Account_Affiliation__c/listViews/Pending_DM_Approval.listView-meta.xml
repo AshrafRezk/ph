@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Pending_DM_Approval</fullName>
+    <columns>Primary_Account__c</columns>
+    <columns>Related_Account__c</columns>
+    <columns>Affiliation_Type__c</columns>
+    <columns>Validation_Status__c</columns>
+    <columns>Initiation_Source__c</columns>
+    <columns>CREATED_DATE</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Validation_Status__c</field>
+        <operation>equals</operation>
+        <value>Pending DM Approval</value>
+    </filters>
+    <label>Pending DM Approval</label>
+</ListView>

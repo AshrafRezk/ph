@@ -1,0 +1,81 @@
+<template>
+    <template if:true={showFeatureOff}>
+        <p class="empty" role="status">Requests are turned off for the field app.</p>
+    </template>
+    <template if:true={featureEnabled}>
+        <div class="home">
+            <header class="hero">
+                <div>
+                    <div class="eyebrow">Requests</div>
+                    <h1>{heroTitle}</h1>
+                    <p>{heroText}</p>
+                </div>
+                <button type="button" class="hero-btn" onclick={handleNew} disabled={disabled}>New request</button>
+            </header>
+
+            <div class="filters" role="tablist">
+                <template for:each={filters} for:item="filter">
+                    <button
+                        key={filter.value}
+                        type="button"
+                        class={filter.className}
+                        role="tab"
+                        aria-selected={filter.selected}
+                        data-value={filter.value}
+                        onclick={handleFilter}
+                    >
+                        <span class="filter-count">{filter.count}</span>
+                        <span class="filter-label">{filter.label}</span>
+                    </button>
+                </template>
+            </div>
+
+            <label class="search">
+                <span class="sr">Search requests</span>
+                <input
+                    type="search"
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    oninput={handleSearch}
+                />
+            </label>
+
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading requests" size="small"></lightning-spinner>
+            </template>
+
+            <template if:true={hasVisible}>
+                <ul class="cards">
+                    <template for:each={visibleRows} for:item="row">
+                        <li key={row.id} class="card">
+                            <div class="card-main">
+                                <div class="pills">
+                                    <span class={row.statusClass}>{row.statusLabel}</span>
+                                    <span class="pill">{row.requestType}</span>
+                                </div>
+                                <div class="card-title">{row.accountName}</div>
+                                <div class="card-meta">{row.summaryPreview}</div>
+                                <div class="waiting">{row.waitingText}</div>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template if:true={showEmpty}>
+                <div class="empty">
+                    <div class="empty-title">{emptyTitle}</div>
+                    <p>{emptyText}</p>
+                </div>
+            </template>
+        </div>
+
+        <c-field-request-sheet
+            account-id={accountId}
+            account-name={accountName}
+            visit-id={visitId}
+            source={sheetSource}
+            oncreated={handleCreated}
+            onclose={handleSheetClose}
+        ></c-field-request-sheet>
+    </template>
+</template>

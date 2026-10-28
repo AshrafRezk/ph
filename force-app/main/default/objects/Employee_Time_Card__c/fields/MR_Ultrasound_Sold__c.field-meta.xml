@@ -3,6 +3,7 @@
     <fullName>MR_Ultrasound_Sold__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — Ultrasound Sold</description>
+    <externalId>false</externalId>
     <label>Ultrasound Sold</label>
     <precision>16</precision>
     <required>false</required>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Tender_Price_Exception_Brands__c</fullName>
+    <description>Semicolon-separated brand names that use public price even on tender accounts (e.g. Zeta Colest).</description>
+    <label>Tender Price Exception Brands</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

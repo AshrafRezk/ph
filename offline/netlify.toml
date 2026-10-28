@@ -7,13 +7,21 @@
   ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- .; c=$?; if [ $c -eq 0 ]; then exit 0; else exit 1; fi"
 
 [[headers]]
+  for = "/downloads/apk-latest.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
   for = "/downloads/*.apk"
   [headers.values]
     Content-Type = "application/vnd.android.package-archive"
-    Content-Disposition = "attachment; filename=\"OSR-1.0.0-debug.apk\""
+    Content-Disposition = "attachment; filename=\"Zeta-Co-Pilot-1.1.3.apk\""
+    Cache-Control = "no-cache, must-revalidate"
 
 # force=true so a leftover public/oauth/callback file cannot shadow the SPA
 # (directory index caused a trailing-slash 301 that complicated the code handoff).
+# CLI `netlify deploy --dir=dist` does not apply this file — keep public/_redirects
+# in sync, and always pass --functions=netlify/functions.
 [[redirects]]
   from = "/oauth/callback"
   to = "/index.html"
@@ -28,6 +36,13 @@
 
 # SPA fallback. Netlify matches /.netlify/functions/* before redirects,
 # so this catch-all does not swallow the sf-token / sf-api proxies.
+# Keep /clm-pkg/* out of the SPA rewrite — those URLs are Cache/SW assets.
+# Serving index.html there used to break HTML CLM decks (Hype JS became HTML).
+[[redirects]]
+  from = "/clm-pkg/*"
+  to = "/clm-pkg-missing.txt"
+  status = 404
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

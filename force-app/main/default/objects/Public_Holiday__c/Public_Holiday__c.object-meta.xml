@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Company public holidays that block planner scheduling and reduce Class Engine visit capacity.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>Public Holiday</label>
+    <nameField>
+        <label>Holiday Name</label>
+        <type>Text</type>
+    </nameField>
+    <pluralLabel>Public Holidays</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

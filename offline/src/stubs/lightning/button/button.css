@@ -1,0 +1,62 @@
+:host {
+    display: inline-flex;
+}
+
+.slds-button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border-radius: 1.25rem;
+    min-height: var(--lwc-button-min-height, 44px);
+    height: var(--lwc-button-min-height, 44px);
+    padding: 0 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    box-sizing: border-box;
+    margin: 0;
+    border: 1px solid #dddbda;
+    background: #fff;
+    color: #0176d3;
+}
+
+.slds-button_brand {
+    border-color: #0176d3;
+    background: #0176d3;
+    color: #fff;
+}
+
+.slds-button_neutral {
+    border-color: #dddbda;
+    background: #fff;
+    color: #0176d3;
+}
+
+.slds-button_success {
+    border-color: #2e844a;
+    background: #2e844a;
+    color: #fff;
+}
+
+.slds-button_destructive {
+    border-color: #ba0517;
+    background: #ba0517;
+    color: #fff;
+}
+
+.slds-button_base {
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #0176d3;
+}
+
+.slds-button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

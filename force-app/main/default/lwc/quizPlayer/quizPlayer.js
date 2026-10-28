@@ -46,18 +46,59 @@ export default class QuizPlayer extends LightningElement {
 
     get questionsView() {
         return (this.quiz?.questions || []).map((q, index) => {
+            const type = q.type || 'single-choice';
             const selected = this.answers[q.id];
-            const options = (q.options || []).map((label, optIndex) => ({
-                label,
-                value: String(optIndex),
-                key: `${q.id}_${optIndex}`
-            }));
+            const isMultipleChoice = type === 'multiple-choice';
+            const isScale = type === 'scale';
+            const isSingleChoice = !isMultipleChoice && !isScale;
+
+            let options;
+            if (isScale) {
+                const min = Number(q.scaleMin ?? 1);
+                const max = Number(q.scaleMax ?? 5);
+                options = [];
+                for (let value = min; value <= max; value++) {
+                    let label = String(value);
+                    if (value === min && q.scaleMinLabel) {
+                        label = `${value} - ${q.scaleMinLabel}`;
+                    } else if (value === max && q.scaleMaxLabel) {
+                        label = `${value} - ${q.scaleMaxLabel}`;
+                    }
+                    options.push({
+                        label,
+                        value: String(value),
+                        key: `${q.id}_scale_${value}`
+                    });
+                }
+            } else {
+                options = (q.options || []).map((label, optIndex) => ({
+                    label,
+                    value: String(optIndex),
+                    key: `${q.id}_${optIndex}`
+                }));
+            }
+
+            let selectedValue = null;
+            let selectedValues = [];
+            if (isMultipleChoice) {
+                selectedValues = Array.isArray(selected)
+                    ? selected.map(String)
+                    : selected == null
+                      ? []
+                      : [String(selected)];
+            } else if (selected != null) {
+                selectedValue = String(selected);
+            }
+
             return {
                 ...q,
                 number: index + 1,
                 options,
-                selectedValue: selected == null ? null : String(selected),
-                isSingle: q.type !== 'multiple-choice' && q.type !== 'scale'
+                selectedValue,
+                selectedValues,
+                isSingleChoice,
+                isMultipleChoice,
+                isScale
             };
         });
     }
@@ -72,7 +113,13 @@ export default class QuizPlayer extends LightningElement {
             this.quiz?.canAttempt === true &&
             !this.submitting &&
             !this.result &&
-            (this.quiz?.questions || []).every((q) => this.answers[q.id] != null)
+            (this.quiz?.questions || []).every((q) => {
+                const answer = this.answers[q.id];
+                if (q.type === 'multiple-choice') {
+                    return Array.isArray(answer) && answer.length > 0;
+                }
+                return answer != null;
+            })
         );
     }
 
@@ -97,7 +144,7 @@ export default class QuizPlayer extends LightningElement {
 
     get attemptSummary() {
         if (this.maxAttempts == null) {
-            return `${this.attemptsUsed} attempt(s) used � Unlimited retries`;
+            return `${this.attemptsUsed} attempt(s) used - Unlimited retries`;
         }
         return `${this.attemptsRemaining} of ${this.maxAttempts} attempts remaining`;
     }
@@ -112,6 +159,10 @@ export default class QuizPlayer extends LightningElement {
     get timeLimitLabel() {
         const mins = this.quiz?.timeLimitMinutes;
         return mins == null ? 'No time limit' : `${mins} minutes`;
+    }
+
+    get hasTimeLimit() {
+        return Number(this.quiz?.timeLimitMinutes || 0) > 0;
     }
 
     get passingLabel() {
@@ -131,7 +182,7 @@ export default class QuizPlayer extends LightningElement {
             return null;
         }
         if (this.quiz.status === 'Completed') {
-            return `Quiz completed. Score: ${this.quiz.lastScore ?? '�'}%`;
+            return `Quiz completed. Score: ${this.quiz.lastScore ?? 'n/a'}%`;
         }
         if (!this.quiz.canAttempt) {
             return 'No attempts remaining for this quiz.';
@@ -157,7 +208,13 @@ export default class QuizPlayer extends LightningElement {
     }
 
     get answeredCount() {
-        return Object.keys(this.answers).length;
+        return Object.keys(this.answers).filter((id) => {
+            const answer = this.answers[id];
+            if (Array.isArray(answer)) {
+                return answer.length > 0;
+            }
+            return answer != null;
+        }).length;
     }
 
     get progressLabel() {
@@ -221,6 +278,16 @@ export default class QuizPlayer extends LightningElement {
 
     handleAnswer(event) {
         const questionId = event.currentTarget.dataset.id;
+        const type = event.currentTarget.dataset.type || 'single-choice';
+        if (type === 'multiple-choice') {
+            const raw = event.detail.value;
+            const values = Array.isArray(raw) ? raw : raw == null || raw === '' ? [] : [raw];
+            this.answers = {
+                ...this.answers,
+                [questionId]: values.map((v) => Number(v)).filter((n) => !Number.isNaN(n))
+            };
+            return;
+        }
         const value = Number(event.detail.value);
         this.answers = { ...this.answers, [questionId]: value };
     }

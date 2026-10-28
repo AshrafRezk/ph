@@ -4,28 +4,106 @@
             <p class="console-subtitle">
                 Manage Pharma product lines, territory hierarchy, and field force users.
             </p>
+            <lightning-input
+                type="checkbox"
+                label="Show training territories"
+                checked={showTraining}
+                onchange={handleShowTraining}
+            ></lightning-input>
         </header>
 
         <lightning-tabset active-tab-value={activeTab} onselect={handleTabChange}>
             <lightning-tab label="Product Lines" value="lines">
                 <div class="tab-toolbar">
-                    <lightning-button label="Add Product Line" variant="brand" onclick={handleAddLine}></lightning-button>
+                    <div class="filter-row">
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Business Unit"
+                                value={lineBuFilter}
+                                options={lineBuOptions}
+                                onchange={handleLineBuFilter}
+                            ></lightning-combobox>
+                        </div>
+                    </div>
+                    <div class="toolbar-actions">
+                        <template if:true={setupOnlyActionsEnabled}>
+                            <lightning-button label="Add Product Line" variant="brand" onclick={handleAddLine}></lightning-button>
+                        </template>
+                    </div>
+                </div>
+                <div class="maintenance">
+                    <lightning-button
+                        variant="base"
+                        class="maintenance-toggle"
+                        label={maintenanceToggleLabel}
+                        icon-name={maintenanceToggleIcon}
+                        aria-expanded={maintenanceExpandedText}
+                        onclick={handleToggleMaintenance}
+                    ></lightning-button>
+                    <template if:true={showMaintenance}>
+                        <p class="maintenance-help">
+                            One-off go-live setup. Each action rewrites assignments across the whole org; run one only
+                            when Zeta asks for a re-run.
+                        </p>
+                        <div class="maintenance-actions">
+                            <template for:each={maintenanceActions} for:item="action">
+                                <lightning-button
+                                    key={action.key}
+                                    label={action.label}
+                                    title={action.title}
+                                    data-key={action.key}
+                                    disabled={maintenanceBusy}
+                                    onclick={handleMaintenanceRequest}
+                                ></lightning-button>
+                            </template>
+                        </div>
+                        <template if:true={pendingMaintenance}>
+                            <div class="maintenance-confirm" role="alertdialog" aria-label="Confirm maintenance action">
+                                <p><strong>{pendingMaintenance.label}?</strong> {pendingMaintenance.warning}</p>
+                                <div class="maintenance-actions">
+                                    <lightning-button
+                                        variant="destructive"
+                                        label="Yes, run it"
+                                        class="maintenance-confirm-btn"
+                                        disabled={maintenanceBusy}
+                                        onclick={handleMaintenanceConfirm}
+                                    ></lightning-button>
+                                    <lightning-button
+                                        label="Cancel"
+                                        class="maintenance-cancel-btn"
+                                        onclick={handleMaintenanceCancel}
+                                    ></lightning-button>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
                 </div>
                 <template if:true={hasLineRows}>
                     <div class="line-grid">
-                        <template for:each={lineRows} for:item="line">
+                        <template for:each={visibleLineRows} for:item="line">
                             <article key={line.id} class={line.cardClass}>
                                 <div class="line-card-header">
                                     <h3 class="line-name">{line.name}</h3>
                                     <span class="line-code">{line.externalId}</span>
                                 </div>
                                 <p class="line-therapy">{line.therapyLabel}</p>
+                                <p class="line-type-breakdown">{line.typeBreakdown}</p>
+                                <template if:true={line.businessUnitName}>
+                                    <p class="line-therapy">BU: {line.businessUnitName}</p>
+                                </template>
                                 <div class="line-stats">
                                     <span>{line.districtCount} districts</span>
-                                    <span>{line.repCount} reps</span>
+                                    <span>{line.repCount} positions</span>
+                                    <span>{line.assignedUserCount} users</span>
                                     <span>{line.productCount} products</span>
                                 </div>
                                 <div class="line-actions">
+                                    <lightning-button
+                                        label="Manage Products"
+                                        variant="brand"
+                                        data-id={line.id}
+                                        onclick={handleManageLineProducts}
+                                    ></lightning-button>
                                     <lightning-button
                                         label="Edit Line"
                                         data-id={line.id}
@@ -45,15 +123,80 @@
 
             <lightning-tab label="Territories" value="territories">
                 <div class="tab-toolbar">
-                    <lightning-button label="Add Territory" onclick={handleAddTerritory}></lightning-button>
+                    <div class="filter-row">
+                        <div class="filter-field">
+                            <label class="text-filter">
+                                <span class="text-filter-label">Name</span>
+                                <input
+                                    type="search"
+                                    class="text-filter-input"
+                                    placeholder="Name, code, or assignee"
+                                    value={territoryNameFilter}
+                                    oninput={handleTerritoryNameFilter}
+                                    onchange={handleTerritoryNameFilter}
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                />
+                            </label>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Business Unit"
+                                value={territoryBuFilter}
+                                options={territoryBuOptions}
+                                onchange={handleTerritoryBuFilter}
+                            ></lightning-combobox>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Line"
+                                value={territoryLineFilter}
+                                options={territoryLineOptions}
+                                onchange={handleTerritoryLineFilter}
+                            ></lightning-combobox>
+                        </div>
+                    </div>
+                    <div class="toolbar-actions">
+                        <lightning-button
+                            label="Download organogram"
+                            icon-name="utility:download"
+                            onclick={handleDownloadOrganogram}
+                        ></lightning-button>
+                        <lightning-button
+                            label={brickExportLabel}
+                            icon-name="utility:download"
+                            disabled={isExportingBricks}
+                            onclick={handleDownloadBrickOrganogram}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Upload organogram"
+                            icon-name="utility:upload"
+                            onclick={handleOpenUpload}
+                        ></lightning-button>
+                        <lightning-button
+                            label="How to upload"
+                            variant="base"
+                            icon-name="utility:help"
+                            onclick={handleOpenUploadHelp}
+                        ></lightning-button>
+                        <lightning-button label={scheduledButtonLabel} onclick={handleOpenScheduled}></lightning-button>
+                        <template if:true={setupOnlyActionsEnabled}>
+                            <lightning-button label="Add Territory" onclick={handleAddTerritory}></lightning-button>
+                        </template>
+                        <span class="setup-hint">Upload only the rows you are changing: add, move or remove people, and add, rename, move or remove positions. New lines and business units are still created in Setup → Territory Models.</span>
+                    </div>
                 </div>
                 <template if:true={hasRows}>
+                    <div class="table-scroll">
                     <table class="territory-table">
                         <thead>
                             <tr>
                                 <th>Territory</th>
-                                <th>Level</th>
+                                <th>Title</th>
                                 <th>Assigned User</th>
+                                <th>Call rate</th>
+                                <th>AM rate</th>
+                                <th>PM rate</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -81,12 +224,36 @@
                                             </template>
                                             <div class="territory-labels">
                                                 <span class="territory-name">{row.name}</span>
-                                                <span class="territory-ext">{row.externalId}</span>
+                                                <span class="territory-ext">{row.levelLabel}</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td><span class="level-badge">{row.level}</span></td>
-                                    <td>{row.assignmentLabel}</td>
+                                    <td>
+                                        <template if:true={row.seatVacant}>
+                                            <div class="seat-line">
+                                                <span class="level-badge level-badge-muted">{row.defaultTitle}</span>
+                                            </div>
+                                        </template>
+                                        <template for:each={row.holders} for:item="holder">
+                                            <div key={holder.key} class="seat-line">
+                                                <span class="level-badge">{holder.title}</span>
+                                            </div>
+                                        </template>
+                                    </td>
+                                    <td>
+                                        <template if:true={row.seatVacant}>
+                                            <div class="seat-line seat-vacant">Vacant</div>
+                                        </template>
+                                        <template for:each={row.holders} for:item="holder">
+                                            <div key={holder.key} class="seat-line seat-holder" title={holder.name}>{holder.name}</div>
+                                        </template>
+                                        <template if:true={row.belowLabel}>
+                                            <div class="seat-below">{row.belowLabel}</div>
+                                        </template>
+                                    </td>
+                                    <td>{row.callRate}</td>
+                                    <td>{row.amCallRate}</td>
+                                    <td>{row.pmCallRate}</td>
                                     <td>
                                         <span class={row.vacantClass}>{row.vacantLabel}</span>
                                     </td>
@@ -98,7 +265,7 @@
                                                 onclick={handleEditTerritory}
                                             ></lightning-button>
                                         </template>
-                                        <template if:true={row.canAddChild}>
+                                        <template if:true={row.canAddChildNow}>
                                             <lightning-button
                                                 label="Add Child"
                                                 data-id={row.id}
@@ -117,7 +284,7 @@
                                             data-name={row.name}
                                             onclick={handleMakeVacant}
                                         ></lightning-button>
-                                        <template if:true={row.canDelete}>
+                                        <template if:true={row.canDeleteNow}>
                                             <lightning-button
                                                 label="Delete"
                                                 variant="destructive-text"
@@ -131,6 +298,7 @@
                             </template>
                         </tbody>
                     </table>
+                    </div>
                 </template>
                 <template if:false={hasRows}>
                     <div class="empty-state">
@@ -140,40 +308,295 @@
             </lightning-tab>
 
             <lightning-tab label="Users" value="users">
-                <div class="tab-toolbar">
-                    <lightning-input
-                        type="search"
-                        label="Search users"
-                        value={userSearchTerm}
-                        onchange={handleUserSearch}
-                    ></lightning-input>
-                    <lightning-button label="Create User" variant="brand" onclick={handleOpenUserModal}></lightning-button>
+                <div class="user-toolbar">
+                    <div class="user-filters">
+                        <div class="filter-field filter-field-search">
+                            <label class="text-filter">
+                                <span class="text-filter-label" id="user-search-label">Search users</span>
+                                <span class="text-filter-box">
+                                    <lightning-icon
+                                        icon-name="utility:search"
+                                        size="xx-small"
+                                        class="text-filter-icon"
+                                        alternative-text="Search"
+                                    ></lightning-icon>
+                                    <input
+                                        type="search"
+                                        class="text-filter-input text-filter-input-icon"
+                                        data-filter="user-search"
+                                        placeholder="Name, email, line, territory"
+                                        aria-labelledby="user-search-label"
+                                        value={userSearchTerm}
+                                        oninput={handleUserSearchInput}
+                                        onchange={handleUserSearchCommit}
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        enterkeyhint="search"
+                                    />
+                                </span>
+                            </label>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Line"
+                                value={userLineFilter}
+                                options={userLineOptions}
+                                onchange={handleUserLineFilter}
+                                dropdown-alignment="auto"
+                            ></lightning-combobox>
+                        </div>
+                        <div class="filter-field">
+                            <label class="text-filter">
+                                <span class="text-filter-label" id="user-territory-label">Territory</span>
+                                <input
+                                    type="search"
+                                    class="text-filter-input"
+                                    data-filter="user-territory"
+                                    placeholder="Territory name"
+                                    aria-labelledby="user-territory-label"
+                                    value={userTerritoryFilter}
+                                    oninput={handleUserTerritoryInput}
+                                    onchange={handleUserTerritoryCommit}
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    enterkeyhint="search"
+                                />
+                            </label>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Title"
+                                value={userTitleFilter}
+                                options={userTitleOptions}
+                                onchange={handleUserTitleFilter}
+                                dropdown-alignment="auto"
+                            ></lightning-combobox>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Business Unit"
+                                value={userBuFilter}
+                                options={userBuOptions}
+                                onchange={handleUserBuFilter}
+                                dropdown-alignment="auto"
+                            ></lightning-combobox>
+                        </div>
+                        <div class="filter-field">
+                            <lightning-combobox
+                                label="Status"
+                                value={userActiveFilter}
+                                options={userActiveFilterOptions}
+                                onchange={handleUserActiveFilter}
+                                dropdown-alignment="auto"
+                            ></lightning-combobox>
+                        </div>
+                    </div>
+                    <div class="toolbar-actions user-actions-bar">
+                        <lightning-button
+                            label="Set OTP Password"
+                            disabled={isSaving}
+                            onclick={handleOpenPasswordForSelected}
+                            title="Password reset only. Use Salesforce Login As for impersonation."
+                        ></lightning-button>
+                        <lightning-button
+                            label="Download Users"
+                            icon-name="utility:download"
+                            disabled={isExportingUsers}
+                            onclick={handleDownloadUsers}
+                            title="Every user that matches the filters above, as a file Excel opens."
+                        ></lightning-button>
+                        <lightning-button
+                            label="Clear territory preview"
+                            onclick={handleClearTerritoryPreview}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Activate Selected"
+                            disabled={isSaving}
+                            onclick={handleBulkActivate}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Deactivate Selected"
+                            disabled={isSaving}
+                            onclick={handleBulkDeactivate}
+                        ></lightning-button>
+                        <template if:true={hasUserFilters}>
+                            <lightning-button label="Clear filters" onclick={handleClearUserFilters}></lightning-button>
+                        </template>
+                        <template if:true={setupOnlyActionsEnabled}>
+                            <lightning-button label="Create User" variant="brand" onclick={handleOpenUserModal}></lightning-button>
+                        </template>
+                        <span class="setup-hint">Create users in Setup → Users, then assign them from the Territories tab.</span>
+                    </div>
+                </div>
+                <div class="user-summary">
+                    <p class="selection-hint">{userCountSummary}</p>
+                    <template if:true={usersTeamScoped}>
+                        <p class="selection-hint">Showing your own team only.</p>
+                    </template>
+                    <template if:true={hasSelectedUsers}>
+                        <p class="selection-count">{selectedUserCount} selected</p>
+                    </template>
+                    <template if:true={showUserUpdating}>
+                        <p class="user-loading">Updating…</p>
+                    </template>
+                </div>
+                <div class="user-pager">
+                    <p class="user-range">{userRangeLabel}</p>
+                    <div class="user-pager-controls">
+                        <lightning-button
+                            label="Previous"
+                            disabled={isUserPrevDisabled}
+                            onclick={handleUserPrevPage}
+                        ></lightning-button>
+                        <span class="user-page-label">Page {userPageNumber} of {userPageCount}</span>
+                        <lightning-button
+                            label="Next"
+                            disabled={isUserNextDisabled}
+                            onclick={handleUserNextPage}
+                        ></lightning-button>
+                        <label class="page-size">
+                            <span class="page-size-label">Rows</span>
+                            <lightning-combobox
+                                label="Rows per page"
+                                variant="label-hidden"
+                                dropdown-alignment="auto"
+                                value={userPageSizeValue}
+                                options={userPageSizeOptions}
+                                onchange={handleUserPageSize}
+                            ></lightning-combobox>
+                        </label>
+                    </div>
                 </div>
                 <template if:true={hasUsers}>
-                    <table class="territory-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Username</th>
-                                <th>Title</th>
-                                <th>Business Unit</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template for:each={userRows} for:item="user">
-                                <tr key={user.id}>
-                                    <td>{user.name}</td>
-                                    <td>{user.username}</td>
-                                    <td>{user.title}</td>
-                                    <td>{user.businessUnit}</td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
+                    <div class={userListClass} role="list">
+                        <div class="user-list-head" aria-hidden="true">
+                            <span class="col-check">
+                                <lightning-input
+                                    type="checkbox"
+                                    checked={isAllUsersSelected}
+                                    onchange={handleSelectAllUsers}
+                                    variant="label-hidden"
+                                    label="Select all on this page"
+                                ></lightning-input>
+                            </span>
+                            <span>User</span>
+                            <span>Assignment</span>
+                            <span>Role</span>
+                            <span>Dates</span>
+                            <span>Status</span>
+                            <span class="head-actions">Actions</span>
+                        </div>
+                        <template for:each={visibleUserRows} for:item="user">
+                            <article key={user.id} class={user.rowClass} role="listitem">
+                                <div class="col-check">
+                                    <lightning-input
+                                        type="checkbox"
+                                        checked={user.selected}
+                                        data-id={user.id}
+                                        onchange={handleToggleUserSelection}
+                                        variant="label-hidden"
+                                        label={user.selectLabel}
+                                    ></lightning-input>
+                                </div>
+                                <div class="user-main">
+                                    <div class="user-name">{user.name}</div>
+                                    <div class="user-meta">{user.email}</div>
+                                    <template if:true={user.showUsername}>
+                                        <div class="user-meta">{user.username}</div>
+                                    </template>
+                                </div>
+                                <div class="user-assign">
+                                    <div class="user-line">{user.lineLabel}</div>
+                                    <div class="user-meta">{user.territoryLabel}</div>
+                                    <template if:true={user.businessUnitLabel}>
+                                        <div class="user-meta">{user.businessUnitLabel}</div>
+                                    </template>
+                                </div>
+                                <div class="user-role">
+                                    <div>{user.titleLabel}</div>
+                                    <template if:true={user.profileName}>
+                                        <div class="user-meta">{user.profileName}</div>
+                                    </template>
+                                </div>
+                                <div class="user-dates">
+                                    <template if:true={user.hasHireDate}>
+                                        <div><span class="date-kicker">Hired</span> {user.hireDateLabel}</div>
+                                    </template>
+                                    <template if:true={user.hasResignationDate}>
+                                        <div><span class="date-kicker">Notice</span> {user.resignationDateLabel}</div>
+                                    </template>
+                                    <template if:true={user.hasLastWorkDay}>
+                                        <div><span class="date-kicker">Last day</span> {user.lastWorkDayLabel}</div>
+                                    </template>
+                                    <template if:true={user.noDates}>
+                                        <div class="user-meta">—</div>
+                                    </template>
+                                </div>
+                                <div class="user-status">
+                                    <span class={user.statusClass}>{user.statusLabel}</span>
+                                </div>
+                                <div class="actions actions-row user-actions">
+                                    <lightning-button
+                                        label="Edit"
+                                        data-id={user.id}
+                                        onclick={handleEditProfile}
+                                    ></lightning-button>
+                                    <lightning-button-menu
+                                        alternative-text="More actions"
+                                        icon-name="utility:threedots"
+                                        menu-alignment="auto"
+                                        data-id={user.id}
+                                        data-name={user.name}
+                                        onselect={handleUserMenuSelect}
+                                    >
+                                        <lightning-menu-item
+                                            value="fieldLoginAs"
+                                            label="Open field app as user"
+                                        ></lightning-menu-item>
+                                        <lightning-menu-item
+                                            value="preview"
+                                            label="Territory preview"
+                                        ></lightning-menu-item>
+                                        <lightning-menu-item
+                                            value="otp"
+                                            label="OTP Password (reset only)"
+                                        ></lightning-menu-item>
+                                        <lightning-menu-item
+                                            value="active"
+                                            label={user.activateLabel}
+                                        ></lightning-menu-item>
+                                        <lightning-menu-item
+                                            value="view"
+                                            label="View record / Login As"
+                                        ></lightning-menu-item>
+                                    </lightning-button-menu>
+                                </div>
+                            </article>
+                        </template>
+                    </div>
+                    <div class="user-pager user-pager-bottom">
+                        <p class="user-range">{userRangeLabel}</p>
+                        <div class="user-pager-controls">
+                            <lightning-button
+                                label="Previous"
+                                disabled={isUserPrevDisabled}
+                                onclick={handleUserPrevPage}
+                            ></lightning-button>
+                            <span class="user-page-label">Page {userPageNumber} of {userPageCount}</span>
+                            <lightning-button
+                                label="Next"
+                                disabled={isUserNextDisabled}
+                                onclick={handleUserNextPage}
+                            ></lightning-button>
+                        </div>
+                    </div>
                 </template>
-                <template if:false={hasUsers}>
+                <template if:true={showUserEmpty}>
                     <div class="empty-state">
-                        <p>No pharma users found. Create a demo user or run territory seeding.</p>
+                        <p>No users match the current filters.</p>
+                        <template if:true={hasUserFilters}>
+                            <lightning-button label="Clear filters" onclick={handleClearUserFilters}></lightning-button>
+                        </template>
                     </div>
                 </template>
             </lightning-tab>
@@ -187,8 +610,8 @@
                     <lightning-input
                         type="search"
                         label="Search users"
-                        value={userSearchTerm}
-                        onchange={handleUserSearch}
+                        value={assignUserSearchTerm}
+                        onchange={handleAssignUserSearch}
                     ></lightning-input>
                     <lightning-combobox
                         label="User"
@@ -196,6 +619,13 @@
                         options={assignUserOptions}
                         placeholder="Select a user"
                         onchange={handleUserSelect}
+                    ></lightning-combobox>
+                    <lightning-combobox
+                        label="Territory role"
+                        value={assignTerritoryRole}
+                        options={territoryAssignRoleOptions}
+                        field-level-help="Use Trainer or Area Manager to test account approvals when District Manager is unavailable."
+                        onchange={handleAssignRoleChange}
                     ></lightning-combobox>
                     <div class="modal-actions">
                         <lightning-button label="Cancel" onclick={handleCloseAssign}></lightning-button>
@@ -228,6 +658,33 @@
                         data-field="externalId"
                         onchange={handleTerritoryFieldChange}
                         disabled={draftTerritory.recordId}
+                    ></lightning-input>
+                    <lightning-input
+                        label="Call Rate"
+                        type="number"
+                        step="0.1"
+                        value={draftTerritory.callRate}
+                        data-field="callRate"
+                        onchange={handleTerritoryFieldChange}
+                        field-level-help="Target total visits per working day"
+                    ></lightning-input>
+                    <lightning-input
+                        label="AM Call Rate"
+                        type="number"
+                        step="0.1"
+                        value={draftTerritory.amCallRate}
+                        data-field="amCallRate"
+                        onchange={handleTerritoryFieldChange}
+                        field-level-help="Target hospital visits per working day"
+                    ></lightning-input>
+                    <lightning-input
+                        label="PM Call Rate"
+                        type="number"
+                        step="0.1"
+                        value={draftTerritory.pmCallRate}
+                        data-field="pmCallRate"
+                        onchange={handleTerritoryFieldChange}
+                        field-level-help="Target HCP / clinic / pharmacy visits per working day"
                     ></lightning-input>
                     <template if:false={draftTerritory.recordId}>
                         <lightning-combobox
@@ -301,6 +758,171 @@
             </section>
         </template>
 
+        <template if:true={showManageProductsModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Manage line products">
+                <div class="modal-backdrop" onclick={handleCloseManageProductsModal}></div>
+                <div class="modal-panel modal-panel-wide">
+                    <h3 class="modal-title">{manageProductsTitle}</h3>
+                    <p class="modal-help">
+                        Products are linked by onboarding fields Sales Line and Mirror Line (Brand / Detail / Sample / Brand Reminder).
+                    </p>
+
+                    <div class="tab-toolbar">
+                        <lightning-input
+                            type="search"
+                            label="Filter linked products"
+                            value={lineProductSearchTerm}
+                            onchange={handleLineProductSearch}
+                        ></lightning-input>
+                        <lightning-combobox
+                            label="Product type"
+                            value={lineProductTypeFilter}
+                            options={productTypeFilterOptions}
+                            onchange={handleLineProductTypeFilter}
+                        ></lightning-combobox>
+                    </div>
+
+                    <template if:true={isLoadingLineProducts}>
+                        <p class="modal-help">Loading products…</p>
+                    </template>
+                    <template if:true={hasSelectedProducts}>
+                        <div class="toolbar-actions">
+                            <p class="selection-hint">{selectedProductCount} product(s) selected</p>
+                            <lightning-button
+                                label="Remove selected"
+                                variant="destructive"
+                                disabled={isSaving}
+                                onclick={handleBulkRemoveProducts}
+                            ></lightning-button>
+                        </div>
+                    </template>
+                    <template if:true={hasFilteredLineProducts}>
+                        <table class="territory-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-check">
+                                        <lightning-input
+                                            type="checkbox"
+                                            checked={isAllProductsSelected}
+                                            onchange={handleSelectAllProducts}
+                                            variant="label-hidden"
+                                            label="Select all products"
+                                        ></lightning-input>
+                                    </th>
+                                    <th>Name</th>
+                                    <th>Code</th>
+                                    <th>Type</th>
+                                    <th>Brand</th>
+                                    <th>Sales Line</th>
+                                    <th>Mirror</th>
+                                    <th>Active from</th>
+                                    <th>Link</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={filteredLineProductRows} for:item="product">
+                                    <tr key={product.id}>
+                                        <td class="col-check">
+                                            <lightning-input
+                                                type="checkbox"
+                                                checked={product.selected}
+                                                data-id={product.id}
+                                                onchange={handleToggleProductSelection}
+                                                variant="label-hidden"
+                                                label="Select product"
+                                            ></lightning-input>
+                                        </td>
+                                        <td>{product.name}</td>
+                                        <td>{product.productCode}</td>
+                                        <td>{product.productType}</td>
+                                        <td>{product.primaryBrand}</td>
+                                        <td>{product.salesLine}</td>
+                                        <td>{product.mirrorLine}</td>
+                                        <td>
+                                            <lightning-input
+                                                type="date"
+                                                variant="label-hidden"
+                                                label="Active from"
+                                                value={product.effectiveFrom}
+                                                data-id={product.id}
+                                                data-alignment={product.alignmentId}
+                                                onchange={handleProductEffectiveFrom}
+                                            ></lightning-input>
+                                        </td>
+                                        <td>{product.linkLabel}</td>
+                                        <td>
+                                            <span class={product.activeClass}>{product.activeLabel}</span>
+                                        </td>
+                                        <td class="actions actions-row">
+                                            <lightning-button
+                                                label="Remove"
+                                                variant="destructive-text"
+                                                data-id={product.id}
+                                                data-name={product.name}
+                                                onclick={handleRemoveProductFromLine}
+                                            ></lightning-button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                    <template if:false={hasFilteredLineProducts}>
+                        <div class="empty-state">
+                            <p>No products linked to this line yet.</p>
+                        </div>
+                    </template>
+
+                    <div class="assign-product-block">
+                        <h4 class="modal-subtitle">Add product to line</h4>
+                        <div class="form-grid">
+                            <lightning-input
+                                type="search"
+                                label="Search catalog"
+                                value={assignProductSearchTerm}
+                                onchange={handleAssignProductSearch}
+                            ></lightning-input>
+                            <lightning-button
+                                class="search-assign-btn"
+                                label="Search"
+                                onclick={handleSearchAssignableProducts}
+                                disabled={isSearchingAssignable}
+                            ></lightning-button>
+                        </div>
+                        <div class="form-grid">
+                            <lightning-combobox
+                                label="Product"
+                                value={assignProductId}
+                                options={assignProductOptions}
+                                placeholder="Select a product"
+                                onchange={handleAssignProductSelect}
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                label="Assign as"
+                                value={assignMode}
+                                options={assignModeOptions}
+                                onchange={handleAssignModeChange}
+                            ></lightning-combobox>
+                        </div>
+                        <div class="modal-actions left-actions">
+                            <lightning-button
+                                label="Assign to Line"
+                                variant="brand"
+                                disabled={isAssignProductDisabled}
+                                onclick={handleAssignProductToLine}
+                            ></lightning-button>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <lightning-button label="Close" onclick={handleCloseManageProductsModal}></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
         <template if:true={showUserModal}>
             <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Create pharma user">
                 <div class="modal-backdrop" onclick={handleCloseUserModal}></div>
@@ -356,6 +978,435 @@
                             onclick={handleSaveUser}
                         ></lightning-button>
                     </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showEditProfileModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Edit user">
+                <div class="modal-backdrop" onclick={handleCloseEditProfileModal}></div>
+                <div class="modal-panel modal-panel-wide">
+                    <h3 class="modal-title">{editModalTitle}</h3>
+                    <template if:true={isLoadingEditDetails}>
+                        <p class="modal-help">Loading details…</p>
+                    </template>
+
+                    <h4 class="modal-subtitle">Name and login</h4>
+                    <div class="form-grid">
+                        <lightning-input label="First Name" value={draftProfile.firstName} data-field="firstName" onchange={handleProfileFieldChange}></lightning-input>
+                        <lightning-input label="Last Name" value={draftProfile.lastName} data-field="lastName" onchange={handleProfileFieldChange} required></lightning-input>
+                        <lightning-input label="Email" type="email" value={draftProfile.email} data-field="email" onchange={handleProfileFieldChange} required></lightning-input>
+                        <lightning-input label="Username" value={draftProfile.username} data-field="username" onchange={handleProfileFieldChange} required></lightning-input>
+                        <lightning-input label="Mobile" type="tel" value={draftProfile.mobilePhone} data-field="mobilePhone" onchange={handleProfileFieldChange}></lightning-input>
+                        <lightning-input label="Phone" type="tel" value={draftProfile.phone} data-field="phone" onchange={handleProfileFieldChange}></lightning-input>
+                    </div>
+
+                    <h4 class="modal-subtitle">Job</h4>
+                    <div class="form-grid">
+                        <lightning-input label="Job Title" value={draftProfile.title} data-field="title" onchange={handleProfileFieldChange} field-level-help="For a promotion, use Promote or move below so the title changes on the promotion date."></lightning-input>
+                        <lightning-input label="Employee Code" value={draftProfile.employeeNumber} data-field="employeeNumber" onchange={handleProfileFieldChange}></lightning-input>
+                        <lightning-input label="Department" value={draftProfile.department} data-field="department" onchange={handleProfileFieldChange}></lightning-input>
+                        <lightning-input label="Division" value={draftProfile.division} data-field="division" onchange={handleProfileFieldChange}></lightning-input>
+                        <lightning-input type="search" label="Find manager" placeholder="Type 2+ letters of a name" value={managerSearchTerm} onchange={handleManagerSearch}></lightning-input>
+                        <lightning-combobox label="Manager" value={draftProfile.managerId} options={managerOptions} data-field="managerId" onchange={handleProfileFieldChange} dropdown-alignment="auto"></lightning-combobox>
+                    </div>
+
+                    <h4 class="modal-subtitle">HR dates</h4>
+                    <div class="form-grid form-grid-3">
+                        <lightning-input type="date" label="Hire Date" value={draftProfile.hireDate} data-field="hireDate" onchange={handleProfileFieldChange}></lightning-input>
+                        <template if:true={hasResignationField}>
+                            <lightning-input type="date" label="Resignation Date" value={draftProfile.resignationDate} data-field="resignationDate" onchange={handleProfileFieldChange}></lightning-input>
+                        </template>
+                        <template if:true={hasLastWorkDayField}>
+                            <lightning-input type="date" label="Last Work Day" value={draftProfile.lastWorkDay} data-field="lastWorkDay" onchange={handleProfileFieldChange}></lightning-input>
+                        </template>
+                    </div>
+
+                    <h4 class="modal-subtitle">Territory</h4>
+                    <div class="seat-box">
+                        <template if:true={hasEditSeats}>
+                            <ul class="seat-list">
+                                <template for:each={editSeats} for:item="seat">
+                                    <li key={seat.key}>
+                                        <span class="level-badge">{seat.roleLabel}</span>
+                                        <span class="seat-name">{seat.territoryName}</span>
+                                        <span class="territory-ext">{seat.externalId}</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template if:false={hasEditSeats}>
+                            <p class="modal-help">No territory seat. Use Promote or move below to give this person a position.</p>
+                        </template>
+                        <template if:true={hasEditScheduled}>
+                            <p class="seat-box-label">Scheduled</p>
+                            <ul class="seat-list">
+                                <template for:each={editScheduled} for:item="change">
+                                    <li key={change.id}>
+                                        <span class="badge badge-warning">Scheduled</span>
+                                        <span>{change.text}</span>
+                                        <lightning-button variant="base" label="Cancel" data-id={change.id} onclick={handleCancelScheduled}></lightning-button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template if:true={hasEditHistory}>
+                            <p class="seat-box-label">Recent moves</p>
+                            <ul class="seat-list seat-history">
+                                <template for:each={editHistory} for:item="change">
+                                    <li key={change.id}>{change.text}</li>
+                                </template>
+                            </ul>
+                        </template>
+                        <lightning-button
+                            class="promotion-toggle"
+                            variant="base"
+                            label={promotionToggleLabel}
+                            icon-name="utility:change_owner"
+                            onclick={handleTogglePromotion}
+                        ></lightning-button>
+                    </div>
+
+                    <template if:true={promotion.open}>
+                        <div class="promotion-box">
+                            <h4 class="modal-subtitle">Promote or move</h4>
+                            <div class="form-grid">
+                                <lightning-input type="search" label="Search positions" placeholder="Territory, line, code or holder" value={promotion.searchTerm} onchange={handlePromotionSearch}></lightning-input>
+                                <lightning-combobox label="New position" value={promotion.territoryExternalId} options={promotionTerritoryOptions} placeholder={promotionPlaceholder} onchange={handlePromotionTerritory} dropdown-alignment="auto" required></lightning-combobox>
+                                <lightning-combobox label="Title in that seat" value={promotion.role} options={promotionRoleOptions} data-field="role" onchange={handlePromotionField} dropdown-alignment="auto"></lightning-combobox>
+                                <lightning-input label="New job title" value={promotion.newTitle} data-field="newTitle" onchange={handlePromotionField} field-level-help="Changes on the effective date."></lightning-input>
+                                <lightning-input type="date" label="Effective date (promotion date)" value={promotion.effectiveDate} data-field="effectiveDate" onchange={handlePromotionField} required field-level-help="Today or earlier applies now. A later date is scheduled and applied automatically that day."></lightning-input>
+                            </div>
+                            <template if:true={hasPromotionReleasable}>
+                                <lightning-input type="checkbox" label={promotionReleaseLabel} checked={promotion.releaseOtherSeats} data-field="releaseOtherSeats" onchange={handlePromotionField}></lightning-input>
+                            </template>
+                            <template if:true={hasPromotionDisplaced}>
+                                <lightning-input type="checkbox" label={promotionReplaceLabel} checked={promotion.replaceSameRole} data-field="replaceSameRole" onchange={handlePromotionField}></lightning-input>
+                            </template>
+                            <template if:true={promotionSummary}>
+                                <p class="promotion-summary">{promotionSummary}</p>
+                            </template>
+                        </div>
+                    </template>
+
+                    <div class="modal-actions">
+                        <lightning-button label="Cancel" onclick={handleCloseEditProfileModal}></lightning-button>
+                        <lightning-button
+                            label={profileSaveLabel}
+                            variant="brand"
+                            disabled={isProfileSaveDisabled}
+                            onclick={handleSaveProfile}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showUploadHelp}>
+            <section class="modal-shell help-modal" role="dialog" aria-modal="true" aria-label="How to upload the organogram">
+                <div class="modal-backdrop" onclick={handleCloseUploadHelp}></div>
+                <div class="modal-panel modal-panel-wide">
+                    <h3 class="modal-title">How to upload the organogram</h3>
+                    <ol class="help-steps">
+                        <li>Click <strong>Download organogram</strong>. This file is the template, one row per person in a seat (a vacant seat has one empty row).</li>
+                        <li>Delete the rows you are not changing. You only upload the changes. <strong>Deleting a row does not remove anything.</strong></li>
+                        <li>Make the changes from the table below, save as CSV, and click <strong>Upload organogram</strong>.</li>
+                        <li>Check the preview (New position, Assign, Remove, Rename, Errors), then click <strong>Apply</strong>.</li>
+                    </ol>
+                    <div class="table-scroll">
+                        <table class="territory-table help-table">
+                            <thead>
+                                <tr>
+                                    <th>To do this</th>
+                                    <th>Change the file like this</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Put a person in a seat (new hire, replacement)</td>
+                                    <td>On the seat's row, fill <strong>Holder Username</strong> (or Employee Code) and clear Holder User Id. Whoever has the <strong>same Title</strong> in that seat is replaced. Not in Head Office.</td>
+                                </tr>
+                                <tr>
+                                    <td>Add a second person to a seat</td>
+                                    <td>Copy the seat's row, change the person and give them a different <strong>Title</strong>, e.g. Group Brand Lead next to Business Unit Manager.</td>
+                                </tr>
+                                <tr>
+                                    <td>Remove a person from a seat (resignation)</td>
+                                    <td>Keep their row and put <strong>Y</strong> in <strong>Remove</strong>. The seat becomes vacant.</td>
+                                </tr>
+                                <tr>
+                                    <td>Move or promote a person</td>
+                                    <td>Put them on the new seat's row with an <strong>Effective Date</strong>, and tick <em>"also leave their other organogram seats"</em> when uploading. Before that date the move is shown under Scheduled changes.</td>
+                                </tr>
+                                <tr>
+                                    <td>Change someone's title in a seat</td>
+                                    <td>Change <strong>Title</strong> on their row.</td>
+                                </tr>
+                                <tr>
+                                    <td>Add a new position, district or marketing seat</td>
+                                    <td>Add a row with <strong>Territory Id empty</strong>, the <strong>Territory</strong> name, <strong>Level</strong> (Position, District or Marketing Seat) and <strong>Parent External Id</strong> (a position goes under a District, a district under a Line, a marketing seat under a Line or Business Unit). Leave Territory External Id empty to have one made from the name. You can seat a person on the same row. A new district and its positions can be in the same file.</td>
+                                </tr>
+                                <tr>
+                                    <td>Rename a position</td>
+                                    <td>Change <strong>Territory</strong> on its row. Keep its Territory Id.</td>
+                                </tr>
+                                <tr>
+                                    <td>Move a position to another district</td>
+                                    <td>Change <strong>Parent External Id</strong> to the new district's External Id.</td>
+                                </tr>
+                                <tr>
+                                    <td>Remove a position</td>
+                                    <td>One row for it with <strong>Holder, Holder Username, Employee Code and Holder User Id empty</strong> and <strong>Y</strong> in <strong>Remove</strong>. Everyone in it is released. A position with accounts aligned, or with positions under it, cannot be removed until those are moved (both can be in the same file).</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <ul class="help-notes">
+                        <li><strong>Never change Territory Id, Territory External Id or Holder User Id</strong> on existing rows. These are how the upload finds the exact seat and person.</li>
+                        <li>Effective Date is YYYY-MM-DD or DD/MM/YYYY. Empty or today applies now; a later date is applied automatically that morning. Positions are added, renamed, moved and removed at once.</li>
+                        <li>Lines and business units are renamed with Edit on the Territories tab and created or removed in Setup → Territory Models.</li>
+                        <li>A seat with any error is skipped as a whole and listed in red in the preview; fix the row and upload again.</li>
+                        <li>Brand Managers and Group Brand Leads are listed once, on their marketing seat (Level = Marketing Seat). They also hold an access seat on their Line or Business Unit so they can see that team; it is not an organogram position, so it is not in this file.</li>
+                    </ul>
+                    <div class="modal-actions">
+                        <lightning-button label="Download organogram" icon-name="utility:download" onclick={handleDownloadOrganogram}></lightning-button>
+                        <lightning-button label="Close" variant="brand" onclick={handleCloseUploadHelp}></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+        <template if:true={showUploadModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Upload organogram">
+                <div class="modal-backdrop" onclick={handleCloseUpload}></div>
+                <div class="modal-panel modal-panel-wide">
+                    <h3 class="modal-title">Upload organogram</h3>
+                    <p class="modal-help">
+                        Start from Download organogram, keep only the rows you are changing, and upload them. Rows not in
+                        the file stay as they are. You see a preview before anything changes.
+                        <lightning-button
+                            class="help-link"
+                            label="How to fill the file"
+                            variant="base"
+                            onclick={handleOpenUploadHelp}
+                        ></lightning-button>
+                    </p>
+                    <div class="upload-row">
+                        <lightning-input
+                            type="file"
+                            label="Organogram CSV"
+                            accept=".csv,text/csv"
+                            onchange={handleUploadFile}
+                        ></lightning-input>
+                        <lightning-button
+                            label="Download current organogram"
+                            variant="base"
+                            icon-name="utility:download"
+                            onclick={handleDownloadOrganogram}
+                        ></lightning-button>
+                    </div>
+                    <template if:true={uploadFileName}>
+                        <p class="modal-help">File: {uploadFileName}</p>
+                    </template>
+                    <lightning-input
+                        type="checkbox"
+                        label="People seated by this file also leave their other organogram seats (a move, not a second seat)"
+                        checked={uploadReleaseOther}
+                        onchange={handleUploadReleaseOther}
+                    ></lightning-input>
+                    <template if:true={uploadError}>
+                        <p class="upload-error" role="alert">{uploadError}</p>
+                    </template>
+                    <template if:true={isUploadBusy}>
+                        <p class="modal-help">Checking the file…</p>
+                    </template>
+                    <template if:true={uploadPreview}>
+                        <p class="upload-summary">{uploadSummary}</p>
+                        <div class="table-scroll upload-preview">
+                            <table class="territory-table">
+                                <thead>
+                                    <tr>
+                                        <th>Change</th>
+                                        <th>Seat</th>
+                                        <th>Person</th>
+                                        <th>Title</th>
+                                        <th>When</th>
+                                        <th>Note</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={uploadPreviewLines} for:item="line">
+                                        <tr key={line.key} class={line.rowClass}>
+                                            <td><span class={line.actionClass}>{line.action}</span></td>
+                                            <td>
+                                                <div>{line.territoryName}</div>
+                                                <div class="territory-ext">{line.territoryExternalId}</div>
+                                            </td>
+                                            <td>{line.personName}</td>
+                                            <td>{line.role}</td>
+                                            <td>{line.timing} {line.effectiveDate}</td>
+                                            <td>{line.message}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <template if:true={uploadPreviewTruncated}>
+                            <p class="modal-help">{uploadPreviewTruncated}</p>
+                        </template>
+                    </template>
+                    <div class="modal-actions">
+                        <lightning-button label="Close" onclick={handleCloseUpload}></lightning-button>
+                        <lightning-button
+                            label={uploadApplyLabel}
+                            variant="brand"
+                            disabled={isUploadApplyDisabled}
+                            onclick={handleApplyUpload}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showScheduledModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Scheduled seat changes">
+                <div class="modal-backdrop" onclick={handleCloseScheduled}></div>
+                <div class="modal-panel modal-panel-wide">
+                    <h3 class="modal-title">Scheduled seat changes</h3>
+                    <p class="modal-help">
+                        Promotions, moves and organogram lines with a future effective date. Each one is applied
+                        automatically early on its date.
+                    </p>
+                    <template if:true={hasScheduledChanges}>
+                        <div class="table-scroll">
+                            <table class="territory-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Person</th>
+                                        <th>Change</th>
+                                        <th>Seat</th>
+                                        <th>Title</th>
+                                        <th>Source</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={scheduledChanges} for:item="change">
+                                        <tr key={change.id}>
+                                            <td>{change.effectiveLabel}</td>
+                                            <td>{change.userName}</td>
+                                            <td>{change.actionLabel}</td>
+                                            <td>{change.territoryName}</td>
+                                            <td>{change.role}</td>
+                                            <td>{change.source}</td>
+                                            <td>
+                                                <lightning-button variant="base" label="Cancel" data-id={change.id} onclick={handleCancelScheduled}></lightning-button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template if:false={hasScheduledChanges}>
+                        <div class="empty-state"><p>Nothing scheduled.</p></div>
+                    </template>
+                    <div class="modal-actions">
+                        <lightning-button label="Close" onclick={handleCloseScheduled}></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showPasswordModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Set one-time password">
+                <div class="modal-backdrop" onclick={handleClosePasswordModal}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">{passwordModalTitle}</h3>
+                    <p class="modal-help">
+                        Sets a one-time password and emails it to the user with their username and
+                        salesforceoffline.com. Leave blank to auto-generate. The password is also shown here.
+                    </p>
+                    <div class="form-grid">
+                        <lightning-input
+                            label="One-time password"
+                            type="text"
+                            value={draftPassword.password}
+                            data-field="password"
+                            onchange={handlePasswordFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            label="Confirm password"
+                            type="text"
+                            value={draftPassword.confirmPassword}
+                            data-field="confirmPassword"
+                            onchange={handlePasswordFieldChange}
+                        ></lightning-input>
+                    </div>
+                    <div class="modal-actions left-actions">
+                        <lightning-button label="Generate OTP" onclick={handleGeneratePassword}></lightning-button>
+                    </div>
+                    <template if:true={generatedPassword}>
+                        <div class="otp-result">
+                            <p class="otp-label">Password to share</p>
+                            <code class="otp-value">{generatedPassword}</code>
+                        </div>
+                    </template>
+                    <div class="modal-actions">
+                        <lightning-button label="Close" onclick={handleClosePasswordModal}></lightning-button>
+                        <lightning-button
+                            label="Set Password"
+                            variant="brand"
+                            disabled={isPasswordSaveDisabled}
+                            onclick={handleSavePasswords}
+                        ></lightning-button>
+                    </div>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={showFieldLoginAsModal}>
+            <section class="modal-shell" role="dialog" aria-modal="true" aria-label="Open field app as user">
+                <div class="modal-backdrop" onclick={handleCloseFieldLoginAs}></div>
+                <div class="modal-panel">
+                    <h3 class="modal-title">Open field app as {fieldLoginAsName}</h3>
+                    <p class="modal-help">
+                        Opens salesforceoffline.com signed in as this person. Anything you save there (plans,
+                        visits, samples, orders) is saved as them. The session ends at the org timeout and is
+                        logged with your name and reason.
+                    </p>
+                    <template if:false={fieldLoginAsUrl}>
+                        <lightning-input
+                            label="Reason"
+                            placeholder="For example: Wave E retest, issue 42"
+                            value={fieldLoginAsReason}
+                            max-length="255"
+                            required
+                            onchange={handleFieldLoginAsReason}
+                        ></lightning-input>
+                        <div class="modal-actions">
+                            <lightning-button label="Cancel" onclick={handleCloseFieldLoginAs}></lightning-button>
+                            <lightning-button
+                                label="Start session"
+                                variant="brand"
+                                disabled={isFieldLoginAsDisabled}
+                                onclick={handleStartFieldLoginAs}
+                            ></lightning-button>
+                        </div>
+                    </template>
+                    <template if:true={fieldLoginAsUrl}>
+                        <p class="otp-label">Session ready for {fieldLoginAsName}.</p>
+                        <div class="modal-actions">
+                            <lightning-button label="Close" onclick={handleCloseFieldLoginAs}></lightning-button>
+                            <a
+                                class="slds-button slds-button_brand"
+                                href={fieldLoginAsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onclick={handleFieldLoginAsOpened}
+                            >Open field app</a>
+                        </div>
+                    </template>
                 </div>
             </section>
         </template>

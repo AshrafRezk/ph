@@ -1,0 +1,114 @@
+<template>
+    <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open consent-modal">
+        <div class="slds-modal__container consent-modal-container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium">Capture Consent</h2>
+                <p class="slds-text-body_small slds-m-top_x-small consent-subtitle">
+                    Record channel consent for this visit and capture the HCP signature on device.
+                </p>
+            </header>
+
+            <div class="slds-modal__content slds-p-around_medium">
+                <template if:true={isLoading}>
+                    <lightning-spinner alternative-text="Loading consent form" size="medium"></lightning-spinner>
+                </template>
+
+                <template if:false={isLoading}>
+                    <template if:true={errorMessage}>
+                        <p class="consent-error">{errorMessage}</p>
+                    </template>
+
+                    <template if:false={errorMessage}>
+                        <div class="consent-meta-grid">
+                            <div class="meta-item">
+                                <span class="meta-label">Visit</span>
+                                <span class="meta-value">{visitName}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Account</span>
+                                <span class="meta-value">{accountName}</span>
+                            </div>
+                        </div>
+
+                        <template if:true={isLocked}>
+                            <div class="locked-note slds-m-top_medium">
+                                This visit is completed or cancelled. Existing consents are shown below in read-only mode.
+                            </div>
+                        </template>
+
+                        <template if:true={showCaptureForm}>
+                            <lightning-combobox
+                                class="slds-m-top_medium"
+                                label="Channel"
+                                value={selectedChannel}
+                                options={channelOptions}
+                                onchange={handleChannelChange}
+                                required
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="slds-m-top_small"
+                                label="Consent Type"
+                                value={selectedConsentType}
+                                options={consentTypeOptions}
+                                onchange={handleConsentTypeChange}
+                                required
+                            ></lightning-combobox>
+                            <lightning-combobox
+                                class="slds-m-top_small"
+                                label="Status"
+                                value={selectedStatus}
+                                options={statusOptions}
+                                onchange={handleStatusChange}
+                                required
+                            ></lightning-combobox>
+                            <lightning-textarea
+                                class="slds-m-top_small"
+                                label="Notes"
+                                value={notes}
+                                onchange={handleNotesChange}
+                            ></lightning-textarea>
+
+                            <div class="signature-block slds-m-top_medium">
+                                <div class="signature-label">Signature</div>
+                                <div class="signature-pad-wrap" lwc:dom="manual"></div>
+                                <div class="signature-actions">
+                                    <lightning-button label="Clear signature" onclick={handleClearSignature}></lightning-button>
+                                    <span class="signature-state">{signatureStateLabel}</span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template if:true={hasExistingConsents}>
+                            <div class="consent-list-wrap slds-m-top_medium">
+                                <h3 class="consent-list-title">Captured on this visit</h3>
+                                <ul class="consent-list">
+                                    <template for:each={existingConsents} for:item="row">
+                                        <li key={row.id} class="consent-list-item">
+                                            <span class="consent-name">{row.name}</span>
+                                            <span class="consent-meta">{row.consentType} · {row.channel} · {row.status}</span>
+                                            <span class="consent-date">{row.capturedLabel}</span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </template>
+                    </template>
+                </template>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button label="Close" onclick={handleClose}></lightning-button>
+                <template if:true={showCaptureForm}>
+                    <lightning-button
+                        class="slds-m-left_x-small"
+                        label="Save Consent"
+                        variant="brand"
+                        onclick={handleSubmit}
+                        disabled={submitDisabled}
+                    ></lightning-button>
+                </template>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open"></div>
+</template>

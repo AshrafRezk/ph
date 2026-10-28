@@ -27,9 +27,9 @@
 }
 
 .nav-item-active {
-    background: #0176d3;
-    border-color: #0176d3;
-    color: #fff;
+    background: var(--account-theme, #3f7de5);
+    border-color: var(--account-theme, #3f7de5);
+    color: var(--account-theme-ink, #fff);
 }
 
 .visit-content {
@@ -56,8 +56,9 @@
 }
 
 .visit-hero {
-    background: linear-gradient(135deg, #f4f8fd 0%, #eef4ff 100%);
-    border: 1px solid #d8e6f8;
+    background: linear-gradient(135deg, #fff 0%, var(--account-theme-soft, #eaf1fc) 100%);
+    border: 1px solid var(--account-theme-border, #c5d7f6);
+    border-left: 4px solid var(--account-theme, #3f7de5);
     border-radius: 0.5rem;
     padding: 1rem 1.25rem;
     margin-bottom: 1rem;
@@ -66,8 +67,16 @@
 .visit-hero-top {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
+}
+
+.account-type-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+    object-fit: contain;
+    flex-shrink: 0;
 }
 
 .account-badge,
@@ -82,14 +91,18 @@
     text-transform: uppercase;
 }
 
-.account-badge-hcp {
-    background: #e3f2fd;
-    color: #0176d3;
+.account-badge-hcp,
+.account-badge-hco,
+.account-badge-pharmacy,
+.account-badge-account {
+    background: var(--account-theme, #3f7de5);
+    color: var(--account-theme-ink, #fff);
 }
 
-.account-badge-hco {
-    background: #f3e5f5;
-    color: #6a1b9a;
+.visit-workspace-pharmacy .nav-item-active {
+    background: var(--account-theme, #176935);
+    border-color: var(--account-theme, #176935);
+    color: var(--account-theme-ink, #fff);
 }
 
 .status-badge {
@@ -155,10 +168,10 @@
 }
 
 .path-step-current {
-    border-color: #0176d3;
-    background: #0176d3;
-    color: #fff;
-    box-shadow: 0 2px 6px rgba(1, 118, 211, 0.25);
+    border-color: var(--account-theme, #3f7de5);
+    background: var(--account-theme, #3f7de5);
+    color: var(--account-theme-ink, #fff);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .path-step-complete {

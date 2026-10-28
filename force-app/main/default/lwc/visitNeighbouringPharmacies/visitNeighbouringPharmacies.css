@@ -63,25 +63,37 @@
 }
 
 .legend-dot {
-    width: 0.625rem;
-    height: 0.625rem;
+    width: 0.875rem;
+    height: 0.875rem;
     border-radius: 999px;
     display: inline-block;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #111827, 0 1px 2px rgba(0, 0, 0, 0.28);
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.legend-dot-center {
+    background-color: #0176d3;
+    background-image: radial-gradient(circle, #fff 32%, #0176d3 36%);
 }
 
 .legend-dot-in-list {
-    background: #6a1b9a;
+    background-color: #176935;
+    background-image:
+        linear-gradient(#fff, #fff),
+        linear-gradient(#fff, #fff);
+    background-size: 2px 7px, 7px 2px;
 }
 
-.legend-dot-open-map {
-    background: #ef6c00;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ef6c00;
-}
-
+.legend-dot-open-map,
 .legend-out-list .legend-dot-out-list,
 .legend-dot-out-list {
-    background: #ef6c00;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ef6c00;
+    background-color: #ef6c00;
+    background-image:
+        linear-gradient(#fff, #fff),
+        linear-gradient(#fff, #fff);
+    background-size: 2px 7px, 7px 2px;
 }
 
 .list-filter {
@@ -137,8 +149,8 @@
 }
 
 .source-badge-in-list {
-    background: #f3e5f5;
-    color: #6a1b9a;
+    background: #e8f4ec;
+    color: #176935;
 }
 
 .source-badge-open-map,
@@ -174,13 +186,77 @@
     margin-top: 0.5rem;
 }
 
-.map-pin-marker-external {
-    width: 14px;
-    height: 14px;
-    border-radius: 999px;
+.pharmacy-map-pin,
+.pharmacy-map-pin.leaflet-marker-icon,
+.pharmacy-map-pin.leaflet-div-icon {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.pharmacy-pin {
+    position: relative;
+    width: 32px;
+    height: 42px;
+    background: transparent;
+    border: none;
+}
+
+.pharmacy-pin-body {
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.pharmacy-pin-in .pharmacy-pin-body {
+    background: #176935;
+}
+
+.pharmacy-pin-out .pharmacy-pin-body {
     background: #ef6c00;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #ef6c00;
+}
+
+.pharmacy-pin-center .pharmacy-pin-body {
+    background: #176935;
+}
+
+.pharmacy-pin-cross-h {
+    position: absolute;
+    left: 50%;
+    top: 11px;
+    width: 12px;
+    height: 3.5px;
+    margin-left: -6px;
+    background: #fff;
+    border-radius: 1px;
+}
+
+.pharmacy-pin-cross-v {
+    position: absolute;
+    left: 50%;
+    top: 7px;
+    width: 3.5px;
+    height: 12px;
+    margin-left: -1.75px;
+    background: #fff;
+    border-radius: 1px;
+}
+
+.pharmacy-pin-dot {
+    position: absolute;
+    left: 50%;
+    top: 10px;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+    background: #fff;
+    border-radius: 50%;
 }
 
 .map-placeholder {

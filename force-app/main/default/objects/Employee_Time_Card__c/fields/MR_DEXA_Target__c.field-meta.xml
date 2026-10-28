@@ -3,6 +3,7 @@
     <fullName>MR_DEXA_Target__c</fullName>
     <defaultValue>0</defaultValue>
     <description>Misr Radiology — DEXA Target</description>
+    <externalId>false</externalId>
     <label>DEXA Target</label>
     <precision>16</precision>
     <required>false</required>

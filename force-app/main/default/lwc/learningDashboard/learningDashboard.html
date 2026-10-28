@@ -1,0 +1,31 @@
+<template>
+    <section class="learning-dashboard" aria-label="Learning performance dashboard">
+        <header class="dashboard-header">
+            <h2>Your Progress</h2>
+            <p>Track your learning activity and course completion.</p>
+        </header>
+
+        <template if:true={errorMessage}>
+            <div class="dashboard-error">{errorMessage}</div>
+        </template>
+
+        <template if:true={hasStats}>
+            <div class="stat-grid" role="list">
+                <template for:each={statTiles} for:item="tile">
+                    <article
+                        key={tile.id}
+                        class={tile.cardClass}
+                        role="listitem"
+                        title={tile.hint}
+                    >
+                        <span class="stat-value">{tile.value}</span>
+                        <template if:true={tile.sublabel}>
+                            <span class="stat-sublabel">{tile.sublabel}</span>
+                        </template>
+                        <span class="stat-label">{tile.label}</span>
+                    </article>
+                </template>
+            </div>
+        </template>
+    </section>
+</template>

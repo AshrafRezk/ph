@@ -1,0 +1,133 @@
+<template>
+    <section class="panel">
+        <p class="lead">
+            Configure request types / subtypes and which job titles may create them. Field create uses
+            these lists (not hard-coded labels).
+        </p>
+
+        <div class="editor card">
+            <h3 class="h">{editorHeading}</h3>
+            <div class="grid">
+                <lightning-input
+                    label="Name"
+                    value={draft.name}
+                    data-field="name"
+                    onchange={handleDraft}
+                ></lightning-input>
+                <lightning-combobox
+                    label="Category"
+                    value={draft.category}
+                    options={categoryOptions}
+                    data-field="category"
+                    onchange={handleDraft}
+                ></lightning-combobox>
+                <lightning-input
+                    label="Subtype"
+                    value={draft.subtype}
+                    data-field="subtype"
+                    onchange={handleDraft}
+                ></lightning-input>
+                <lightning-input
+                    label="Creator titles (; separated)"
+                    value={draft.creatorTitles}
+                    data-field="creatorTitles"
+                    field-level-help="Blank = all titles."
+                    onchange={handleDraft}
+                ></lightning-input>
+                <lightning-input
+                    type="toggle"
+                    label="Active"
+                    checked={draft.isActive}
+                    data-field="isActive"
+                    onchange={handleDraft}
+                ></lightning-input>
+            </div>
+            <div class="actions">
+                <lightning-button label="New" onclick={handleNew} disabled={saving}></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label="Save type"
+                    onclick={handleSave}
+                    disabled={saving}
+                ></lightning-button>
+            </div>
+        </div>
+
+        <div class="maintenance">
+            <lightning-button
+                variant="base"
+                class="maintenance-toggle"
+                label={maintenanceToggleLabel}
+                icon-name={maintenanceToggleIcon}
+                aria-expanded={maintenanceExpandedText}
+                onclick={handleToggleMaintenance}
+            ></lightning-button>
+            <template if:true={showMaintenance}>
+                <p class="hint">
+                    One-off go-live setup: adds the standard Marketing and Medical service types. Types that already
+                    exist are skipped.
+                </p>
+                <template if:false={confirmSeed}>
+                    <lightning-button
+                        label="Load Marketing and Medical services"
+                        class="seed-btn"
+                        onclick={handleSeedRequest}
+                        disabled={seeding}
+                    ></lightning-button>
+                </template>
+                <template if:true={confirmSeed}>
+                    <div class="maintenance-confirm" role="alertdialog" aria-label="Confirm loading default services">
+                        <p>
+                            <strong>Load Marketing and Medical services?</strong> Missing default types are added and
+                            become visible to field users straight away.
+                        </p>
+                        <div class="actions">
+                            <lightning-button
+                                variant="brand"
+                                label="Yes, load them"
+                                class="seed-confirm-btn"
+                                onclick={handleSeed}
+                                disabled={seeding}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Cancel"
+                                class="seed-cancel-btn"
+                                onclick={handleSeedCancel}
+                            ></lightning-button>
+                        </div>
+                    </div>
+                </template>
+            </template>
+        </div>
+
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+        <template if:false={loading}>
+            <template if:true={hasRows}>
+                <ul class="list">
+                    <template for:each={rows} for:item="row">
+                        <li key={row.key} class="row">
+                            <div>
+                                <strong>{row.name}</strong>
+                                <span class="meta"
+                                    >{row.category}
+                                    <template if:true={row.subtype}> · {row.subtype}</template>
+                                    · {row.titlesLabel} · {row.activeLabel}</span
+                                >
+                            </div>
+                            <lightning-button
+                                label="Edit"
+                                data-id={row.id}
+                                onclick={handleEdit}
+                            ></lightning-button>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+            <template if:false={hasRows}>
+                <p class="hint">No types yet — save one above.</p>
+            </template>
+        </template>
+    </section>
+</template>

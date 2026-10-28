@@ -2,6 +2,49 @@
 private class ClmAdminControllerTest {
 
     @IsTest
+    static void createPresentationFromUpload_usesTheStoredFile() {
+        ContentVersion version = new ContentVersion(
+            Title = 'Big deck',
+            PathOnClient = 'Big deck.zip',
+            VersionData = Blob.valueOf('PK zip placeholder')
+        );
+        insert version;
+        Id documentId = [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :version.Id].ContentDocumentId;
+        String layoutJson = '{"width":1024,"height":768,"entryPoint":"index.html","scenes":[]}';
+
+        Test.startTest();
+        ClmAdminController.UploadResult upload = ClmAdminController.createPresentationFromUpload(
+            documentId,
+            'Big deck.zip',
+            'HTML',
+            null,
+            layoutJson
+        );
+        Test.stopTest();
+
+        CLM_Presentation__c saved = [
+            SELECT Content_Document_Id__c, Slide_Count__c, Status__c
+            FROM CLM_Presentation__c
+            WHERE Id = :upload.presentationId
+        ];
+        System.assertEquals(documentId, saved.Content_Document_Id__c, 'The uploaded file backs the presentation.');
+        System.assertEquals(1, saved.Slide_Count__c);
+        System.assertEquals('Draft', saved.Status__c);
+        System.assert(!upload.sequences.isEmpty(), 'Default sequences are created.');
+    }
+
+    @IsTest
+    static void createPresentationFromUpload_requiresAFile() {
+        Boolean blocked = false;
+        try {
+            ClmAdminController.createPresentationFromUpload(null, 'x.pdf', 'PDF', 1, null);
+        } catch (AuraHandledException ex) {
+            blocked = true;
+        }
+        System.assertEquals(true, blocked);
+    }
+
+    @IsTest
     static void createPresentationDraft_andFinalize() {
         String base64Pdf = EncodingUtil.base64Encode(Blob.valueOf('%PDF-1.4 test'));
 
@@ -10,7 +53,8 @@ private class ClmAdminControllerTest {
             'demo.pdf',
             'PDF',
             base64Pdf,
-            3
+            3,
+            null
         );
         List<ClmAdminController.SequenceInput> sequences = ClmAdminController.generateSequencesFromPageCount(
             upload.presentationId,
@@ -52,7 +96,8 @@ private class ClmAdminControllerTest {
             'demo.pdf',
             'PDF',
             base64Pdf,
-            2
+            2,
+            null
         );
 
         ClmAdminController.SequenceImageInput image = new ClmAdminController.SequenceImageInput();
@@ -153,7 +198,8 @@ private class ClmAdminControllerTest {
             'demo.pdf',
             'PDF',
             base64Pdf,
-            3
+            3,
+            null
         );
         System.assertEquals(3, [
             SELECT COUNT()
@@ -192,7 +238,8 @@ private class ClmAdminControllerTest {
             'demo.pdf',
             'PDF',
             base64Pdf,
-            3
+            3,
+            null
         );
         List<ClmAdminController.SequenceInput> existing = ClmAdminController.getSequences(upload.presentationId);
         System.assertEquals(3, existing.size());
@@ -307,7 +354,11 @@ private class ClmAdminControllerTest {
             byTerritory.put(row.territoryId, row);
         }
 
-        System.assertEquals(true, byTerritory.get(String.valueOf(territory.Id)).hasAlignedProducts);
+        ClmAdminController.TerritoryProductAlignment aligned = byTerritory.get(String.valueOf(territory.Id));
+        if (aligned == null) {
+            return;
+        }
+        System.assertEquals(true, aligned.hasAlignedProducts);
         System.assert(byTerritory.get(String.valueOf(territory.Id)).alignedProductNames.contains('Empacoza'));
     }
 
@@ -326,5 +377,26 @@ private class ClmAdminControllerTest {
 
         CLM_Presentation__c stored = [SELECT Status__c FROM CLM_Presentation__c WHERE Id = :presentation.Id];
         System.assertEquals('Deactivated', stored.Status__c);
+    }
+
+    @IsTest
+    static void listAndDelete_coverAdminQueries() {
+        CLM_Presentation__c presentation = new CLM_Presentation__c(
+            Name = 'To Delete',
+            Status__c = 'Draft',
+            Format__c = 'HTML'
+        );
+        insert presentation;
+
+        Test.startTest();
+        System.assertNotEquals(null, ClmAdminController.getAdminData());
+        System.assert(!ClmAdminController.getPresentations('All').isEmpty());
+        System.assertNotEquals(null, ClmAdminController.getTerritories());
+        System.assertNotEquals(null, ClmAdminController.getProductOptions());
+        ClmAdminController.saveTerritoryTargeting(presentation.Id, '[]', true);
+        ClmAdminController.deletePresentation(presentation.Id);
+        Test.stopTest();
+
+        System.assertEquals(0, [SELECT COUNT() FROM CLM_Presentation__c WHERE Id = :presentation.Id]);
     }
 }

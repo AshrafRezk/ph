@@ -58,4 +58,57 @@ public with sharing class CoachingAdminController {
         insert as user template;
         return template.Id;
     }
+
+    @AuraEnabled
+    public static Id cloneTemplate(Id templateId) {
+        if (templateId == null) {
+            throw new AuraHandledException('Template Id is required.');
+        }
+
+        List<Coaching_Template__c> sources = [
+            SELECT
+                Template_Title__c,
+                Template_Type__c,
+                Is_Active__c,
+                Passing_Score__c,
+                Description__c,
+                Questions_JSON__c,
+                Start_Date__c,
+                End_Date__c
+            FROM Coaching_Template__c
+            WHERE Id = :templateId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (sources.isEmpty()) {
+            throw new AuraHandledException('Template was not found.');
+        }
+
+        Coaching_Template__c source = sources[0];
+        String title = String.isBlank(source.Template_Title__c)
+            ? 'Coaching Template'
+            : source.Template_Title__c.trim();
+        title = title.endsWith('(Copy)') ? title + ' 2' : title + ' (Copy)';
+
+        Coaching_Template__c cloned = new Coaching_Template__c(
+            Template_Title__c = title,
+            Template_Type__c = String.isBlank(source.Template_Type__c) ? 'Field Coaching' : source.Template_Type__c,
+            // A copy starts inactive with no dates, so it never goes live for reps beside the original by accident.
+            Is_Active__c = false,
+            Passing_Score__c = source.Passing_Score__c == null ? 70 : source.Passing_Score__c,
+            Description__c = rewriteMrWording(source.Description__c),
+            Questions_JSON__c = rewriteMrWording(source.Questions_JSON__c),
+            Start_Date__c = null,
+            End_Date__c = null
+        );
+        insert as user cloned;
+        return cloned.Id;
+    }
+
+    private static String rewriteMrWording(String value) {
+        if (String.isBlank(value)) {
+            return value;
+        }
+        return value.replaceAll('(?<![A-Za-z])MR(?![A-Za-z])', 'Representative');
+    }
 }

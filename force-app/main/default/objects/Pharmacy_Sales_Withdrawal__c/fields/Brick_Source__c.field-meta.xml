@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Brick_Source__c</fullName>
+    <description>Where this sales line's brick came from: the distributor client's location inside a brick region, the pharmacy account's brick, or a brick membership.</description>
+    <label>Brick Source</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Sales location</fullName>
+                <default>false</default>
+                <label>Sales location</label>
+            </value>
+            <value>
+                <fullName>Pharmacy brick</fullName>
+                <default>false</default>
+                <label>Pharmacy brick</label>
+            </value>
+            <value>
+                <fullName>Brick membership</fullName>
+                <default>false</default>
+                <label>Brick membership</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

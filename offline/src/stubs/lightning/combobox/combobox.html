@@ -1,24 +1,32 @@
 <template>
     <div class="slds-form-element">
-        <template if:true={label}>
+        <template if:true={showLabel}>
             <label class="slds-form-element__label">{label}</label>
         </template>
         <div class="slds-form-element__control">
-            <select
-                class="slds-select"
+            <button
+                type="button"
+                class="slds-combobox__input"
                 disabled={disabled}
-                required={required}
-                onchange={handleChange}
+                aria-haspopup="listbox"
+                aria-expanded={ariaExpanded}
+            aria-label={label}
+            onclick={handleToggle}
+            onkeydown={handleKeydown}
             >
-                <template if:true={placeholder}>
-                    <option value="">{placeholder}</option>
-                </template>
-                <template for:each={computedOptions} for:item="opt">
-                    <option key={opt.value} value={opt.value} selected={opt.selected}>
-                        {opt.label}
-                    </option>
-                </template>
-            </select>
+                <span class="slds-combobox__value">
+                    <template if:true={selectedImage}>
+                        <img class="slds-combobox__thumb" src={selectedImage} alt="" />
+                    </template>
+                    <template if:false={selectedImage}>
+                        <template if:true={selectedMark}>
+                            <span class={selectedMark} aria-hidden="true"></span>
+                        </template>
+                    </template>
+                    <span class="slds-combobox__text">{displayValue}</span>
+                </span>
+                <span class="slds-combobox__chevron" aria-hidden="true"></span>
+            </button>
         </div>
     </div>
 </template>

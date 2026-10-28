@@ -46,21 +46,43 @@ private class VisitStatusHelperTest {
     }
 
     @IsTest
-    static void assertTransitionAllowed_blocksPlannedDraftToScheduled() {
-        Boolean threw = false;
+    static void assertTransitionAllowed_plannedDraftToScheduled() {
         Test.startTest();
-        try {
-            VisitStatusHelper.assertTransitionAllowed(
-                VisitStatusHelper.STATUS_DRAFT,
-                VisitStatusHelper.STATUS_SCHEDULED,
-                VisitStatusHelper.TYPE_PLANNED_AUTO,
-                false
-            );
-        } catch (Exception ex) {
-            threw = true;
-        }
+        VisitStatusHelper.assertTransitionAllowed(
+            VisitStatusHelper.STATUS_DRAFT,
+            VisitStatusHelper.STATUS_SCHEDULED,
+            VisitStatusHelper.TYPE_PLANNED_AUTO,
+            false
+        );
         Test.stopTest();
-        System.assertEquals(true, threw);
+        System.assert(true);
+    }
+
+    @IsTest
+    static void assertTransitionAllowed_submittedToScheduledWithoutManagerFlag() {
+        Test.startTest();
+        VisitStatusHelper.assertTransitionAllowed(
+            VisitStatusHelper.STATUS_SUBMITTED,
+            VisitStatusHelper.STATUS_SCHEDULED,
+            VisitStatusHelper.TYPE_PLANNED_AUTO,
+            false
+        );
+        Test.stopTest();
+        System.assert(true);
+    }
+
+    @IsTest
+    static void assertTransitionAllowed_allowAnySkipsMatrix() {
+        Test.startTest();
+        VisitStatusHelper.assertTransitionAllowed(
+            VisitStatusHelper.STATUS_DRAFT,
+            VisitStatusHelper.STATUS_COMPLETED,
+            VisitStatusHelper.TYPE_PLANNED_AUTO,
+            false,
+            true
+        );
+        Test.stopTest();
+        System.assert(true);
     }
 
     @IsTest
@@ -134,5 +156,63 @@ private class VisitStatusHelperTest {
         Visit__c visit = new Visit__c(Status__c = VisitStatusHelper.STATUS_CANCELLED);
         VisitStatusHelper.applyCancelledReason(visit);
         System.assertNotEquals(null, visit.Cancellation_Reason__c);
+    }
+
+    @IsTest
+    static void validateCompletionDay_allowsToday() {
+        DateTime todayStart = DateTime.newInstance(Date.today(), Time.newInstance(9, 0, 0, 0));
+        VisitStatusHelper.validateCompletionDay(todayStart, null);
+        VisitStatusHelper.validateCompletionDay(null, null);
+        System.assert(true);
+    }
+
+    @IsTest
+    static void validateCompletionDay_rejectsFutureAndPastDays() {
+        DateTime tomorrow = DateTime.newInstance(Date.today().addDays(1), Time.newInstance(9, 0, 0, 0));
+        DateTime yesterday = DateTime.newInstance(Date.today().addDays(-1), Time.newInstance(9, 0, 0, 0));
+        Integer thrown = 0;
+        try {
+            VisitStatusHelper.validateCompletionDay(tomorrow, null);
+        } catch (AuraHandledException ex) {
+            thrown++;
+        }
+        try {
+            VisitStatusHelper.validateCompletionDay(yesterday, null);
+        } catch (AuraHandledException ex) {
+            thrown++;
+        }
+        System.assertEquals(2, thrown);
+    }
+
+    @IsTest
+    static void validateCompletionDay_acceptsOfflineCaptureOnVisitDayWithinGrace() {
+        Date visitDay = Date.today().addDays(-VisitStatusHelper.OFFLINE_COMPLETE_GRACE_DAYS);
+        DateTime visitStart = DateTime.newInstance(visitDay, Time.newInstance(9, 0, 0, 0));
+        DateTime capturedOnDay = DateTime.newInstance(visitDay, Time.newInstance(14, 0, 0, 0));
+        VisitStatusHelper.validateCompletionDay(visitStart, capturedOnDay);
+        System.assert(true);
+    }
+
+    @IsTest
+    static void validateCompletionDay_rejectsGraceExpiredOrWrongCaptureDay() {
+        Date oldDay = Date.today().addDays(-(VisitStatusHelper.OFFLINE_COMPLETE_GRACE_DAYS + 1));
+        DateTime oldStart = DateTime.newInstance(oldDay, Time.newInstance(9, 0, 0, 0));
+        DateTime capturedOnOldDay = DateTime.newInstance(oldDay, Time.newInstance(14, 0, 0, 0));
+        Date recentDay = Date.today().addDays(-1);
+        DateTime recentStart = DateTime.newInstance(recentDay, Time.newInstance(9, 0, 0, 0));
+        DateTime capturedToday = DateTime.newInstance(Date.today(), Time.newInstance(8, 0, 0, 0));
+
+        Integer thrown = 0;
+        try {
+            VisitStatusHelper.validateCompletionDay(oldStart, capturedOnOldDay);
+        } catch (AuraHandledException ex) {
+            thrown++;
+        }
+        try {
+            VisitStatusHelper.validateCompletionDay(recentStart, capturedToday);
+        } catch (AuraHandledException ex) {
+            thrown++;
+        }
+        System.assertEquals(2, thrown);
     }
 }

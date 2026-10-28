@@ -1,5 +1,5 @@
 <template>
-    <div class="visit-call-shell">
+    <div class={shellClass} style={themeStyle}>
         <template if:true={isLoading}>
             <lightning-spinner alternative-text="Loading visit" size="medium"></lightning-spinner>
         </template>
@@ -9,8 +9,11 @@
         </template>
 
         <template if:true={visit}>
-            <section class="visit-hero">
+            <section class={heroClass}>
                 <div class="visit-hero-top">
+                    <template if:true={accountTypeIconUrl}>
+                        <img class="account-type-mark" src={accountTypeIconUrl} alt="" />
+                    </template>
                     <span class={accountBadgeClass}>{accountBadgeLabel}</span>
                     <span class={statusBadgeClass}>{visit.status}</span>
                     <template if:true={isDoubleVisit}>
@@ -28,30 +31,28 @@
                         icon-name="utility:account"
                         onclick={handleOpenAccount}
                     ></lightning-button>
-                    <lightning-button
-                        class="visit-hero-btn coaching-btn"
-                        label={coachingButtonLabel}
-                        icon-name="utility:education"
-                        onclick={handleCoachingAction}
-                    ></lightning-button>
-                    <lightning-button
-                        class="visit-hero-btn medical-inquiry-btn"
-                        label={medicalInquiryButtonLabel}
-                        icon-name="utility:question"
-                        onclick={handleMedicalInquiryAction}
-                    ></lightning-button>
-                    <lightning-button
-                        class="visit-hero-btn whatsapp-btn"
-                        label="Send products survey on WhatsApp"
-                        icon-name="utility:chat"
-                        onclick={handleOpenWhatsAppModal}
-                    ></lightning-button>
-                    <lightning-button
-                        class="visit-hero-btn whatsapp-btn"
-                        label="Message meeting reminder"
-                        icon-name="utility:chat"
-                        onclick={handleOpenReminderModal}
-                    ></lightning-button>
+                    <template if:true={showCoachingButton}>
+                        <lightning-button
+                            class="visit-hero-btn coaching-btn"
+                            label={coachingButtonLabel}
+                            icon-name="utility:education"
+                            onclick={handleCoachingAction}
+                        ></lightning-button>
+                    </template>
+                    <template if:true={showWhatsAppActions}>
+                        <lightning-button
+                            class="visit-hero-btn whatsapp-btn"
+                            label="Send products survey on WhatsApp"
+                            icon-name="utility:chat"
+                            onclick={handleOpenWhatsAppModal}
+                        ></lightning-button>
+                        <lightning-button
+                            class="visit-hero-btn whatsapp-btn"
+                            label="Message meeting reminder"
+                            icon-name="utility:chat"
+                            onclick={handleOpenReminderModal}
+                        ></lightning-button>
+                    </template>
                 </div>
             </section>
 
@@ -78,14 +79,40 @@
                                     <dt>Visit</dt>
                                     <dd>{visit.name}</dd>
                                 </div>
-                                <div class="visit-detail-row">
-                                    <dt>Start</dt>
-                                    <dd>{startLabel}</dd>
-                                </div>
-                                <div class="visit-detail-row">
-                                    <dt>End</dt>
-                                    <dd>{endLabel}</dd>
-                                </div>
+                                <template if:true={canEditSchedule}>
+                                    <div class="visit-detail-row">
+                                        <dt>Visit date</dt>
+                                        <dd>{visitDateLabel}</dd>
+                                    </div>
+                                    <div class="visit-detail-row visit-detail-row-full">
+                                        <lightning-input
+                                            type="time"
+                                            label="Visit start time"
+                                            value={editStartTimeValue}
+                                            onchange={handleStartTimeChange}
+                                            required
+                                        ></lightning-input>
+                                    </div>
+                                    <div class="visit-detail-row visit-detail-row-full">
+                                        <lightning-input
+                                            type="time"
+                                            label="Visit end time"
+                                            value={editEndTimeValue}
+                                            onchange={handleEndTimeChange}
+                                            required
+                                        ></lightning-input>
+                                    </div>
+                                </template>
+                                <template if:false={canEditSchedule}>
+                                    <div class="visit-detail-row">
+                                        <dt>Visit start</dt>
+                                        <dd>{startLabel}</dd>
+                                    </div>
+                                    <div class="visit-detail-row">
+                                        <dt>Visit end</dt>
+                                        <dd>{endLabel}</dd>
+                                    </div>
+                                </template>
                                 <div class="visit-detail-row">
                                     <dt>Duration</dt>
                                     <dd>{visit.durationLabel}</dd>
@@ -118,6 +145,40 @@
                                     required
                                 ></lightning-textarea>
                             </template>
+                            <template if:true={showUnplannedCompleteHint}>
+                                <p class="slds-text-body_small slds-m-top_x-small slds-text-color_weak">
+                                    This visit is not on an approved plan. Completing it will save it as an unplanned visit.
+                                </p>
+                            </template>
+                            <lightning-input
+                                class="slds-m-top_small"
+                                type="checkbox"
+                                label="Did not meet the HCP"
+                                checked={didNotMeetHcp}
+                                onchange={handleDidNotMeetHcpChange}
+                                disabled={isLocked}
+                            ></lightning-input>
+                            <template if:true={showMetInsteadFields}>
+                                <p class="slds-text-body_small slds-m-top_x-small">
+                                    Record who you met instead of the doctor.
+                                </p>
+                                <lightning-combobox
+                                    class="slds-m-top_x-small"
+                                    label="Who was met"
+                                    value={metInsteadType}
+                                    options={metInsteadTypeOptions}
+                                    onchange={handleMetInsteadTypeChange}
+                                    disabled={isLocked}
+                                    required
+                                ></lightning-combobox>
+                                <lightning-input
+                                    class="slds-m-top_x-small"
+                                    label="Name (optional)"
+                                    value={metInsteadName}
+                                    onchange={handleMetInsteadNameChange}
+                                    disabled={isLocked}
+                                ></lightning-input>
+                            </template>
                             <lightning-textarea
                                 class="slds-m-top_small"
                                 label="Visit Objective"
@@ -134,6 +195,43 @@
                                 disabled={isLocked}
                                 placeholder="Key discussion points and outcomes."
                             ></lightning-textarea>
+                            <fieldset class="visit-type-switch slds-m-top_small">
+                                <legend class="visit-type-switch-label">Visit type</legend>
+                                <div class="visit-type-switch-track" role="radiogroup" aria-label="Visit type">
+                                    <button
+                                        type="button"
+                                        class={singleVisitSwitchClass}
+                                        data-visit-type="single"
+                                        onclick={handleVisitTypeChange}
+                                        disabled={isLocked}
+                                        aria-pressed={isSingleVisitPressed}
+                                    >
+                                        Single
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class={doubleVisitSwitchClass}
+                                        data-visit-type="double"
+                                        onclick={handleVisitTypeChange}
+                                        disabled={isLocked}
+                                        aria-pressed={isDoubleVisitPressed}
+                                    >
+                                        Double
+                                    </button>
+                                </div>
+                            </fieldset>
+                            <template if:true={isDoubleVisitSelected}>
+                                <lightning-combobox
+                                    class="slds-m-top_small"
+                                    label="Accompanied by"
+                                    value={doubleVisitWithId}
+                                    options={teamMemberOptions}
+                                    placeholder="Select a team member"
+                                    onchange={handleDoubleVisitWithChange}
+                                    disabled={isLocked}
+                                    required
+                                ></lightning-combobox>
+                            </template>
                             <lightning-input
                                 class="slds-m-top_small"
                                 type="date"
@@ -144,45 +242,110 @@
                             ></lightning-input>
                     </article>
 
-                    <article class={affiliationsPanelClass}>
-                        <c-visit-account-affiliations record-id={recordId}></c-visit-account-affiliations>
-                    </article>
+                    <template if:true={showAffiliationsTab}>
+                        <article class={affiliationsPanelClass}>
+                            <c-visit-account-affiliations record-id={recordId}></c-visit-account-affiliations>
+                        </article>
+                    </template>
 
-                    <div class={attendeesPanelClass}>
-                        <c-visit-attendee-picker
-                            visit-id={recordId}
-                            attendees={attendees}
-                            disabled={isLocked}
-                            onattendeeschange={handleAttendeesChange}
-                        ></c-visit-attendee-picker>
-                    </div>
+                    <template if:true={showAttendeesTab}>
+                        <div class={attendeesPanelClass}>
+                            <c-visit-attendee-picker
+                                visit-id={recordId}
+                                account-id={visitAccountId}
+                                attendees={attendees}
+                                disabled={isLocked}
+                                onattendeeschange={handleAttendeesChange}
+                            ></c-visit-attendee-picker>
+                        </div>
+                    </template>
 
-                    <div class={productsPanelClass}>
-                        <c-visit-product-detail-panel
-                            visit-id={recordId}
-                            products={products}
-                            disabled={isLocked}
-                            onproductschange={handleProductsChange}
-                        ></c-visit-product-detail-panel>
-                    </div>
+                    <template if:true={showProductsTab}>
+                        <div class={productsPanelClass}>
+                            <c-visit-product-detail-panel
+                                visit-id={recordId}
+                                products={products}
+                                disabled={isLocked}
+                                onproductschange={handleProductsChange}
+                            ></c-visit-product-detail-panel>
+                        </div>
+                    </template>
 
-                    <div class={samplesPanelClass}>
-                        <c-visit-sample-grid
-                            visit-id={recordId}
-                            samples={samples}
-                            attendees={attendees}
-                            scoped-brand-ids={selectedBrandIds}
-                            disabled={isLocked}
-                            onsampleschange={handleSamplesChange}
-                        ></c-visit-sample-grid>
-                    </div>
+                    <template if:true={showSamplesTab}>
+                        <div class={samplesPanelClass}>
+                            <c-visit-sample-grid
+                                visit-id={recordId}
+                                samples={samples}
+                                attendees={attendees}
+                                scoped-brand-ids={selectedBrandIds}
+                                disabled={isLocked}
+                                onsampleschange={handleSamplesChange}
+                            ></c-visit-sample-grid>
+                        </div>
+                    </template>
 
-                    <div class={presentationsPanelClass}>
-                        <c-clm-visit-presentations
-                            record-id={recordId}
-                            is-locked={isLocked}
-                        ></c-clm-visit-presentations>
-                    </div>
+                    <template if:true={showPresentationsTab}>
+                        <div class={presentationsPanelClass}>
+                            <c-clm-visit-presentations
+                                record-id={recordId}
+                                is-locked={isLocked}
+                            ></c-clm-visit-presentations>
+                        </div>
+                    </template>
+
+                    <template if:true={showOrdersTab}>
+                        <div class={ordersPanelClass}>
+                            <c-visit-field-orders
+                                visit-id={recordId}
+                                account-id={visitAccountId}
+                                account-name={visitAccountName}
+                                disabled={isLocked}
+                            ></c-visit-field-orders>
+                        </div>
+                    </template>
+
+                    <template if:true={showOrderTab}>
+                        <div class={orderPanelClass}>
+                            <c-visit-pharmacy-order
+                                visit-id={recordId}
+                                disabled={isLocked}
+                            ></c-visit-pharmacy-order>
+                        </div>
+                    </template>
+
+                    <template if:true={showStoreCheckTab}>
+                        <div class={storeCheckPanelClass}>
+                            <c-visit-store-check-gallery
+                                visit-id={recordId}
+                                disabled={isLocked}
+                            ></c-visit-store-check-gallery>
+                        </div>
+                    </template>
+
+                    <template if:true={showRequestsTab}>
+                        <div class={requestsPanelClass}>
+                            <template if:true={useFieldRequestsModule}>
+                                <c-visit-field-requests
+                                    visit-id={recordId}
+                                    account-id={visitAccountId}
+                                    account-name={visitAccountName}
+                                    disabled={isLocked}
+                                    oncountchange={handleFieldRequestCountChange}
+                                ></c-visit-field-requests>
+                            </template>
+                            <template if:false={useFieldRequestsModule}>
+                                <template if:true={isRequestsSection}>
+                                    <article class="visit-panel">
+                                        <c-visit-medical-inquiry-modal
+                                            visit-id={recordId}
+                                            embedded
+                                            oninquirycreated={handleMedicalInquiryCreated}
+                                        ></c-visit-medical-inquiry-modal>
+                                    </article>
+                                </template>
+                            </template>
+                        </div>
+                    </template>
                 </main>
 
                 <aside class="shell-sidebar" aria-label="Neighbouring pharmacies and call history">
@@ -214,14 +377,6 @@
                 oncoachingcreated={handleCoachingCreated}
                 oncoachingsubmitted={handleCoachingSubmitted}
             ></c-visit-coaching-form-modal>
-        </template>
-
-        <template if:true={showMedicalInquiryModal}>
-            <c-visit-medical-inquiry-modal
-                visit-id={recordId}
-                onclose={handleCloseMedicalInquiryModal}
-                oninquirycreated={handleMedicalInquiryCreated}
-            ></c-visit-medical-inquiry-modal>
         </template>
 
         <template if:true={showWhatsAppModal}>

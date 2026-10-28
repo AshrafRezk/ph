@@ -135,6 +135,70 @@ private class AccountCognitiveSearchTest {
   }
 
   @IsTest
+  static void alignedNames_matchSpellingScriptAndTransliteration() {
+    String hamza = '\u0623\u062D\u0645\u062F';
+    String alef = '\u0627\u062D\u0645\u062F';
+    String mohamed = '\u0645\u062D\u0645\u062F';
+    String fatma = '\u0641\u0627\u0637\u0645\u0629';
+    String ayman = '\u0623\u064A\u0645\u0646 \u0648\u0647\u0628\u0629';
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Ahmed', hamza) >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames(alef, 'Ahmad') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Ahmed Mohamed', hamza + ' ' + mohamed) >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Ahmad Mohammad', 'Ahmed Mohammed') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Fatma Ali', fatma + ' \u0639\u0644\u064A') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Ayman Wahba', ayman) >= 90, 'Wahba should transliterate.');
+    System.assert(
+      AccountCognitiveSearch.scoreAlignedNames('Abd El Rahman', '\u0639\u0628\u062F\u0627\u0644\u0631\u062D\u0645\u0646') >= 90
+    );
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Ahmed Hassan', 'Ahmed Ali'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Ahmed Mohamed', 'Ahmed Mahmoud'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Hassan', 'Hussein'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Ahmed', 'Ahmed Hassan'));
+
+    List<String> ahmedNeedles = AccountCognitiveSearch.searchNeedles(hamza);
+    System.assert(needleFits(ahmedNeedles, 'Ahmed'), 'Ahmed needles: ' + ahmedNeedles);
+    System.assert(needleFits(ahmedNeedles, 'Ahmad'), 'Ahmad needles: ' + ahmedNeedles);
+    System.assert(needleFits(ahmedNeedles, alef), 'Bare-alef needles: ' + ahmedNeedles);
+    List<String> wahbaNeedles = AccountCognitiveSearch.searchNeedles('\u0648\u0647\u0628\u0629');
+    System.assert(needleFits(wahbaNeedles, 'Wahba'), 'Wahba Latin needles: ' + wahbaNeedles);
+    List<String> fromLatin = AccountCognitiveSearch.searchNeedles('Wahba');
+    System.assert(needleFits(fromLatin, '\u0648\u0647\u0628\u0629'), 'Wahba Arabic needles: ' + fromLatin);
+  }
+
+  @IsTest
+  static void romanizerIndex_matchesAttestedNamesTheHandListDoesNotOwn() {
+    List<String> ahmed = AccountNameRomanizer.variants('\u0623\u062D\u0645\u062F');
+    System.assert(containsFold(ahmed, 'Ahmed') && containsFold(ahmed, 'Ahmad'), ahmed);
+    List<String> boutros = AccountNameRomanizer.variants('\u0628\u0637\u0631\u0633');
+    System.assert(containsFold(boutros, 'Boutros') || containsFold(boutros, 'Botros'), boutros);
+    System.assert(
+      AccountCognitiveSearch.scoreAlignedNames('Boutros Labib', '\u0628\u0637\u0631\u0633 \u0644\u0628\u064A\u0628') >= 90
+    );
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Hassan Nader', 'Hussein Nader'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Mohamed Ali', 'Mahmoud Ali'));
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Gamal', 'Jamal') >= 90);
+  }
+
+  @IsTest
+  static void phoneticAliases_matchArabiziDoublesAndKeepDistinctFamilies() {
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Eissa', '\u0639\u064A\u0633\u0649') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Kirollos', '\u0643\u064A\u0631\u0644\u0633') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('7amada', '\u062D\u0645\u0627\u062F\u0629') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('5aled', '\u062E\u0627\u0644\u062F') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('6arek', '\u0637\u0627\u0631\u0642') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('9alah', '\u0635\u0644\u0627\u062D') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('3omar', '\u0639\u0645\u0631') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Aali', '\u0639\u0627\u0644\u064A') >= 90);
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('8amal', '\u062C\u0645\u0627\u0644'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Nour', '\u0646\u0648\u0631\u0627'));
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Noura', '\u0646\u0648\u0631\u0627') >= 90);
+    System.assert(AccountCognitiveSearch.scoreAlignedNames('Nour', '\u0646\u0648\u0631') >= 90);
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Hassan', 'Hussein'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('\u062D\u0633\u0646', '\u062D\u0633\u0627\u0646'));
+    System.assertEquals(0, AccountCognitiveSearch.scoreAlignedNames('Kamal', 'Kamel'));
+  }
+
+  @IsTest
   static void ezaby_latinFindsArabicStemAndElEzaby() {
     String ezabyAr = '\u0639\u0632\u0628\u064A';
     String elEzabyAr = '\u0627\u0644\u0639\u0632\u0628\u064A';
@@ -296,6 +360,22 @@ private class AccountCognitiveSearchTest {
     String want = AccountCognitiveSearch.foldCompact(expected);
     for (String value : values) {
       if (AccountCognitiveSearch.foldCompact(value) == want) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Boolean needleFits(List<String> needles, String storedName) {
+    if (String.isBlank(storedName)) {
+      return false;
+    }
+    String hay = storedName.toLowerCase();
+    for (String needle : needles) {
+      if (String.isBlank(needle)) {
+        continue;
+      }
+      if (hay.contains(needle.toLowerCase()) || storedName.contains(needle)) {
         return true;
       }
     }

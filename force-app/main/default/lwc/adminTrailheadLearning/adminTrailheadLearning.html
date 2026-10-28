@@ -1,0 +1,21 @@
+<template>
+    <div class="tools-shell">
+        <div class="tools-warn">
+            Do Trailhead hands-on challenges in a free Trailhead Playground, never in the live Zeta org. Sign in to Trailhead with your own account so your badges are saved. Then build what you learned in Zeta, starting with a private report folder.
+        </div>
+
+        <template for:each={tracks} for:item="track">
+            <section key={track.id} class="tools-section">
+                <h2>{track.title}</h2>
+                <p>{track.blurb}</p>
+                <template for:each={track.items} for:item="item">
+                    <article key={item.id} class="tools-card">
+                        <h3>{item.title} <span class="tools-kind">· {item.kind}</span></h3>
+                        <p>{item.blurb}</p>
+                        <a class="ext-link" href={item.url} target="_blank" rel="noopener noreferrer">Open on Trailhead</a>
+                    </article>
+                </template>
+            </section>
+        </template>
+    </div>
+</template>

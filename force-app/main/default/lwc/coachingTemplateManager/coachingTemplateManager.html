@@ -44,6 +44,12 @@
                                     data-id={row.id}
                                     onclick={handleOpen}
                                 ></lightning-button>
+                                <lightning-button
+                                    label="Clone"
+                                    data-id={row.id}
+                                    disabled={isSaving}
+                                    onclick={handleClone}
+                                ></lightning-button>
                             </td>
                         </tr>
                     </template>

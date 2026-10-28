@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Distributor_Name__c</fullName>
+    <label>Distributor</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Ibn Sina</fullName><default>false</default><label>Ibn Sina</label></value>
+            <value><fullName>Sofico</fullName><default>false</default><label>Sofico</label></value>
+            <value><fullName>EPDA</fullName><default>false</default><label>EPDA</label></value>
+            <value><fullName>Egydrug</fullName><default>false</default><label>Egydrug</label></value>
+            <value><fullName>Elezaby</fullName><default>false</default><label>Elezaby</label></value>
+            <value><fullName>Pharmaoverseas</fullName><default>false</default><label>Pharmaoverseas</label></value>
+            <value><fullName>Other</fullName><default>false</default><label>Other</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

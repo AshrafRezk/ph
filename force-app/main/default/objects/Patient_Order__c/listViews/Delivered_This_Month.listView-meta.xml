@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Delivered_This_Month</fullName>
+    <columns>NAME</columns>
+    <columns>Patient__c</columns>
+    <columns>Product__c</columns>
+    <columns>Total_Units__c</columns>
+    <columns>Status__c</columns>
+    <columns>Priority__c</columns>
+    <columns>Order_Date__c</columns>
+    <columns>Promised_Date__c</columns>
+    <columns>Delivery_Date__c</columns>
+    <columns>Care_Coach__c</columns>
+    <columns>Channel__c</columns>
+    <columns>Order_Total__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Status__c</field>
+        <operation>equals</operation>
+        <value>Delivered</value>
+    </filters>
+    <filters>
+        <field>Delivery_Date__c</field>
+        <operation>equals</operation>
+        <value>THIS_MONTH</value>
+    </filters>
+    <label>Delivered This Month</label>
+</ListView>

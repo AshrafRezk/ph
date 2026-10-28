@@ -27,18 +27,6 @@
                 <label>Low</label>
             </value>
             <value>
-                <fullName>Not Adopted</fullName>
-                <default>false</default>
-                <isActive>false</isActive>
-                <label>Not Adopted</label>
-            </value>
-            <value>
-                <fullName>Trial</fullName>
-                <default>false</default>
-                <isActive>false</isActive>
-                <label>Trial</label>
-            </value>
-            <value>
                 <fullName>Adopted</fullName>
                 <default>false</default>
                 <isActive>false</isActive>
@@ -49,6 +37,18 @@
                 <default>false</default>
                 <isActive>false</isActive>
                 <label>Champion</label>
+            </value>
+            <value>
+                <fullName>Not Adopted</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Not Adopted</label>
+            </value>
+            <value>
+                <fullName>Trial</fullName>
+                <default>false</default>
+                <isActive>false</isActive>
+                <label>Trial</label>
             </value>
         </valueSetDefinition>
     </valueSet>
